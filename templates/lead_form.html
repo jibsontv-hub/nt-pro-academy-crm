@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{% if lead %}Lead bearbeiten{% else %}Neuer Lead{% endif %} – NT Pro Academy{% endblock %}
+{% block page_title %}{% if lead %}Lead bearbeiten{% else %}Neuer Lead{% endif %}{% endblock %}
+{% block topbar_actions %}<a href="/leads" class="btn btn-secondary">← Zurück</a>{% endblock %}
+{% block content %}
+<div class="card" style="max-width:700px">
+    <form method="POST">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" name="name" value="{{ lead.name if lead else '' }}" required placeholder="Vor- und Nachname">
+            </div>
+            <div class="form-group">
+                <label>Telefon</label>
+                <input type="text" name="phone" value="{{ lead.phone if lead else '' }}" placeholder="+49 ...">
+            </div>
+            <div class="form-group">
+                <label>E-Mail</label>
+                <input type="email" name="email" value="{{ lead.email if lead else '' }}" placeholder="kunde@email.de">
+            </div>
+            <div class="form-group">
+                <label>Produkt-Interesse</label>
+                <select name="produkt">
+                    <option value="Ergo Rente Chance (ETF & Fonds)" {% if not lead or lead.produkt == 'Ergo Rente Chance (ETF & Fonds)' %}selected{% endif %}>★ Ergo Rente Chance (ETF & Fonds) — Hauptprodukt</option>
+                    <option value="" disabled>──────────────</option>
+                    <option value="">– Sonstiges wählen –</option>
+                    {% for p in ['Rente', 'ETF-Sparplan', 'Fonds', 'Basis-Rente', 'Riester-Rente', 'bAV', 'Lebensversicherung', 'Sonstiges'] %}
+                    <option value="{{ p }}" {% if lead and lead.produkt == p %}selected{% endif %}>{{ p }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select name="status">
+                    {% for s in ['neu', 'kontakt', 'angebot', 'gewonnen', 'verloren'] %}
+                    <option value="{{ s }}" {% if lead and lead.status == s %}selected{% elif not lead and s == 'neu' %}selected{% endif %}>{{ s | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group full">
+                <label>Notizen</label>
+                <textarea name="notizen" placeholder="Weitere Informationen...">{{ lead.notizen if lead else '' }}</textarea>
+            </div>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:10px">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+            <a href="/leads" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

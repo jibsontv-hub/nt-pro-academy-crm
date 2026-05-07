@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NT Pro Academy – Control Hub{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --navy: #0f1c3f;
+            --navy-light: #1a2c5b;
+            --gold: #b8902e;
+            --gold-light: #d4a843;
+            --gold-soft: #faf6ec;
+            --bg: #f7f8fb;
+            --surface: #ffffff;
+            --border: #e5e8ee;
+            --border-strong: #d1d5dc;
+            --text: #1a1f36;
+            --text-muted: #6b7280;
+            --text-soft: #9ca3af;
+            --green: #10773d;
+            --green-soft: #ecfdf3;
+            --red: #b8311a;
+            --red-soft: #fef0ee;
+            --blue: #1e5fbf;
+            --blue-soft: #eaf2fc;
+            --purple: #6b3fb1;
+            --purple-soft: #f4eefb;
+            --orange: #b8590a;
+            --orange-soft: #fef3e7;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg); color: var(--text);
+            font-feature-settings: "cv02","cv03","cv04","cv11";
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed; left: 0; top: 0; width: 256px; height: 100vh;
+            background: var(--surface); border-right: 1px solid var(--border);
+            z-index: 100; display: flex; flex-direction: column;
+        }
+        .sidebar-logo {
+            padding: 22px 22px 18px; border-bottom: 1px solid var(--border);
+        }
+        .sidebar-logo .brand-row { display: flex; align-items: center; gap: 10px; }
+        .sidebar-logo .brand-icon {
+            width: 32px; height: 32px; border-radius: 8px;
+            background: var(--navy); color: var(--gold-light);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 14px;
+        }
+        .sidebar-logo .brand-main {
+            font-size: 14px; font-weight: 700; color: var(--navy);
+            letter-spacing: -0.2px;
+        }
+        .sidebar-logo .brand-sub {
+            font-size: 10px; color: var(--text-soft); margin-top: 2px;
+            letter-spacing: 1.2px; text-transform: uppercase; font-weight: 600;
+        }
+        .sidebar-nav { flex: 1; padding: 14px 12px; overflow-y: auto; }
+        .nav-section {
+            padding: 12px 12px 6px; font-size: 10px; text-transform: uppercase;
+            letter-spacing: 1.2px; color: var(--text-soft); font-weight: 700;
+        }
+        .nav-link {
+            display: flex; align-items: center; gap: 11px; padding: 9px 12px;
+            color: var(--text-muted); text-decoration: none; font-size: 13px;
+            border-radius: 7px; transition: all 0.15s; font-weight: 500;
+            margin-bottom: 1px;
+        }
+        .nav-link:hover { background: var(--bg); color: var(--text); }
+        .nav-link.active {
+            background: var(--gold-soft); color: var(--navy);
+            font-weight: 600;
+        }
+        .nav-icon { font-size: 14px; width: 18px; text-align: center; opacity: 0.8; }
+        .sidebar-footer {
+            padding: 14px 18px; border-top: 1px solid var(--border);
+        }
+        .user-name { font-weight: 600; color: var(--text); font-size: 13px; }
+        .user-info { font-size: 11px; color: var(--text-soft); margin-top: 2px; }
+        .user-badge {
+            display: inline-block; font-size: 9px; padding: 2px 8px; border-radius: 10px;
+            margin-top: 6px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .badge-admin { background: var(--gold-soft); color: var(--gold); border: 1px solid #e8d59a; }
+        .badge-partner { background: var(--blue-soft); color: var(--blue); border: 1px solid #c9dcf4; }
+        .badge-berater { background: var(--purple-soft); color: var(--purple); border: 1px solid #ddc9f0; }
+        .logout-link { display: block; margin-top: 10px; color: var(--text-soft); font-size: 11px; text-decoration: none; transition: color 0.15s; }
+        .logout-link:hover { color: var(--navy); }
+
+        /* Main */
+        .main { margin-left: 256px; min-height: 100vh; }
+        .topbar {
+            background: var(--surface); padding: 16px 32px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 50;
+        }
+        .topbar-title { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
+        .topbar-actions { display: flex; gap: 10px; }
+        .content { padding: 28px 32px; max-width: 1500px; }
+
+        /* Cards */
+        .card {
+            background: var(--surface); border-radius: 10px; padding: 22px;
+            border: 1px solid var(--border); margin-bottom: 18px;
+        }
+        .card-title {
+            font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 18px;
+            text-transform: uppercase; letter-spacing: 0.6px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        /* KPI Cards */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 18px; }
+        .kpi-card {
+            background: var(--surface); border-radius: 10px; padding: 18px 20px;
+            border: 1px solid var(--border); position: relative; overflow: hidden;
+        }
+        .kpi-card::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+            width: 3px; background: var(--accent, var(--gold));
+        }
+        .kpi-card.gold { --accent: var(--gold); }
+        .kpi-card.blue { --accent: var(--blue); }
+        .kpi-card.green { --accent: var(--green); }
+        .kpi-card.purple { --accent: var(--purple); }
+        .kpi-card.orange { --accent: var(--orange); }
+        .kpi-card.navy { --accent: var(--navy); }
+        .kpi-label {
+            font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+            letter-spacing: 0.6px; font-weight: 600;
+        }
+        .kpi-value { font-size: 26px; font-weight: 800; color: var(--text); margin: 5px 0 2px; letter-spacing: -0.5px; }
+        .kpi-sub { font-size: 11px; color: var(--text-soft); }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px;
+            border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer;
+            text-decoration: none; border: 1px solid transparent; transition: all 0.15s;
+            font-family: inherit;
+        }
+        .btn-primary {
+            background: var(--navy); color: #fff; border-color: var(--navy);
+        }
+        .btn-primary:hover { background: var(--navy-light); }
+        .btn-gold {
+            background: var(--gold); color: #fff; border-color: var(--gold);
+        }
+        .btn-gold:hover { background: var(--gold-light); }
+        .btn-secondary {
+            background: var(--surface); color: var(--text); border-color: var(--border-strong);
+        }
+        .btn-secondary:hover { background: var(--bg); }
+        .btn-danger {
+            background: var(--red-soft); color: var(--red); border-color: #f5c8c0;
+        }
+        .btn-danger:hover { background: #fde0db; }
+        .btn-sm { padding: 6px 11px; font-size: 12px; }
+
+        /* Tables */
+        .table-wrap { overflow-x: auto; margin: 0 -22px; }
+        .table-wrap table { margin: 0 22px; width: calc(100% - 44px); }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th {
+            background: transparent; padding: 11px 14px; text-align: left;
+            font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+            color: var(--text-muted); font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 13px 14px; border-bottom: 1px solid var(--border);
+            vertical-align: middle; color: var(--text);
+        }
+        tr:hover td { background: var(--bg); }
+        tr:last-child td { border-bottom: none; }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-block; padding: 3px 9px; border-radius: 12px;
+            font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+        }
+        .status-neu { background: var(--blue-soft); color: var(--blue); }
+        .status-kontakt { background: var(--orange-soft); color: var(--orange); }
+        .status-angebot { background: var(--purple-soft); color: var(--purple); }
+        .status-gewonnen, .status-abgeschlossen { background: var(--green-soft); color: var(--green); }
+        .status-verloren, .status-storniert { background: var(--red-soft); color: var(--red); }
+        .status-offen { background: var(--orange-soft); color: var(--orange); }
+        .status-geplant { background: var(--blue-soft); color: var(--blue); }
+        .status-erledigt { background: var(--green-soft); color: var(--green); }
+        .status-abgesagt { background: var(--red-soft); color: var(--red); }
+
+        /* Forms */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+        label {
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        input, select, textarea {
+            padding: 10px 12px; border: 1px solid var(--border-strong);
+            border-radius: 7px; font-size: 14px; color: var(--text);
+            background: var(--surface); transition: all 0.15s; font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none; border-color: var(--navy);
+            box-shadow: 0 0 0 3px rgba(15,28,63,0.08);
+        }
+        select option { background: var(--surface); color: var(--text); }
+        textarea { resize: vertical; min-height: 84px; }
+        input::placeholder { color: var(--text-soft); }
+
+        /* Flash */
+        .flash {
+            padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;
+            font-size: 13px; font-weight: 500;
+        }
+        .flash-success { background: var(--green-soft); color: var(--green); border: 1px solid #c9eed7; }
+        .flash-error { background: var(--red-soft); color: var(--red); border: 1px solid #f5c8c0; }
+        .flash-info { background: var(--blue-soft); color: var(--blue); border: 1px solid #c9dcf4; }
+
+        /* Progress bar */
+        .progress-bar {
+            background: var(--bg); border-radius: 4px; height: 7px;
+            overflow: hidden; border: 1px solid var(--border);
+        }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .progress-gold { background: var(--gold); }
+        .progress-green { background: var(--green); }
+        .progress-blue { background: var(--blue); }
+        .progress-navy { background: var(--navy); }
+
+        /* Grid layouts */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+
+        /* Level dot */
+        .level-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+        .level-1 { background: var(--gold); }
+        .level-2 { background: var(--blue); }
+        .level-3 { background: var(--purple); }
+        .level-4 { background: var(--green); }
+        .level-5 { background: var(--orange); }
+        .level-other { background: var(--text-soft); }
+
+        .chart-container { position: relative; height: 260px; }
+
+        /* Stufenpille */
+        .stufe-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 3px 10px; border-radius: 14px; font-size: 11px;
+            font-weight: 700; letter-spacing: 0.3px;
+        }
+
+        /* Money */
+        .money { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .main { margin-left: 0; }
+            .form-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <div class="brand-row">
+                <div class="brand-icon">NT</div>
+                <div>
+                    <div class="brand-main">NT Pro Academy</div>
+                    <div class="brand-sub">Control Hub</div>
+                </div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">Übersicht</div>
+            <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">
+                <span class="nav-icon">▦</span> Dashboard
+            </a>
+            <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}">
+                <span class="nav-icon">✓</span> Tagesaufgaben
+            </a>
+            <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}">
+                <span class="nav-icon">€</span> Provisionen
+            </a>
+
+            <div class="nav-section">Vertrieb</div>
+            <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path %}active{% endif %}">
+                <span class="nav-icon">◇</span> Namensliste
+            </a>
+            <a href="/leads" class="nav-link {% if request.path.startswith('/leads') %}active{% endif %}">
+                <span class="nav-icon">◎</span> Leads (alle)
+            </a>
+            <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}">
+                <span class="nav-icon">◻</span> Verträge
+            </a>
+            <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}">
+                <span class="nav-icon">◷</span> Termine
+            </a>
+
+            <div class="nav-section">Struktur</div>
+            <a href="/struktur" class="nav-link {% if '/struktur' in request.path %}active{% endif %}">
+                <span class="nav-icon">⬢</span> Struktur-Baum
+            </a>
+            <a href="/team" class="nav-link {% if '/team' in request.path %}active{% endif %}">
+                <span class="nav-icon">◈</span> Team-Liste
+            </a>
+            <a href="/quoten" class="nav-link {% if '/quoten' in request.path %}active{% endif %}">
+                <span class="nav-icon">◉</span> Quoten & Ziele
+            </a>
+
+            {% if current_user.role == 'admin' %}
+            <div class="nav-section">Administration</div>
+            <a href="/admin/genehmigungen" class="nav-link {% if '/admin/genehmigungen' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
+                <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">✓</span> Genehmigungen</span>
+                {% if pending_count and pending_count > 0 %}
+                <span style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ pending_count }}</span>
+                {% endif %}
+            </a>
+            <a href="/admin/aufgaben" class="nav-link {% if '/admin/aufgaben' in request.path %}active{% endif %}">
+                <span class="nav-icon">⚙</span> Aufgaben-Slots
+            </a>
+            {% endif %}
+        </nav>
+        <div class="sidebar-footer">
+            <div class="user-name">{{ current_user.name }}</div>
+            <div class="user-info">{{ current_user.email }}</div>
+            {% if my_career %}
+            <span class="user-badge" style="background:{{ my_career.color }}15;color:{{ my_career.color }};border:1px solid {{ my_career.color }}50">
+                {{ my_career.short }} · {{ my_career.name }}
+            </span>
+            {% endif %}
+            {% if current_user.role == 'admin' %}
+            <div style="font-size:9px;color:var(--gold);margin-top:5px;font-weight:700;letter-spacing:0.8px">⚡ ADMIN</div>
+            {% endif %}
+            <a href="/logout" class="logout-link">↩ Abmelden</a>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="topbar">
+            <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
+            <div class="topbar-actions">{% block topbar_actions %}{% endblock %}</div>
+        </div>
+        <div class="content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

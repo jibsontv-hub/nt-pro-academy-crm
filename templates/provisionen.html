@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Provisionen – NT Pro Academy{% endblock %}
+{% block page_title %}Provisionen{% endblock %}
+{% block content %}
+
+<!-- Hero -->
+<div class="grid-3">
+    <div class="card" style="border-left:3px solid var(--gold)">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Eigen-Provisionen</div>
+        <div style="font-size:26px;font-weight:800;color:var(--text);margin:6px 0" class="money">{{ "{:,.2f}".format(total_own).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div style="font-size:11px;color:var(--text-soft)">Aus eigenen Verträgen aller</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--blue)">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Differenz-Provisionen</div>
+        <div style="font-size:26px;font-weight:800;color:var(--text);margin:6px 0" class="money">{{ "{:,.2f}".format(total_diff).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div style="font-size:11px;color:var(--text-soft)">Aus Downline-Verträgen</div>
+    </div>
+    <div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);border-color:#0f1c3f">
+        <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Gesamt ausgezahlt</div>
+        <div style="font-size:28px;font-weight:800;color:#d4a843;margin:6px 0" class="money">{{ "{:,.2f}".format(total_paid).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5)">Eigen + Differenz</div>
+    </div>
+</div>
+
+<!-- Provisions-Sätze -->
+<div class="card">
+    <div class="card-title">Provisions-Sätze pro Stufe</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+        {% for cl in all_levels %}
+        <div style="background:#fafbfc;border-radius:8px;padding:14px;border:1px solid var(--border);border-left:3px solid {{ cl.color }}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span style="background:{{ cl.color }}15;color:{{ cl.color }};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800">{{ cl.short }}</span>
+            </div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">{{ cl.name }}</div>
+            <div style="font-size:18px;font-weight:800;color:{{ cl.color }};margin-top:6px" class="money">{{ "%.2f"|format(cl.commission) }} €</div>
+            <div style="font-size:10px;color:var(--text-soft)">pro Einheit (EH)</div>
+        </div>
+        {% endfor %}
+    </div>
+    <div style="margin-top:14px;padding:12px 14px;background:var(--blue-soft);border-radius:8px;font-size:12px;color:var(--text-muted)">
+        💡 <strong style="color:var(--text)">Differenz-System:</strong>
+        Jeder bekommt die Differenz seiner Stufe zur höchsten bisher gesehenen Stufe in der Kette darunter.
+        Wird eine Stufe übersprungen, bekommt die nächst-höhere die kumulierte Differenz.
+    </div>
+</div>
+
+<!-- Provisionen pro User -->
+<div class="card">
+    <div class="card-title">
+        Provisionen pro Mitglied
+        <input type="text" id="searchInput" placeholder="🔍 Suchen..." onkeyup="filterTable()" style="padding:6px 10px;border:1px solid var(--border-strong);border-radius:6px;font-size:12px;width:180px;text-transform:none;letter-spacing:0">
+    </div>
+    <div class="table-wrap">
+        <table id="mainTable">
+            <thead>
+                <tr>
+                    <th>Name</th><th>Stufe</th><th>Eigen-EH</th>
+                    <th>Eigen-Provision</th><th>Differenz-Provision</th><th>Gesamt</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>
+                        <strong>{{ u.name }}</strong>
+                        <div style="font-size:11px;color:var(--text-soft)">{{ u.email }}</div>
+                    </td>
+                    <td>
+                        <span class="stufe-pill" style="background:{{ u.career.color }}15;color:{{ u.career.color }}">{{ u.career.short }}</span>
+                    </td>
+                    <td><strong class="money">{{ "{:,.0f}".format(u.own_eh).replace(",", ".") }}</strong></td>
+                    <td class="money">{{ "{:,.2f}".format(u.eigen_provision).replace(",", "X").replace(".", ",").replace("X", ".") }} €</td>
+                    <td class="money">{{ "{:,.2f}".format(u.differenz_provision).replace(",", "X").replace(".", ",").replace("X", ".") }} €</td>
+                    <td><strong class="money" style="color:var(--gold)">{{ "{:,.2f}".format(u.total_provision).replace(",", "X").replace(".", ",").replace("X", ".") }} €</strong></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align:center;color:var(--text-soft);padding:32px">
+                    Noch keine Provisionen — bitte abgeschlossene Verträge anlegen.
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Letzte Provisions-Bewegungen -->
+<div class="card">
+    <div class="card-title">Letzte Provisions-Bewegungen</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Empfänger</th><th>Vertrag</th><th>Produkt</th><th>EH</th><th>€/EH</th><th>Typ</th><th>Betrag</th></tr>
+            </thead>
+            <tbody>
+                {% for r in recent %}
+                <tr>
+                    <td><strong>{{ r.user_name }}</strong></td>
+                    <td>{{ r.client_name }}</td>
+                    <td>{{ r.produkt }}</td>
+                    <td class="money">{{ "{:,.0f}".format(r.eh).replace(",", ".") }}</td>
+                    <td class="money">{{ "%.2f"|format(r.rate_diff) }} €</td>
+                    <td>
+                        {% if r.is_own %}
+                        <span class="status-badge status-abgeschlossen">Eigen</span>
+                        {% else %}
+                        <span class="status-badge status-neu">Differenz</span>
+                        {% endif %}
+                    </td>
+                    <td><strong class="money" style="color:var(--gold)">{{ "{:,.2f}".format(r.amount).replace(",", "X").replace(".", ",").replace("X", ".") }} €</strong></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align:center;color:var(--text-soft);padding:24px">Noch keine Provisions-Bewegungen</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function filterTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(input) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Termine – NT Pro Academy{% endblock %}
+{% block page_title %}Termine{% endblock %}
+{% block topbar_actions %}
+<a href="/termine/neu" class="btn btn-primary">+ Neuer Termin</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:13px;color:var(--text-muted)">{{ termine|length }} Termin(e)</div>
+        <input type="text" id="searchInput" placeholder="🔍 Suchen..." onkeyup="filterTable()" style="padding:8px 12px;border:1px solid var(--border-strong);border-radius:7px;font-size:13px;width:220px">
+    </div>
+    <div class="table-wrap">
+        <table id="mainTable">
+            <thead><tr><th>Titel</th><th>Kunde</th><th>Datum</th><th>Uhrzeit</th><th>Typ</th><th>Status</th><th>Berater</th><th>Aktionen</th></tr></thead>
+            <tbody>
+                {% for t in termine %}
+                <tr>
+                    <td><strong>{{ t.title }}</strong></td>
+                    <td>{{ t.client_name or '–' }}</td>
+                    <td>{{ t.termin_date }}</td>
+                    <td>{{ t.termin_time or '–' }}</td>
+                    <td><span class="status-badge status-geplant">{{ t.typ }}</span></td>
+                    <td><span class="status-badge status-{{ t.status }}">{{ t.status }}</span></td>
+                    <td>{{ t.berater_name }}</td>
+                    <td style="white-space:nowrap">
+                        <a href="/termine/{{ t.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a>
+                        <form method="POST" action="/termine/{{ t.id }}/delete" style="display:inline" onsubmit="return confirm('Termin löschen?')">
+                            <button type="submit" class="btn btn-danger btn-sm">×</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align:center;color:var(--text-soft);padding:32px">
+                    Noch keine Termine. <a href="/termine/neu" style="color:var(--navy);font-weight:600">Anlegen →</a>
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+function filterTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(input) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

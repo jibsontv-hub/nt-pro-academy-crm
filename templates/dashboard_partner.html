@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – NT Pro Academy{% endblock %}
+{% block page_title %}Mein Dashboard{% endblock %}
+{% block topbar_actions %}
+<a href="/leads/neu" class="btn btn-secondary btn-sm">+ Lead</a>
+<a href="/vertraege/neu" class="btn btn-secondary btn-sm">+ Vertrag</a>
+<a href="/termine/neu" class="btn btn-primary btn-sm">+ Termin</a>
+{% endblock %}
+
+{% block content %}
+<!-- Karriere-Stufe Hero -->
+<div class="card" style="background: linear-gradient(135deg, #fff 0%, #faf6ec 100%); border: 1px solid #e8d59a;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px">
+        <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600;margin-bottom:8px">Meine Karriere-Stufe</div>
+            <div style="display:flex;align-items:center;gap:14px">
+                <div style="width:56px;height:56px;border-radius:12px;background:{{ career.color }}15;border:1.5px solid {{ career.color }};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:{{ career.color }}">
+                    {{ career.short }}
+                </div>
+                <div>
+                    <div style="font-size:20px;font-weight:800;color:var(--text);letter-spacing:-0.4px">{{ career.name }}</div>
+                    <div style="font-size:12px;color:var(--text-muted)">Stufe {{ career.level }} von 6 · {{ "%.2f"|format(career.commission) }} €/EH</div>
+                </div>
+            </div>
+        </div>
+        <div style="flex:1;min-width:280px;max-width:500px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+                <span style="color:var(--text-muted)">
+                    <strong style="color:var(--gold);font-size:16px" class="money">{{ "{:,.0f}".format(own_eh).replace(",", ".") }}</strong> EH eigen
+                </span>
+                {% if next_level %}
+                <span style="color:var(--text-soft)">→ {{ next_level.short }} bei {{ "{:,.0f}".format(next_level.min_eh).replace(",", ".") }}</span>
+                {% else %}
+                <span style="color:var(--green);font-weight:700">★ Höchste Stufe!</span>
+                {% endif %}
+            </div>
+            <div class="progress-bar" style="height:10px">
+                <div class="progress-fill progress-gold" style="width:{{ progress_pct }}%"></div>
+            </div>
+            {% if next_level %}
+            <div style="font-size:11px;color:var(--text-soft);margin-top:6px">
+                Noch <strong style="color:var(--gold)" class="money">{{ "{:,.0f}".format(eh_to_next).replace(",", ".") }} EH</strong> bis Stufe {{ next_level.level }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Provisionen 3-Karten -->
+<div class="grid-3">
+    <div class="card" style="border-left:3px solid var(--gold)">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Eigen-Provision</div>
+        <div style="font-size:22px;font-weight:800;color:var(--text);margin:6px 0" class="money">{{ "{:,.2f}".format(my_commissions.own).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div style="font-size:11px;color:var(--text-soft)">Aus eigenen Verträgen</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--blue)">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Differenz aus Downline</div>
+        <div style="font-size:22px;font-weight:800;color:var(--text);margin:6px 0" class="money">{{ "{:,.2f}".format(my_commissions.differenz).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div style="font-size:11px;color:var(--text-soft)">Aus Verträgen meiner Partner</div>
+    </div>
+    <div class="card" style="background: linear-gradient(135deg, #0f1c3f 0%, #1a2c5b 100%); border-color:#0f1c3f">
+        <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Gesamt-Provision</div>
+        <div style="font-size:24px;font-weight:800;color:#d4a843;margin:6px 0" class="money">{{ "{:,.2f}".format(my_commissions.total).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5)">Eigen + Differenz</div>
+    </div>
+</div>
+
+<!-- Conversion -->
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+        <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:42px;height:42px;background:var(--blue-soft);color:var(--blue);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800">📈</div>
+            <div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Konversions-Rate</div>
+                <div style="font-size:18px;font-weight:700;color:var(--text);margin-top:2px">
+                    {% if conversion.abschluss > 0 %}
+                        Ø <span style="color:var(--blue)">{{ "%.1f"|format(conversion.rate) }}</span> Termine pro Abschluss
+                    {% else %}
+                        <span style="color:var(--text-soft)">Noch keine Abschlüsse</span>
+                    {% endif %}
+                </div>
+                <div style="font-size:11px;color:var(--text-soft);margin-top:3px">
+                    {{ conversion.termine }} erledigte Termine · {{ conversion.abschluss }} Abschlüsse · Ziel: {{ termine_pro_abschluss }} Termine = 1 Abschluss
+                </div>
+            </div>
+        </div>
+        <a href="/termine/neu" class="btn btn-primary">+ Termin anlegen</a>
+    </div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-grid">
+    <div class="kpi-card gold">
+        <div class="kpi-label">Team-Einheiten</div>
+        <div class="kpi-value money">{{ "{:,.0f}".format(stats.einheiten).replace(",", ".") }}</div>
+        <div class="kpi-sub">EH inkl. Downline</div>
+    </div>
+    <div class="kpi-card green">
+        <div class="kpi-label">Verträge</div>
+        <div class="kpi-value">{{ stats.contracts }}</div>
+        <div class="kpi-sub">Team gesamt</div>
+    </div>
+    <div class="kpi-card blue">
+        <div class="kpi-label">Leads</div>
+        <div class="kpi-value">{{ stats.leads }}</div>
+        <div class="kpi-sub">Pipeline</div>
+    </div>
+    <div class="kpi-card purple">
+        <div class="kpi-label">Teammitglieder</div>
+        <div class="kpi-value">{{ stats.members }}</div>
+        <div class="kpi-sub">Aktiv</div>
+    </div>
+    <div class="kpi-card orange">
+        <div class="kpi-label">Termine</div>
+        <div class="kpi-value">{{ stats.appointments }}</div>
+        <div class="kpi-sub">Geplant</div>
+    </div>
+</div>
+
+<!-- Top Performer der ganzen Struktur -->
+<div class="card">
+    <div class="card-title">
+        🏆 Top Performer (gesamte Struktur)
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">Top 10 nach EH</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th style="width:50px">#</th><th>Name</th><th>Stufe</th><th>Verträge</th><th>EH</th></tr></thead>
+            <tbody>
+                {% for p in global_top %}
+                <tr {% if p.is_me %}style="background:var(--gold-soft)"{% endif %}>
+                    <td>
+                        {% if loop.index == 1 %}<span style="font-size:18px">🥇</span>
+                        {% elif loop.index == 2 %}<span style="font-size:18px">🥈</span>
+                        {% elif loop.index == 3 %}<span style="font-size:18px">🥉</span>
+                        {% else %}<strong>{{ loop.index }}</strong>{% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ p.name }}</strong>
+                        {% if p.is_me %}<span style="font-size:10px;background:var(--gold);color:#fff;padding:2px 7px;border-radius:8px;margin-left:6px;font-weight:700">DU</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="stufe-pill" style="background:{{ p.career.color }}15;color:{{ p.career.color }}">{{ p.career.short }}</span>
+                    </td>
+                    <td>{{ p.vertraege }}</td>
+                    <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(p.einheiten).replace(",", ".") }}</strong></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" style="text-align:center;color:var(--text-soft);padding:24px">Noch keine Daten</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <div class="card-title">Letzte Leads <a href="/leads" style="font-size:11px;color:var(--gold);text-decoration:none;text-transform:none;letter-spacing:0">Alle →</a></div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Name</th><th>Produkt</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for l in my_leads %}
+                    <tr>
+                        <td><strong>{{ l.name }}</strong></td>
+                        <td>{{ l.produkt or '–' }}</td>
+                        <td><span class="status-badge status-{{ l.status }}">{{ l.status }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" style="text-align:center;color:var(--text-soft);padding:18px">
+                        Noch keine Leads. <a href="/leads/neu" style="color:var(--navy)">Anlegen →</a>
+                    </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-title">Nächste Termine <a href="/termine" style="font-size:11px;color:var(--gold);text-decoration:none;text-transform:none;letter-spacing:0">Alle →</a></div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Titel</th><th>Datum</th><th>Typ</th></tr></thead>
+                <tbody>
+                    {% for t in my_appointments %}
+                    <tr>
+                        <td><strong>{{ t.title }}</strong></td>
+                        <td>{{ t.termin_date }}</td>
+                        <td><span class="status-badge status-geplant">{{ t.typ }}</span></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" style="text-align:center;color:var(--text-soft);padding:18px">
+                        Keine Termine. <a href="/termine/neu" style="color:var(--navy)">Anlegen →</a>
+                    </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Direktes Team -->
+<div class="card">
+    <div class="card-title">
+        Mein direktes Team
+        <a href="/team/neu" style="font-size:11px;color:var(--gold);text-decoration:none;text-transform:none;letter-spacing:0;font-weight:600">+ Partner hinzufügen</a>
+    </div>
+    {% if direct_team %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Name</th><th>Stufe</th><th>E-Mail</th><th>EH</th><th>Verträge</th><th>Aktionen</th></tr></thead>
+            <tbody>
+                {% for m in direct_team %}
+                <tr>
+                    <td><strong>{{ m.name }}</strong></td>
+                    <td>
+                        <span class="stufe-pill" style="background:{{ m.career.color }}15;color:{{ m.career.color }}">{{ m.career.short }}</span>
+                    </td>
+                    <td>{{ m.email }}</td>
+                    <td><strong class="money">{{ "{:,.0f}".format(m.einheiten).replace(",", ".") }}</strong></td>
+                    <td>{{ m.vertraege }}</td>
+                    <td><a href="/team/{{ m.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-soft);text-align:center;padding:32px">
+        Noch keine direkten Partner. <a href="/team/neu" style="color:var(--navy);font-weight:600">Jetzt hinzufügen →</a>
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

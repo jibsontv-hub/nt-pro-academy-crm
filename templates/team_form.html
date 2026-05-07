@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{% if member %}Partner bearbeiten{% else %}Neuer Partner{% endif %} – NT Pro Academy{% endblock %}
+{% block page_title %}{% if member %}Partner bearbeiten{% else %}Neuer Partner{% endif %}{% endblock %}
+{% block topbar_actions %}<a href="/team" class="btn btn-secondary">← Zurück</a>{% endblock %}
+{% block content %}
+<div class="card" style="max-width:720px">
+
+    {% if current_user.role == 'admin' %}
+    <div style="background:var(--gold-soft);border:1px solid #e8d59a;border-radius:8px;padding:12px 16px;margin-bottom:22px;font-size:13px;color:#7a5c1a">
+        ⚡ <strong>Admin-Modus:</strong> Du kannst Stufen direkt setzen — keine Bestätigung nötig.
+    </div>
+    {% else %}
+    <div style="background:var(--blue-soft);border:1px solid #c9dcf4;border-radius:8px;padding:12px 16px;margin-bottom:22px;font-size:13px;color:var(--blue)">
+        🔒 <strong>Hinweis:</strong> Du kannst Mitglieder anlegen und Stufen vorschlagen. Stufen oberhalb von <strong>REP</strong> müssen vom <strong>Admin bestätigt</strong> werden, bevor sie aktiv sind.
+    </div>
+    {% endif %}
+
+    {% if member and member.pending_career_level %}
+    <div style="background:var(--orange-soft);border:1px solid #f5d4a0;border-radius:8px;padding:12px 16px;margin-bottom:22px;font-size:13px;color:var(--orange)">
+        ⏳ <strong>Stufen-Antrag offen:</strong> Stufe <strong>{{ member.pending_career_level }}</strong> wartet auf Admin-Bestätigung.
+    </div>
+    {% endif %}
+
+    <form method="POST">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Vollständiger Name *</label>
+                <input type="text" name="name" value="{{ member.name if member else '' }}" required placeholder="Vor- und Nachname">
+            </div>
+            <div class="form-group">
+                <label>🔑 E-Mail (Login) *</label>
+                <input type="email" name="email" value="{{ member.email if member else '' }}" required placeholder="partner@email.de">
+            </div>
+            <div class="form-group">
+                <label>Telefon</label>
+                <input type="text" name="phone" value="{{ member.phone if member else '' }}" placeholder="+49 ...">
+            </div>
+            <div class="form-group">
+                <label>Upline / Direkter Vorgesetzter *</label>
+                <select name="parent_id" required>
+                    <option value="">– Bitte wählen –</option>
+                    {% for p in possible_parents %}
+                    <option value="{{ p.id }}" {% if member and member.parent_id == p.id %}selected{% endif %}>
+                        Ebene {{ p.level }} – {{ p.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group full">
+                <label>⬡ Karriere-Stufe {% if current_user.role != 'admin' %}(Vorschlag — wird vom Admin bestätigt){% endif %}</label>
+                <select name="manual_career_level">
+                    {% for cl in all_levels %}
+                    <option value="{{ cl.level }}"
+                        {% if member and member.manual_career_level == cl.level %}selected
+                        {% elif not member and cl.level == 1 %}selected{% endif %}>
+                        Stufe {{ cl.level }} – {{ cl.short }} – {{ cl.name }} (ab {{ "{:,.0f}".format(cl.min_eh).replace(",", ".") }} EH · {{ "%.2f"|format(cl.commission) }} €/EH)
+                    </option>
+                    {% endfor %}
+                </select>
+                <span style="font-size:11px;color:var(--text-soft)">
+                    {% if current_user.role == 'admin' %}
+                    Wird sofort gesetzt. Auto-Beförderung greift weiterhin bei EH-Erreichung.
+                    {% else %}
+                    Wenn du eine höhere Stufe als REP wählst, geht ein Bestätigungs-Antrag an den Admin.
+                    {% endif %}
+                </span>
+            </div>
+
+            {% if member %}
+            <div class="form-group full">
+                <label>🎓 Onboarding-Status</label>
+                {% set ob_steps = [
+                    ('onboarding_endgespraech', '🤝 Endgespräch', 'Abschließendes Gespräch zur Aufnahme'),
+                    ('onboarding_einarbeitung_1', '📘 Einarbeitung 1', 'Erste Einarbeitungsstufe abgeschlossen'),
+                    ('onboarding_einarbeitung_2', '📗 Einarbeitung 2', 'Zweite Einarbeitungsstufe abgeschlossen'),
+                    ('onboarding_einarbeitung_3', '📙 Einarbeitung 3', 'Dritte Einarbeitungsstufe abgeschlossen'),
+                    ('onboarding_seminar_bezahlt', '💳 Grundseminar bezahlt', 'Teilnahmegebühr für Grundseminar überwiesen')
+                ] %}
+                <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px">
+                    {% set ob_done = 0 %}
+                    {% for f, t, d in ob_steps %}{% if member[f] %}{% set ob_done = ob_done + 1 %}{% endif %}{% endfor %}
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px">
+                        <span style="color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Fortschritt</span>
+                        <span style="font-weight:700;color:{% if ob_done == 5 %}var(--green){% elif ob_done >= 3 %}var(--gold){% else %}var(--text-muted){% endif %}">{{ ob_done }} / 5</span>
+                    </div>
+                    <div class="progress-bar" style="margin-bottom:8px;height:6px">
+                        <div class="progress-fill" style="width:{{ ob_done * 20 }}%;background:{% if ob_done == 5 %}var(--green){% elif ob_done >= 3 %}var(--gold){% else %}var(--blue){% endif %}"></div>
+                    </div>
+                    {% for field, title, desc in ob_steps %}
+                    {% set checked = member[field] %}
+                    <label style="cursor:pointer;display:flex;align-items:flex-start;gap:12px;padding:10px;background:{% if checked %}var(--green-soft){% else %}#fff{% endif %};border:1px solid {% if checked %}#c9eed7{% else %}var(--border){% endif %};border-radius:7px;transition:all 0.15s">
+                        <input type="checkbox" name="{{ field }}" value="1" {% if checked %}checked{% endif %} style="width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--green);cursor:pointer">
+                        <div style="flex:1">
+                            <div style="font-size:13px;font-weight:700;color:var(--text);text-transform:none;letter-spacing:0">{{ title }}</div>
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ desc }}</div>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+                <span style="font-size:11px;color:var(--text-soft)">Onboarding kann jederzeit aktualisiert werden, wenn Schritte abgeschlossen sind.</span>
+            </div>
+            {% endif %}
+
+            <div class="form-group full">
+                <label>🔐 {% if member %}Neues Passwort (leer = keine Änderung){% else %}Startpasswort{% endif %}</label>
+                <input type="text" name="password" value="{{ '' if member else 'start123' }}" placeholder="{{ 'Leer lassen, um nicht zu ändern' if member else 'start123' }}">
+                <span style="font-size:11px;color:var(--text-soft)">
+                    {% if member %}Nur ausfüllen, wenn Passwort geändert werden soll.{% else %}Partner sollte es beim ersten Login ändern.{% endif %}
+                </span>
+            </div>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:10px">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+            <a href="/team" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

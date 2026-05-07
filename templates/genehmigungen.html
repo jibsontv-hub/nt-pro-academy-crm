@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Genehmigungen – NT Pro Academy{% endblock %}
+{% block page_title %}Stufen-Genehmigungen{% endblock %}
+
+{% block content %}
+
+<div class="card" style="background:var(--blue-soft);border:1px solid #c9dcf4">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="font-size:20px">ℹ️</span>
+        <div style="font-size:13px;color:var(--text)">
+            <strong>So funktioniert's:</strong> Wenn ein Partner ein neues Mitglied in eine höhere Stufe einsetzen oder die Stufe eines bestehenden Mitglieds erhöhen möchte, landet der Antrag <strong>hier</strong>. Erst wenn du <strong>bestätigst</strong>, wird die Stufe wirksam und Provisionen entsprechend angepasst.
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">
+        Offene Anträge
+        <span style="font-size:11px;color:var(--text-soft);font-weight:500;text-transform:none;letter-spacing:0">{{ pending|length }} {% if pending|length == 1 %}Antrag{% else %}Anträge{% endif %}</span>
+    </div>
+
+    {% if pending %}
+    <div style="display:flex;flex-direction:column;gap:12px">
+        {% for p in pending %}
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:18px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px">
+                <div>
+                    <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">{{ p.name }}</div>
+                    <div style="font-size:12px;color:var(--text-muted)">
+                        🔑 {{ p.email }} · Upline: <strong>{{ p.upline_name or '–' }}</strong>
+                    </div>
+                    <div style="font-size:11px;color:var(--text-soft);margin-top:4px">
+                        Vorgeschlagen von <strong>{{ p.proposed_by or '?' }}</strong> · {{ p.pending_at[:16] if p.pending_at else '' }}
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:14px">
+                    <div style="text-align:center">
+                        <div style="font-size:10px;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Aktuell</div>
+                        <span class="stufe-pill" style="background:{{ p.current_career.color }}15;color:{{ p.current_career.color }};border:1px solid {{ p.current_career.color }}50;font-size:12px;padding:4px 12px">
+                            {{ p.current_career.short }} · Stufe {{ p.current_career.level }}
+                        </span>
+                    </div>
+                    <span style="font-size:24px;color:var(--gold)">→</span>
+                    <div style="text-align:center">
+                        <div style="font-size:10px;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Vorgeschlagen</div>
+                        <span class="stufe-pill" style="background:{{ p.proposed_career.color }}15;color:{{ p.proposed_career.color }};border:1px solid {{ p.proposed_career.color }};font-size:12px;padding:4px 12px;font-weight:800">
+                            {{ p.proposed_career.short }} · Stufe {{ p.proposed_career.level }}
+                        </span>
+                    </div>
+                    <div style="display:flex;gap:6px;margin-left:8px">
+                        <form method="POST" action="/admin/genehmigungen/{{ p.id }}/approve" style="display:inline" onsubmit="return confirm('Stufe {{ p.proposed_career.short }} bestätigen?')">
+                            <button type="submit" class="btn btn-primary btn-sm" style="background:var(--green);border-color:var(--green)">✓ Bestätigen</button>
+                        </form>
+                        <form method="POST" action="/admin/genehmigungen/{{ p.id }}/reject" style="display:inline" onsubmit="return confirm('Antrag wirklich ablehnen?')">
+                            <button type="submit" class="btn btn-danger btn-sm">× Ablehnen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:40px;color:var(--text-soft)">
+        <div style="font-size:36px;margin-bottom:10px">✓</div>
+        <div style="font-size:15px;color:var(--text);font-weight:600;margin-bottom:6px">
+            Keine offenen Anträge
+        </div>
+        <div style="font-size:12px">Alle Stufen sind bestätigt. Sobald ein Partner einen Stufen-Antrag stellt, erscheint er hier.</div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

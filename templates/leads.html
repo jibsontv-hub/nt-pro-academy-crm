@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Leads – NT Pro Academy{% endblock %}
+{% block page_title %}Leads (alle){% endblock %}
+{% block topbar_actions %}
+<a href="/leads/neu" class="btn btn-primary">+ Neuer Lead</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:13px;color:var(--text-muted)">{{ leads|length }} Lead(s)</div>
+        <input type="text" id="searchInput" placeholder="🔍 Suchen..." onkeyup="filterTable()" style="padding:8px 12px;border:1px solid var(--border-strong);border-radius:7px;font-size:13px;width:220px">
+    </div>
+    <div class="table-wrap">
+        <table id="mainTable">
+            <thead><tr><th>Name</th><th>Telefon</th><th>E-Mail</th><th>Produkt</th><th>Status</th><th>Berater</th><th>Erstellt</th><th>Aktionen</th></tr></thead>
+            <tbody>
+                {% for l in leads %}
+                <tr>
+                    <td><strong>{{ l.name }}</strong></td>
+                    <td>{{ l.phone or '–' }}</td>
+                    <td>{{ l.email or '–' }}</td>
+                    <td>{{ l.produkt or '–' }}</td>
+                    <td><span class="status-badge status-{{ l.status }}">{{ l.status }}</span></td>
+                    <td>{{ l.berater_name }}</td>
+                    <td>{{ l.created_at[:10] }}</td>
+                    <td style="white-space:nowrap">
+                        <a href="/leads/{{ l.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a>
+                        <form method="POST" action="/leads/{{ l.id }}/delete" style="display:inline" onsubmit="return confirm('Lead löschen?')">
+                            <button type="submit" class="btn btn-danger btn-sm">×</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align:center;color:var(--text-soft);padding:32px">
+                    Noch keine Leads. <a href="/leads/neu" style="color:var(--navy);font-weight:600">Anlegen →</a>
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+function filterTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(input) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

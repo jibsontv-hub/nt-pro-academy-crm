@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – NT Pro Academy{% endblock %}
+{% block page_title %}Gesamt-Dashboard{% endblock %}
+{% block topbar_actions %}
+<a href="/team/neu" class="btn btn-primary">+ Partner hinzufügen</a>
+{% endblock %}
+
+{% block content %}
+<!-- Hero: Karriere-Stufe -->
+<div class="card" style="background: linear-gradient(135deg, #fff 0%, #faf6ec 100%); border: 1px solid #e8d59a;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px">
+        <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600;margin-bottom:8px">Meine Karriere-Stufe</div>
+            <div style="display:flex;align-items:center;gap:14px">
+                <div style="width:56px;height:56px;border-radius:12px;background:{{ career.color }}15;border:1.5px solid {{ career.color }};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:{{ career.color }}">
+                    {{ career.short }}
+                </div>
+                <div>
+                    <div style="font-size:20px;font-weight:800;color:var(--text);letter-spacing:-0.4px">{{ career.name }}</div>
+                    <div style="font-size:12px;color:var(--text-muted)">Stufe {{ career.level }} von 6 · {{ "%.2f"|format(career.commission) }} €/EH Provision</div>
+                </div>
+            </div>
+        </div>
+        <div style="flex:1;min-width:280px;max-width:500px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+                <span style="color:var(--text-muted)">
+                    <strong style="color:var(--gold);font-size:16px" class="money">{{ "{:,.0f}".format(own_eh).replace(",", ".") }}</strong> EH eigen
+                </span>
+                {% if next_level %}
+                <span style="color:var(--text-soft)">→ {{ next_level.short }} bei {{ "{:,.0f}".format(next_level.min_eh).replace(",", ".") }}</span>
+                {% else %}
+                <span style="color:var(--green);font-weight:700">★ Höchste Stufe!</span>
+                {% endif %}
+            </div>
+            <div class="progress-bar" style="height:10px">
+                <div class="progress-fill progress-gold" style="width:{{ progress_pct }}%"></div>
+            </div>
+            {% if next_level %}
+            <div style="font-size:11px;color:var(--text-soft);margin-top:6px">
+                Noch <strong style="color:var(--gold)" class="money">{{ "{:,.0f}".format(eh_to_next).replace(",", ".") }} EH</strong> bis Stufe {{ next_level.level }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Provisionen Hero -->
+<div class="grid-3">
+    <div class="card" style="border-left:3px solid var(--gold)">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">💰 Meine Eigen-Provision</div>
+        <div style="font-size:24px;font-weight:800;color:var(--text);margin:6px 0" class="money">{{ "{:,.2f}".format(my_commissions.own).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div style="font-size:11px;color:var(--text-soft)">Aus eigenen Verträgen</div>
+    </div>
+    <div class="card" style="border-left:3px solid var(--blue)">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">📊 Differenz aus Downline</div>
+        <div style="font-size:24px;font-weight:800;color:var(--text);margin:6px 0" class="money">{{ "{:,.2f}".format(my_commissions.differenz).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div style="font-size:11px;color:var(--text-soft)">Aus Verträgen meiner Partner</div>
+    </div>
+    <div class="card" style="background: linear-gradient(135deg, #0f1c3f 0%, #1a2c5b 100%); border-color:#0f1c3f">
+        <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">⭐ Meine Gesamt-Provision</div>
+        <div style="font-size:26px;font-weight:800;color:#d4a843;margin:6px 0" class="money">{{ "{:,.2f}".format(my_commissions.total).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5)">Eigen + Differenz</div>
+    </div>
+</div>
+
+<!-- Conversion-Rate Banner -->
+<div class="card" style="background:#fff;border:1px solid #e5e8ee">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+        <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:42px;height:42px;background:var(--blue-soft);color:var(--blue);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800">📈</div>
+            <div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Konversions-Rate (Gesamt-Vertrieb)</div>
+                <div style="font-size:18px;font-weight:700;color:var(--text);margin-top:2px">
+                    {% if conversion.abschluss > 0 %}
+                        Ø <span style="color:var(--blue)">{{ "%.1f"|format(conversion.rate) }}</span> Termine pro Abschluss
+                    {% else %}
+                        <span style="color:var(--text-soft)">Noch keine Abschlüsse</span>
+                    {% endif %}
+                </div>
+                <div style="font-size:11px;color:var(--text-soft);margin-top:3px">
+                    {{ conversion.termine }} erledigte Termine · {{ conversion.abschluss }} Abschlüsse · Faustregel: {{ termine_pro_abschluss }} Termine = 1 Abschluss
+                </div>
+            </div>
+        </div>
+        <a href="/struktur" class="btn btn-primary">⬢ Struktur-Baum →</a>
+    </div>
+</div>
+<!-- Monatsvergleich (4 KPI cards) -->
+<div class="card">
+    <div class="card-title">
+        Vormonats-Vergleich
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">{{ comparison.cur_month }} vs. {{ comparison.prev_month }}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+        {% set items = [
+            ('Einheiten', comparison.cur.eh, comparison.prev.eh, comparison.eh_pct, '⚡', 'gold'),
+            ('Verträge', comparison.cur.vtr, comparison.prev.vtr, comparison.vtr_pct, '📄', 'green'),
+            ('Volumen €', comparison.cur.volumen, comparison.prev.volumen, comparison.volumen_pct, '€', 'navy'),
+            ('Neue Partner', comparison.cur.partner, comparison.prev.partner, comparison.partner_pct, '👥', 'blue')
+        ] %}
+        {% for label, cur, prev, pct, icon, color in items %}
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:8px;padding:14px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">{{ icon }} {{ label }}</div>
+                {% if pct > 0 %}
+                <span style="font-size:11px;font-weight:700;color:var(--green);background:var(--green-soft);padding:2px 7px;border-radius:10px">▲ {{ "%.0f"|format(pct) }}%</span>
+                {% elif pct < 0 %}
+                <span style="font-size:11px;font-weight:700;color:var(--red);background:var(--red-soft);padding:2px 7px;border-radius:10px">▼ {{ "%.0f"|format(-pct) }}%</span>
+                {% else %}
+                <span style="font-size:11px;font-weight:700;color:var(--text-soft)">–</span>
+                {% endif %}
+            </div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin-top:6px" class="money">
+                {% if label == 'Volumen €' %}{{ "{:,.0f}".format(cur).replace(",", ".") }} €
+                {% else %}{{ "{:,.0f}".format(cur).replace(",", ".") }}{% endif %}
+            </div>
+            <div style="font-size:11px;color:var(--text-soft);margin-top:2px">
+                Vormonat: <strong>{% if label == 'Volumen €' %}{{ "{:,.0f}".format(prev).replace(",", ".") }} €{% else %}{{ "{:,.0f}".format(prev).replace(",", ".") }}{% endif %}</strong>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Geschäftspartner-Entwicklung -->
+<div class="card">
+    <div class="card-title">
+        Geschäftspartner-Entwicklung
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">Letzte 12 Monate · Grundseminar pro Monat</span>
+    </div>
+    <div class="chart-container" style="height:220px"><canvas id="partnerChart"></canvas></div>
+</div>
+
+<!-- KPI Karten -->
+<div class="kpi-grid">
+    <div class="kpi-card gold">
+        <div class="kpi-label">Gesamt-Einheiten</div>
+        <div class="kpi-value money">{{ "{:,.0f}".format(total_einheiten).replace(",", ".") }}</div>
+        <div class="kpi-sub">EH im Vertrieb</div>
+    </div>
+    <div class="kpi-card navy">
+        <div class="kpi-label">Mitglieder</div>
+        <div class="kpi-value">{{ total_users }}</div>
+        <div class="kpi-sub">Aktive Partner</div>
+    </div>
+    <div class="kpi-card green">
+        <div class="kpi-label">Verträge</div>
+        <div class="kpi-value">{{ total_contracts }}</div>
+        <div class="kpi-sub">Abgeschlossen</div>
+    </div>
+    <div class="kpi-card purple">
+        <div class="kpi-label">Leads</div>
+        <div class="kpi-value">{{ total_leads }}</div>
+        <div class="kpi-sub">Pipeline</div>
+    </div>
+    <div class="kpi-card orange">
+        <div class="kpi-label">Termine</div>
+        <div class="kpi-value">{{ open_appointments }}</div>
+        <div class="kpi-sub">Geplant</div>
+    </div>
+</div>
+
+<!-- Karriere-Stufen -->
+<div class="card">
+    <div class="card-title">Karriere-Stufen System</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+        {% for cl in all_levels %}
+        <div style="background:#fafbfc;border-radius:8px;padding:14px;border:1px solid var(--border);border-left:3px solid {{ cl.color }}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span style="background:{{ cl.color }}15;color:{{ cl.color }};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800">{{ cl.short }}</span>
+                <span style="font-size:11px;color:var(--text-soft)">Stufe {{ cl.level }}</span>
+            </div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">{{ cl.name }}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">ab <strong>{{ "{:,.0f}".format(cl.min_eh).replace(",", ".") }}</strong> EH · <strong>{{ "%.2f"|format(cl.commission) }} €/EH</strong></div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <div class="card-title">Monatliche Entwicklung</div>
+        <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
+    </div>
+    <div class="card">
+        <div class="card-title">Top Performer (nach EH)</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>#</th><th>Name</th><th>Stufe</th><th>EH</th></tr></thead>
+                <tbody>
+                    {% for p in top_performer %}
+                    <tr>
+                        <td><strong>{{ loop.index }}</strong></td>
+                        <td>{{ p.name }}</td>
+                        <td>
+                            <span class="stufe-pill" style="background:{{ p.career.color }}15;color:{{ p.career.color }}">{{ p.career.short }}</span>
+                        </td>
+                        <td><strong class="money">{{ "{:,.0f}".format(p.einheiten).replace(",", ".") }}</strong></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" style="text-align:center;color:var(--text-soft);padding:24px">Noch keine Daten</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Direkte Partner -->
+<div class="card">
+    <div class="card-title">Meine direkten Partner</div>
+    {% if direct_partners %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Name</th><th>Stufe</th><th>E-Mail</th><th>Verträge</th><th>EH</th><th>Volumen</th><th>Aktionen</th></tr></thead>
+            <tbody>
+                {% for p in direct_partners %}
+                <tr>
+                    <td><strong>{{ p.name }}</strong></td>
+                    <td>
+                        <span class="stufe-pill" style="background:{{ p.career.color }}15;color:{{ p.career.color }}">{{ p.career.short }}</span>
+                    </td>
+                    <td>{{ p.email }}</td>
+                    <td>{{ p.vertraege }}</td>
+                    <td><strong class="money">{{ "{:,.0f}".format(p.einheiten).replace(",", ".") }}</strong></td>
+                    <td class="money">{{ "{:,.0f}".format(p.volumen).replace(",", ".") }} €</td>
+                    <td><a href="/team/{{ p.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color:var(--text-soft);text-align:center;padding:32px">
+        Noch keine direkten Partner. <a href="/team/neu" style="color:var(--navy);font-weight:600">Jetzt hinzufügen →</a>
+    </p>
+    {% endif %}
+</div>
+
+<!-- Letzte Verträge -->
+<div class="card">
+    <div class="card-title">Zuletzt abgeschlossene Verträge</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Kunde</th><th>Produkt</th><th>Berater</th><th>Volumen</th><th>EH</th><th>Status</th><th>Datum</th></tr></thead>
+            <tbody>
+                {% for c in recent_contracts %}
+                <tr>
+                    <td><strong>{{ c.client_name }}</strong></td>
+                    <td>{{ c.produkt }}</td>
+                    <td>{{ c.berater_name }}</td>
+                    <td class="money">{{ "{:,.0f}".format(c.volumen).replace(",", ".") }} €</td>
+                    <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(c.einheiten).replace(",", ".") }}</strong></td>
+                    <td><span class="status-badge status-{{ c.status }}">{{ c.status }}</span></td>
+                    <td>{{ c.abschluss_date or c.created_at[:10] }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align:center;color:var(--text-soft);padding:24px">Noch keine Verträge</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const monthlyData = {{ monthly_data | safe }};
+const labels = monthlyData.map(d => d.monat);
+const eh = monthlyData.map(d => d.einheiten);
+const vtr = monthlyData.map(d => d.anzahl);
+// Partner-Wachstum Chart
+const partnerData = {{ partner_growth | safe }};
+new Chart(document.getElementById('partnerChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+        labels: partnerData.length ? partnerData.map(d => d.monat) : ['Keine Daten'],
+        datasets: [{
+            label: 'Neue Geschäftspartner',
+            data: partnerData.length ? partnerData.map(d => d.neue_partner) : [0],
+            backgroundColor: '#0f1c3f',
+            borderRadius: 6
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            y: { beginAtZero: true, ticks: { color: '#6b7280', stepSize: 1 }, grid: { color: '#e5e8ee' } },
+            x: { ticks: { color: '#6b7280' }, grid: { display: false } }
+        }
+    }
+});
+
+new Chart(document.getElementById('monthlyChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+        labels: labels.length ? labels : ['Keine Daten'],
+        datasets: [{
+            label: 'Einheiten',
+            data: eh.length ? eh : [0],
+            backgroundColor: '#b8902e',
+            borderRadius: 6
+        }, {
+            label: 'Verträge',
+            data: vtr.length ? vtr : [0],
+            type: 'line',
+            borderColor: '#0f1c3f',
+            backgroundColor: 'transparent',
+            borderWidth: 2.5,
+            pointRadius: 4,
+            pointBackgroundColor: '#0f1c3f',
+            yAxisID: 'y1'
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { color: '#1a1f36', font: { size: 12 } } } },
+        scales: {
+            y: { beginAtZero: true, ticks: { color: '#6b7280' }, grid: { color: '#e5e8ee' } },
+            y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: '#6b7280' } },
+            x: { ticks: { color: '#6b7280' }, grid: { display: false } }
+        }
+    }
+});
+</script>
+{% endblock %}

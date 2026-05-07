@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Namensliste – NT Pro Academy{% endblock %}
+{% block page_title %}Meine Namensliste & Potenziale{% endblock %}
+{% block topbar_actions %}
+<a href="/leads/neu" class="btn btn-primary">+ Person hinzufügen</a>
+{% endblock %}
+
+{% block content %}
+<!-- Pipeline Stats -->
+<div class="kpi-grid">
+    <div class="kpi-card gold">
+        <div class="kpi-label">Gesamt Personen</div>
+        <div class="kpi-value">{{ total }}</div>
+        <div class="kpi-sub">In meiner Liste</div>
+    </div>
+    <div class="kpi-card blue">
+        <div class="kpi-label">Neu / Potenzial</div>
+        <div class="kpi-value">{{ by_status.get('neu', 0) }}</div>
+        <div class="kpi-sub">Noch nicht kontaktiert</div>
+    </div>
+    <div class="kpi-card purple">
+        <div class="kpi-label">In Bearbeitung</div>
+        <div class="kpi-value">{{ by_status.get('kontakt', 0) + by_status.get('angebot', 0) }}</div>
+        <div class="kpi-sub">Kontakt + Angebot</div>
+    </div>
+    <div class="kpi-card green">
+        <div class="kpi-label">Gewonnen</div>
+        <div class="kpi-value">{{ by_status.get('gewonnen', 0) }}</div>
+        <div class="kpi-sub">Abschluss</div>
+    </div>
+    <div class="kpi-card orange">
+        <div class="kpi-label">Verloren</div>
+        <div class="kpi-value">{{ by_status.get('verloren', 0) }}</div>
+        <div class="kpi-sub">Kein Interesse</div>
+    </div>
+</div>
+
+<div class="card" style="background:var(--gold-soft);border:1px solid #e8d59a">
+    <div style="display:flex;gap:14px;align-items:center;font-size:13px;color:#7a5c1a">
+        <span style="font-size:24px">💡</span>
+        <div>
+            <strong>Profi-Tipp:</strong>
+            Schreibe alle Personen aus deinem Umfeld auf — Familie, Freunde, Kollegen, alte Bekannte.
+            Aus der Namensliste werden Kontakte, aus Kontakten Termine, aus Terminen Abschlüsse.
+            <strong>Faustregel: 3 Termine = 1 Abschluss</strong>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button onclick="filterStatus('alle')" class="filter-btn active" data-filter="alle">Alle ({{ total }})</button>
+            <button onclick="filterStatus('neu')" class="filter-btn" data-filter="neu">⭕ Neu ({{ by_status.get('neu', 0) }})</button>
+            <button onclick="filterStatus('kontakt')" class="filter-btn" data-filter="kontakt">📞 Kontakt ({{ by_status.get('kontakt', 0) }})</button>
+            <button onclick="filterStatus('angebot')" class="filter-btn" data-filter="angebot">📄 Angebot ({{ by_status.get('angebot', 0) }})</button>
+            <button onclick="filterStatus('gewonnen')" class="filter-btn" data-filter="gewonnen">✓ Gewonnen ({{ by_status.get('gewonnen', 0) }})</button>
+            <button onclick="filterStatus('verloren')" class="filter-btn" data-filter="verloren">✗ Verloren ({{ by_status.get('verloren', 0) }})</button>
+        </div>
+        <input type="text" id="searchInput" placeholder="🔍 Suchen..." onkeyup="filterTable()" style="padding:8px 12px;border:1px solid var(--border-strong);border-radius:7px;font-size:13px;width:220px">
+    </div>
+
+    <div class="table-wrap">
+        <table id="mainTable">
+            <thead>
+                <tr><th>Name</th><th>Telefon</th><th>E-Mail</th><th>Produkt</th><th>Status</th><th>Notizen</th><th>Erstellt</th><th>Aktionen</th></tr>
+            </thead>
+            <tbody>
+                {% for l in leads %}
+                <tr data-status="{{ l.status }}">
+                    <td><strong>{{ l.name }}</strong></td>
+                    <td>{{ l.phone or '–' }}</td>
+                    <td>{{ l.email or '–' }}</td>
+                    <td>{{ l.produkt or '–' }}</td>
+                    <td><span class="status-badge status-{{ l.status }}">{{ l.status }}</span></td>
+                    <td style="max-width:200px;font-size:12px;color:var(--text-muted)">
+                        {{ (l.notizen[:60] + '…') if l.notizen and l.notizen|length > 60 else (l.notizen or '–') }}
+                    </td>
+                    <td>{{ l.created_at[:10] }}</td>
+                    <td style="white-space:nowrap">
+                        <a href="/leads/{{ l.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a>
+                        <form method="POST" action="/leads/{{ l.id }}/delete" style="display:inline" onsubmit="return confirm('Person löschen?')">
+                            <button type="submit" class="btn btn-danger btn-sm">×</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align:center;color:var(--text-soft);padding:48px">
+                    <div style="font-size:28px;margin-bottom:10px">📋</div>
+                    Deine Namensliste ist leer.<br>
+                    <a href="/leads/neu" style="color:var(--navy);font-weight:600">+ Erste Person hinzufügen →</a>
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+.filter-btn {
+    padding: 7px 14px; background: #fff; border: 1px solid var(--border-strong);
+    color: var(--text-muted); border-radius: 7px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; font-family: inherit;
+}
+.filter-btn:hover { background: var(--gold-soft); color: var(--navy); border-color: #e8d59a; }
+.filter-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+</style>
+
+<script>
+function filterStatus(status) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`[data-filter="${status}"]`).classList.add('active');
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        if (status === 'alle') row.style.display = '';
+        else row.style.display = row.dataset.status === status ? '' : 'none';
+    });
+}
+function filterTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(input) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

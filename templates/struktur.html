@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Struktur-Baum – NT Pro Academy{% endblock %}
+{% block page_title %}Struktur-Baum{% endblock %}
+{% block topbar_actions %}
+<a href="/team/neu" class="btn btn-primary">+ Partner hinzufügen</a>
+{% endblock %}
+
+{% block content %}
+<style>
+.tree-wrap { overflow-x: auto; padding: 6px 0; }
+.tree { list-style: none; padding-left: 0; margin: 0; }
+.tree ul { list-style: none; padding-left: 38px; margin: 0; position: relative; }
+.tree ul::before {
+    content: ''; position: absolute; left: 18px; top: 0; bottom: 14px;
+    width: 1.5px; background: var(--border-strong);
+}
+.tree li { position: relative; padding: 5px 0; }
+.tree ul li::before {
+    content: ''; position: absolute; left: -20px; top: 32px;
+    width: 18px; height: 1.5px; background: var(--border-strong);
+}
+.node {
+    display: inline-flex; align-items: center; gap: 14px; padding: 11px 16px;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 10px; min-width: 380px; transition: all 0.15s;
+}
+.node:hover { border-color: var(--gold); box-shadow: 0 1px 6px rgba(184,144,46,0.12); }
+.node-badge {
+    width: 42px; height: 42px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; flex-shrink: 0;
+    border: 1.5px solid;
+}
+.node-info { flex: 1; min-width: 0; }
+.node-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.node-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.node-stats {
+    display: flex; gap: 14px; font-size: 11px; color: var(--text-muted);
+    border-left: 1px solid var(--border); padding-left: 14px;
+}
+.node-stats strong { color: var(--gold); font-size: 13px; display: block; font-variant-numeric: tabular-nums; }
+.toggle-btn {
+    background: var(--gold-soft); border: 1px solid #e8d59a;
+    color: var(--gold); width: 22px; height: 22px; border-radius: 6px;
+    cursor: pointer; font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    font-family: inherit;
+}
+.toggle-btn:hover { background: var(--gold); color: #fff; }
+.collapsed > ul { display: none; }
+</style>
+
+<!-- Karriere-Stufen -->
+<div class="card">
+    <div class="card-title">Karriere-Stufen</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+        {% for cl in all_levels %}
+        <div style="background:#fafbfc;border-radius:8px;padding:12px;border:1px solid var(--border);border-left:3px solid {{ cl.color }}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span class="stufe-pill" style="background:{{ cl.color }}15;color:{{ cl.color }}">{{ cl.short }}</span>
+            </div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">{{ cl.name }}</div>
+            <div style="font-size:11px;color:var(--text-soft);margin-top:3px">ab {{ "{:,.0f}".format(cl.min_eh).replace(",", ".") }} EH</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">Vertriebsstruktur (von oben nach unten)</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:18px">
+        💡 Klick auf <span style="color:var(--gold);font-weight:800">−/+</span> blendet Unter-Ebenen aus/ein.
+    </div>
+    <div class="tree-wrap">
+        <ul class="tree" id="treeRoot">
+            {% macro render_node(n) %}
+            <li>
+                <div class="node">
+                    {% if n.children %}
+                    <button class="toggle-btn" onclick="this.closest('li').classList.toggle('collapsed');this.textContent=this.textContent==='−'?'+':'−'">−</button>
+                    {% else %}
+                    <span style="width:22px"></span>
+                    {% endif %}
+                    <div class="node-badge" style="background:{{ n.career.color }}12;border-color:{{ n.career.color }};color:{{ n.career.color }}">
+                        {{ n.career.short }}
+                    </div>
+                    <div class="node-info">
+                        <div class="node-name">{{ n.name }}</div>
+                        <div class="node-meta">
+                            {{ n.career.name }} · Ebene {{ n.level }} · {{ n.email }}
+                        </div>
+                    </div>
+                    <div class="node-stats">
+                        <div title="Eigene EH"><strong>{{ "{:,.0f}".format(n.own_eh).replace(",", ".") }}</strong>EH eigen</div>
+                        <div title="Team-EH (mit Downline)"><strong>{{ "{:,.0f}".format(n.team_eh).replace(",", ".") }}</strong>EH Team</div>
+                        <div title="Verträge"><strong>{{ n.contracts }}</strong>Vtr</div>
+                        <div title="Direkte + indirekte Partner"><strong>{{ n.team_size - 1 }}</strong>Team</div>
+                        <a href="/team/{{ n.id }}/edit" style="color:var(--gold);text-decoration:none;font-size:13px;font-weight:600">›</a>
+                    </div>
+                </div>
+                {% if n.children %}
+                <ul>
+                    {% for child in n.children %}
+                        {{ render_node(child) }}
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </li>
+            {% endmacro %}
+
+            {% for tree in trees %}
+                {{ render_node(tree) }}
+            {% else %}
+                <li><div style="color:var(--text-soft);padding:30px;text-align:center">Keine Strukturdaten vorhanden.</div></li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Admin: Tagesaufgaben – NT Pro Academy{% endblock %}
+{% block page_title %}Admin: Tagesaufgaben pro Stufe{% endblock %}
+
+{% block content %}
+
+<!-- Hinweis -->
+<div class="card" style="background:var(--blue-soft);border:1px solid #c9dcf4">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="font-size:20px">ℹ️</span>
+        <div style="font-size:13px;color:var(--text)">
+            <strong>So funktioniert's:</strong> Definiere hier die Tagesaufgaben, die jedes Mitglied einer bestimmten Stufe (REP, LREP, ... bis GREP) <strong>jeden Tag</strong> erledigen soll.
+            Die Aufgaben erscheinen automatisch im Bereich „Aufgaben“ jedes betroffenen Mitglieds, sobald es die jeweilige Stufe erreicht hat.
+        </div>
+    </div>
+</div>
+
+<!-- Neue Aufgabe -->
+<div class="card">
+    <div class="card-title">+ Neue Aufgabe definieren</div>
+    <form method="POST">
+        <input type="hidden" name="action" value="add">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Stufe *</label>
+                <select name="level" required>
+                    {% for cl in all_levels %}
+                    <option value="{{ cl.level }}">{{ cl.short }} – {{ cl.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Reihenfolge (kleiner = oben)</label>
+                <input type="number" name="sort_order" value="0" min="0">
+            </div>
+            <div class="form-group full">
+                <label>Aufgabe *</label>
+                <input type="text" name="title" required placeholder="z.B. 5 Akquise-Anrufe heute">
+            </div>
+            <div class="form-group full">
+                <label>Beschreibung (optional)</label>
+                <textarea name="description" placeholder="Details, was genau zu tun ist..."></textarea>
+            </div>
+        </div>
+        <div style="margin-top:16px">
+            <button type="submit" class="btn btn-primary">+ Aufgabe hinzufügen</button>
+        </div>
+    </form>
+</div>
+
+<!-- Aufgaben pro Stufe -->
+{% for cl in all_levels %}
+<div class="card">
+    <div class="card-title" style="display:flex;align-items:center;gap:10px">
+        <span class="stufe-pill" style="background:{{ cl.color }}15;color:{{ cl.color }};font-size:12px">{{ cl.short }}</span>
+        <span style="text-transform:none;letter-spacing:0">{{ cl.name }} – Tagesaufgaben</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--text-soft);font-weight:500;text-transform:none;letter-spacing:0">
+            {{ tasks_by_level[cl.level] | length }} Aufgaben
+        </span>
+    </div>
+    {% if tasks_by_level[cl.level] %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th style="width:60px">#</th><th>Aufgabe</th><th>Beschreibung</th><th style="width:100px">Aktion</th></tr></thead>
+            <tbody>
+                {% for t in tasks_by_level[cl.level] %}
+                <tr>
+                    <td><strong>{{ t.sort_order }}</strong></td>
+                    <td><strong>{{ t.title }}</strong></td>
+                    <td style="font-size:12px;color:var(--text-muted)">{{ t.description or '–' }}</td>
+                    <td>
+                        <form method="POST" style="display:inline" onsubmit="return confirm('Wirklich löschen?')">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="task_id" value="{{ t.id }}">
+                            <button type="submit" class="btn btn-danger btn-sm">Löschen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:24px;color:var(--text-soft);font-size:13px">
+        Keine Aufgaben für {{ cl.short }} definiert.
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+{% endblock %}

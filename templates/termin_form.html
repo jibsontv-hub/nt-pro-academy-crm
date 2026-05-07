@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{% if termin %}Termin bearbeiten{% else %}Neuer Termin{% endif %} – NT Pro Academy{% endblock %}
+{% block page_title %}{% if termin %}Termin bearbeiten{% else %}Neuer Termin{% endif %}{% endblock %}
+{% block topbar_actions %}<a href="/termine" class="btn btn-secondary">← Zurück</a>{% endblock %}
+{% block content %}
+<div class="card" style="max-width:700px">
+    <form method="POST">
+        <div class="form-grid">
+            <div class="form-group full">
+                <label>Titel *</label>
+                <input type="text" name="title" value="{{ termin.title if termin else '' }}" required placeholder="z.B. Erstgespräch mit Kunde">
+            </div>
+            <div class="form-group">
+                <label>Kundenname</label>
+                <input type="text" name="client_name" value="{{ termin.client_name if termin else '' }}" placeholder="Vor- und Nachname">
+            </div>
+            <div class="form-group">
+                <label>Typ</label>
+                <select name="typ">
+                    {% for t in ['kundentermin', 'partnergesprach', 'onboarding', 'followup', 'sonstiges'] %}
+                    <option value="{{ t }}" {% if termin and termin.typ == t %}selected{% elif not termin and t == 'kundentermin' %}selected{% endif %}>{{ t | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Datum *</label>
+                <input type="date" name="termin_date" value="{{ termin.termin_date if termin else '' }}" required>
+            </div>
+            <div class="form-group">
+                <label>Uhrzeit</label>
+                <input type="time" name="termin_time" value="{{ termin.termin_time if termin else '' }}">
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select name="status">
+                    {% for s in ['geplant', 'erledigt', 'abgesagt'] %}
+                    <option value="{{ s }}" {% if termin and termin.status == s %}selected{% elif not termin and s == 'geplant' %}selected{% endif %}>{{ s | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group full">
+                <label>Notizen</label>
+                <textarea name="notizen" placeholder="Weitere Informationen...">{{ termin.notizen if termin else '' }}</textarea>
+            </div>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:10px">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+            <a href="/termine" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

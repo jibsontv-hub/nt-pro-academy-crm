@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Team & Struktur – NT Pro Academy{% endblock %}
+{% block page_title %}Team-Liste{% endblock %}
+{% block topbar_actions %}
+<a href="/team/neu" class="btn btn-primary">+ Partner hinzufügen</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:13px;color:var(--text-muted)">{{ members|length }} aktive Mitglieder</div>
+        <input type="text" id="searchInput" placeholder="🔍 Suchen..." onkeyup="filterTable()" style="padding:8px 12px;border:1px solid var(--border-strong);border-radius:7px;font-size:13px;width:220px">
+    </div>
+    <div class="table-wrap">
+        <table id="mainTable">
+            <thead>
+                <tr><th>Name / Login</th><th>Karriere-Stufe</th><th>Hierarchie</th><th>Upline</th><th>Telefon</th><th>Dabei seit</th><th>Verträge</th><th>EH</th><th>Volumen</th><th>Aktionen</th></tr>
+            </thead>
+            <tbody>
+                {% for m in members %}
+                <tr>
+                    <td>
+                        <strong>{{ m.name }}</strong>
+                        <div style="font-size:11px;color:var(--text-soft)">🔑 {{ m.email }}</div>
+                    </td>
+                    <td>
+                        <span class="stufe-pill" style="background:{{ m.career.color }}15;color:{{ m.career.color }};border:1px solid {{ m.career.color }}50">{{ m.career.short }}</span>
+                        <div style="font-size:10px;color:var(--text-soft);margin-top:2px">{{ m.career.name }}</div>
+                    </td>
+                    <td>
+                        <span class="level-dot level-{{ m.level if m.level <= 5 else 'other' }}"></span>
+                        Ebene {{ m.level }}
+                    </td>
+                    <td>{{ m.parent_name or '– Top –' }}</td>
+                    <td>{{ m.phone or '–' }}</td>
+                    <td>{{ m.joined_date }}</td>
+                    <td>{{ m.contracts_count }}</td>
+                    <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(m.einheiten).replace(",", ".") }}</strong></td>
+                    <td class="money">{{ "{:,.0f}".format(m.volumen).replace(",", ".") }} €</td>
+                    <td style="white-space:nowrap">
+                        <a href="/team/{{ m.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a>
+                        {% if m.id != current_user.id %}
+                        <form method="POST" action="/team/{{ m.id }}/deactivate" style="display:inline" onsubmit="return confirm('Mitglied deaktivieren?')">
+                            <button type="submit" class="btn btn-danger btn-sm">×</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" style="text-align:center;color:var(--text-soft);padding:32px">
+                    Noch keine Teammitglieder. <a href="/team/neu" style="color:var(--navy);font-weight:600">Hinzufügen →</a>
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Stufen-Verteilung -->
+<div class="card">
+    <div class="card-title">Karriere-Stufen Verteilung</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+        {% for cl in all_levels %}
+        {% set count = members | selectattr('career.level', 'equalto', cl.level) | list | length %}
+        <div style="background:#fafbfc;border-radius:8px;padding:14px;border:1px solid var(--border);border-left:3px solid {{ cl.color }}">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span class="stufe-pill" style="background:{{ cl.color }}15;color:{{ cl.color }}">{{ cl.short }}</span>
+            </div>
+            <div style="font-size:13px;color:var(--text);font-weight:600">{{ cl.name }}</div>
+            <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">{{ count }}</div>
+            <div style="font-size:11px;color:var(--text-soft)">Mitglieder · ab {{ "{:,.0f}".format(cl.min_eh).replace(",", ".") }} EH</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Hierarchie-Verteilung -->
+<div class="card">
+    <div class="card-title">Hierarchie-Ebenen (10 Ebenen tief)</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        {% for i in range(1, 11) %}
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);padding:8px 14px;background:#fafbfc;border:1px solid var(--border);border-radius:8px">
+            <span class="level-dot level-{{ i if i <= 5 else 'other' }}"></span>
+            Ebene {{ i }}:
+            <strong>{{ members | selectattr('level', 'equalto', i) | list | length }}</strong>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<script>
+function filterTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(input) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

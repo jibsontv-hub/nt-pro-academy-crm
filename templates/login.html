@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login – NT Pro Academy Control Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f7f8fb;
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            -webkit-font-smoothing: antialiased;
+        }
+        .layout {
+            display: grid; grid-template-columns: 1fr 1fr;
+            width: 100%; max-width: 1100px; min-height: 600px;
+            background: #fff; border-radius: 14px; overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 12px 40px rgba(15,28,63,0.08);
+            border: 1px solid #e5e8ee;
+        }
+        .left {
+            background: linear-gradient(135deg, #0f1c3f 0%, #1a2c5b 100%);
+            padding: 50px 44px; color: #fff;
+            display: flex; flex-direction: column; justify-content: space-between;
+            position: relative; overflow: hidden;
+        }
+        .left::after {
+            content: ''; position: absolute; right: -100px; bottom: -100px;
+            width: 300px; height: 300px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(212,168,67,0.12) 0%, transparent 70%);
+        }
+        .brand-icon {
+            width: 44px; height: 44px; border-radius: 10px;
+            background: rgba(212,168,67,0.18); border: 1px solid rgba(212,168,67,0.3);
+            color: #d4a843; display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 16px; margin-bottom: 24px;
+        }
+        .brand-title {
+            font-size: 26px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px;
+        }
+        .brand-subtitle { font-size: 13px; color: rgba(255,255,255,0.6); letter-spacing: 1px; text-transform: uppercase; font-weight: 600; }
+        .pitch { margin-top: 36px; }
+        .pitch-item { display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start; }
+        .pitch-item-icon {
+            width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
+            background: rgba(212,168,67,0.15); color: #d4a843;
+            display: flex; align-items: center; justify-content: center; font-size: 13px;
+        }
+        .pitch-item-text { font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.5; }
+        .pitch-item-text strong { color: #fff; }
+        .footer-note { font-size: 11px; color: rgba(255,255,255,0.4); position: relative; z-index: 1; letter-spacing: 0.5px; }
+        .right { padding: 56px 50px; display: flex; flex-direction: column; justify-content: center; }
+        .right h1 { font-size: 24px; font-weight: 800; color: #1a1f36; margin-bottom: 6px; letter-spacing: -0.4px; }
+        .right .desc { font-size: 13px; color: #6b7280; margin-bottom: 32px; }
+        .form-group { margin-bottom: 18px; }
+        label {
+            display: block; font-size: 11px; font-weight: 600; color: #6b7280;
+            text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 7px;
+        }
+        input {
+            width: 100%; padding: 12px 14px; border: 1px solid #d1d5dc;
+            border-radius: 8px; font-size: 14px; color: #1a1f36; background: #fff;
+            font-family: inherit; transition: all 0.15s;
+        }
+        input:focus { outline: none; border-color: #0f1c3f; box-shadow: 0 0 0 3px rgba(15,28,63,0.08); }
+        .btn-login {
+            width: 100%; padding: 13px; background: #0f1c3f; color: #fff;
+            border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
+            cursor: pointer; transition: all 0.15s; margin-top: 8px;
+        }
+        .btn-login:hover { background: #1a2c5b; }
+        .flash {
+            padding: 11px 14px; border-radius: 8px; margin-bottom: 18px;
+            font-size: 13px; background: #fef0ee; color: #b8311a; border: 1px solid #f5c8c0;
+        }
+        .hint { text-align: center; margin-top: 22px; font-size: 11px; color: #9ca3af; }
+        @media (max-width: 800px) {
+            .layout { grid-template-columns: 1fr; max-width: 440px; }
+            .left { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="left">
+            <div>
+                <div class="brand-icon">NT</div>
+                <div class="brand-title">NT Pro Academy</div>
+                <div class="brand-subtitle">Control Hub</div>
+
+                <div class="pitch">
+                    <div class="pitch-item">
+                        <div class="pitch-item-icon">▦</div>
+                        <div class="pitch-item-text"><strong>Komplette Kontrolle.</strong> Vom Repräsentant bis zum Generalrepräsentant — alles in einem System.</div>
+                    </div>
+                    <div class="pitch-item">
+                        <div class="pitch-item-icon">€</div>
+                        <div class="pitch-item-text"><strong>Provisionen automatisch.</strong> Differenz-System. Jede Stufe erhält den korrekten Anteil.</div>
+                    </div>
+                    <div class="pitch-item">
+                        <div class="pitch-item-icon">⬢</div>
+                        <div class="pitch-item-text"><strong>10 Hierarchie-Ebenen.</strong> Visuelle Struktur. Privatsphäre für jeden Partner.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-note">© NT Pro Academy · Strukturvertrieb-Management</div>
+        </div>
+        <div class="right">
+            <h1>Willkommen zurück</h1>
+            <p class="desc">Bitte mit Ihren Zugangsdaten anmelden.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="flash">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+
+            <form method="POST">
+                <div class="form-group">
+                    <label>E-Mail</label>
+                    <input type="email" name="email" placeholder="ihre@email.de" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label>Passwort</label>
+                    <input type="password" name="password" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn-login">Anmelden →</button>
+            </form>
+
+            <div class="hint">Zugang nur für autorisierte Mitglieder</div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Verträge – NT Pro Academy{% endblock %}
+{% block page_title %}Verträge & Kunden{% endblock %}
+{% block topbar_actions %}
+<a href="/vertraege/neu" class="btn btn-primary">+ Neuer Vertrag</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+        <div style="font-size:13px;color:var(--text-muted)">
+            <strong>{{ vertraege|length }}</strong> Vertrag/Verträge ·
+            <span style="color:var(--gold)">1 € = {{ eh_faktor }} EH</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="searchInput" placeholder="🔍 Suchen..." onkeyup="filterTable()" style="padding:8px 12px;border:1px solid var(--border-strong);border-radius:7px;font-size:13px;width:220px">
+        </div>
+    </div>
+
+    <!-- Legende -->
+    <div style="background:#fafbfc;border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--text-muted);display:flex;gap:14px;flex-wrap:wrap">
+        <span><strong style="color:var(--text)">Workflow-Symbole:</strong></span>
+        <span>🔍 Recherche</span>
+        <span>📞 Telefonat</span>
+        <span>📁 Unterlagen</span>
+        <span>📋 Nachweise</span>
+        <span>✍️ Unterschrieben</span>
+        <span>🔑 Freizeichnung</span>
+    </div>
+
+    <div class="table-wrap">
+        <table id="mainTable">
+            <thead>
+                <tr>
+                    <th>Kunde</th><th>Produkt</th><th>Volumen</th><th>EH</th>
+                    <th>Recherche</th>
+                    <th style="text-align:center">Workflow</th>
+                    <th>Status</th><th>Berater</th><th>Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set rs_map = {'ausstehend':('🕓','#9ca3af','Ausstehend'),'freigegeben':('✅','#10773d','Freigegeben'),'negativ':('❌','#b8311a','Negativ'),'nachverkauf':('⚠️','#b8590a','Nachverkauf')} %}
+                {% for v in vertraege %}
+                {% set steps_done = (v.recherche_done + v.telefonat_done + v.unterlagen_done + v.nachweise_done + v.unterschrieben + (v.freizeichnung_done or 0)) %}
+                {% set rs = v.recherche_status or 'ausstehend' %}
+                {% set rs_data = rs_map.get(rs, rs_map['ausstehend']) %}
+                {% set eh_zaehlt = (v.status == 'abgeschlossen' and rs == 'freigegeben') %}
+                <tr {% if not eh_zaehlt and v.einheiten > 0 %}style="opacity:0.55"{% endif %}>
+                    <td>
+                        <strong>{{ v.client_name }}</strong>
+                        {% if v.abschluss_date %}<div style="font-size:11px;color:var(--text-soft)">{{ v.abschluss_date }}</div>{% endif %}
+                    </td>
+                    <td>{{ v.produkt }}</td>
+                    <td class="money">{{ "{:,.0f}".format(v.volumen).replace(",", ".") }} €</td>
+                    <td>
+                        {% if eh_zaehlt %}
+                            <strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(v.einheiten).replace(",", ".") }}</strong>
+                        {% else %}
+                            <span style="text-decoration:line-through;color:var(--text-soft)" class="money">{{ "{:,.0f}".format(v.einheiten).replace(",", ".") }}</span>
+                            <div style="font-size:10px;color:var(--red)">zählt nicht</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;background:{{ rs_data[1] }}15;color:{{ rs_data[1] }};font-size:11px;font-weight:700;border:1px solid {{ rs_data[1] }}40">
+                            {{ rs_data[0] }} {{ rs_data[2] }}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="display:flex;gap:3px;justify-content:center;font-size:13px" title="{{ steps_done }}/6 Schritte erledigt">
+                            <span style="opacity:{% if v.recherche_done %}1{% else %}0.25{% endif %};{% if not v.recherche_done %}filter:grayscale(1){% endif %}" title="Recherche">🔍</span>
+                            <span style="opacity:{% if v.telefonat_done %}1{% else %}0.25{% endif %};{% if not v.telefonat_done %}filter:grayscale(1){% endif %}" title="Telefonat">📞</span>
+                            <span style="opacity:{% if v.unterlagen_done %}1{% else %}0.25{% endif %};{% if not v.unterlagen_done %}filter:grayscale(1){% endif %}" title="Unterlagen">📁</span>
+                            <span style="opacity:{% if v.nachweise_done %}1{% else %}0.25{% endif %};{% if not v.nachweise_done %}filter:grayscale(1){% endif %}" title="Nachweise">📋</span>
+                            <span style="opacity:{% if v.unterschrieben %}1{% else %}0.25{% endif %};{% if not v.unterschrieben %}filter:grayscale(1){% endif %}" title="Unterschrieben">✍️</span>
+                            <span style="opacity:{% if v.freizeichnung_done %}1{% else %}0.25{% endif %};{% if not v.freizeichnung_done %}filter:grayscale(1){% endif %}" title="Freizeichnungsschlüssel">🔑</span>
+                        </div>
+                        <div class="progress-bar" style="height:4px;margin-top:4px">
+                            <div class="progress-fill" style="width:{{ (steps_done / 6 * 100) }}%;background:{% if steps_done == 6 %}var(--green){% elif steps_done >= 4 %}var(--gold){% else %}var(--blue){% endif %}"></div>
+                        </div>
+                        <div style="font-size:10px;color:var(--text-soft);text-align:center;margin-top:2px">{{ steps_done }}/6</div>
+                    </td>
+                    <td><span class="status-badge status-{{ v.status }}">{{ v.status }}</span></td>
+                    <td>{{ v.berater_name }}</td>
+                    <td style="white-space:nowrap">
+                        <a href="/vertraege/{{ v.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a>
+                        <form method="POST" action="/vertraege/{{ v.id }}/delete" style="display:inline" onsubmit="return confirm('Vertrag löschen?')">
+                            <button type="submit" class="btn btn-danger btn-sm">×</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align:center;color:var(--text-soft);padding:40px">
+                    Noch keine Verträge. <a href="/vertraege/neu" style="color:var(--navy);font-weight:600">Anlegen →</a>
+                </td></tr>
+                {% endfor %}
+            </tbody>
+            {% if vertraege %}
+            {% set freigegeben = vertraege | selectattr('recherche_status', 'equalto', 'freigegeben') | selectattr('status', 'equalto', 'abgeschlossen') | list %}
+            <tfoot>
+                <tr style="background:var(--gold-soft);border-top:2px solid var(--gold)">
+                    <td colspan="2" style="font-weight:700;color:var(--gold)">Σ Wirksam (freigegeben + abgeschlossen)</td>
+                    <td style="font-weight:700;color:var(--text)" class="money">{{ "{:,.0f}".format(freigegeben | sum(attribute='volumen')).replace(",", ".") }} €</td>
+                    <td style="font-weight:700;color:var(--gold)" class="money">{{ "{:,.0f}".format(freigegeben | sum(attribute='einheiten')).replace(",", ".") }}</td>
+                    <td colspan="5" style="font-size:11px;color:var(--text-muted)">
+                        Insgesamt erfasst: {{ "{:,.0f}".format(vertraege | sum(attribute='einheiten')).replace(",", ".") }} EH ·
+                        Wirksam: {{ freigegeben|length }} von {{ vertraege|length }} Verträgen
+                    </td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+<script>
+function filterTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(input) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}
