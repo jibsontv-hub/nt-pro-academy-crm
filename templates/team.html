@@ -44,6 +44,9 @@
                         <form method="POST" action="/admin/team/{{ m.id }}/reset-password" style="display:inline" onsubmit="return confirm('Passwort für {{ m.name }} zurücksetzen?')">
                             <button type="submit" class="btn btn-secondary btn-sm" title="Passwort zurücksetzen">🔑</button>
                         </form>
+                        <form method="POST" action="/admin/team/{{ m.id }}/resend-welcome" style="display:inline" onsubmit="return confirm('Welcome-E-Mail an {{ m.name }} ({{ m.email }}) senden? Neues Initial-Passwort wird generiert.')">
+                            <button type="submit" class="btn btn-secondary btn-sm" title="Welcome-E-Mail senden">📧</button>
+                        </form>
                         {% endif %}
                         {% if current_user.role == 'admin' and m.id != current_user.id and m.role != 'admin' %}
                         <form method="POST" action="/admin/team/{{ m.id }}/toggle-co-admin" style="display:inline" onsubmit="return confirm('{{ m.name }} {% if m.is_co_admin %}vom Co-Admin-Status entfernen{% else %}zum Co-Admin machen{% endif %}?')">

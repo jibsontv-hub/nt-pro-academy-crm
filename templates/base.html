@@ -508,14 +508,71 @@
         /* Money */
         .money { font-variant-numeric: tabular-nums; font-weight: 600; }
 
+        /* === MOBILE-RESPONSIVE === */
+        .hamburger-btn {
+            display: none;
+            width: 40px; height: 40px; border-radius: 10px;
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text); cursor: pointer; padding: 0;
+            align-items: center; justify-content: center; font-size: 20px;
+        }
+        .sidebar-backdrop {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); z-index: 99;
+            backdrop-filter: blur(3px);
+        }
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); }
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                width: 280px; box-shadow: 0 0 60px rgba(0,0,0,0.3);
+            }
+            .sidebar.is-open { transform: translateX(0); }
+            .sidebar-backdrop.is-open { display: block; }
             .main { margin-left: 0; }
+            .topbar { padding: 14px 16px; gap: 10px; }
+            .topbar-title { font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .topbar-actions button[onclick="openSearch()"] { min-width: auto !important; padding: 8px 12px !important; }
+            .topbar-actions button[onclick="openSearch()"] span:nth-child(2) { display: none; }
+            .topbar-actions button[onclick="openSearch()"] kbd { display: none; }
+            .hamburger-btn { display: inline-flex; }
+            .content { padding: 18px 14px; }
             .form-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .card { padding: 18px; border-radius: 12px; margin-bottom: 12px; }
+            .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+            .kpi-card { padding: 14px 16px; }
+            .kpi-value { font-size: 22px; }
+            h1 { font-size: 26px !important; }
+            /* Tabellen scrollbar */
+            .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            table { font-size: 12px; min-width: 480px; }
+            th, td { padding: 10px 8px; }
+            /* Buttons touch-friendly */
+            .btn { padding: 11px 16px; font-size: 13px; }
+            .btn-sm { padding: 8px 12px; font-size: 12px; min-height: 36px; }
+            /* Modals fullscreen-ish */
+            #searchOverlay { padding: 16px !important; }
+            #achievementModal > div { max-width: 95vw !important; padding: 32px 20px !important; }
+            #tourCard { max-width: 92vw !important; left: 4vw !important; right: 4vw !important; transform: none !important; }
+            /* Single-Column für 4-Spalten-Grids */
+            [style*="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"],
+            [style*="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"],
+            [style*="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))"],
+            [style*="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))"],
+            [style*="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))"],
+            [style*="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))"] {
+                grid-template-columns: 1fr !important;
+            }
+        }
+        @media (max-width: 480px) {
+            .kpi-grid { grid-template-columns: 1fr !important; }
+            .topbar-actions { gap: 6px; }
+            .theme-toggle { width: 34px; height: 34px; }
         }
     </style>
 </head>
 <body>
+    <div class="sidebar-backdrop" onclick="toggleSidebar()"></div>
     <div class="sidebar">
         <div class="sidebar-logo">
             <div class="brand-row">
@@ -646,6 +703,7 @@
 
     <div class="main">
         <div class="topbar">
+            <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menü">☰</button>
             <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
             <div class="topbar-actions" style="display:flex;align-items:center;gap:10px">
                 <button onclick="openSearch()" title="Suchen (⌘K)" aria-label="Suchen"
@@ -976,6 +1034,28 @@
     {% endif %}
 
     <script>
+        // Sidebar Toggle (Mobile)
+        function toggleSidebar() {
+            const sb = document.querySelector('.sidebar');
+            const bd = document.querySelector('.sidebar-backdrop');
+            if (sb && bd) {
+                sb.classList.toggle('is-open');
+                bd.classList.toggle('is-open');
+            }
+        }
+        // Auto-Close beim Link-Klick (Mobile)
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.sidebar .nav-link').forEach(a => {
+                a.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) {
+                        const sb = document.querySelector('.sidebar');
+                        const bd = document.querySelector('.sidebar-backdrop');
+                        if (sb && bd) { sb.classList.remove('is-open'); bd.classList.remove('is-open'); }
+                    }
+                });
+            });
+        });
+
         // Theme-Toggle
         function toggleTheme() {
             const cur = document.documentElement.getAttribute('data-theme') || 'light';
@@ -988,6 +1068,144 @@
             }
         }
     </script>
+
+
+    <!-- 🎤 APP-TOUR mit Voice für neue Partner -->
+    {% if current_user.is_authenticated %}
+    <div id="tourOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.85);z-index:10500;backdrop-filter:blur(6px);pointer-events:auto"></div>
+    <div id="tourSpotlight" style="display:none;position:fixed;border:3px solid #d4a843;border-radius:16px;box-shadow:0 0 0 9999px rgba(15,23,42,0.85),0 0 32px rgba(212,168,67,0.4);z-index:10501;pointer-events:none;transition:all 0.4s cubic-bezier(0.16,1,0.3,1)"></div>
+    <div id="tourCard" style="display:none;position:fixed;background:linear-gradient(135deg,#131829,#0f1424);color:#f1f5f9;border-radius:16px;padding:24px;max-width:380px;z-index:10502;border:1px solid rgba(212,168,67,0.3);box-shadow:0 25px 60px rgba(0,0,0,0.6);font-family:Inter,sans-serif">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div id="tourIcon" style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#d4a843,#f0c970);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#0f1c3f">1</div>
+            <div style="flex:1">
+                <div id="tourTitle" style="font-size:16px;font-weight:800;color:#fff;letter-spacing:-0.3px"></div>
+                <div id="tourCounter" style="font-size:11px;color:rgba(255,255,255,0.5)"></div>
+            </div>
+            <button onclick="endTour(true)" style="background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:18px;padding:4px 8px">×</button>
+        </div>
+        <div id="tourText" style="font-size:14px;color:rgba(255,255,255,0.85);line-height:1.6;margin-bottom:18px"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="prevTour()" id="tourPrevBtn" style="padding:9px 14px;background:rgba(255,255,255,0.06);color:#fff;border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:600">← Zurück</button>
+            <button onclick="toggleTourVoice()" id="tourVoiceBtn" title="Stimme an/aus" style="padding:9px 12px;background:rgba(212,168,67,0.15);color:#d4a843;border:1px solid rgba(212,168,67,0.3);border-radius:8px;cursor:pointer;font-size:14px;font-family:inherit">🔊</button>
+            <div style="flex:1"></div>
+            <button onclick="nextTour()" id="tourNextBtn" style="padding:10px 18px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border:none;border-radius:8px;cursor:pointer;font-weight:800;font-size:13px;font-family:inherit">Weiter →</button>
+        </div>
+    </div>
+    <script>
+        const TOUR_STEPS = [
+            {url:'/dashboard', selector:'.topbar-title', icon:'1', title:'Dashboard', text:'Dies ist dein Cockpit. Hier siehst du alles auf einen Blick: Karriere-Stufe, Provisionen, KI-Coach und mehr.', voice:'Willkommen in deinem Cockpit. Hier siehst du alles auf einen Blick.'},
+            {url:'/dashboard', selector:'a[href="/coach"]', icon:'2', title:'KI-Coach', text:'Der KI-Coach gibt dir tägliche Empfehlungen, sagt dir wen du anrufen sollst und analysiert dein Team.', voice:'Der KI-Coach ist dein digitaler Mentor. Tägliche Empfehlungen direkt für dich.'},
+            {url:'/dashboard', selector:'a[href="/namensliste"]', icon:'3', title:'Namensliste', text:'Hier pflegst du deine Kontakte. Familie, Freunde, Kollegen — schreib alle auf. Aus der Namensliste werden Termine, aus Terminen Verträge.', voice:'Die Namensliste ist dein wichtigstes Werkzeug. Schreibe alle Kontakte auf.'},
+            {url:'/dashboard', selector:'a[href="/vertraege"]', icon:'4', title:'Verträge', text:'Hier legst du Verträge an. Das System rechnet automatisch die Einheiten und Provisionen. Vergiss nicht den Recherche-Status auf freigegeben zu setzen!', voice:'Bei Verträgen rechnet das System automatisch alles für dich.'},
+            {url:'/dashboard', selector:'a[href="/trophaeen"]', icon:'5', title:'Trophäen', text:'27 Achievements warten auf dich. Erste Person, erster Vertrag, 1000 EH, Beförderungen — sammle sie alle!', voice:'Sammle Trophäen für deine Erfolge. Es gibt 27 verschiedene.'},
+            {url:'/dashboard', selector:'a[href="/profil"]', icon:'6', title:'Mein Profil & Vision', text:'Hier setzt du dein WARUM. Dein persönliches Ziel, das dich antreibt. Es erscheint jeden Login als Erinnerung.', voice:'Setze dein persönliches Warum. Es motiviert dich jeden Tag.'},
+            {url:'/dashboard', selector:'.topbar-actions', icon:'7', title:'Schnell-Suche', text:'Drück Cmd+K oder klick oben rechts — finde sofort jeden Partner, Kunden, Vertrag oder Termin.', voice:'Mit Cmd-K findest du alles in Sekunden.'},
+            {url:'/dashboard', selector:null, icon:'✓', title:'Du bist bereit!', text:'Das war\'s mit der Tour. Du kannst sie jederzeit über das Profil-Menü wieder starten. Jetzt: Los geht\'s! 🚀', voice:'Das war die Tour. Jetzt geht\'s los, viel Erfolg!'}
+        ];
+        let _tourIdx = 0;
+        let _tourVoiceOn = true;
+
+        function startTour() {
+            _tourIdx = 0;
+            try { localStorage.setItem('ntpro-tour-active', '1'); } catch(e){}
+            showTourStep();
+        }
+        function endTour(skipped) {
+            try { localStorage.removeItem('ntpro-tour-active'); localStorage.setItem('ntpro-tour-done', '1'); } catch(e){}
+            window.speechSynthesis && window.speechSynthesis.cancel();
+            ['tourOverlay','tourSpotlight','tourCard'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+            document.body.style.overflow = '';
+        }
+        function showTourStep() {
+            const step = TOUR_STEPS[_tourIdx];
+            if (!step) { endTour(false); return; }
+            // Wenn andere URL → navigieren
+            if (step.url && window.location.pathname !== step.url) {
+                window.location.href = step.url + '#tour=' + _tourIdx;
+                return;
+            }
+            renderTourCard(step);
+            highlightElement(step.selector);
+            speakTour(step);
+        }
+        function renderTourCard(step) {
+            document.getElementById('tourOverlay').style.display = 'block';
+            document.getElementById('tourCard').style.display = 'block';
+            document.getElementById('tourIcon').textContent = step.icon;
+            document.getElementById('tourTitle').textContent = step.title;
+            document.getElementById('tourText').textContent = step.text;
+            document.getElementById('tourCounter').textContent = `Schritt ${_tourIdx+1} von ${TOUR_STEPS.length}`;
+            document.getElementById('tourPrevBtn').style.display = (_tourIdx === 0) ? 'none' : 'inline-block';
+            document.getElementById('tourNextBtn').textContent = (_tourIdx === TOUR_STEPS.length - 1) ? 'Tour beenden ✓' : 'Weiter →';
+            document.body.style.overflow = 'hidden';
+            // Card unten zentriert positionieren
+            const card = document.getElementById('tourCard');
+            card.style.bottom = '32px';
+            card.style.left = '50%';
+            card.style.transform = 'translateX(-50%)';
+            card.style.top = 'auto';
+            card.style.right = 'auto';
+        }
+        function highlightElement(selector) {
+            const sp = document.getElementById('tourSpotlight');
+            if (!selector) { sp.style.display = 'none'; return; }
+            const el = document.querySelector(selector);
+            if (!el) { sp.style.display = 'none'; return; }
+            try { el.scrollIntoView({behavior:'smooth', block:'center'}); } catch(e){}
+            setTimeout(() => {
+                const r = el.getBoundingClientRect();
+                sp.style.display = 'block';
+                sp.style.top = (r.top - 8) + 'px';
+                sp.style.left = (r.left - 8) + 'px';
+                sp.style.width = (r.width + 16) + 'px';
+                sp.style.height = (r.height + 16) + 'px';
+            }, 350);
+        }
+        function speakTour(step) {
+            if (!_tourVoiceOn || !window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(step.voice || step.text);
+            u.lang = 'de-DE'; u.rate = 1.0;
+            const voices = window.speechSynthesis.getVoices();
+            const v = voices.find(x => x.lang === 'de-DE') || voices.find(x => x.lang.startsWith('de'));
+            if (v) u.voice = v;
+            window.speechSynthesis.speak(u);
+        }
+        function nextTour() {
+            if (_tourIdx >= TOUR_STEPS.length - 1) { endTour(false); return; }
+            _tourIdx++;
+            showTourStep();
+        }
+        function prevTour() { if (_tourIdx > 0) { _tourIdx--; showTourStep(); } }
+        function toggleTourVoice() {
+            _tourVoiceOn = !_tourVoiceOn;
+            document.getElementById('tourVoiceBtn').textContent = _tourVoiceOn ? '🔊' : '🔇';
+            if (!_tourVoiceOn) window.speechSynthesis && window.speechSynthesis.cancel();
+            else { const step = TOUR_STEPS[_tourIdx]; if (step) speakTour(step); }
+        }
+        // Bei Page-Load: prüfen ob Tour aktiv
+        window.addEventListener('load', () => {
+            try {
+                // Start via URL-Parameter ?tour=start
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('tour') === 'start') {
+                    setTimeout(() => startTour(), 700);
+                    return;
+                }
+                // Resume Tour wenn aktiv + Hash matched
+                const active = localStorage.getItem('ntpro-tour-active');
+                const hashMatch = window.location.hash.match(/tour=(\d+)/);
+                if (active && hashMatch) {
+                    _tourIdx = parseInt(hashMatch[1]);
+                    setTimeout(() => showTourStep(), 600);
+                }
+            } catch(e){}
+        });
+    </script>
+    {% endif %}
 
     {% block scripts %}{% endblock %}
 </body>

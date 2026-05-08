@@ -293,11 +293,15 @@ textarea::placeholder { color: var(--text-soft); font-style: italic; }
                     <div class="feature-desc">Erste Belohnungen warten schon</div>
                 </div>
             </div>
-            <form method="POST" action="/willkommen/abschluss">
+            <form method="POST" action="/willkommen/abschluss" id="finishForm">
                 <input type="hidden" name="vision" id="visionFinal">
-                <div class="actions">
-                    <button class="btn btn-ghost" type="button" onclick="prev()">← Zurück</button>
-                    <button class="btn btn-primary" style="margin-left:auto" type="submit">🚀 Zum Dashboard</button>
+                <input type="hidden" name="start_tour" id="startTour" value="0">
+                <div class="actions" style="flex-direction:column;gap:10px">
+                    <div style="display:flex;gap:10px;width:100%">
+                        <button class="btn btn-ghost" type="button" onclick="prev()">← Zurück</button>
+                        <button class="btn btn-primary" type="button" style="margin-left:auto" onclick="document.getElementById('startTour').value='1';document.getElementById('finishForm').submit()">🎤 Mit App-Tour weiter</button>
+                    </div>
+                    <button class="btn btn-ghost" type="submit" style="font-size:12px;opacity:0.7">Direkt zum Dashboard ohne Tour</button>
                 </div>
             </form>
         </div>

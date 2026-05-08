@@ -1756,6 +1756,37 @@ def admin_toggle_co_admin(uid):
     return redirect(url_for('team'))
 
 
+# === ADMIN: WELCOME-MAIL erneut senden ===
+@app.route('/admin/team/<int:uid>/resend-welcome', methods=['POST'])
+@login_required
+def admin_resend_welcome(uid):
+    """Welcome-Mail erneut senden + neues Initial-Passwort generieren."""
+    if not current_user.has_admin_access:
+        return redirect(url_for('team'))
+    if not is_smtp_configured():
+        flash('SMTP nicht konfiguriert — bitte erst E-Mail-Server einrichten', 'error')
+        return redirect(url_for('team'))
+
+    new_pw = generate_random_password()
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (uid,)).fetchone()
+    if not user:
+        db.close()
+        return redirect(url_for('team'))
+    db.execute('UPDATE users SET password = ?, must_change_password = 1 WHERE id = ?',
+               (hash_password(new_pw), uid))
+    db.commit()
+    db.close()
+
+    ok, err = send_welcome_email(user['email'], user['name'], new_pw,
+                                  sender_name=current_user.name)
+    if ok:
+        flash(f'✅ Welcome-E-Mail verschickt an {user["email"]}. Neues Passwort: {new_pw}', 'success')
+    else:
+        flash(f'❌ E-Mail-Versand fehlgeschlagen: {(err or "")[:100]}. Neues Passwort: {new_pw}', 'error')
+    return redirect(url_for('team'))
+
+
 # === ADMIN: PASSWORT-RESET ===
 @app.route('/admin/team/<int:uid>/reset-password', methods=['POST'])
 @login_required
@@ -2894,6 +2925,7 @@ def willkommen():
 def willkommen_abschluss():
     """Markiert Onboarding als abgeschlossen + speichert Vision falls eingegeben."""
     vision = (request.form.get('vision') or '').strip()
+    start_tour = request.form.get('start_tour') == '1'
     db = get_db()
     if vision:
         db.execute('UPDATE users SET vision = ?, onboarding_done = 1 WHERE id = ?', (vision, current_user.id))
@@ -2902,6 +2934,9 @@ def willkommen_abschluss():
     db.commit()
     db.close()
     flash('Willkommen im Team! Los geht\'s 🚀', 'success')
+    # Start-Tour-Flag mitgeben
+    if start_tour:
+        return redirect(url_for('dashboard') + '?tour=start')
     return redirect(url_for('dashboard'))
 
 
