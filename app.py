@@ -3328,10 +3328,7 @@ def login():
     return render_template('login.html')
 
 
-@app.route('/favicon.svg')
-def favicon_svg():
-    """SVG-Favicon mit NT-Logo (Navy + Gold)."""
-    svg = '''<?xml version="1.0" encoding="UTF-8"?>
+_FAVICON_SVG = '''<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
     <defs>
         <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -3342,13 +3339,28 @@ def favicon_svg():
     <rect width="100" height="100" rx="22" fill="url(#bg)"/>
     <text x="50" y="68" font-family="Inter, Arial, sans-serif" font-weight="900" font-size="42" fill="#d4a843" text-anchor="middle" letter-spacing="-3">NT</text>
 </svg>'''
-    return Response(svg, mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=86400'})
+
+
+@app.route('/favicon.svg')
+def favicon_svg():
+    """SVG-Favicon mit NT-Logo (Navy + Gold)."""
+    return Response(_FAVICON_SVG, mimetype='image/svg+xml',
+                    headers={'Cache-Control': 'public, max-age=86400'})
 
 
 @app.route('/favicon.ico')
 def favicon_ico():
-    """Fallback für Browser die kein SVG-Favicon können."""
-    return redirect('/favicon.svg', code=302)
+    """Liefert SVG direkt aus statt Redirect (Browser folgen Favicon-Redirects unzuverlässig)."""
+    return Response(_FAVICON_SVG, mimetype='image/svg+xml',
+                    headers={'Cache-Control': 'public, max-age=86400'})
+
+
+@app.route('/apple-touch-icon.png')
+@app.route('/apple-touch-icon-precomposed.png')
+def apple_touch_icon():
+    """Safari/iOS Fallback — auch hier SVG, Safari akzeptiert das."""
+    return Response(_FAVICON_SVG, mimetype='image/svg+xml',
+                    headers={'Cache-Control': 'public, max-age=86400'})
 
 
 @app.route('/api/health')
