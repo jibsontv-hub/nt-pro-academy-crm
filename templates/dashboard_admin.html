@@ -7,6 +7,52 @@
 
 {% block content %}
 
+<!-- Zeit-Header: Monat + Halbjahr -->
+{% if period_stats %}
+<div class="card" style="padding:18px 22px;background:var(--surface);border:1px solid var(--border)">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px">
+
+        <!-- Aktueller Monat -->
+        <div style="border-right:1px solid var(--border);padding-right:18px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+                <div>
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">📅 Aktueller Monat</div>
+                    <div style="font-size:20px;font-weight:800;color:var(--text);letter-spacing:-0.4px;margin-top:2px">{{ period_stats.monat_label }} {{ period_stats.monat_year }}</div>
+                </div>
+                <div style="font-size:13px;color:var(--text-muted);font-weight:600">Tag {{ period_stats.monat_days_passed }}/{{ period_stats.monat_days_total }}</div>
+            </div>
+            <div style="background:var(--bg);border-radius:8px;height:6px;overflow:hidden;margin-bottom:10px">
+                <div style="height:100%;width:{{ period_stats.monat_pct }}%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:8px;transition:width 0.6s"></div>
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px">
+                <div><span style="color:var(--text-muted)">EH:</span> <strong style="color:var(--gold)">{{ "{:,.0f}".format(period_stats.monat_eh).replace(",", ".") }}</strong></div>
+                <div><span style="color:var(--text-muted)">Verträge:</span> <strong style="color:var(--text)">{{ period_stats.monat_vtr }}</strong></div>
+                <div><span style="color:var(--text-muted)">Neue Partner:</span> <strong style="color:var(--text)">{{ period_stats.monat_partner }}</strong></div>
+            </div>
+        </div>
+
+        <!-- Halbjahr -->
+        <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+                <div>
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">⏳ Laufendes Halbjahr</div>
+                    <div style="font-size:20px;font-weight:800;color:var(--text);letter-spacing:-0.4px;margin-top:2px">{{ period_stats.h_name }}</div>
+                </div>
+                <div style="font-size:13px;color:var(--text-muted);font-weight:600">noch {{ period_stats.h_remaining }} Tage</div>
+            </div>
+            <div style="background:var(--bg);border-radius:8px;height:6px;overflow:hidden;margin-bottom:10px">
+                <div style="height:100%;width:{{ period_stats.h_pct }}%;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:8px;transition:width 0.6s"></div>
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px">
+                <div><span style="color:var(--text-muted)">EH:</span> <strong style="color:var(--gold)">{{ "{:,.0f}".format(period_stats.h_eh).replace(",", ".") }}</strong></div>
+                <div><span style="color:var(--text-muted)">Verträge:</span> <strong style="color:var(--text)">{{ period_stats.h_vtr }}</strong></div>
+                <div><span style="color:var(--text-muted)">Neue Partner:</span> <strong style="color:var(--text)">{{ period_stats.h_partner }}</strong></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Hero: Personalisierte Begrüßung -->
 {% if greeting %}
 <div class="card" style="background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 50%,#0a132d 100%);color:#fff;border:none;position:relative;overflow:hidden">
@@ -120,6 +166,74 @@
         </div>
     </div>
 </div>
+
+<!-- Karriere-Kriterien für nächste Stufe -->
+{% if career_criteria and career_criteria.next_level %}
+<div class="card">
+    <div class="card-title">
+        🎯 Auf dem Weg zu {{ career_criteria.next_level.short }} — {{ career_criteria.next_level.name }}
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">
+            {{ career_criteria.completed_count }}/{{ career_criteria.total_count }} Kriterien erfüllt
+        </span>
+    </div>
+    <!-- Pflicht-Kriterien -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:18px">
+        {% for c in career_criteria.criteria %}
+        <div style="background:var(--bg-2);border:1.5px solid {% if c.done %}var(--green){% else %}var(--border){% endif %};border-radius:14px;padding:16px 18px;position:relative">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <div style="font-size:22px">{{ c.icon }}</div>
+                <div style="flex:1">
+                    <div style="font-size:13px;font-weight:700;color:var(--text)">{{ c.label }}</div>
+                    {% if c.hint %}<div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ c.hint }}</div>{% endif %}
+                </div>
+                {% if c.done %}<div style="background:var(--green);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">✓</div>{% endif %}
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+                <div style="font-size:18px;font-weight:800;color:{% if c.done %}var(--green){% else %}var(--gold){% endif %}" class="money">
+                    {{ "{:,.0f}".format(c.current).replace(",", ".") }}
+                </div>
+                {% if c.target %}
+                <div style="font-size:12px;color:var(--text-muted)">/ {{ "{:,.0f}".format(c.target).replace(",", ".") }} {{ c.unit or '' }}</div>
+                {% endif %}
+            </div>
+            {% if c.target %}
+            <div style="background:var(--border);border-radius:8px;height:6px;overflow:hidden">
+                <div style="height:100%;width:{{ c.pct }}%;background:{% if c.done %}var(--green){% else %}linear-gradient(90deg,var(--gold),var(--gold-light)){% endif %};border-radius:8px;transition:width 0.6s"></div>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:6px;text-align:right">{{ c.pct }}%</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Bonus-Kriterien (informativ) -->
+    {% if career_criteria.bonus %}
+    <div style="background:var(--bg);border-radius:10px;padding:14px 18px">
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.7px;font-weight:700;margin-bottom:10px">📊 Zusatz-Kennzahlen (informativ)</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+            {% for b in career_criteria.bonus %}
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+                <span style="font-size:16px">{{ b.icon }}</span>
+                <span style="color:var(--text-muted)">{{ b.label }}:</span>
+                <strong style="color:var(--text)">{{ "{:,.0f}".format(b.current).replace(",", ".") }}{% if b.unit %} {{ b.unit }}{% endif %}</strong>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% elif career_criteria and not career_criteria.next_level %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface),var(--gold-soft));border:1px solid var(--gold)">
+    <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:36px">👑</div>
+        <div>
+            <div style="font-size:18px;font-weight:800;color:var(--text)">Höchste Stufe erreicht!</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Du bist {{ career_criteria.current.short }} – {{ career_criteria.current.name }}. Vorbild für alle 🏆</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 
 <!-- Provisionen Hero -->
 <div class="grid-3">

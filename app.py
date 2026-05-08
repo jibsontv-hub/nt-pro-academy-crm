@@ -135,6 +135,140 @@ def calculate_age(birthday_str):
         return None
 
 
+def get_period_stats(scope_user_id=None):
+    """Liefert Monats- und Halbjahres-Statistiken für Header."""
+    db = get_db()
+    today = date.today()
+
+    if scope_user_id:
+        ids = [scope_user_id] + get_all_descendants(scope_user_id)
+    else:
+        ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE active = 1').fetchall()]
+
+    if not ids:
+        db.close()
+        return None
+    ph = ','.join('?' * len(ids))
+
+    # Monat
+    cur_month = today.strftime('%Y-%m')
+    monat_label = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'][today.month - 1]
+    days_in_month = (date(today.year + (1 if today.month == 12 else 0),
+                          1 if today.month == 12 else today.month + 1, 1) - timedelta(days=1)).day
+    days_passed = today.day
+    month_pct = round(days_passed / days_in_month * 100)
+
+    monat_eh = db.execute(f'''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
+                             WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"
+                             AND strftime("%Y-%m", abschluss_date)=?''', ids + [cur_month]).fetchone()['s']
+    monat_vtr = db.execute(f'''SELECT COUNT(*) as c FROM contracts
+                              WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"
+                              AND strftime("%Y-%m", abschluss_date)=?''', ids + [cur_month]).fetchone()['c']
+    monat_partner = db.execute(f'''SELECT COUNT(*) as c FROM users
+                                  WHERE id IN ({ph}) AND active=1
+                                  AND strftime("%Y-%m", joined_date)=?''', ids + [cur_month]).fetchone()['c']
+
+    # Halbjahr
+    if today.month <= 6:
+        h_num, h_start, h_end = 1, date(today.year, 1, 1), date(today.year, 6, 30)
+    else:
+        h_num, h_start, h_end = 2, date(today.year, 7, 1), date(today.year, 12, 31)
+    h_label = f'H{h_num}/{today.year}'
+    h_name = f'{h_num}. Halbjahr {today.year}'
+    h_total_days = (h_end - h_start).days + 1
+    h_passed_days = (today - h_start).days + 1
+    h_pct = round(h_passed_days / h_total_days * 100)
+    h_remaining = h_total_days - h_passed_days
+
+    h_eh = db.execute(f'''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
+                         WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"
+                         AND date(abschluss_date) BETWEEN ? AND ?''',
+                      ids + [h_start.strftime('%Y-%m-%d'), h_end.strftime('%Y-%m-%d')]).fetchone()['s']
+    h_vtr = db.execute(f'''SELECT COUNT(*) as c FROM contracts
+                          WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"
+                          AND date(abschluss_date) BETWEEN ? AND ?''',
+                       ids + [h_start.strftime('%Y-%m-%d'), h_end.strftime('%Y-%m-%d')]).fetchone()['c']
+    h_partner = db.execute(f'''SELECT COUNT(*) as c FROM users
+                              WHERE id IN ({ph}) AND active=1
+                              AND date(joined_date) BETWEEN ? AND ?''',
+                           ids + [h_start.strftime('%Y-%m-%d'), h_end.strftime('%Y-%m-%d')]).fetchone()['c']
+
+    db.close()
+    return {
+        'monat_label': monat_label, 'monat_year': today.year, 'monat_pct': month_pct,
+        'monat_days_passed': days_passed, 'monat_days_total': days_in_month,
+        'monat_eh': monat_eh, 'monat_vtr': monat_vtr, 'monat_partner': monat_partner,
+        'h_label': h_label, 'h_name': h_name, 'h_pct': h_pct,
+        'h_remaining': h_remaining, 'h_total': h_total_days,
+        'h_eh': h_eh, 'h_vtr': h_vtr, 'h_partner': h_partner,
+        'today': today.strftime('%d.%m.%Y'),
+    }
+
+
+def get_career_criteria_status(user_id):
+    """Liefert Status zu Kriterien für die nächste Stufe.
+    Stufen-Kriterien können später erweitert werden."""
+    db = get_db()
+    user = db.execute('SELECT manual_career_level FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return None
+
+    own_eh = db.execute(
+        'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"',
+        (user_id,)
+    ).fetchone()['s']
+    contracts = db.execute(
+        'SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"',
+        (user_id,)
+    ).fetchone()['c']
+    direct_partners = db.execute(
+        'SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (user_id,)
+    ).fetchone()['c']
+    descendants = get_all_descendants(user_id)
+    if descendants:
+        ph = ','.join('?' * len(descendants))
+        team_eh = db.execute(
+            f'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+            descendants
+        ).fetchone()['s']
+    else:
+        team_eh = 0
+    db.close()
+
+    current = career_for_row(user['manual_career_level'], own_eh)
+    next_level = next((c for c in CAREER_LEVELS if c['level'] == current['level'] + 1), None)
+    if not next_level:
+        return {'current': current, 'next_level': None, 'criteria': [], 'completed_count': 0, 'total_count': 0}
+
+    # Kriterien: aktuell nur EH (Min-Anforderung) — kann später erweitert werden
+    criteria = [
+        {
+            'icon': '⚡', 'label': 'Eigene Einheiten (EH)',
+            'current': int(own_eh), 'target': next_level['min_eh'],
+            'unit': 'EH', 'pct': min(100, int((own_eh / next_level['min_eh'] * 100) if next_level['min_eh'] > 0 else 100)),
+            'done': own_eh >= next_level['min_eh'],
+            'hint': f"Brutto-Volumen × 0,8 = EH"
+        },
+    ]
+    # Optional: Bonus-Kriterien (informativ, zählen aktuell nicht für Beförderung)
+    bonus = [
+        {'icon': '📄', 'label': 'Verträge (Karriere gesamt)', 'current': contracts, 'target': None, 'hint': 'Nur Info'},
+        {'icon': '👥', 'label': 'Direkte Partner', 'current': direct_partners, 'target': None, 'hint': 'Nur Info'},
+        {'icon': '⬢', 'label': 'Team-EH (Downline)', 'current': int(team_eh), 'target': None, 'unit': 'EH', 'hint': 'Nur Info'},
+    ]
+    completed = sum(1 for c in criteria if c.get('done'))
+    return {
+        'current': current,
+        'next_level': next_level,
+        'criteria': criteria,
+        'bonus': bonus,
+        'completed_count': completed,
+        'total_count': len(criteria),
+        'all_done': completed == len(criteria)
+    }
+
+
 def career_for_row(manual_level, eh):
     """Korrekte Karriere-Stufe = MAX(manual_career_level, EH-erreichte Stufe)."""
     earned = 1
@@ -1372,6 +1506,9 @@ def dashboard():
         coach_insights = get_smart_insights(scope_user_id=None)
         # Personalisierte Begrüßung
         greeting = get_greeting_for_user(current_user.name, career, next_level, own_eh, eh_to_next)
+        # Monats- + Halbjahres-Daten + Karriere-Kriterien
+        period_stats = get_period_stats(scope_user_id=None)
+        career_criteria = get_career_criteria_status(current_user.id)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -1385,7 +1522,8 @@ def dashboard():
             my_commissions=my_commissions, comparison=comparison,
             partner_growth=json.dumps([dict(r) for r in partner_growth]),
             vision_text=admin_vision, show_vision=admin_show_vision,
-            coach_insights=coach_insights, greeting=greeting
+            coach_insights=coach_insights, greeting=greeting,
+            period_stats=period_stats, career_criteria=career_criteria
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -1451,6 +1589,8 @@ def dashboard():
         # KI-Coach: Insights für Partner (nur eigene Downline)
         coach_insights = get_smart_insights(scope_user_id=current_user.id)
         greeting = get_greeting_for_user(current_user.name, career, next_level, own_eh, eh_to_next)
+        period_stats = get_period_stats(scope_user_id=current_user.id)
+        career_criteria = get_career_criteria_status(current_user.id)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -1460,7 +1600,8 @@ def dashboard():
             my_commissions=my_commissions, global_top=global_top,
             monthly_data=json.dumps([dict(r) for r in monthly_data]),
             vision_text=vision_text, show_vision=show_vision,
-            coach_insights=coach_insights, greeting=greeting
+            coach_insights=coach_insights, greeting=greeting,
+            period_stats=period_stats, career_criteria=career_criteria
         )
 
 
