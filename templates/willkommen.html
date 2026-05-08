@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Willkommen – NT Pro Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+    --navy: #0f1c3f; --navy-light: #1a2c5b;
+    --gold: #d4a843; --gold-light: #f0c970;
+    --bg: #0a0e1a; --surface: #131829; --border: #1f2640;
+    --text: #f1f5f9; --text-muted: #94a3b8; --text-soft: #64748b;
+    --green: #34d399; --blue: #60a5fa; --purple: #a78bfa;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+        radial-gradient(ellipse 60% 50% at 50% 0%, rgba(212,168,67,0.15), transparent 70%),
+        radial-gradient(ellipse 60% 50% at 100% 100%, rgba(167,139,250,0.1), transparent 70%),
+        radial-gradient(ellipse 60% 50% at 0% 50%, rgba(96,165,250,0.08), transparent 70%);
+}
+.wizard {
+    position: relative; z-index: 1; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center; padding: 32px 20px;
+}
+.card {
+    background: rgba(19,24,41,0.7); backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 24px;
+    max-width: 720px; width: 100%; padding: 56px 48px;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.5);
+    animation: slideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.progress-dots { display: flex; gap: 8px; justify-content: center; margin-bottom: 32px; }
+.dot { width: 32px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.1); transition: all 0.4s; }
+.dot.active { background: linear-gradient(90deg,var(--gold),var(--gold-light)); width: 64px; }
+.dot.done { background: var(--gold); }
+
+.step { display: none; animation: fadeIn 0.5s; }
+.step.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+h1 { font-size: 36px; font-weight: 900; letter-spacing: -1px; line-height: 1.1; margin-bottom: 12px; }
+h1 .accent { background: linear-gradient(135deg,var(--gold),#fff); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.subtitle { font-size: 16px; color: var(--text-muted); margin-bottom: 32px; line-height: 1.6; }
+
+.feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 28px 0; }
+.feature {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px; padding: 18px;
+}
+.feature-icon { font-size: 26px; margin-bottom: 8px; }
+.feature-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.feature-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+textarea {
+    width: 100%; padding: 16px 18px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+    font-family: inherit; font-size: 15px; color: var(--text); resize: vertical;
+    min-height: 120px; transition: all 0.2s;
+}
+textarea:focus { outline: none; border-color: var(--gold); background: rgba(255,255,255,0.06); }
+textarea::placeholder { color: var(--text-soft); font-style: italic; }
+
+.actions { display: flex; gap: 12px; margin-top: 36px; align-items: center; }
+.btn {
+    padding: 14px 28px; border-radius: 12px; font-size: 14px; font-weight: 700;
+    cursor: pointer; border: none; font-family: inherit; transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+}
+.btn-primary {
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
+    color: var(--navy); box-shadow: 0 4px 14px rgba(212,168,67,0.4);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212,168,67,0.5); }
+.btn-ghost { background: transparent; color: var(--text-muted); }
+.btn-ghost:hover { color: var(--text); }
+
+.voice-bar {
+    display: flex; align-items: center; gap: 10px; padding: 14px 18px;
+    background: rgba(212,168,67,0.08); border: 1px solid rgba(212,168,67,0.2);
+    border-radius: 14px; margin: 24px 0; cursor: pointer; transition: all 0.2s;
+}
+.voice-bar:hover { background: rgba(212,168,67,0.12); }
+.voice-icon {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(135deg,var(--gold),var(--gold-light));
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+    flex-shrink: 0; transition: transform 0.4s;
+}
+.voice-icon.speaking { animation: pulse 1.5s infinite; }
+@keyframes pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(212,168,67,0.6); }
+    50% { transform: scale(1.05); box-shadow: 0 0 0 14px rgba(212,168,67,0); }
+}
+.voice-info { flex: 1; }
+.voice-title { font-size: 12px; font-weight: 700; color: var(--gold); }
+.voice-status { font-size: 11px; color: var(--text-soft); margin-top: 2px; }
+.voice-toggle {
+    background: rgba(255,255,255,0.08); border: none; padding: 6px 12px;
+    border-radius: 8px; color: var(--text); font-size: 11px; cursor: pointer;
+    font-family: inherit;
+}
+
+.career-row {
+    display: flex; align-items: center; gap: 14px; padding: 14px 18px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px; margin-bottom: 8px;
+}
+.career-badge {
+    width: 50px; height: 50px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 12px; flex-shrink: 0; border: 2px solid;
+}
+
+.welcome-icon {
+    width: 80px; height: 80px; margin: 0 auto 24px; border-radius: 24px;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; box-shadow: 0 12px 40px rgba(15,28,63,0.4);
+    animation: bounce 3s infinite;
+}
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+</style>
+</head>
+<body>
+<div class="wizard">
+    <div class="card">
+
+        <div class="progress-dots">
+            <div class="dot active" data-step="1"></div>
+            <div class="dot" data-step="2"></div>
+            <div class="dot" data-step="3"></div>
+            <div class="dot" data-step="4"></div>
+            <div class="dot" data-step="5"></div>
+        </div>
+
+        <!-- Voice Bar -->
+        <div class="voice-bar" onclick="toggleVoice()">
+            <div class="voice-icon" id="voiceIcon">🔊</div>
+            <div class="voice-info">
+                <div class="voice-title">KI-Stimme</div>
+                <div class="voice-status" id="voiceStatus">Klick um die Anleitung anzuhören</div>
+            </div>
+            <button class="voice-toggle" onclick="event.stopPropagation();stopVoice()">⏸ Stumm</button>
+        </div>
+
+        <!-- STEP 1: Welcome -->
+        <div class="step active" data-step="1">
+            <div class="welcome-icon">⚡</div>
+            <h1>Willkommen, <span class="accent">{{ user.name.split(' ')[0] }}</span>!</h1>
+            <p class="subtitle">Schön, dass du Teil von <strong style="color:var(--gold)">NT Pro Academy</strong> bist. Ich führe dich in <strong>5 kurzen Schritten</strong> durch dein neues Control Hub — dauert etwa 90 Sekunden.</p>
+            <div class="feature-grid">
+                <div class="feature">
+                    <div class="feature-icon">🎯</div>
+                    <div class="feature-title">Karriere-Tracking</div>
+                    <div class="feature-desc">Verfolge deinen Weg zur nächsten Stufe in Echtzeit</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">💰</div>
+                    <div class="feature-title">Provisionen automatisch</div>
+                    <div class="feature-desc">Differenz-System rechnet alles für dich</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🧠</div>
+                    <div class="feature-title">KI-Coach an deiner Seite</div>
+                    <div class="feature-desc">Tipps, Reminder, Forecast — wie ein Mentor</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🏆</div>
+                    <div class="feature-title">Trophäen & Wettbewerb</div>
+                    <div class="feature-desc">Wochen-Ranking, Achievements, Confetti</div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="next()">Los geht's →</button>
+                <form method="POST" action="/willkommen/skip" style="margin-left:auto"><button type="submit" class="btn btn-ghost">Überspringen</button></form>
+            </div>
+        </div>
+
+        <!-- STEP 2: System -->
+        <div class="step" data-step="2">
+            <h1>So funktioniert <span class="accent">dein System</span></h1>
+            <p class="subtitle">Das Control Hub hat <strong>3 Kernbereiche</strong>, die dir alles abnehmen.</p>
+            <div class="feature-grid" style="grid-template-columns: 1fr">
+                <div class="feature" style="display:flex;gap:14px;align-items:center">
+                    <div style="font-size:30px">📋</div>
+                    <div>
+                        <div class="feature-title">Namensliste & Pipeline</div>
+                        <div class="feature-desc">Alle deine Kontakte, Termine, Verträge — sauber strukturiert. Pflege deine Liste täglich.</div>
+                    </div>
+                </div>
+                <div class="feature" style="display:flex;gap:14px;align-items:center">
+                    <div style="font-size:30px">⬡</div>
+                    <div>
+                        <div class="feature-title">Karriere-Engine</div>
+                        <div class="feature-desc">Sieht in Echtzeit, was du für die nächste Stufe brauchst — Einheiten, Stränge, Restbereich.</div>
+                    </div>
+                </div>
+                <div class="feature" style="display:flex;gap:14px;align-items:center">
+                    <div style="font-size:30px">🧠</div>
+                    <div>
+                        <div class="feature-title">KI-Coach</div>
+                        <div class="feature-desc">Sagt dir, wen du heute anrufen sollst, wer kurz vor Beförderung ist, und was deine Wochenziele sind.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-ghost" onclick="prev()">← Zurück</button>
+                <button class="btn btn-primary" style="margin-left:auto" onclick="next()">Weiter →</button>
+            </div>
+        </div>
+
+        <!-- STEP 3: Vision -->
+        <div class="step" data-step="3">
+            <h1>Was ist <span class="accent">dein Warum?</span></h1>
+            <p class="subtitle">Erfolgreiche Vertriebler haben einen klaren Grund. Schreibe in <strong>1-2 Sätzen</strong> auf, warum du das hier machst — wir zeigen dir das jedes Mal beim Login als Erinnerung.</p>
+            <textarea id="visionInput" placeholder="z.B. Ich erschaffe mir und meiner Familie finanzielle Freiheit, damit wir leben können wie wir wollen.">{{ user.vision or '' }}</textarea>
+            <div style="font-size:11px;color:var(--text-soft);margin-top:8px">💡 Kannst du später unter „Mein Profil" jederzeit ändern.</div>
+            <div class="actions">
+                <button class="btn btn-ghost" onclick="prev()">← Zurück</button>
+                <button class="btn btn-primary" style="margin-left:auto" onclick="next()">Weiter →</button>
+            </div>
+        </div>
+
+        <!-- STEP 4: Karriere -->
+        <div class="step" data-step="4">
+            <h1>Deine <span class="accent">Karriere-Reise</span></h1>
+            <p class="subtitle">Du bist aktuell <strong style="color:var(--gold)">{{ my_career.short }} – {{ my_career.name }}</strong>. So sehen die nächsten Stufen aus:</p>
+            <div style="margin:24px 0">
+                {% set levels = [
+                    (1,'REP','Repräsentant','5,00 €/EH','#94a3b8'),
+                    (2,'LREP','Leitender Rep.','9,50 €/EH','#3b82f6'),
+                    (3,'HREP','Hauptrep.','14,00 €/EH','#8b5cf6'),
+                    (4,'CREP','Chefrep.','18,00 €/EH','#10b981'),
+                    (5,'DREP','Direktion','20,70 €/EH','#d4a843'),
+                    (6,'GREP','General','23,00 €/EH','#f59e0b'),
+                ] %}
+                {% for lvl, short, name, comm, color in levels %}
+                <div class="career-row" {% if lvl == my_career.level %}style="border-color:{{ color }}50;background:{{ color }}10"{% endif %}>
+                    <div class="career-badge" style="background:{{ color }}20;border-color:{{ color }};color:{{ color }}">{{ short }}</div>
+                    <div style="flex:1">
+                        <div style="font-weight:700;font-size:14px">{{ name }} {% if lvl == my_career.level %}<span style="color:var(--gold);font-size:11px">← Du bist hier</span>{% endif %}</div>
+                        <div style="font-size:11px;color:var(--text-muted)">Provision: {{ comm }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="actions">
+                <button class="btn btn-ghost" onclick="prev()">← Zurück</button>
+                <button class="btn btn-primary" style="margin-left:auto" onclick="next()">Weiter →</button>
+            </div>
+        </div>
+
+        <!-- STEP 5: Go -->
+        <div class="step" data-step="5">
+            <div class="welcome-icon" style="background:linear-gradient(135deg,var(--gold),var(--gold-light))">🚀</div>
+            <h1>Bereit für den <span class="accent">Start?</span></h1>
+            <p class="subtitle">Das war's mit der Einleitung! Hier deine ersten Schritte:</p>
+            <div class="feature-grid">
+                <div class="feature">
+                    <div class="feature-icon">📋</div>
+                    <div class="feature-title">1. Namensliste füllen</div>
+                    <div class="feature-desc">Alle Kontakte aufschreiben — Familie, Freunde, Kollegen</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📞</div>
+                    <div class="feature-title">2. Termine vereinbaren</div>
+                    <div class="feature-desc">3 Termine ≈ 1 Abschluss</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📄</div>
+                    <div class="feature-title">3. Verträge anlegen</div>
+                    <div class="feature-desc">Ergo Rente Chance ist das Hauptprodukt</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🏆</div>
+                    <div class="feature-title">4. Trophäen sammeln</div>
+                    <div class="feature-desc">Erste Belohnungen warten schon</div>
+                </div>
+            </div>
+            <form method="POST" action="/willkommen/abschluss">
+                <input type="hidden" name="vision" id="visionFinal">
+                <div class="actions">
+                    <button class="btn btn-ghost" type="button" onclick="prev()">← Zurück</button>
+                    <button class="btn btn-primary" style="margin-left:auto" type="submit">🚀 Zum Dashboard</button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+<script>
+let currentStep = 1;
+const totalSteps = 5;
+
+const stepTexts = {
+    1: "Willkommen bei NT Pro Academy! Ich freue mich riesig, dass du dabei bist. Ich führe dich jetzt durch dein neues Control Hub — das dauert nur etwa 90 Sekunden.",
+    2: "Dein System hat drei Kernbereiche: deine Namensliste mit allen Kontakten, die Karriere-Engine die in Echtzeit zeigt was du für die nächste Stufe brauchst, und der KI-Coach der dir täglich konkrete Empfehlungen gibt.",
+    3: "Was ist dein Warum? Erfolgreiche Vertriebler haben einen klaren Grund. Schreibe in ein bis zwei Sätzen auf, warum du das hier machst. Wir zeigen dir das jedes Mal beim Login als Erinnerung.",
+    4: "Hier siehst du deine Karriere-Reise. Es gibt sechs Stufen: vom Repräsentant bis zum Generalrepräsentant. Mit jeder Stufe steigt deine Provision pro Einheit. Du bist aktuell hier — und der Weg nach oben ist klar definiert.",
+    5: "Bereit für den Start? Das waren die wichtigsten Infos. Jetzt geht's los: Fülle deine Namensliste, vereinbare Termine, lege Verträge an, sammle Trophäen. Klick auf den großen goldenen Button und dein Vertriebs-Cockpit erwartet dich."
+};
+
+let voiceEnabled = true;
+let currentUtterance = null;
+
+function speakStep(step) {
+    if (!voiceEnabled || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const text = stepTexts[step];
+    if (!text) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'de-DE'; u.rate = 1.0; u.pitch = 1.0;
+    // Beste deutsche Stimme finden
+    const voices = window.speechSynthesis.getVoices();
+    const deVoice = voices.find(v => v.lang === 'de-DE' && (v.name.includes('Anna') || v.name.includes('Petra') || v.name.includes('Markus')))
+                 || voices.find(v => v.lang.startsWith('de'));
+    if (deVoice) u.voice = deVoice;
+    u.onstart = () => {
+        document.getElementById('voiceIcon').classList.add('speaking');
+        document.getElementById('voiceStatus').textContent = 'Spricht…';
+    };
+    u.onend = () => {
+        document.getElementById('voiceIcon').classList.remove('speaking');
+        document.getElementById('voiceStatus').textContent = voiceEnabled ? 'Klick um zu wiederholen' : 'Stumm';
+    };
+    currentUtterance = u;
+    window.speechSynthesis.speak(u);
+}
+
+function toggleVoice() {
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        document.getElementById('voiceIcon').classList.remove('speaking');
+    } else {
+        speakStep(currentStep);
+    }
+}
+
+function stopVoice() {
+    voiceEnabled = !voiceEnabled;
+    if (!voiceEnabled) {
+        window.speechSynthesis.cancel();
+        document.getElementById('voiceIcon').classList.remove('speaking');
+        document.getElementById('voiceStatus').textContent = 'Stumm geschaltet';
+        document.querySelector('.voice-toggle').textContent = '🔊 Aktivieren';
+    } else {
+        document.getElementById('voiceStatus').textContent = 'Klick um die Anleitung anzuhören';
+        document.querySelector('.voice-toggle').textContent = '⏸ Stumm';
+        speakStep(currentStep);
+    }
+}
+
+function showStep(n) {
+    document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+    document.querySelector(`.step[data-step="${n}"]`).classList.add('active');
+    document.querySelectorAll('.dot').forEach((el, i) => {
+        el.classList.remove('active', 'done');
+        if (i + 1 < n) el.classList.add('done');
+        else if (i + 1 === n) el.classList.add('active');
+    });
+    currentStep = n;
+    if (voiceEnabled) speakStep(n);
+}
+
+function next() {
+    if (currentStep === 3) {
+        const v = document.getElementById('visionInput').value;
+        document.getElementById('visionFinal').value = v;
+    }
+    if (currentStep < totalSteps) showStep(currentStep + 1);
+}
+function prev() { if (currentStep > 1) showStep(currentStep - 1); }
+
+// Voice nach erstem User-Klick aktivieren (Browser-Policy)
+let voiceInitialized = false;
+document.addEventListener('click', () => {
+    if (!voiceInitialized && voiceEnabled) {
+        voiceInitialized = true;
+        // Voices laden (kann async sein)
+        if (window.speechSynthesis.getVoices().length === 0) {
+            window.speechSynthesis.onvoiceschanged = () => speakStep(currentStep);
+        } else {
+            speakStep(currentStep);
+        }
+    }
+}, { once: true });
+</script>
+</body>
+</html>

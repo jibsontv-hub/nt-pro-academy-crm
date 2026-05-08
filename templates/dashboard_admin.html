@@ -102,6 +102,32 @@
 </div>
 {% endif %}
 
+<!-- 🧠 KI Power-Empfehlungen -->
+{% if ki_recs %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(212,168,67,0.05) 100%);border:1px solid rgba(212,168,67,0.2)">
+    <div class="card-title">
+        🧠 KI-Coach · Was du JETZT tun solltest
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">{{ ki_recs|length }} Empfehlungen · sortiert nach Dringlichkeit</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+        {% for r in ki_recs %}
+        {% set prio_color = ({'critical':'var(--red)','high':'var(--orange)','medium':'var(--gold)','low':'var(--blue)'}).get(r.priority, 'var(--text-muted)') %}
+        <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid {{ prio_color }};border-radius:10px;flex-wrap:wrap;transition:transform 0.2s" onmouseenter="this.style.transform='translateX(2px)'" onmouseleave="this.style.transform='translateX(0)'">
+            <div style="font-size:22px">{{ r.icon }}</div>
+            <div style="flex:1;min-width:200px">
+                <div style="font-size:14px;font-weight:700;color:var(--text)">{{ r.title }}</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">{{ r.detail }}</div>
+            </div>
+            <span style="font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:800;padding:3px 9px;border-radius:99px;background:{{ prio_color }}20;color:{{ prio_color }};white-space:nowrap">{{ r.priority }}</span>
+            {% if r.action_url %}
+            <a href="{{ r.action_url }}" {% if r.action_url.startswith('tel:') %}{% else %}{% endif %} class="btn btn-primary btn-sm">{{ r.action_label }}</a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- KI-Coach Quick-Card -->
 {% if coach_insights and coach_insights.urgent_calls %}
 <div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);border-color:#0f1c3f;color:#fff">

@@ -1257,6 +1257,7 @@ def init_db():
             last_login TEXT,
             login_count INTEGER DEFAULT 0,
             birthday TEXT,
+            onboarding_done INTEGER DEFAULT 0,
             active INTEGER DEFAULT 1,
             FOREIGN KEY (parent_id) REFERENCES users(id)
         );
@@ -1415,6 +1416,7 @@ def init_db():
             ('last_login', "TEXT"),
             ('login_count', "INTEGER DEFAULT 0"),
             ('birthday', "TEXT"),
+            ('onboarding_done', "INTEGER DEFAULT 0"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -1676,6 +1678,11 @@ def login():
                 check_achievements_for_user(row['id'])
             except Exception as e:
                 print(f"Achievement check failed: {e}")
+            # Onboarding-Check: wenn noch nicht durch + nicht-Admin → /willkommen
+            try:
+                onboarding_done = row['onboarding_done'] if 'onboarding_done' in row.keys() else 0
+            except Exception:
+                onboarding_done = 0
             # Activity log nur bei erstem Login des Tages
             today = date.today().strftime('%Y-%m-%d')
             db2 = get_db()
@@ -1684,6 +1691,9 @@ def login():
             db2.close()
             if not existing:
                 log_activity(row['id'], 'login', f'{row["name"]} ist heute eingeloggt', icon='🔓', color='blue')
+            # Erstes Login → Onboarding-Wizard zeigen (nur Nicht-Admins)
+            if not onboarding_done and row['role'] != 'admin':
+                return redirect(url_for('willkommen'))
             return redirect(url_for('dashboard'))
         db.close()
         flash('Falsche E-Mail oder Passwort', 'error')
@@ -1713,6 +1723,43 @@ def profil():
     user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     db.close()
     return render_template('profil.html', user=user)
+
+
+@app.route('/willkommen')
+@login_required
+def willkommen():
+    """Onboarding-Wizard für neue Partner mit KI-Stimme."""
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
+    db.close()
+    return render_template('willkommen.html', user=user, my_career=get_career_level_for_user(current_user.id))
+
+
+@app.route('/willkommen/abschluss', methods=['POST'])
+@login_required
+def willkommen_abschluss():
+    """Markiert Onboarding als abgeschlossen + speichert Vision falls eingegeben."""
+    vision = (request.form.get('vision') or '').strip()
+    db = get_db()
+    if vision:
+        db.execute('UPDATE users SET vision = ?, onboarding_done = 1 WHERE id = ?', (vision, current_user.id))
+    else:
+        db.execute('UPDATE users SET onboarding_done = 1 WHERE id = ?', (current_user.id,))
+    db.commit()
+    db.close()
+    flash('Willkommen im Team! Los geht\'s 🚀', 'success')
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/willkommen/skip', methods=['POST'])
+@login_required
+def willkommen_skip():
+    """Onboarding überspringen (kann später unter /willkommen wieder aufgerufen werden)."""
+    db = get_db()
+    db.execute('UPDATE users SET onboarding_done = 1 WHERE id = ?', (current_user.id,))
+    db.commit()
+    db.close()
+    return redirect(url_for('dashboard'))
 
 
 @app.route('/einstellungen', methods=['GET', 'POST'])
@@ -1753,6 +1800,216 @@ def api_unseen_achievements():
 def api_mark_achievements_seen():
     mark_achievements_seen(current_user.id)
     return jsonify({'ok': True})
+
+
+def get_ki_recommendations(user_id, scope_user_id=None):
+    """KI-Empfehlungen für heute & diese Woche - die wichtigsten Aktionen.
+    scope_user_id=None = ganzer Vertrieb."""
+    db = get_db()
+
+    if scope_user_id:
+        ids = [scope_user_id] + get_all_descendants(scope_user_id)
+    else:
+        ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE active = 1').fetchall()]
+
+    if not ids:
+        db.close()
+        return []
+    ph = ','.join('?' * len(ids))
+
+    recs = []
+    today = date.today()
+
+    # 1) Geburtstage HEUTE
+    bds = db.execute(f'''
+        SELECT id, name, phone, birthday FROM users
+        WHERE id IN ({ph}) AND birthday IS NOT NULL AND active = 1
+        AND substr(birthday, 6, 5) = ?
+    ''', ids + [today.strftime('%m-%d')]).fetchall()
+    bd_kunden = db.execute(f'''
+        SELECT id, name, phone, birthday FROM leads
+        WHERE owner_id IN ({ph}) AND birthday IS NOT NULL
+        AND substr(birthday, 6, 5) = ?
+    ''', ids + [today.strftime('%m-%d')]).fetchall()
+    for b in list(bds) + list(bd_kunden):
+        recs.append({
+            'priority': 'critical', 'icon': '🎂', 'color': 'orange',
+            'title': f'Heute Geburtstag: {b["name"]}',
+            'detail': f'Anrufen für persönlichen Gruß — perfekter Touchpoint',
+            'action_label': '📞 Anrufen', 'action_url': f'tel:{b["phone"]}' if b['phone'] else None,
+            'category': 'birthday'
+        })
+
+    # 2) Inaktive > 14 Tage (Schweige-Risiko)
+    silent = db.execute(f'''
+        SELECT u.id, u.name, u.phone, u.last_login, u.joined_date,
+               julianday('now') - julianday(COALESCE(u.last_login, u.joined_date)) as silence_days
+        FROM users u
+        WHERE u.id IN ({ph}) AND u.active = 1
+        AND julianday('now') - julianday(COALESCE(u.last_login, u.joined_date)) > 14
+        ORDER BY silence_days DESC LIMIT 3
+    ''', ids).fetchall()
+    for s in silent:
+        recs.append({
+            'priority': 'high', 'icon': '🔇', 'color': 'red',
+            'title': f'{s["name"]} schweigt seit {int(s["silence_days"])} Tagen',
+            'detail': 'Kontaktieren bevor er ganz weg ist',
+            'action_label': '📞 Anrufen', 'action_url': f'tel:{s["phone"]}' if s['phone'] else None,
+            'category': 'silence'
+        })
+
+    # 3) Kurz vor Beförderung (>80%)
+    eh_rows = db.execute(f'''
+        SELECT u.id, u.name, u.phone, u.manual_career_level,
+               COALESCE(SUM(c.einheiten), 0) as eh
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id = u.id AND c.status="abgeschlossen" AND c.recherche_status="freigegeben"
+        WHERE u.id IN ({ph}) AND u.active = 1
+        GROUP BY u.id
+    ''', ids).fetchall()
+    for r in eh_rows:
+        career = next((cl for cl in CAREER_LEVELS if cl['level'] == (r['manual_career_level'] or 1)), CAREER_LEVELS[0])
+        next_lvl = next((cl for cl in CAREER_LEVELS if cl['level'] == career['level'] + 1), None)
+        if not next_lvl: continue
+        progress = (r['eh'] / next_lvl['min_eh'] * 100) if next_lvl['min_eh'] > 0 else 0
+        if 80 <= progress < 100:
+            recs.append({
+                'priority': 'high', 'icon': '🚀', 'color': 'gold',
+                'title': f'{r["name"]} kurz vor {next_lvl["short"]}',
+                'detail': f'{int(progress)}% erreicht — nur noch {int(next_lvl["min_eh"] - r["eh"])} EH',
+                'action_label': '🎯 Coaching', 'action_url': f'/coaching/{r["id"]}',
+                'category': 'promotion'
+            })
+
+    # 4) Hängende Recherchen
+    pending = db.execute(f'''
+        SELECT c.id, c.client_name, c.einheiten, u.name as berater, u.phone as berater_phone, u.id as berater_id,
+               julianday('now') - julianday(c.created_at) as tage
+        FROM contracts c JOIN users u ON c.owner_id = u.id
+        WHERE c.recherche_status IN ('ausstehend','') AND c.einheiten > 0
+        AND c.owner_id IN ({ph})
+        AND julianday('now') - julianday(c.created_at) > 7
+        ORDER BY tage DESC LIMIT 3
+    ''', ids).fetchall()
+    for p in pending:
+        recs.append({
+            'priority': 'medium', 'icon': '⏳', 'color': 'orange',
+            'title': f'Recherche hängt: {p["client_name"]} ({int(p["einheiten"])} EH)',
+            'detail': f'Seit {int(p["tage"])} Tagen offen — bei {p["berater"]} nachfragen',
+            'action_label': '✏️ Vertrag', 'action_url': f'/vertraege/{p["id"]}/edit',
+            'category': 'research'
+        })
+
+    # 5) Ohne Vision (Profil-Pflege)
+    no_vision = db.execute(f'''
+        SELECT id, name FROM users
+        WHERE id IN ({ph}) AND active = 1 AND (vision IS NULL OR vision = '')
+        AND login_count > 0 LIMIT 3
+    ''', ids).fetchall()
+    for n in no_vision:
+        recs.append({
+            'priority': 'low', 'icon': '★', 'color': 'purple',
+            'title': f'{n["name"]} hat noch keine Vision',
+            'detail': 'Erinnern: persönliches Warum motiviert dauerhaft',
+            'action_label': '🎯 Coaching', 'action_url': f'/coaching/{n["id"]}',
+            'category': 'vision'
+        })
+
+    # 6) Onboarding nicht abgeschlossen + > 14 Tage dabei
+    ob_stuck = db.execute(f'''
+        SELECT id, name, phone,
+               (onboarding_endgespraech + onboarding_einarbeitung_1 + onboarding_einarbeitung_2 +
+                onboarding_einarbeitung_3 + onboarding_seminar_bezahlt) as ob_score,
+               julianday('now') - julianday(joined_date) as tage_dabei
+        FROM users
+        WHERE id IN ({ph}) AND active = 1
+        AND julianday('now') - julianday(joined_date) > 14
+        AND (onboarding_endgespraech + onboarding_einarbeitung_1 + onboarding_einarbeitung_2 +
+             onboarding_einarbeitung_3 + onboarding_seminar_bezahlt) < 3
+        LIMIT 3
+    ''', ids).fetchall()
+    for o in ob_stuck:
+        recs.append({
+            'priority': 'medium', 'icon': '🎓', 'color': 'blue',
+            'title': f'Onboarding hängt: {o["name"]}',
+            'detail': f'Erst {o["ob_score"]}/5 Schritte · {int(o["tage_dabei"])} Tage dabei',
+            'action_label': '🎯 Coaching', 'action_url': f'/coaching/{o["id"]}',
+            'category': 'onboarding'
+        })
+
+    # Sortieren: critical > high > medium > low
+    prio_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+    recs.sort(key=lambda r: prio_order.get(r['priority'], 9))
+
+    db.close()
+    return recs[:10]
+
+
+def get_konversations_starter(user_id):
+    """KI-generierte Konversations-Starter für Coaching-Calls — basierend auf User-Daten."""
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return []
+
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    contracts = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=?', (user_id,)).fetchone()['c']
+    recent_contracts = db.execute('SELECT client_name, einheiten, status FROM contracts WHERE owner_id=? ORDER BY created_at DESC LIMIT 3', (user_id,)).fetchall()
+    pending = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (user_id,)).fetchone()['c']
+    appts_done = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND status="erledigt"', (user_id,)).fetchone()['c']
+
+    starters = []
+
+    # Positiv beginnen
+    if recent_contracts:
+        last = recent_contracts[0]
+        starters.append({
+            'icon': '🎉', 'category': 'Positiv-Start',
+            'text': f'Gratuliere zum Vertrag mit {last["client_name"]} ({int(last["einheiten"])} EH)! Wie lief das Gespräch?'
+        })
+    if appts_done >= 5:
+        starters.append({
+            'icon': '👏', 'category': 'Anerkennung',
+            'text': f'Du hast schon {appts_done} Termine geführt. Was funktioniert für dich gerade besonders gut?'
+        })
+
+    # Vision/Motivation
+    if user['vision']:
+        starters.append({
+            'icon': '★', 'category': 'Motivation',
+            'text': f'Wenn du daran denkst „{user["vision"][:60]}…" — was ist dein nächster konkreter Schritt?'
+        })
+
+    # Hängendes ansprechen
+    if pending > 0:
+        starters.append({
+            'icon': '⏳', 'category': 'Hängende Themen',
+            'text': f'Du hast {pending} Recherchen offen. Bei welchem Kunden brauchst du Unterstützung?'
+        })
+
+    # Karriere-Push
+    career = career_for_row(user['manual_career_level'], own_eh)
+    next_lvl = next((cl for cl in CAREER_LEVELS if cl['level'] == career['level'] + 1), None)
+    if next_lvl:
+        eh_to_go = max(0, next_lvl['min_eh'] - own_eh)
+        starters.append({
+            'icon': '🚀', 'category': 'Karriere',
+            'text': f'Bis {next_lvl["short"]} fehlen dir noch {int(eh_to_go)} EH. Was ist dein Plan für die nächsten 30 Tage?'
+        })
+
+    # Coaching-Frage
+    starters.append({
+        'icon': '🤔', 'category': 'Reflexion',
+        'text': 'Wenn du zurückblickst — was war diese Woche dein größter Erfolg? Was lief weniger gut?'
+    })
+    starters.append({
+        'icon': '💪', 'category': 'Aktion',
+        'text': 'Was ist die EINE Sache, die du diese Woche unbedingt schaffst?'
+    })
+
+    db.close()
+    return starters
 
 
 def get_activity_heatmap(user_id, days=180):
@@ -2026,6 +2283,8 @@ def dashboard():
         # Monats- + Halbjahres-Daten + Karriere-Kriterien
         period_stats = get_period_stats(scope_user_id=None)
         career_criteria = get_career_criteria_status(current_user.id)
+        # Power-KI-Empfehlungen
+        ki_recs = get_ki_recommendations(current_user.id, scope_user_id=None)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -2040,7 +2299,8 @@ def dashboard():
             partner_growth=json.dumps([dict(r) for r in partner_growth]),
             vision_text=admin_vision, show_vision=admin_show_vision,
             coach_insights=coach_insights, greeting=greeting,
-            period_stats=period_stats, career_criteria=career_criteria
+            period_stats=period_stats, career_criteria=career_criteria,
+            ki_recs=ki_recs
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -2108,6 +2368,7 @@ def dashboard():
         greeting = get_greeting_for_user(current_user.name, career, next_level, own_eh, eh_to_next)
         period_stats = get_period_stats(scope_user_id=current_user.id)
         career_criteria = get_career_criteria_status(current_user.id)
+        ki_recs = get_ki_recommendations(current_user.id, scope_user_id=current_user.id)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -2118,7 +2379,8 @@ def dashboard():
             monthly_data=json.dumps([dict(r) for r in monthly_data]),
             vision_text=vision_text, show_vision=show_vision,
             coach_insights=coach_insights, greeting=greeting,
-            period_stats=period_stats, career_criteria=career_criteria
+            period_stats=period_stats, career_criteria=career_criteria,
+            ki_recs=ki_recs
         )
 
 
@@ -2962,6 +3224,7 @@ def coaching(uid):
 
     db.close()
     heatmap = get_activity_heatmap(uid, days=180)
+    konv_starter = get_konversations_starter(uid)
     return render_template('coaching.html',
         member=dict(member), career=career, next_career=next_career,
         own_eh=own_eh,
@@ -2969,7 +3232,7 @@ def coaching(uid):
                'pending_research': pending_research, 'avg_termine_per_close': avg_termine_per_close,
                'downline_count': downline_count, 'full_team': full_team, 'ob_score': ob_score},
         recent_activity=recent_activity, notes=notes, tipps=tipps,
-        heatmap=heatmap)
+        heatmap=heatmap, konv_starter=konv_starter)
 
 
 # === KI-COACH ===

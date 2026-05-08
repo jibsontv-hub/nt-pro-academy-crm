@@ -171,6 +171,43 @@
 </div>
 {% endif %}
 
+<!-- KI-Konversations-Starter -->
+{% if konv_starter %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface),rgba(167,139,250,0.05));border:1px solid rgba(167,139,250,0.2)">
+    <div class="card-title">
+        💬 Gesprächs-Starter für 1-on-1
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">KI-generiert basierend auf {{ member.name }}'s Daten</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Nutze diese Fragen direkt in deinem nächsten Coaching-Call. Klick zum Kopieren in Notiz-Feld.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+        {% for k in konv_starter %}
+        <div onclick="useStarter(this)" data-text="{{ k.text }}" style="display:flex;align-items:flex-start;gap:14px;padding:12px 16px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:all 0.2s" onmouseenter="this.style.borderColor='var(--gold)';this.style.transform='translateX(2px)'" onmouseleave="this.style.borderColor='var(--border)';this.style.transform='translateX(0)'">
+            <div style="font-size:20px">{{ k.icon }}</div>
+            <div style="flex:1">
+                <div style="font-size:10px;color:var(--gold);text-transform:uppercase;letter-spacing:0.7px;font-weight:700">{{ k.category }}</div>
+                <div style="font-size:14px;color:var(--text);margin-top:3px;line-height:1.5">„{{ k.text }}"</div>
+            </div>
+            <div style="font-size:14px;color:var(--text-soft)">📋</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<script>
+function useStarter(el) {
+    const text = el.getAttribute('data-text');
+    const ta = document.querySelector('textarea[name="note"]');
+    if (ta) {
+        ta.value = (ta.value ? ta.value + '\n\n' : '') + 'Frage: ' + text;
+        ta.focus();
+        ta.scrollIntoView({behavior: 'smooth', block: 'center'});
+    } else if (navigator.clipboard) {
+        navigator.clipboard.writeText(text);
+        alert('In Zwischenablage kopiert!');
+    }
+}
+</script>
+{% endif %}
+
 <div class="grid-2">
 
     <!-- Coaching-Notizen schreiben -->

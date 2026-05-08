@@ -319,42 +319,33 @@
             50% { box-shadow: 0 0 0 8px rgba(184,144,46,0); }
         }
 
-        /* Modern Cards (Premium Look) */
+        /* Modern Cards — Linear/Stripe-Style: clean, weniger Ornament */
         .card {
-            background: var(--surface); border-radius: 16px; padding: 26px;
-            border: 1px solid var(--border); margin-bottom: 18px;
+            background: var(--surface); border-radius: 14px; padding: 24px;
+            border: 1px solid var(--border); margin-bottom: 16px;
             box-shadow: var(--shadow-sm);
-            transition: box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+        .card:hover { border-color: var(--border-strong); }
         .card-title {
-            font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 18px;
-            text-transform: uppercase; letter-spacing: 0.9px;
+            font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 16px;
+            letter-spacing: -0.2px;
             display: flex; align-items: center; justify-content: space-between;
         }
 
-        /* Modern KPI Cards */
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        /* KPI Cards — minimal, focused */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
         .kpi-card {
-            background: var(--surface); border-radius: 14px; padding: 20px 22px;
-            border: 1px solid var(--border); position: relative; overflow: hidden;
-            box-shadow: var(--shadow-sm); transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--surface); border-radius: 14px; padding: 18px 20px;
+            border: 1px solid var(--border); position: relative;
+            box-shadow: var(--shadow-sm); transition: all 0.2s ease;
         }
         .kpi-card::before {
-            content: ''; position: absolute; left: 0; top: 0; bottom: 0;
-            width: 4px; background: var(--accent, var(--gold));
-            border-radius: 0 4px 4px 0;
+            content: ''; position: absolute; left: 0; top: 16px; bottom: 16px;
+            width: 3px; background: var(--accent, var(--gold));
+            border-radius: 0 3px 3px 0;
         }
-        .kpi-card::after {
-            content: ''; position: absolute; right: -50px; top: -50px;
-            width: 140px; height: 140px; border-radius: 50%;
-            background: radial-gradient(circle, var(--accent, var(--gold))15, transparent 70%);
-            opacity: 0.06; pointer-events: none;
-        }
-        .kpi-card:hover {
-            box-shadow: var(--shadow-md); transform: translateY(-2px);
-            border-color: var(--accent, var(--gold))40;
-        }
+        .kpi-card:hover { border-color: var(--border-strong); }
         .kpi-card.gold { --accent: var(--gold); }
         .kpi-card.blue { --accent: var(--blue); }
         .kpi-card.green { --accent: var(--green); }
@@ -368,46 +359,27 @@
         .kpi-value { font-size: 28px; font-weight: 800; color: var(--text); margin: 6px 0 2px; letter-spacing: -0.6px; line-height: 1.1; }
         .kpi-sub { font-size: 11px; color: var(--text-soft); }
 
-        /* Modern Buttons */
+        /* Clean Buttons — Linear-Style: simple, focused */
         .btn {
-            display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px;
-            border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
-            text-decoration: none; border: 1px solid transparent; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px;
+            border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer;
+            text-decoration: none; border: 1px solid transparent; transition: all 0.15s ease;
             font-family: inherit; letter-spacing: -0.1px;
-            position: relative; overflow: hidden;
+            white-space: nowrap;
         }
-        .btn::after {
-            content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0);
-            transition: background 0.2s; pointer-events: none;
-        }
-        .btn:hover::after { background: rgba(255,255,255,0.08); }
         .btn:active { transform: scale(0.97); }
         .btn-primary {
-            background: linear-gradient(135deg, #0f1c3f 0%, #1a2c5b 100%);
-            color: #fff; border-color: var(--navy);
-            box-shadow: 0 1px 2px rgba(15,28,63,0.12), 0 4px 12px rgba(15,28,63,0.08);
+            background: var(--navy); color: #fff; border-color: var(--navy);
         }
-        .btn-primary:hover {
-            box-shadow: 0 4px 8px rgba(15,28,63,0.18), 0 12px 24px rgba(15,28,63,0.12);
-            transform: translateY(-1px);
-        }
+        .btn-primary:hover { background: var(--navy-light); border-color: var(--navy-light); }
         .btn-gold {
-            background: linear-gradient(135deg, #b8902e 0%, #d4a843 100%);
-            color: #fff; border-color: var(--gold);
-            box-shadow: 0 1px 2px rgba(184,144,46,0.18), 0 4px 12px rgba(184,144,46,0.14);
+            background: var(--gold); color: #fff; border-color: var(--gold);
         }
-        .btn-gold:hover {
-            box-shadow: 0 4px 8px rgba(184,144,46,0.28), 0 12px 24px rgba(184,144,46,0.18);
-            transform: translateY(-1px);
-        }
+        .btn-gold:hover { background: var(--gold-light); border-color: var(--gold-light); }
         .btn-secondary {
             background: var(--surface); color: var(--text); border-color: var(--border);
-            box-shadow: var(--shadow-sm);
         }
-        .btn-secondary:hover {
-            background: var(--bg-2); border-color: var(--border-strong);
-            box-shadow: var(--shadow-md); transform: translateY(-1px);
-        }
+        .btn-secondary:hover { background: var(--bg-2); border-color: var(--border-strong); }
         .btn-danger {
             background: var(--red-soft); color: var(--red); border-color: #fecaca;
         }
