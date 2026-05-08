@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session, send_file, Response
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session, send_file, send_from_directory, Response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
@@ -3357,10 +3357,33 @@ def favicon_ico():
 
 @app.route('/apple-touch-icon.png')
 @app.route('/apple-touch-icon-precomposed.png')
+@app.route('/apple-touch-icon-152x152.png')
+@app.route('/apple-touch-icon-152x152-precomposed.png')
+@app.route('/apple-touch-icon-180x180.png')
 def apple_touch_icon():
-    """Safari/iOS Fallback — auch hier SVG, Safari akzeptiert das."""
-    return Response(_FAVICON_SVG, mimetype='image/svg+xml',
-                    headers={'Cache-Control': 'public, max-age=86400'})
+    """Safari/iOS Home-Screen Icon — echtes PNG (180x180) damit iOS es akzeptiert."""
+    return send_from_directory(os.path.join(app.root_path, 'static', 'icons'),
+                               'apple-touch-icon.png', mimetype='image/png')
+
+
+@app.route('/manifest.json')
+def web_app_manifest():
+    """PWA Manifest — Android Home-Screen + Browser-Hint 'App installieren'."""
+    return jsonify({
+        'name': 'NT Pro Academy Control Hub',
+        'short_name': 'NT Pro',
+        'description': 'Strukturvertrieb-Cockpit für Karriere, Provisionen & Coaching',
+        'start_url': '/dashboard',
+        'display': 'standalone',
+        'orientation': 'portrait',
+        'theme_color': '#0f1c3f',
+        'background_color': '#0a0e1a',
+        'icons': [
+            {'src': '/static/icons/icon-192.png', 'sizes': '192x192', 'type': 'image/png'},
+            {'src': '/static/icons/icon-512.png', 'sizes': '512x512', 'type': 'image/png'},
+            {'src': '/static/icons/apple-touch-icon.png', 'sizes': '180x180', 'type': 'image/png'},
+        ],
+    })
 
 
 @app.route('/api/health')
