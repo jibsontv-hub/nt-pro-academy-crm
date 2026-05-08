@@ -7,7 +7,7 @@ import os
 import secrets
 import csv
 import io
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import json
 
 app = Flask(__name__)
@@ -84,6 +84,25 @@ def generate_random_password(length=10):
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
+def log_activity(user_id, event_type, message, icon='•', color='navy', metadata=None):
+    """Loggt eine Aktivität in den Activity-Stream."""
+    try:
+        db = get_db()
+        db.execute('INSERT INTO activity_log (user_id, event_type, message, icon, color, metadata) VALUES (?, ?, ?, ?, ?, ?)',
+                   (user_id, event_type, message, icon, color, json.dumps(metadata) if metadata else None))
+        db.commit()
+        db.close()
+    except Exception as e:
+        print(f"Activity log warning: {e}")
+
+
+def get_week_start(d=None):
+    """Liefert den Montag der aktuellen Woche im Format YYYY-MM-DD."""
+    if d is None:
+        d = date.today()
+    return (d - timedelta(days=d.weekday())).strftime('%Y-%m-%d')
+
+
 class User(UserMixin):
     def __init__(self, row):
         self.id = row['id']
@@ -115,6 +134,12 @@ def auto_promote_user(user_id):
     if earned > current_manual:
         db.execute('UPDATE users SET manual_career_level = ? WHERE id = ?', (earned, user_id))
         db.commit()
+        # Stufen-Aufstieg loggen!
+        new_career = next((cl for cl in CAREER_LEVELS if cl['level'] == earned), None)
+        if new_career:
+            log_activity(user_id, 'befoerderung',
+                f'{user["name"]} wurde automatisch zu {new_career["short"]} befördert! 🚀',
+                icon='⬆️', color='gold')
     db.close()
 
 
@@ -578,10 +603,17 @@ def genehmigung_approve(uid):
     db = get_db()
     user = db.execute('SELECT pending_career_level FROM users WHERE id = ?', (uid,)).fetchone()
     if user and user['pending_career_level']:
+        new_lvl = user['pending_career_level']
         db.execute('''UPDATE users SET manual_career_level = ?,
                       pending_career_level = NULL, pending_by_user_id = NULL, pending_at = NULL
-                      WHERE id = ?''', (user['pending_career_level'], uid))
+                      WHERE id = ?''', (new_lvl, uid))
+        u_info = db.execute('SELECT name FROM users WHERE id = ?', (uid,)).fetchone()
         db.commit()
+        new_career = next((cl for cl in CAREER_LEVELS if cl['level'] == new_lvl), None)
+        if new_career and u_info:
+            log_activity(uid, 'befoerderung',
+                f'{u_info["name"]} wurde zu {new_career["short"]} befördert! 🚀',
+                icon='⬆️', color='gold')
     db.close()
     recalculate_all_commissions()
     flash('Stufe bestätigt!', 'success')
@@ -725,6 +757,42 @@ def init_db():
             UNIQUE(user_id, task_id, datum),
             FOREIGN KEY (user_id) REFERENCES users(id),
             FOREIGN KEY (task_id) REFERENCES daily_tasks(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            message TEXT NOT NULL,
+            icon TEXT DEFAULT '•',
+            color TEXT DEFAULT 'navy',
+            metadata TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS weekly_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            week_start TEXT NOT NULL,
+            ziel_termine INTEGER DEFAULT 0,
+            ziel_vertraege INTEGER DEFAULT 0,
+            ziel_einheiten REAL DEFAULT 0,
+            ziel_neue_partner INTEGER DEFAULT 0,
+            ziel_anrufe INTEGER DEFAULT 0,
+            UNIQUE(user_id, week_start),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS coaching_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_user_id INTEGER NOT NULL,
+            author_user_id INTEGER NOT NULL,
+            note TEXT NOT NULL,
+            next_session_date TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (target_user_id) REFERENCES users(id),
+            FOREIGN KEY (author_user_id) REFERENCES users(id)
         );
     ''')
 
@@ -976,6 +1044,14 @@ def login():
             db.close()
             login_user(User(row))
             session['show_vision'] = True
+            # Activity log nur bei erstem Login des Tages
+            today = date.today().strftime('%Y-%m-%d')
+            db2 = get_db()
+            existing = db2.execute('SELECT id FROM activity_log WHERE user_id = ? AND event_type = ? AND date(created_at) = ?',
+                                   (row['id'], 'login', today)).fetchone()
+            db2.close()
+            if not existing:
+                log_activity(row['id'], 'login', f'{row["name"]} ist heute eingeloggt', icon='🔓', color='blue')
             return redirect(url_for('dashboard'))
         db.close()
         flash('Falsche E-Mail oder Passwort', 'error')
@@ -1251,6 +1327,9 @@ def lead_neu():
              request.form.get('status', 'neu'), request.form.get('notizen', '')))
         db.commit()
         db.close()
+        log_activity(current_user.id, 'lead_neu',
+            f'{current_user.name} hat „{request.form["name"]}" zur Namensliste hinzugefügt',
+            icon='◇', color='purple')
         flash('Lead erfolgreich angelegt!', 'success')
         return redirect(url_for('leads'))
     return render_template('lead_form.html', lead=None)
@@ -1329,6 +1408,14 @@ def vertrag_neu():
         db.close()
         auto_promote_user(current_user.id)
         recalculate_all_commissions()
+        if request.form.get('status') == 'abgeschlossen' and request.form.get('recherche_status') == 'freigegeben':
+            log_activity(current_user.id, 'vertrag_abgeschlossen',
+                f'{current_user.name} hat Vertrag „{request.form["client_name"]}" abgeschlossen ({einheiten:.0f} EH)',
+                icon='🎉', color='green')
+        else:
+            log_activity(current_user.id, 'vertrag_neu',
+                f'{current_user.name} hat neuen Vertrag „{request.form["client_name"]}" angelegt ({einheiten:.0f} EH)',
+                icon='📄', color='gold')
         flash(f'Vertrag angelegt! ({einheiten:.0f} EH)', 'success')
         return redirect(url_for('vertraege'))
     return render_template('vertrag_form.html', vertrag=None, eh_faktor=EH_FAKTOR)
@@ -1408,6 +1495,9 @@ def termin_neu():
              request.form.get('notizen', '')))
         db.commit()
         db.close()
+        log_activity(current_user.id, 'termin_neu',
+            f'{current_user.name} hat Termin „{request.form["title"]}" für {request.form["termin_date"]} angelegt',
+            icon='◷', color='blue')
         flash('Termin angelegt!', 'success')
         return redirect(url_for('termine'))
     return render_template('termin_form.html', termin=None)
@@ -1535,14 +1625,19 @@ def team_neu():
         if existing:
             flash('E-Mail bereits vorhanden!', 'error')
         else:
-            db.execute('''INSERT INTO users (name, email, password, role, parent_id, level, phone,
+            cur = db.execute('''INSERT INTO users (name, email, password, role, parent_id, level, phone,
                           manual_career_level, pending_career_level, pending_by_user_id, pending_at)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (request.form['name'], email, hash_password(request.form.get('password', 'start123')),
                  'partner', parent_id, new_level, request.form.get('phone', ''),
                  manual_level, pending_level, pending_by, pending_at))
+            new_user_id = cur.lastrowid
             db.commit()
             db.close()
+            stufe_short = next((cl['short'] for cl in CAREER_LEVELS if cl['level'] == manual_level), 'REP')
+            log_activity(new_user_id, 'partner_neu',
+                f'{request.form["name"]} ist neuer Geschäftspartner ({stufe_short})',
+                icon='👥', color='green')
             if pending_level:
                 flash(f'Mitglied angelegt! Login: {email}. Stufe {pending_level} wartet auf Admin-Bestätigung.', 'success')
             else:
@@ -1793,6 +1888,262 @@ def provisionen():
         users=user_list, recent=recent,
         total_paid=total_paid, total_own=total_own, total_diff=total_diff,
         all_levels=CAREER_LEVELS)
+
+
+# === LIVE ACTIVITY FEED ===
+@app.route('/feed')
+@login_required
+def feed():
+    """Live Feed aller Aktivitäten."""
+    db = get_db()
+    if current_user.role == 'admin':
+        rows = db.execute('''
+            SELECT a.*, u.name as user_name
+            FROM activity_log a
+            LEFT JOIN users u ON a.user_id = u.id
+            ORDER BY a.created_at DESC LIMIT 100
+        ''').fetchall()
+    else:
+        ids = [current_user.id] + get_all_descendants(current_user.id)
+        ph = ','.join('?' * len(ids))
+        rows = db.execute(f'''
+            SELECT a.*, u.name as user_name
+            FROM activity_log a
+            LEFT JOIN users u ON a.user_id = u.id
+            WHERE a.user_id IN ({ph})
+            ORDER BY a.created_at DESC LIMIT 100
+        ''', ids).fetchall()
+
+    # Gruppiere nach Datum
+    grouped = {}
+    today = date.today()
+    for r in rows:
+        d = dict(r)
+        try:
+            event_dt = datetime.strptime(r['created_at'][:19], '%Y-%m-%d %H:%M:%S')
+        except (ValueError, TypeError):
+            event_dt = datetime.now()
+        event_date = event_dt.date()
+        if event_date == today:
+            key = 'Heute'
+        elif event_date == today - timedelta(days=1):
+            key = 'Gestern'
+        else:
+            key = event_date.strftime('%d.%m.%Y')
+        d['time'] = event_dt.strftime('%H:%M')
+        grouped.setdefault(key, []).append(d)
+    db.close()
+    return render_template('feed.html', grouped=grouped)
+
+
+# === WOCHENZIELE & RANKING ===
+@app.route('/ziele', methods=['GET', 'POST'])
+@login_required
+def ziele():
+    """Eigene Wochenziele setzen + sehen."""
+    db = get_db()
+    week = get_week_start()
+
+    if request.method == 'POST':
+        existing = db.execute('SELECT id FROM weekly_goals WHERE user_id = ? AND week_start = ?',
+                              (current_user.id, week)).fetchone()
+        params = (
+            int(request.form.get('ziel_termine', 0) or 0),
+            int(request.form.get('ziel_vertraege', 0) or 0),
+            float(request.form.get('ziel_einheiten', 0) or 0),
+            int(request.form.get('ziel_neue_partner', 0) or 0),
+            int(request.form.get('ziel_anrufe', 0) or 0),
+        )
+        if existing:
+            db.execute('''UPDATE weekly_goals SET ziel_termine=?, ziel_vertraege=?, ziel_einheiten=?,
+                          ziel_neue_partner=?, ziel_anrufe=? WHERE id=?''', params + (existing['id'],))
+        else:
+            db.execute('''INSERT INTO weekly_goals (user_id, week_start, ziel_termine, ziel_vertraege,
+                          ziel_einheiten, ziel_neue_partner, ziel_anrufe)
+                          VALUES (?, ?, ?, ?, ?, ?, ?)''', (current_user.id, week) + params)
+        db.commit()
+        flash('Wochenziele gespeichert!', 'success')
+        db.close()
+        return redirect(url_for('ziele'))
+
+    goal = db.execute('SELECT * FROM weekly_goals WHERE user_id = ? AND week_start = ?',
+                      (current_user.id, week)).fetchone()
+
+    # Ist-Werte für aktuelle Woche
+    week_start = week
+    week_end = (datetime.strptime(week_start, '%Y-%m-%d').date() + timedelta(days=6)).strftime('%Y-%m-%d')
+
+    ist_termine = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id = ? AND date(termin_date) BETWEEN ? AND ?',
+                             (current_user.id, week_start, week_end)).fetchone()['c']
+    ist_vertraege = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id = ? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) BETWEEN ? AND ?',
+                               (current_user.id, week_start, week_end)).fetchone()['c']
+    ist_einheiten = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id = ? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) BETWEEN ? AND ?',
+                               (current_user.id, week_start, week_end)).fetchone()['s']
+    ist_neue_partner = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id = ? AND date(joined_date) BETWEEN ? AND ?',
+                                  (current_user.id, week_start, week_end)).fetchone()['c']
+    db.close()
+
+    today = date.today()
+    week_end_d = datetime.strptime(week_end, '%Y-%m-%d').date()
+    days_total = 7
+    days_passed = (today - datetime.strptime(week_start, '%Y-%m-%d').date()).days + 1
+    days_passed = max(1, min(days_total, days_passed))
+    week_progress = (days_passed / days_total) * 100
+
+    return render_template('ziele.html',
+        goal=goal, week_start=week_start, week_end=week_end,
+        ist_termine=ist_termine, ist_vertraege=ist_vertraege,
+        ist_einheiten=ist_einheiten, ist_neue_partner=ist_neue_partner,
+        days_passed=days_passed, days_total=days_total,
+        week_progress=int(week_progress))
+
+
+@app.route('/ranking')
+@login_required
+def ranking():
+    """Wochen-Ranking aller Mitglieder — alle sehen es."""
+    db = get_db()
+    week = get_week_start()
+    week_end = (datetime.strptime(week, '%Y-%m-%d').date() + timedelta(days=6)).strftime('%Y-%m-%d')
+
+    rows = db.execute('''
+        SELECT u.id, u.name, u.email, u.manual_career_level,
+               COALESCE(SUM(CASE WHEN c.status="abgeschlossen" AND c.recherche_status="freigegeben" THEN c.einheiten ELSE 0 END), 0) as week_eh,
+               COUNT(DISTINCT CASE WHEN c.status="abgeschlossen" AND c.recherche_status="freigegeben" THEN c.id END) as week_vtr
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id = u.id AND date(c.abschluss_date) BETWEEN ? AND ?
+        WHERE u.active = 1
+        GROUP BY u.id
+        ORDER BY week_eh DESC, week_vtr DESC
+        LIMIT 20
+    ''', (week, week_end)).fetchall()
+
+    members = []
+    for r in rows:
+        d = dict(r)
+        d['career'] = next((cl for cl in CAREER_LEVELS if cl['level'] == (r['manual_career_level'] or 1)), CAREER_LEVELS[0])
+        d['is_me'] = (r['id'] == current_user.id)
+        members.append(d)
+
+    db.close()
+    return render_template('ranking.html', members=members, week_start=week, week_end=week_end)
+
+
+# === COACHING-KARTE ===
+@app.route('/coaching/<int:uid>', methods=['GET', 'POST'])
+@login_required
+def coaching(uid):
+    """Coaching-Karte für einen Partner — nur Admin oder Upline."""
+    db = get_db()
+    member = db.execute('SELECT * FROM users WHERE id = ? AND active = 1', (uid,)).fetchone()
+    if not member:
+        db.close()
+        return redirect(url_for('team'))
+
+    # Berechtigung
+    allowed_ids = [current_user.id] + get_all_descendants(current_user.id)
+    is_admin = current_user.role == 'admin'
+    if not is_admin and uid not in allowed_ids:
+        db.close()
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('team'))
+
+    # POST: neue Coaching-Notiz hinzufügen
+    if request.method == 'POST':
+        note = request.form.get('note', '').strip()
+        next_session = request.form.get('next_session_date', '').strip() or None
+        if note:
+            db.execute('INSERT INTO coaching_notes (target_user_id, author_user_id, note, next_session_date) VALUES (?, ?, ?, ?)',
+                       (uid, current_user.id, note, next_session))
+            db.commit()
+            flash('Coaching-Notiz gespeichert', 'success')
+        db.close()
+        return redirect(url_for('coaching', uid=uid))
+
+    # GET: Coaching-Daten zusammenstellen
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id = ? AND status="abgeschlossen" AND recherche_status="freigegeben"', (uid,)).fetchone()['s']
+    career = next((cl for cl in CAREER_LEVELS if cl['level'] == (member['manual_career_level'] or 1)), CAREER_LEVELS[0])
+    next_career = next((cl for cl in CAREER_LEVELS if cl['level'] == career['level'] + 1), None)
+
+    # Statistiken
+    total_termine = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id = ? AND status="erledigt"', (uid,)).fetchone()['c']
+    total_vertraege = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id = ? AND status="abgeschlossen" AND recherche_status="freigegeben"', (uid,)).fetchone()['c']
+    total_leads = db.execute('SELECT COUNT(*) as c FROM leads WHERE owner_id = ?', (uid,)).fetchone()['c']
+    pending_research = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id = ? AND recherche_status IN ("ausstehend", "")', (uid,)).fetchone()['c']
+    avg_termine_per_close = (total_termine / total_vertraege) if total_vertraege > 0 else 0
+
+    # Direkte Downline
+    downline_count = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id = ? AND active = 1', (uid,)).fetchone()['c']
+    full_team = len(get_all_descendants(uid))
+
+    # Letzte Aktivitäten
+    recent_activity = db.execute('SELECT * FROM activity_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 10', (uid,)).fetchall()
+
+    # Coaching-Notes
+    notes = db.execute('''
+        SELECT cn.*, u.name as author_name FROM coaching_notes cn
+        LEFT JOIN users u ON cn.author_user_id = u.id
+        WHERE cn.target_user_id = ?
+        ORDER BY cn.created_at DESC
+    ''', (uid,)).fetchall()
+
+    # Onboarding-Score
+    ob_score = sum([member['onboarding_endgespraech'], member['onboarding_einarbeitung_1'],
+                    member['onboarding_einarbeitung_2'], member['onboarding_einarbeitung_3'],
+                    member['onboarding_seminar_bezahlt']])
+
+    # Smart Coaching-Tipps generieren
+    tipps = []
+    if avg_termine_per_close > 4:
+        tipps.append({'icon':'🎯', 'color':'orange',
+                     'title':'Termin-Qualität verbessern',
+                     'text':f'{avg_termine_per_close:.1f} Termine pro Abschluss (Ziel: 3). Coaching: bessere Vorqualifikation.'})
+    elif avg_termine_per_close > 0 and avg_termine_per_close < 2.5:
+        tipps.append({'icon':'⭐', 'color':'green',
+                     'title':'Top-Performance bei Termin-Qualität',
+                     'text':f'Nur {avg_termine_per_close:.1f} Termine pro Abschluss — über dem Schnitt!'})
+
+    if pending_research > 2:
+        tipps.append({'icon':'⏳', 'color':'orange',
+                     'title':f'{pending_research} hängende Recherchen',
+                     'text':'Bitte um Status-Update der ausstehenden Verträge.'})
+
+    if next_career:
+        eh_to_go = max(0, next_career['min_eh'] - own_eh)
+        progress = (own_eh / next_career['min_eh'] * 100) if next_career['min_eh'] > 0 else 0
+        if progress >= 70:
+            tipps.append({'icon':'🚀', 'color':'gold',
+                         'title':f'Kurz vor {next_career["short"]}',
+                         'text':f'Nur noch {int(eh_to_go)} EH! Motivieren, gemeinsam push organisieren.'})
+
+    if downline_count == 0 and member['manual_career_level'] >= 2:
+        tipps.append({'icon':'🌱', 'color':'purple',
+                     'title':'Noch keine Downline',
+                     'text':'Als '+career['short']+' sollten erste Partner aufgebaut werden — Geschäftspartner-Aufbau coachen.'})
+
+    if total_leads < 10 and total_vertraege < 3:
+        tipps.append({'icon':'◇', 'color':'blue',
+                     'title':'Namensliste ausbauen',
+                     'text':f'Nur {total_leads} Personen in der Namensliste — Akquise stärken!'})
+
+    if ob_score < 3 and member['joined_date']:
+        try:
+            tage_dabei = (date.today() - datetime.strptime(member['joined_date'], '%Y-%m-%d').date()).days
+            if tage_dabei > 30:
+                tipps.append({'icon':'🎓', 'color':'red',
+                             'title':'Onboarding nachholen',
+                             'text':f'Erst {ob_score}/5 Schritte erledigt nach {tage_dabei} Tagen.'})
+        except (ValueError, TypeError):
+            pass
+
+    db.close()
+    return render_template('coaching.html',
+        member=dict(member), career=career, next_career=next_career,
+        own_eh=own_eh,
+        stats={'termine': total_termine, 'vertraege': total_vertraege, 'leads': total_leads,
+               'pending_research': pending_research, 'avg_termine_per_close': avg_termine_per_close,
+               'downline_count': downline_count, 'full_team': full_team, 'ob_score': ob_score},
+        recent_activity=recent_activity, notes=notes, tipps=tipps)
 
 
 # === KI-COACH ===

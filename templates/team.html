@@ -37,6 +37,7 @@
                     <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(m.einheiten).replace(",", ".") }}</strong></td>
                     <td class="money">{{ "{:,.0f}".format(m.volumen).replace(",", ".") }} €</td>
                     <td style="white-space:nowrap">
+                        <a href="/coaching/{{ m.id }}" class="btn btn-primary btn-sm" title="Coaching-Karte" style="background:var(--gold);color:#fff">🎯</a>
                         <a href="/team/{{ m.id }}/edit" class="btn btn-secondary btn-sm" title="Bearbeiten">✎</a>
                         {% if current_user.role == 'admin' and m.id != current_user.id %}
                         <form method="POST" action="/admin/team/{{ m.id }}/reset-password" style="display:inline" onsubmit="return confirm('Passwort für {{ m.name }} zurücksetzen? Ein neues Zufallspasswort wird erzeugt und angezeigt.')">

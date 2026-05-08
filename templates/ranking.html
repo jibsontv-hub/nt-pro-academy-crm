@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Wochen-Ranking – NT Pro Academy{% endblock %}
+{% block page_title %}🏆 Wochen-Ranking{% endblock %}
+{% block topbar_actions %}
+<a href="/ziele" class="btn btn-secondary">🎯 Meine Ziele</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border-color:#0f1c3f">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
+        <div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1.5px;font-weight:700">🏆 Wochen-Ranking</div>
+            <div style="font-size:24px;font-weight:800;color:#d4a843;margin-top:4px;letter-spacing:-0.5px">Top 20 — wer macht diese Woche das Rennen?</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:6px">{{ week_start[8:10] }}.{{ week_start[5:7] }}. – {{ week_end[8:10] }}.{{ week_end[5:7] }}.{{ week_end[:4] }}</div>
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);text-align:right">
+            Sortiert nach Einheiten · Live-Update bei Reload
+        </div>
+    </div>
+</div>
+
+<!-- Top 3 Podium -->
+{% if members|length >= 3 and members[0].week_eh > 0 %}
+<div class="card">
+    <div class="card-title">👑 Das Treppchen dieser Woche</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;align-items:end">
+        <!-- Platz 2 -->
+        {% set p2 = members[1] %}
+        <div style="text-align:center;background:linear-gradient(180deg,#fafbfc,#fff);border:1px solid var(--border);border-radius:12px;padding:24px 16px;height:160px;display:flex;flex-direction:column;justify-content:center">
+            <div style="font-size:42px">🥈</div>
+            <div style="font-size:14px;font-weight:700;color:var(--text);margin-top:8px">{{ p2.name }}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                <span class="stufe-pill" style="background:{{ p2.career.color }}15;color:{{ p2.career.color }};font-size:10px">{{ p2.career.short }}</span>
+            </div>
+            <div style="font-size:18px;font-weight:800;color:var(--gold);margin-top:8px" class="money">{{ "{:,.0f}".format(p2.week_eh).replace(",", ".") }} EH</div>
+        </div>
+        <!-- Platz 1 -->
+        {% set p1 = members[0] %}
+        <div style="text-align:center;background:linear-gradient(180deg,#fff8e0,#faf6ec);border:2px solid #d4a843;border-radius:14px;padding:30px 16px;height:200px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 4px 16px rgba(212,168,67,0.18)">
+            <div style="font-size:56px">🥇</div>
+            <div style="font-size:16px;font-weight:800;color:var(--navy);margin-top:8px">{{ p1.name }}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                <span class="stufe-pill" style="background:{{ p1.career.color }}15;color:{{ p1.career.color }};font-size:10px">{{ p1.career.short }}</span>
+            </div>
+            <div style="font-size:24px;font-weight:800;color:var(--gold);margin-top:10px" class="money">{{ "{:,.0f}".format(p1.week_eh).replace(",", ".") }} EH</div>
+            <div style="font-size:11px;color:var(--gold);font-weight:700;margin-top:4px;letter-spacing:0.6px;text-transform:uppercase">Champion</div>
+        </div>
+        <!-- Platz 3 -->
+        {% set p3 = members[2] %}
+        <div style="text-align:center;background:linear-gradient(180deg,#fafbfc,#fff);border:1px solid var(--border);border-radius:12px;padding:20px 14px;height:140px;display:flex;flex-direction:column;justify-content:center">
+            <div style="font-size:36px">🥉</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:6px">{{ p3.name }}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                <span class="stufe-pill" style="background:{{ p3.career.color }}15;color:{{ p3.career.color }};font-size:10px">{{ p3.career.short }}</span>
+            </div>
+            <div style="font-size:16px;font-weight:800;color:var(--gold);margin-top:6px" class="money">{{ "{:,.0f}".format(p3.week_eh).replace(",", ".") }} EH</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Komplette Liste -->
+<div class="card">
+    <div class="card-title">Komplettes Ranking</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th style="width:60px">#</th><th>Name</th><th>Stufe</th><th>Einheiten</th><th>Verträge</th></tr></thead>
+            <tbody>
+                {% for m in members %}
+                {% set rank = loop.index %}
+                <tr {% if m.is_me %}style="background:var(--gold-soft)"{% endif %}>
+                    <td>
+                        {% if rank == 1 %}<span style="font-size:22px">🥇</span>
+                        {% elif rank == 2 %}<span style="font-size:20px">🥈</span>
+                        {% elif rank == 3 %}<span style="font-size:20px">🥉</span>
+                        {% else %}<strong style="color:var(--text-muted)">{{ rank }}.</strong>{% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ m.name }}</strong>
+                        {% if m.is_me %}<span style="font-size:10px;background:var(--gold);color:#fff;padding:2px 7px;border-radius:8px;margin-left:6px;font-weight:700">DU</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="stufe-pill" style="background:{{ m.career.color }}15;color:{{ m.career.color }}">{{ m.career.short }}</span>
+                    </td>
+                    <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(m.week_eh).replace(",", ".") }}</strong></td>
+                    <td>{{ m.week_vtr }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" style="text-align:center;color:var(--text-soft);padding:24px">Diese Woche noch keine Verträge — sei der Erste! 🚀</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card" style="background:var(--blue-soft);border:1px solid #c9dcf4">
+    <div style="display:flex;gap:14px;align-items:center;font-size:13px;color:var(--text)">
+        <span style="font-size:20px">💪</span>
+        <div>
+            <strong>Sichtbarkeit motiviert!</strong> Dieses Ranking sehen <strong>alle aktiven Partner</strong>. Jeder will aufs Treppchen — nutze es als Wettkampf-Tool. Reset jeden Montag automatisch.
+        </div>
+    </div>
+</div>
+
+{% endblock %}

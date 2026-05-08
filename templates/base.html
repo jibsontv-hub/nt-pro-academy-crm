@@ -297,6 +297,15 @@
             <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}">
                 <span class="nav-icon">📋</span> Daily Briefing
             </a>
+            <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}">
+                <span class="nav-icon">📡</span> Live Feed
+            </a>
+            <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}">
+                <span class="nav-icon">🎯</span> Meine Wochenziele
+            </a>
+            <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}">
+                <span class="nav-icon">🏆</span> Wochen-Ranking
+            </a>
             <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}">
                 <span class="nav-icon">✓</span> Tagesaufgaben
             </a>

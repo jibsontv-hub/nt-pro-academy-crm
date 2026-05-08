@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Coaching: {{ member.name }} – NT Pro Academy{% endblock %}
+{% block page_title %}🎯 Coaching: {{ member.name }}{% endblock %}
+{% block topbar_actions %}
+<a href="/team" class="btn btn-secondary">← Team-Liste</a>
+<a href="/team/{{ member.id }}/edit" class="btn btn-secondary">✎ Bearbeiten</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero: Partner-Profil -->
+<div class="card" style="background:linear-gradient(135deg,#fff,#faf6ec);border:1px solid #e8d59a">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px">
+        <div style="display:flex;align-items:center;gap:18px">
+            <div style="width:72px;height:72px;border-radius:16px;background:{{ career.color }}15;border:2px solid {{ career.color }};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:{{ career.color }}">
+                {{ career.short }}
+            </div>
+            <div>
+                <div style="font-size:24px;font-weight:800;color:var(--text);letter-spacing:-0.5px">{{ member.name }}</div>
+                <div style="font-size:13px;color:var(--text-muted);margin-top:3px">
+                    {{ career.name }} · Stufe {{ career.level }} ·
+                    {% if member.last_login %}Zuletzt online: {{ member.last_login[:16] }}
+                    {% else %}<span style="color:var(--red);font-weight:700">noch nie eingeloggt</span>{% endif %}
+                </div>
+                <div style="font-size:12px;color:var(--text-soft);margin-top:2px">📞 {{ member.phone or '–' }} · ✉️ {{ member.email }}</div>
+            </div>
+        </div>
+        {% if member.phone %}
+        <div style="display:flex;gap:8px">
+            <a href="tel:{{ member.phone }}" class="btn btn-primary">📞 Anrufen</a>
+            <a href="https://wa.me/{{ member.phone | replace(' ', '') | replace('+', '') | replace('-', '') }}" target="_blank" class="btn btn-secondary">💬 WhatsApp</a>
+        </div>
+        {% endif %}
+    </div>
+    {% if member.vision %}
+    <div style="margin-top:18px;padding:14px 18px;background:rgba(212,168,67,0.08);border-left:3px solid var(--gold);border-radius:6px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">★ Sein/Ihr Warum</div>
+        <div style="font-size:14px;color:var(--text);font-style:italic;margin-top:4px;line-height:1.5">„{{ member.vision }}"</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- KI-Coaching-Tipps -->
+{% if tipps %}
+<div class="card">
+    <div class="card-title">🧠 KI-Coaching-Tipps für dieses Gespräch</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+        {% for t in tipps %}
+        {% set bg = ({'orange':'var(--orange-soft)','green':'var(--green-soft)','gold':'var(--gold-soft)','blue':'var(--blue-soft)','purple':'var(--purple-soft)','red':'var(--red-soft)'}).get(t.color, '#fafbfc') %}
+        {% set border = ({'orange':'#f5d4a0','green':'#c9eed7','gold':'#e8d59a','blue':'#c9dcf4','purple':'#ddc9f0','red':'#f5c8c0'}).get(t.color, 'var(--border)') %}
+        {% set fg = ({'orange':'var(--orange)','green':'var(--green)','gold':'var(--gold)','blue':'var(--blue)','purple':'var(--purple)','red':'var(--red)'}).get(t.color, 'var(--text)') %}
+        <div style="background:{{ bg }};border:1px solid {{ border }};border-radius:10px;padding:14px 18px;display:flex;gap:14px;align-items:flex-start">
+            <div style="font-size:24px">{{ t.icon }}</div>
+            <div style="flex:1">
+                <div style="font-size:14px;font-weight:700;color:{{ fg }}">{{ t.title }}</div>
+                <div style="font-size:12px;color:var(--text);margin-top:4px;line-height:1.5">{{ t.text }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Performance-Stats -->
+<div class="card">
+    <div class="card-title">📊 Performance-Profil</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">⚡ Eigene EH</div>
+            <div style="font-size:22px;font-weight:800;color:var(--gold);margin:4px 0" class="money">{{ "{:,.0f}".format(own_eh).replace(",", ".") }}</div>
+            {% if next_career %}
+            {% set progress = ((own_eh / next_career.min_eh * 100) if next_career.min_eh > 0 else 0) | int %}
+            <div style="font-size:11px;color:var(--text-soft)">{{ progress }}% bis {{ next_career.short }}</div>
+            <div class="progress-bar" style="margin-top:6px;height:5px">
+                <div class="progress-fill progress-gold" style="width:{{ [progress, 100] | min }}%"></div>
+            </div>
+            {% else %}
+            <div style="font-size:11px;color:var(--green);font-weight:700">★ Höchste Stufe!</div>
+            {% endif %}
+        </div>
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">📄 Verträge</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0">{{ stats.vertraege }}</div>
+            <div style="font-size:11px;color:var(--text-soft)">Abgeschlossen + freigegeben</div>
+        </div>
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">◷ Erledigte Termine</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0">{{ stats.termine }}</div>
+            <div style="font-size:11px;color:var(--text-soft)">Insgesamt</div>
+        </div>
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">🎯 Conversion</div>
+            <div style="font-size:22px;font-weight:800;color:{% if stats.avg_termine_per_close > 0 and stats.avg_termine_per_close <= 3 %}var(--green){% elif stats.avg_termine_per_close <= 4.5 %}var(--gold){% else %}var(--red){% endif %};margin:4px 0">
+                {% if stats.avg_termine_per_close > 0 %}{{ "%.1f"|format(stats.avg_termine_per_close) }}{% else %}–{% endif %}
+            </div>
+            <div style="font-size:11px;color:var(--text-soft)">Termine pro Abschluss</div>
+        </div>
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">◇ Namensliste</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0">{{ stats.leads }}</div>
+            <div style="font-size:11px;color:var(--text-soft)">Personen erfasst</div>
+        </div>
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">⏳ Hängende Recherchen</div>
+            <div style="font-size:22px;font-weight:800;color:{% if stats.pending_research == 0 %}var(--green){% elif stats.pending_research <= 2 %}var(--gold){% else %}var(--red){% endif %};margin:4px 0">{{ stats.pending_research }}</div>
+            <div style="font-size:11px;color:var(--text-soft)">Offen</div>
+        </div>
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">👥 Direkte Partner</div>
+            <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0">{{ stats.downline_count }}</div>
+            <div style="font-size:11px;color:var(--text-soft)">+ {{ stats.full_team }} indirekt</div>
+        </div>
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">🎓 Onboarding</div>
+            <div style="font-size:22px;font-weight:800;color:{% if stats.ob_score == 5 %}var(--green){% elif stats.ob_score >= 3 %}var(--gold){% else %}var(--red){% endif %};margin:4px 0">{{ stats.ob_score }}/5</div>
+            <div style="font-size:11px;color:var(--text-soft)">Schritte erledigt</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid-2">
+
+    <!-- Coaching-Notizen schreiben -->
+    <div class="card">
+        <div class="card-title">✍️ Neue Coaching-Notiz</div>
+        <form method="POST">
+            <div class="form-group full">
+                <label>Notiz (was wurde besprochen, vereinbart)</label>
+                <textarea name="note" required rows="5" placeholder="z.B. Besprochen: bessere Vorqualifikation der Termine. Tom probiert ab Montag 3-Fragen-Technik. Nächstes Update Freitag."></textarea>
+            </div>
+            <div class="form-group full">
+                <label>Nächstes 1-on-1 Datum (optional)</label>
+                <input type="date" name="next_session_date">
+            </div>
+            <div style="margin-top:14px">
+                <button type="submit" class="btn btn-primary">💾 Notiz speichern</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Letzte Aktivität -->
+    <div class="card">
+        <div class="card-title">📡 Letzte Aktivität</div>
+        {% if recent_activity %}
+        <div style="display:flex;flex-direction:column;gap:8px">
+            {% for a in recent_activity %}
+            <div style="background:#fafbfc;border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px">
+                <div style="font-size:16px">{{ a.icon }}</div>
+                <div style="flex:1">{{ a.message }}</div>
+                <div style="font-size:11px;color:var(--text-soft)">{{ a.created_at[:10] }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align:center;color:var(--text-soft);padding:24px">Noch keine Aktivitäten erfasst</div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Coaching-Historie -->
+{% if notes %}
+<div class="card">
+    <div class="card-title">📚 Coaching-Historie ({{ notes|length }})</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+        {% for n in notes %}
+        <div style="background:#fafbfc;border-left:3px solid var(--navy);border-radius:8px;padding:14px 18px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">
+                    Von {{ n.author_name or '–' }} · {{ n.created_at[:16] }}
+                </div>
+                {% if n.next_session_date %}
+                <div style="font-size:11px;background:var(--blue-soft);color:var(--blue);padding:3px 9px;border-radius:10px;font-weight:600">
+                    📅 Nächstes 1-on-1: {{ n.next_session_date }}
+                </div>
+                {% endif %}
+            </div>
+            <div style="font-size:14px;color:var(--text);line-height:1.6;white-space:pre-wrap">{{ n.note }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

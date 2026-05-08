@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Meine Wochenziele – NT Pro Academy{% endblock %}
+{% block page_title %}🎯 Meine Wochenziele{% endblock %}
+{% block topbar_actions %}
+<a href="/ranking" class="btn btn-primary">🏆 Wochen-Ranking</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero: Wochen-Info -->
+<div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border-color:#0f1c3f">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px">
+        <div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;font-weight:700">Aktuelle Woche</div>
+            <div style="font-size:18px;font-weight:800;color:#fff;margin-top:4px">{{ week_start[8:10] }}.{{ week_start[5:7] }}. – {{ week_end[8:10] }}.{{ week_end[5:7] }}.{{ week_end[:4] }}</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:4px">Tag {{ days_passed }} von {{ days_total }}</div>
+        </div>
+        <div style="flex:1;min-width:220px;max-width:380px">
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px">Wochen-Fortschritt</div>
+            <div style="background:rgba(255,255,255,0.06);border-radius:6px;height:10px;overflow:hidden">
+                <div style="height:100%;width:{{ week_progress }}%;background:#d4a843;transition:width 0.6s"></div>
+            </div>
+            <div style="font-size:12px;color:#d4a843;margin-top:6px;font-weight:700">{{ week_progress }}% der Woche um</div>
+        </div>
+    </div>
+</div>
+
+<!-- Form: Ziele setzen -->
+<div class="card">
+    <div class="card-title">
+        ⚙️ Wochenziele setzen / aktualisieren
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">Setze deine Ziele am Montag — verfolge sie täglich</span>
+    </div>
+    <form method="POST">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>📞 Anrufe</label>
+                <input type="number" name="ziel_anrufe" value="{{ goal.ziel_anrufe if goal else '' }}" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
+                <label>◷ Termine</label>
+                <input type="number" name="ziel_termine" value="{{ goal.ziel_termine if goal else '' }}" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
+                <label>📄 Verträge</label>
+                <input type="number" name="ziel_vertraege" value="{{ goal.ziel_vertraege if goal else '' }}" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
+                <label>⚡ Einheiten (EH)</label>
+                <input type="number" name="ziel_einheiten" value="{{ goal.ziel_einheiten if goal else '' }}" placeholder="0" min="0" step="100">
+            </div>
+            <div class="form-group">
+                <label>👥 Neue Geschäftspartner</label>
+                <input type="number" name="ziel_neue_partner" value="{{ goal.ziel_neue_partner if goal else '' }}" placeholder="0" min="0">
+            </div>
+        </div>
+        <div style="margin-top:16px">
+            <button type="submit" class="btn btn-primary">💾 Ziele speichern</button>
+        </div>
+    </form>
+</div>
+
+<!-- Live-Tracking -->
+{% if goal %}
+{% set targets = [
+    ('◷ Termine', ist_termine, goal.ziel_termine, 'progress-blue'),
+    ('📄 Verträge', ist_vertraege, goal.ziel_vertraege, 'progress-green'),
+    ('⚡ Einheiten', ist_einheiten, goal.ziel_einheiten, 'progress-gold'),
+    ('👥 Neue Partner', ist_neue_partner, goal.ziel_neue_partner, 'progress-navy')
+] %}
+<div class="card">
+    <div class="card-title">📊 Live-Tracking — Ist vs. Ziel</div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+        {% for label, ist, ziel, color in targets %}
+        {% set pct = ((ist / ziel * 100) if ziel > 0 else 0) | round | int %}
+        {% set capped = [pct, 100] | min %}
+        {% set on_track = (pct >= week_progress) %}
+        <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+                <div style="font-size:14px;font-weight:600;color:var(--text)">{{ label }}</div>
+                <div style="font-size:14px;font-weight:700">
+                    <strong>{{ "{:,.0f}".format(ist).replace(",", ".") if ist else 0 }}</strong>
+                    <span style="color:var(--text-soft)">/ {{ "{:,.0f}".format(ziel).replace(",", ".") }}</span>
+                    <span style="color:{% if on_track %}var(--green){% elif pct >= 50 %}var(--gold){% else %}var(--red){% endif %};margin-left:6px;font-size:13px">
+                        ({{ pct }}%)
+                    </span>
+                    {% if ziel > 0 %}
+                    <span style="font-size:11px;font-weight:700;margin-left:6px;padding:2px 8px;border-radius:10px;{% if on_track %}background:var(--green-soft);color:var(--green){% elif pct >= 50 %}background:var(--gold-soft);color:var(--gold){% else %}background:var(--red-soft);color:var(--red){% endif %}">
+                        {% if on_track %}On Track{% elif pct >= 50 %}Aufpassen{% else %}Push!{% endif %}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="progress-bar" style="height:10px">
+                <div class="progress-fill {{ color }}" style="width:{{ capped }}%"></div>
+            </div>
+            <!-- Pace-Indikator -->
+            {% if ziel > 0 %}
+            <div style="position:relative;margin-top:-10px;height:10px;pointer-events:none">
+                <div style="position:absolute;left:{{ week_progress }}%;top:-2px;width:2px;height:14px;background:var(--text);opacity:0.6" title="Erwarteter Fortschritt: {{ week_progress }}%"></div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    <div style="margin-top:18px;font-size:11px;color:var(--text-muted);text-align:center">
+        Schwarze Linie zeigt Pace ({{ week_progress }}% der Woche um) — Balken sollten sie überholen oder erreichen
+    </div>
+</div>
+{% else %}
+<div class="card" style="background:var(--orange-soft);border:1px solid #f5d4a0">
+    <div style="display:flex;gap:14px;align-items:center;font-size:14px;color:#7a3d0a">
+        <span style="font-size:28px">⚙️</span>
+        <div>
+            <strong>Noch keine Ziele für diese Woche!</strong>
+            Setze oben deine Wochenziele — danach trackt das System automatisch und zeigt dir live wo du stehst.
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Tipps -->
+<div class="card" style="background:var(--blue-soft);border:1px solid #c9dcf4">
+    <div style="display:flex;gap:14px;align-items:flex-start;font-size:13px">
+        <span style="font-size:20px">💡</span>
+        <div>
+            <strong>Profi-Tipps für realistische Wochenziele:</strong>
+            <ul style="margin:6px 0 0 20px;line-height:1.7;color:var(--text-muted)">
+                <li><strong>Anrufe:</strong> 25–50 pro Woche (5–10/Tag)</li>
+                <li><strong>Termine:</strong> 5–8 pro Woche</li>
+                <li><strong>Verträge:</strong> 1–3 pro Woche (entspricht ca. 3 Termine pro Abschluss)</li>
+                <li><strong>Einheiten:</strong> 800–2.500 EH (= 1.000 €–3.000 € Volumen)</li>
+                <li><strong>Neue Partner:</strong> 1–2 pro Monat realistisch</li>
+            </ul>
+            <div style="margin-top:10px"><strong>Beim Wochen-Ranking</strong> sehen dich alle 80 Partner — nutze das als Motivation 🏆</div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
