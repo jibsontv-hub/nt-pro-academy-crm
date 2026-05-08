@@ -704,6 +704,81 @@ Liefere JSON mit diagnose, fokus, frage."""
     return {'diagnose': text, 'fokus': '', 'frage': ''}
 
 
+def send_lead_confirmation_email(lead_email, lead_name):
+    """Bestätigungsmail an Bewerber direkt nach Anmeldung über öffentliche Form."""
+    if not is_smtp_configured():
+        return False, 'SMTP nicht konfiguriert'
+
+    first_name = lead_name.split()[0] if lead_name else ''
+    subject = f'✅ Anmeldung erhalten — wir melden uns bei dir!'
+
+    text = f"""Hi {first_name},
+
+vielen Dank für deine Anmeldung bei NT Pro Academy! 🎉
+
+Wir haben deine Daten erhalten und melden uns innerhalb von 24-48 Stunden bei dir.
+
+In der Zwischenzeit:
+• Schau dich auf unseren Social-Media-Kanälen um
+• Bereite dir 2-3 Fragen vor, die du beim Erstgespräch stellen willst
+• Lass dir Zeit, deine Ziele zu sortieren
+
+Was dich bei uns erwartet:
+• Klare Karrierewege (REP → GREP)
+• Faire Differenz-Provisionen (5,00 - 23,00 €/EH)
+• KI-Coach + Mentor-System
+• Wachstum mit echtem Team
+
+Bis ganz bald! 🚀
+
+Team NT Pro Academy
+
+---
+Diese E-Mail wurde automatisch versendet, weil du dich bei uns angemeldet hast.
+Wenn du das nicht warst, ignoriere bitte diese Nachricht."""
+
+    html = f"""<!DOCTYPE html><html><body style="font-family:Inter,Arial,sans-serif;background:#f6f7fb;margin:0;padding:24px">
+<table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;border:1px solid #ebeef4;overflow:hidden">
+<tr><td style="padding:40px 28px;background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 100%);text-align:center">
+<div style="font-size:48px;margin-bottom:12px">✅</div>
+<div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-0.4px">Anmeldung erhalten!</div>
+<div style="font-size:13px;color:#d4a843;letter-spacing:1.5px;text-transform:uppercase;margin-top:8px;font-weight:700">NT Pro Academy</div>
+</td></tr>
+<tr><td style="padding:32px 28px;color:#0f172a;line-height:1.6;font-size:15px">
+<p>Hi <strong>{first_name}</strong>,</p>
+<p>vielen Dank für deine Anmeldung! 🎉<br>
+Wir haben deine Daten erhalten und melden uns <strong style="color:#b8902e">innerhalb von 24-48 Stunden</strong> bei dir.</p>
+
+<div style="background:#faf6ec;border:1px solid #e8d59a;border-radius:12px;padding:18px 20px;margin:20px 0">
+<div style="font-size:11px;color:#7a5c1a;text-transform:uppercase;letter-spacing:1px;font-weight:800;margin-bottom:12px">⏳ Was du in der Zwischenzeit tun kannst</div>
+<ul style="margin-left:18px;color:#0f172a;font-size:14px;line-height:2">
+<li>Schau dich auf unseren Social-Media-Kanälen um</li>
+<li>Bereite 2-3 eigene Fragen für das Erstgespräch vor</li>
+<li>Sortier deine Ziele für die nächsten 3-12 Monate</li>
+</ul>
+</div>
+
+<div style="background:#fff;border:1px solid #ebeef4;border-radius:12px;padding:18px 20px;margin:20px 0">
+<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:800;margin-bottom:12px">🚀 Was dich bei uns erwartet</div>
+<table style="width:100%;font-size:13px;color:#0f172a;line-height:1.7">
+<tr><td style="padding:4px 0">⬡ <strong>Klare Karriere-Wege</strong></td><td style="color:#64748b">REP → LREP → HREP → CREP → DREP → GREP</td></tr>
+<tr><td style="padding:4px 0">💰 <strong>Faire Provisionen</strong></td><td style="color:#64748b">5,00 - 23,00 €/EH</td></tr>
+<tr><td style="padding:4px 0">🧠 <strong>KI-Coach</strong></td><td style="color:#64748b">tägliche Empfehlungen</td></tr>
+<tr><td style="padding:4px 0">👥 <strong>Echtes Team</strong></td><td style="color:#64748b">Mentor-System</td></tr>
+</table>
+</div>
+
+<p>Bis ganz bald!</p>
+<p style="color:#64748b;font-size:13px;margin-top:24px">Team NT Pro Academy 🚀</p>
+</td></tr>
+<tr><td style="padding:18px 28px;background:#fafbfc;color:#94a3b8;font-size:11px;border-top:1px solid #ebeef4;border-radius:0 0 14px 14px">
+Diese E-Mail wurde automatisch versendet. Wenn du dich nicht angemeldet hast, ignoriere bitte diese Nachricht.<br>
+Bei Fragen: einfach auf diese Mail antworten.
+</td></tr></table></body></html>"""
+
+    return send_email(lead_email, subject, text, body_html=html, sent_by=None)
+
+
 def send_welcome_email(user_email, user_name, password, sender_name='dein Upline'):
     """Sendet Welcome-E-Mail mit Login-Daten an neuen Partner."""
     if not is_smtp_configured():
@@ -2736,12 +2811,18 @@ def public_lead_capture():
                     f'🌐 Neue öffentliche Anmeldung: {name} ({email})',
                     icon='🌐', color='gold')
 
-        # Optional: Notification-E-Mail an Admin
+        # E-Mails verschicken (wenn SMTP konfiguriert)
         if is_smtp_configured():
+            # 1) Bestätigungs-Mail an den Bewerber
+            try:
+                send_lead_confirmation_email(email, name)
+            except Exception:
+                pass
+            # 2) Notification an Admin
             admin_email = (get_setting('smtp_from_email') or '').strip()
             if admin_email:
                 try:
-                    notify_text = f"Neue Anmeldung über öffentliche Form:\n\nName: {name}\nE-Mail: {email}\nTelefon: {phone}\n\nNachricht:\n{message or '(keine)'}\n\nEmpfohlen von: {referred_by or '–'}"
+                    notify_text = f"Neue Anmeldung über öffentliche Form:\n\nName: {name}\nE-Mail: {email}\nTelefon: {phone}\n\nNachricht:\n{message or '(keine)'}\n\nEmpfohlen von: {referred_by or '–'}\n\n→ Direkt bearbeiten: http://localhost:5001/admin/inbox"
                     send_email(admin_email, f'🌐 Neue Anmeldung: {name}', notify_text, sent_by=None)
                 except Exception:
                     pass
