@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Weiterbildung – NT Pro Academy{% endblock %}
+{% block page_title %}📚 Weiterbildung{% endblock %}
+
+{% block content %}
+<div style="max-width:760px;margin:0 auto">
+
+{% if url %}
+<!-- URL gesetzt → schöne Karte mit Button -->
+<div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(96,165,250,0.06) 100%);border:1px solid rgba(96,165,250,0.25);text-align:center;padding:48px 32px">
+    <div style="width:80px;height:80px;border-radius:24px;background:linear-gradient(135deg,#3b82f6,#1e40af);color:#fff;display:flex;align-items:center;justify-content:center;font-size:38px;margin:0 auto 20px;box-shadow:0 12px 40px rgba(59,130,246,0.3)">📚</div>
+    <h1 style="font-size:28px;font-weight:900;letter-spacing:-0.6px;margin-bottom:8px">{{ name }}</h1>
+    <p style="font-size:14px;color:var(--text-muted);margin-bottom:28px;line-height:1.6;max-width:480px;margin-left:auto;margin-right:auto">
+        Deine zentrale Weiterbildungs-App. Hier findest du Schulungen, Trainings, Strategien und alle Lerninhalte.
+    </p>
+    <a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="font-size:15px;padding:14px 32px;background:linear-gradient(135deg,#3b82f6,#2563eb);border-color:#3b82f6;box-shadow:0 8px 24px rgba(59,130,246,0.3)">
+        → {{ name }} öffnen ↗
+    </a>
+    <div style="margin-top:18px;font-size:11px;color:var(--text-soft)">Öffnet in einem neuen Tab</div>
+</div>
+
+<!-- Was du da lernen kannst -->
+<div class="card">
+    <div class="card-title">💡 Was du dort findest</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+            <div style="font-size:24px;margin-bottom:6px">🎯</div>
+            <div style="font-size:14px;font-weight:700">Vertrieb-Skills</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Akquise, Termin-Qualifikation, Abschluss-Techniken</div>
+        </div>
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+            <div style="font-size:24px;margin-bottom:6px">💰</div>
+            <div style="font-size:14px;font-weight:700">Produkt-Wissen</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Ergo Rente Chance, ETF, Fonds, Versicherungen</div>
+        </div>
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+            <div style="font-size:24px;margin-bottom:6px">👑</div>
+            <div style="font-size:14px;font-weight:700">Leadership</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Team aufbauen, Coaching, Führungs-Skills</div>
+        </div>
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:16px">
+            <div style="font-size:24px;margin-bottom:6px">📈</div>
+            <div style="font-size:14px;font-weight:700">Business-Aufbau</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Mindset, Strategie, Karriere-Wachstum</div>
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- Noch nicht konfiguriert -->
+<div class="card" style="text-align:center;padding:48px 28px">
+    <div style="font-size:60px;margin-bottom:18px">📚</div>
+    <h1 style="font-size:24px;font-weight:800;letter-spacing:-0.5px;margin-bottom:10px">Weiterbildung noch nicht eingerichtet</h1>
+    <p style="font-size:14px;color:var(--text-muted);max-width:440px;margin:0 auto 24px;line-height:1.6">
+        {% if is_admin %}
+        Trage in den Einstellungen den Link zur Learning Suite ein, dann erscheint hier ein direkter Button für alle Partner.
+        {% else %}
+        Der Admin hat den Weiterbildungs-Link noch nicht hinterlegt. Bitte deinen Upline um Bescheid.
+        {% endif %}
+    </p>
+    {% if is_admin %}
+    <a href="/admin/weiterbildung" class="btn btn-primary">⚙ Jetzt konfigurieren</a>
+    {% endif %}
+</div>
+{% endif %}
+
+</div>
+{% endblock %}

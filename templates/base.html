@@ -615,6 +615,9 @@
             <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}">
                 <span class="nav-icon">€</span> Provisionen
             </a>
+            <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}">
+                <span class="nav-icon">📚</span> Weiterbildung
+            </a>
             <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}">
                 <span class="nav-icon">★</span> Mein Profil & Vision
             </a>
@@ -671,6 +674,9 @@
                 <span class="nav-icon">📨</span> E-Mail senden
             </a>
             {% if current_user.role == 'admin' %}
+            <a href="/admin/weiterbildung" class="nav-link {% if '/admin/weiterbildung' in request.path %}active{% endif %}">
+                <span class="nav-icon">📚</span> Weiterbildungs-Link
+            </a>
             <a href="/admin/email-settings" class="nav-link {% if '/admin/email-settings' in request.path %}active{% endif %}">
                 <span class="nav-icon">⚙</span> E-Mail-Server
             </a>

@@ -2268,6 +2268,39 @@ def admin_ki_settings():
 
 
 # === ADMIN: SMTP + E-MAIL ===
+@app.route('/weiterbildung')
+@login_required
+def weiterbildung():
+    """Leitet zur konfigurierten Weiterbildungs-URL (Learning Suite) weiter."""
+    url = (get_setting('learning_suite_url') or '').strip()
+    name = (get_setting('learning_suite_name') or 'Learning Suite').strip()
+    return render_template('weiterbildung.html', url=url, name=name,
+                          is_admin=current_user.role == 'admin')
+
+
+@app.route('/admin/weiterbildung', methods=['GET', 'POST'])
+@login_required
+def admin_weiterbildung():
+    """Admin: Weiterbildungs-URL konfigurieren."""
+    if current_user.role != 'admin':
+        flash('Nur Hauptadmin', 'error')
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        url = (request.form.get('url') or '').strip()
+        name = (request.form.get('name') or 'Learning Suite').strip()
+        # URL absichern: muss mit http:// oder https:// beginnen
+        if url and not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        set_setting('learning_suite_url', url)
+        set_setting('learning_suite_name', name)
+        flash(f'✅ Weiterbildungs-Link gespeichert: {url or "(leer)"}', 'success')
+        return redirect(url_for('admin_weiterbildung'))
+
+    return render_template('admin_weiterbildung.html',
+        url=get_setting('learning_suite_url'),
+        name=get_setting('learning_suite_name', 'Learning Suite'))
+
+
 @app.route('/admin/email-settings', methods=['GET', 'POST'])
 @login_required
 def admin_email_settings():

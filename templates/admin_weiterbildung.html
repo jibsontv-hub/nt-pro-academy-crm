@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Weiterbildungs-Link – Admin{% endblock %}
+{% block page_title %}📚 Weiterbildungs-Link konfigurieren{% endblock %}
+
+{% block content %}
+<div style="max-width:680px">
+
+<div class="card" style="background:var(--blue-soft);border:1px solid var(--blue)">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="font-size:22px">💡</span>
+        <div style="font-size:13px;color:var(--text)">
+            <strong>So funktioniert's:</strong> Trage hier den Link zu eurer Weiterbildungs-App ein (z.B. Learning Suite). Alle Partner sehen dann einen direkten Button im Sidebar-Menü <strong>„📚 Weiterbildung"</strong>, der sie direkt dorthin führt.
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">⚙ Konfiguration</div>
+    <form method="POST">
+        <div class="form-group full">
+            <label>Name der App</label>
+            <input type="text" name="name" value="{{ name or 'Learning Suite' }}" placeholder="Learning Suite">
+            <span style="font-size:11px;color:var(--text-soft)">Wird auf der Weiterbildungs-Seite als Überschrift gezeigt</span>
+        </div>
+        <div class="form-group full" style="margin-top:14px">
+            <label>URL / Link</label>
+            <input type="text" name="url" value="{{ url or '' }}" placeholder="https://app.learningsuite.io/...">
+            <span style="font-size:11px;color:var(--text-soft)">Vollständige URL — wird automatisch mit https:// versehen falls fehlt</span>
+        </div>
+        <div style="margin-top:18px;display:flex;gap:10px">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+            {% if url %}
+            <a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">↗ Aktuellen Link testen</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-title">📍 Aktueller Stand</div>
+    {% if url %}
+    <div style="background:var(--green-soft);border:1px solid var(--green);border-radius:10px;padding:14px 18px">
+        <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:6px">✅ Aktiv</div>
+        <div style="font-size:14px;color:var(--text)"><strong>{{ name }}</strong></div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;font-family:Menlo,Consolas,monospace;word-break:break-all">{{ url }}</div>
+    </div>
+    {% else %}
+    <div style="background:var(--orange-soft);border:1px solid var(--orange);border-radius:10px;padding:14px 18px">
+        <div style="font-size:13px;font-weight:700;color:var(--orange);margin-bottom:6px">⚠ Noch nicht eingerichtet</div>
+        <div style="font-size:13px;color:var(--text)">Partner sehen aktuell einen Hinweis, dass der Link noch nicht hinterlegt ist.</div>
+    </div>
+    {% endif %}
+</div>
+
+</div>
+{% endblock %}
