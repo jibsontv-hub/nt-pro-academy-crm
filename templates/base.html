@@ -607,6 +607,9 @@
             <a href="/admin/mail" class="nav-link {% if request.path == '/admin/mail' or '/admin/email' in request.path %}active{% endif %}">
                 <span class="nav-icon">📨</span> E-Mail senden
             </a>
+            <a href="/admin/ki-settings" class="nav-link {% if '/admin/ki-settings' in request.path %}active{% endif %}">
+                <span class="nav-icon">🧠</span> KI-Power (Claude)
+            </a>
             <a href="/admin/aktivitaet" class="nav-link {% if '/admin/aktivitaet' in request.path %}active{% endif %}">
                 <span class="nav-icon">◷</span> Aktivität
             </a>
@@ -655,9 +658,30 @@
         </div>
         <div class="content">
             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% for category, message in messages %}
-                    <div class="flash flash-{{ category }}">{{ message }}</div>
-                {% endfor %}
+                {% if messages %}
+                <div id="toastContainer" style="position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;max-width:380px"></div>
+                <script>
+                (function(){
+                    const msgs = {{ messages | tojson }};
+                    const cont = document.getElementById('toastContainer');
+                    const COLORS = {success: ['#059669','#ecfdf5','✓'], error: ['#dc2626','#fef2f2','✗'], info: ['#2563eb','#eff6ff','ℹ'], warning: ['#b8590a','#fef3e7','⚠']};
+                    msgs.forEach((m, i) => {
+                        const cat = m[0] || 'info';
+                        const text = m[1];
+                        const [color, bg, icon] = COLORS[cat] || COLORS.info;
+                        const el = document.createElement('div');
+                        el.style.cssText = `background:var(--surface);border:1px solid var(--border);border-left:4px solid ${color};border-radius:12px;padding:14px 18px;display:flex;align-items:flex-start;gap:12px;box-shadow:0 12px 32px rgba(15,23,42,0.12);transform:translateX(120%);transition:all 0.4s cubic-bezier(0.16,1,0.3,1);min-width:280px`;
+                        el.innerHTML = `<div style="background:${bg};color:${color};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0">${icon}</div><div style="flex:1;font-size:13px;color:var(--text);line-height:1.5">${text.replace(/</g,'&lt;')}</div><button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-soft);cursor:pointer;font-size:14px;padding:0">×</button>`;
+                        cont.appendChild(el);
+                        setTimeout(() => el.style.transform = 'translateX(0)', 50 + i*80);
+                        setTimeout(() => {
+                            el.style.transform = 'translateX(120%)';
+                            setTimeout(() => el.remove(), 400);
+                        }, 5000 + i*200);
+                    });
+                })();
+                </script>
+                {% endif %}
             {% endwith %}
             {% block content %}{% endblock %}
         </div>

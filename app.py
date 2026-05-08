@@ -18,9 +18,45 @@ import json
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-only-change-in-production-2024')
 
+# Session-Security
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('FLASK_DEBUG', '1') != '1',  # nur HTTPS in production
+    PERMANENT_SESSION_LIFETIME=timedelta(days=14),
+    MAX_CONTENT_LENGTH=16 * 1024 * 1024,  # 16 MB max upload
+)
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# Rate-Limiting für Login (in-memory)
+_LOGIN_ATTEMPTS = {}
+_LOGIN_LOCK = threading.Lock() if 'threading' in dir() else None
+
+def is_login_blocked(ip_or_email):
+    if not _LOGIN_LOCK:
+        return False
+    with _LOGIN_LOCK:
+        entry = _LOGIN_ATTEMPTS.get(ip_or_email)
+        if not entry:
+            return False
+        if time.time() - entry['first_at'] > 900:  # 15 min Window
+            del _LOGIN_ATTEMPTS[ip_or_email]
+            return False
+        return entry['count'] >= 10
+
+def record_login_attempt(ip_or_email, success=False):
+    if not _LOGIN_LOCK:
+        return
+    with _LOGIN_LOCK:
+        if success:
+            _LOGIN_ATTEMPTS.pop(ip_or_email, None)
+            return
+        entry = _LOGIN_ATTEMPTS.get(ip_or_email, {'count': 0, 'first_at': time.time()})
+        entry['count'] += 1
+        _LOGIN_ATTEMPTS[ip_or_email] = entry
 
 # DB-Pfad: lokal im Projektordner, in Production auf persistenter Disk
 DATA_DIR = os.environ.get('DATA_DIR') or os.path.dirname(__file__)
@@ -102,9 +138,56 @@ def get_next_level(current_level):
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA foreign_keys = ON')
     return conn
+
+
+# === In-Memory Cache mit TTL ===
+import time
+import threading
+_CACHE = {}
+_CACHE_LOCK = threading.Lock()
+
+def cache_get(key):
+    with _CACHE_LOCK:
+        entry = _CACHE.get(key)
+        if not entry:
+            return None
+        if time.time() > entry['expires']:
+            del _CACHE[key]
+            return None
+        return entry['value']
+
+def cache_set(key, value, ttl_seconds=60):
+    with _CACHE_LOCK:
+        _CACHE[key] = {'value': value, 'expires': time.time() + ttl_seconds}
+
+def cache_invalidate(prefix=None):
+    with _CACHE_LOCK:
+        if prefix is None:
+            _CACHE.clear()
+        else:
+            for k in list(_CACHE.keys()):
+                if k.startswith(prefix):
+                    del _CACHE[k]
+
+
+def cached(key_fn, ttl=60):
+    """Decorator für funktions-level Caching."""
+    def decorator(fn):
+        def wrapper(*args, **kwargs):
+            key = key_fn(*args, **kwargs)
+            v = cache_get(key)
+            if v is not None:
+                return v
+            v = fn(*args, **kwargs)
+            cache_set(key, v, ttl)
+            return v
+        wrapper._cache_key_fn = key_fn
+        return wrapper
+    return decorator
 
 
 def hash_password(pw):
@@ -248,6 +331,152 @@ def send_email(to, subject, body_text, body_html=None, sent_by=None):
         db.commit()
         db.close()
         return False, err
+
+
+# === ANTHROPIC CLAUDE API (echte KI) ===
+def is_ai_configured():
+    return bool(get_setting('anthropic_api_key'))
+
+
+def claude_chat(prompt, system_prompt=None, max_tokens=1024, model='claude-sonnet-4-5-20250929'):
+    """Echter Claude-API-Call. Returns (text, error)."""
+    api_key = get_setting('anthropic_api_key')
+    if not api_key:
+        return None, 'Anthropic API-Key nicht konfiguriert'
+
+    try:
+        import urllib.request
+        import urllib.error
+        body = {
+            'model': model,
+            'max_tokens': max_tokens,
+            'messages': [{'role': 'user', 'content': prompt}],
+        }
+        if system_prompt:
+            body['system'] = system_prompt
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages',
+            data=json.dumps(body).encode('utf-8'),
+            headers={
+                'Content-Type': 'application/json',
+                'x-api-key': api_key,
+                'anthropic-version': '2023-06-01'
+            },
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        text = data.get('content', [{}])[0].get('text', '')
+        return text.strip(), None
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode('utf-8')
+        except Exception:
+            err_body = str(e)
+        return None, f'HTTP {e.code}: {err_body[:200]}'
+    except Exception as e:
+        return None, f'API-Fehler: {str(e)[:200]}'
+
+
+def ai_generate_weekly_briefing(user_id):
+    """Generiert ein persönliches Wochen-Briefing mit echter KI."""
+    if not is_ai_configured():
+        return None
+    cache_key = f'ai:briefing:{user_id}:{date.today().strftime("%Y-W%U")}'
+    cached_val = cache_get(cache_key)
+    if cached_val:
+        return cached_val
+
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return None
+
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    week_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) >= date("now", "-7 days")', (user_id,)).fetchone()['s']
+    week_termine = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date) >= date("now", "-7 days")', (user_id,)).fetchone()['c']
+    new_partners = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND date(joined_date) >= date("now", "-7 days") AND active=1', (user_id,)).fetchone()['c']
+    db.close()
+
+    career = career_for_row(user['manual_career_level'], own_eh)
+    next_lvl = next((c for c in CAREER_LEVELS if c['level'] == career['level'] + 1), None)
+    eh_to_go = max(0, next_lvl['min_eh'] - own_eh) if next_lvl else 0
+
+    system_prompt = """Du bist ein Top-Vertriebs-Mentor für Strukturvertrieb.
+Du sprichst direkt, motivierend, ehrlich. Auf Deutsch.
+Schreibe KURZ (max 5 Sätze), persönlich, wie ein echter Coach.
+Keine Floskeln, keine Aufzählungen. Direkte Ansprache mit "du"."""
+
+    prompt = f"""Generiere ein persönliches Wochen-Briefing für:
+
+Name: {user['name']}
+Stufe: {career['short']} ({career['name']})
+Eigene EH gesamt: {int(own_eh)}
+{'Nächste Stufe: ' + next_lvl['short'] + ' (noch ' + str(int(eh_to_go)) + ' EH)' if next_lvl else 'Höchste Stufe erreicht'}
+Vision: {user['vision'] or 'noch nicht gesetzt'}
+
+Diese Woche:
+- Neue EH: {int(week_eh)}
+- Termine: {week_termine}
+- Neue direkte Partner: {new_partners}
+
+Schreibe ein motivierendes 4-5 Sätze-Briefing, das auf seinen Fortschritt eingeht und konkret sagt, was er diese Woche fokussieren sollte."""
+
+    text, err = claude_chat(prompt, system_prompt=system_prompt, max_tokens=400)
+    if text:
+        cache_set(cache_key, text, ttl=86400)  # 24h
+    return text
+
+
+def ai_coaching_advice(user_id, target_user_id):
+    """Generiert spezifische Coaching-Empfehlung für 1-on-1 Gespräch mit Partner."""
+    if not is_ai_configured():
+        return None
+
+    db = get_db()
+    target = db.execute('SELECT * FROM users WHERE id = ?', (target_user_id,)).fetchone()
+    if not target:
+        db.close()
+        return None
+
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (target_user_id,)).fetchone()['s']
+    contracts = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (target_user_id,)).fetchone()['c']
+    termine = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND status="erledigt"', (target_user_id,)).fetchone()['c']
+    pending = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (target_user_id,)).fetchone()['c']
+    last_contracts = db.execute('SELECT client_name, einheiten FROM contracts WHERE owner_id=? ORDER BY created_at DESC LIMIT 3', (target_user_id,)).fetchall()
+    db.close()
+
+    career = career_for_row(target['manual_career_level'], own_eh)
+    avg_t = (termine / contracts) if contracts > 0 else 0
+
+    system_prompt = """Du bist ein Top-Strukturvertriebs-Coach.
+Antworte im JSON-Format:
+{"diagnose": "kurze Stärken/Schwächen-Analyse (max 2 Sätze)",
+ "fokus": "EINE konkrete Action für diese Woche (max 1 Satz)",
+ "frage": "EINE smarte Coaching-Frage für das Gespräch (max 1 Satz)"}"""
+
+    prompt = f"""Analysiere {target['name']} ({career['short']}):
+- Eigene EH: {int(own_eh)}, Verträge: {contracts}, erledigte Termine: {termine}
+- Termine pro Abschluss: {avg_t:.1f} (Ziel: 3)
+- Hängende Recherchen: {pending}
+- Vision: {target['vision'] or 'keine'}
+- Letzte Verträge: {', '.join([f'{r["client_name"]} ({int(r["einheiten"])} EH)' for r in last_contracts]) or 'keine'}
+
+Liefere JSON mit diagnose, fokus, frage."""
+
+    text, err = claude_chat(prompt, system_prompt=system_prompt, max_tokens=500)
+    if not text:
+        return None
+    try:
+        # Versuche JSON aus Antwort zu extrahieren
+        start = text.find('{')
+        end = text.rfind('}')
+        if start >= 0 and end > start:
+            return json.loads(text[start:end+1])
+    except Exception:
+        pass
+    return {'diagnose': text, 'fokus': '', 'frage': ''}
 
 
 def send_bulk_emails(recipients, subject, body_text, body_html=None, sent_by=None):
@@ -1053,21 +1282,31 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_career():
-    """Stellt aktuelle Karriere-Stufe + Pending-Anzahl + Coach-Anzahl in allen Templates bereit."""
+    """Stellt aktuelle Karriere-Stufe + Pending-Anzahl + Coach-Anzahl bereit (CACHED)."""
     if current_user.is_authenticated:
-        ctx = {'my_career': get_career_level_for_user(current_user.id)}
-        if current_user.role == 'admin':
-            db = get_db()
-            cnt = db.execute('SELECT COUNT(*) as c FROM users WHERE pending_career_level IS NOT NULL AND active = 1').fetchone()['c']
-            db.close()
-            ctx['pending_count'] = cnt
-        # Coach-Insights für Bell-Badge — nur leichtgewichtig zählen
-        try:
-            scope = None if current_user.role == 'admin' else current_user.id
-            insights = get_smart_insights(scope_user_id=scope)
-            ctx['coach_alerts'] = insights['urgent_count']
-        except Exception:
-            ctx['coach_alerts'] = 0
+        # Career: cached für 60s pro User
+        cache_key = f'ctx:career:{current_user.id}'
+        ctx = cache_get(cache_key)
+        if ctx is None:
+            ctx = {'my_career': get_career_level_for_user(current_user.id)}
+            if current_user.role == 'admin':
+                db = get_db()
+                cnt = db.execute('SELECT COUNT(*) as c FROM users WHERE pending_career_level IS NOT NULL AND active = 1').fetchone()['c']
+                db.close()
+                ctx['pending_count'] = cnt
+            # Coach-Insights für Bell-Badge: cached für 5 min
+            ai_key = f'ctx:coach_alerts:{current_user.id}'
+            alerts = cache_get(ai_key)
+            if alerts is None:
+                try:
+                    scope = None if current_user.role == 'admin' else current_user.id
+                    insights = get_smart_insights(scope_user_id=scope)
+                    alerts = insights['urgent_count']
+                except Exception:
+                    alerts = 0
+                cache_set(ai_key, alerts, ttl=300)
+            ctx['coach_alerts'] = alerts
+            cache_set(cache_key, ctx, ttl=60)
         return ctx
     return {}
 
@@ -1086,6 +1325,30 @@ def admin_reset_password(uid):
     db.close()
     flash(f'Passwort zurückgesetzt für {user["name"]} ({user["email"]}). Neues Passwort: {new_pw}', 'success')
     return redirect(url_for('team'))
+
+
+# === ADMIN: KI-EINSTELLUNGEN (Anthropic API) ===
+@app.route('/admin/ki-settings', methods=['GET', 'POST'])
+@login_required
+def admin_ki_settings():
+    if current_user.role != 'admin':
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        new_key = (request.form.get('anthropic_api_key') or '').strip()
+        if new_key:
+            set_setting('anthropic_api_key', new_key)
+            cache_invalidate('ai:')
+            flash('KI-API-Key gespeichert! Du kannst jetzt Claude-Calls machen.', 'success')
+        return redirect(url_for('admin_ki_settings'))
+
+    has_key = bool(get_setting('anthropic_api_key'))
+    test_result = None
+    if request.args.get('test'):
+        text, err = claude_chat('Antworte mit genau einem deutschen Satz: "KI-Verbindung funktioniert!" und nichts anderes.', max_tokens=50)
+        test_result = {'ok': bool(text and not err), 'text': text or err or 'Keine Antwort'}
+
+    return render_template('admin_ki_settings.html', has_key=has_key, test_result=test_result)
 
 
 # === ADMIN: SMTP + E-MAIL ===
@@ -1641,6 +1904,37 @@ def init_db():
         );
     ''')
 
+    # === Performance: DB-Indexes ===
+    try:
+        db.executescript('''
+            CREATE INDEX IF NOT EXISTS idx_users_parent ON users(parent_id);
+            CREATE INDEX IF NOT EXISTS idx_users_active ON users(active);
+            CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+            CREATE INDEX IF NOT EXISTS idx_contracts_owner ON contracts(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(status, recherche_status);
+            CREATE INDEX IF NOT EXISTS idx_contracts_owner_status ON contracts(owner_id, status, recherche_status);
+            CREATE INDEX IF NOT EXISTS idx_contracts_abschluss_date ON contracts(abschluss_date);
+            CREATE INDEX IF NOT EXISTS idx_leads_owner ON leads(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+            CREATE INDEX IF NOT EXISTS idx_appointments_owner ON appointments(owner_id);
+            CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(termin_date);
+            CREATE INDEX IF NOT EXISTS idx_commissions_user ON commissions(user_id);
+            CREATE INDEX IF NOT EXISTS idx_commissions_contract ON commissions(contract_id);
+            CREATE INDEX IF NOT EXISTS idx_activity_user_date ON activity_log(user_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_user_achievements ON user_achievements(user_id);
+            CREATE INDEX IF NOT EXISTS idx_user_tasks ON user_tasks(user_id, datum);
+        ''')
+    except Exception as e:
+        print(f"Index creation warning: {e}")
+
+    # SQLite Performance: WAL mode + Foreign Keys
+    try:
+        db.execute('PRAGMA journal_mode = WAL')
+        db.execute('PRAGMA foreign_keys = ON')
+        db.execute('PRAGMA cache_size = -10000')  # 10 MB Cache
+    except Exception as e:
+        print(f"PRAGMA warning: {e}")
+
     # Migration: neue Spalten für bestehende DBs nachrüsten
     try:
         # users
@@ -1892,9 +2186,16 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
+        # Rate-Limit Check
+        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'unknown').split(',')[0].strip()
+        block_key = f'{client_ip}:{email[:50]}'
+        if is_login_blocked(block_key):
+            flash('Zu viele fehlgeschlagene Login-Versuche. Bitte in 15 Minuten erneut versuchen.', 'error')
+            return render_template('login.html')
         db = get_db()
         row = db.execute('SELECT * FROM users WHERE email = ? AND active = 1', (email,)).fetchone()
         if row and verify_password(row['password'], password):
+            record_login_attempt(block_key, success=True)
             # Last-Login + Counter aktualisieren
             now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             new_count = (row['login_count'] or 0) + 1
@@ -1931,8 +2232,28 @@ def login():
                 return redirect(url_for('willkommen'))
             return redirect(url_for('dashboard'))
         db.close()
+        record_login_attempt(block_key, success=False)
         flash('Falsche E-Mail oder Passwort', 'error')
     return render_template('login.html')
+
+
+@app.route('/api/health')
+def api_health():
+    """Health-Check für Monitoring."""
+    try:
+        db = get_db()
+        user_count = db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1').fetchone()['c']
+        db.close()
+        return jsonify({
+            'status': 'ok',
+            'time': datetime.now().isoformat(),
+            'users_active': user_count,
+            'cache_entries': len(_CACHE),
+            'smtp_configured': is_smtp_configured(),
+            'ai_configured': is_ai_configured(),
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)[:200]}), 500
 
 
 @app.route('/profil', methods=['GET', 'POST'])
@@ -2247,6 +2568,92 @@ def get_konversations_starter(user_id):
     return starters
 
 
+def get_forecast(user_id):
+    """Predictive Analytics: wann erreicht der User die nächste Stufe?
+    Linear-Regression auf den letzten 90 Tagen."""
+    db = get_db()
+    user = db.execute('SELECT manual_career_level FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return None
+
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    last_90_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) >= date("now", "-90 days")', (user_id,)).fetchone()['s']
+    last_30_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) >= date("now", "-30 days")', (user_id,)).fetchone()['s']
+    db.close()
+
+    career = career_for_row(user['manual_career_level'], own_eh)
+    next_lvl = next((c for c in CAREER_LEVELS if c['level'] == career['level'] + 1), None)
+    if not next_lvl:
+        return {'reached': True, 'message': '👑 Höchste Stufe erreicht'}
+
+    eh_to_go = max(0, next_lvl['min_eh'] - own_eh)
+    if eh_to_go == 0:
+        return {'reached': True, 'message': f'✓ Du hast bereits die EH-Schwelle für {next_lvl["short"]} überschritten'}
+
+    # Pace: gewichtet aus 30 + 90 Tagen (30d 70%, 90d 30%)
+    weekly_30 = (last_30_eh / 30) * 7
+    weekly_90 = (last_90_eh / 90) * 7
+    weekly_pace = weekly_30 * 0.7 + weekly_90 * 0.3
+
+    if weekly_pace <= 0:
+        return {
+            'reached': False, 'next_level': next_lvl, 'eh_to_go': int(eh_to_go),
+            'weeks': None, 'pace': 0,
+            'message': f'Bei aktuellem Tempo: keine EH-Bewegung — handeln nötig 🚨',
+            'urgent': True
+        }
+
+    weeks = eh_to_go / weekly_pace
+    months = weeks / 4.33
+    target_date = (date.today() + timedelta(days=int(weeks * 7))).strftime('%d.%m.%Y')
+    return {
+        'reached': False, 'next_level': next_lvl, 'eh_to_go': int(eh_to_go),
+        'weeks': round(weeks, 1), 'months': round(months, 1),
+        'pace': int(weekly_pace), 'target_date': target_date,
+        'message': f'Bei {int(weekly_pace)} EH/Woche: {next_lvl["short"]} in ca. {round(weeks)} Wochen ({target_date})',
+        'urgent': False
+    }
+
+
+def detect_anomalies(scope_user_id=None):
+    """Anomalie-Detection: wer hat plötzlich >50% Einbruch?"""
+    db = get_db()
+    if scope_user_id:
+        ids = [scope_user_id] + get_all_descendants(scope_user_id)
+    else:
+        ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE active = 1').fetchall()]
+    if not ids:
+        db.close()
+        return []
+    ph = ','.join('?' * len(ids))
+
+    # Vergleich letzte 30d vs. davor 30d
+    rows = db.execute(f'''
+        SELECT u.id, u.name, u.phone,
+               COALESCE(SUM(CASE WHEN date(c.abschluss_date) >= date('now', '-30 days') THEN c.einheiten ELSE 0 END), 0) as eh_30,
+               COALESCE(SUM(CASE WHEN date(c.abschluss_date) BETWEEN date('now', '-60 days') AND date('now', '-31 days') THEN c.einheiten ELSE 0 END), 0) as eh_prev_30
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND c.recherche_status = "freigegeben"
+        WHERE u.id IN ({ph}) AND u.active = 1
+        GROUP BY u.id
+    ''', ids).fetchall()
+    db.close()
+
+    anomalies = []
+    for r in rows:
+        if r['eh_prev_30'] >= 200 and r['eh_30'] < r['eh_prev_30'] * 0.5:
+            drop = ((r['eh_prev_30'] - r['eh_30']) / r['eh_prev_30']) * 100
+            anomalies.append({
+                'id': r['id'], 'name': r['name'], 'phone': r['phone'],
+                'eh_30': int(r['eh_30']), 'eh_prev_30': int(r['eh_prev_30']),
+                'drop_pct': int(drop),
+                'message': f'{r["name"]}: -{int(drop)}% Einbruch ({int(r["eh_prev_30"])} → {int(r["eh_30"])} EH)'
+            })
+    anomalies.sort(key=lambda a: -a['drop_pct'])
+    return anomalies[:5]
+
+
 def get_activity_heatmap(user_id, days=180):
     """Liefert Heatmap-Daten: pro Tag die Anzahl Aktivitäten."""
     db = get_db()
@@ -2518,8 +2925,11 @@ def dashboard():
         # Monats- + Halbjahres-Daten + Karriere-Kriterien
         period_stats = get_period_stats(scope_user_id=None)
         career_criteria = get_career_criteria_status(current_user.id)
-        # Power-KI-Empfehlungen
+        # Power-KI-Empfehlungen + Forecast + Anomalien
         ki_recs = get_ki_recommendations(current_user.id, scope_user_id=None)
+        forecast = get_forecast(current_user.id)
+        anomalies = detect_anomalies(scope_user_id=None)
+        ai_briefing = ai_generate_weekly_briefing(current_user.id) if is_ai_configured() else None
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -2535,7 +2945,8 @@ def dashboard():
             vision_text=admin_vision, show_vision=admin_show_vision,
             coach_insights=coach_insights, greeting=greeting,
             period_stats=period_stats, career_criteria=career_criteria,
-            ki_recs=ki_recs
+            ki_recs=ki_recs, forecast=forecast, anomalies=anomalies,
+            ai_briefing=ai_briefing
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -2604,6 +3015,8 @@ def dashboard():
         period_stats = get_period_stats(scope_user_id=current_user.id)
         career_criteria = get_career_criteria_status(current_user.id)
         ki_recs = get_ki_recommendations(current_user.id, scope_user_id=current_user.id)
+        forecast = get_forecast(current_user.id)
+        ai_briefing = ai_generate_weekly_briefing(current_user.id) if is_ai_configured() else None
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -2615,7 +3028,7 @@ def dashboard():
             vision_text=vision_text, show_vision=show_vision,
             coach_insights=coach_insights, greeting=greeting,
             period_stats=period_stats, career_criteria=career_criteria,
-            ki_recs=ki_recs
+            ki_recs=ki_recs, forecast=forecast, ai_briefing=ai_briefing
         )
 
 
@@ -2728,6 +3141,7 @@ def vertrag_neu():
         db.close()
         auto_promote_user(current_user.id)
         recalculate_all_commissions()
+        cache_invalidate('ctx:')
         if request.form.get('status') == 'abgeschlossen' and request.form.get('recherche_status') == 'freigegeben':
             log_activity(current_user.id, 'vertrag_abgeschlossen',
                 f'{current_user.name} hat Vertrag „{request.form["client_name"]}" abgeschlossen ({einheiten:.0f} EH)',
@@ -2770,6 +3184,7 @@ def vertrag_edit(vid):
         db.close()
         auto_promote_user(owner_id)
         recalculate_all_commissions()
+        cache_invalidate('ctx:')
         flash(f'Vertrag aktualisiert! ({einheiten:.0f} EH)', 'success')
         return redirect(url_for('vertraege'))
     db.close()
@@ -3048,6 +3463,7 @@ def team_edit(uid):
         db.commit()
         db.close()
         recalculate_all_commissions()
+        cache_invalidate('ctx:')
         if pending_level and not is_admin:
             flash(f'Aktualisiert. Stufen-Änderung auf {pending_level} wartet auf Admin-Bestätigung.', 'success')
         else:

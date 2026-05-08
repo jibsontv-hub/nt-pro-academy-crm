@@ -96,6 +96,36 @@
 </div>
 {% endif %}
 
+<!-- 🤖 Claude AI Briefing -->
+{% if ai_briefing %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(167,139,250,0.08) 100%);border:1px solid rgba(167,139,250,0.3)">
+    <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#a78bfa,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🤖</div>
+        <div style="flex:1">
+            <div style="font-size:11px;color:var(--purple);text-transform:uppercase;letter-spacing:1px;font-weight:800;margin-bottom:6px">Claude AI · Dein Wochen-Briefing</div>
+            <div style="font-size:15px;line-height:1.6;color:var(--text)">{{ ai_briefing }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 🔮 Forecast -->
+{% if forecast and not forecast.reached and forecast.weeks %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface),rgba(96,165,250,0.05));border:1px solid rgba(96,165,250,0.3)">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🔮</div>
+        <div style="flex:1;min-width:240px">
+            <div style="font-size:11px;color:var(--blue);text-transform:uppercase;letter-spacing:1px;font-weight:800">Dein Karriere-Forecast</div>
+            <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:3px">{{ forecast.message }}</div>
+        </div>
+        <div style="text-align:right">
+            <div style="font-size:28px;font-weight:900;color:var(--gold);line-height:1">{{ forecast.weeks }}</div>
+            <div style="font-size:11px;color:var(--text-muted)">Wochen</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- 🧠 KI Power-Empfehlungen -->
 {% if ki_recs %}
 <div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(212,168,67,0.05) 100%);border:1px solid rgba(212,168,67,0.2)">

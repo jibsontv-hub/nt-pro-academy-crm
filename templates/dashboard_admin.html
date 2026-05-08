@@ -102,6 +102,69 @@
 </div>
 {% endif %}
 
+<!-- 🤖 Echte KI: Wochen-Briefing (Claude) -->
+{% if ai_briefing %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(167,139,250,0.08) 100%);border:1px solid rgba(167,139,250,0.3)">
+    <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#a78bfa,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🤖</div>
+        <div style="flex:1">
+            <div style="font-size:11px;color:var(--purple);text-transform:uppercase;letter-spacing:1px;font-weight:800;margin-bottom:6px">Claude AI · Dein persönliches Wochen-Briefing</div>
+            <div style="font-size:15px;line-height:1.6;color:var(--text)">{{ ai_briefing }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 🔮 Forecast -->
+{% if forecast and not forecast.reached %}
+<div class="card" style="background:{% if forecast.urgent %}var(--red-soft){% else %}linear-gradient(135deg,var(--surface),rgba(96,165,250,0.05)){% endif %};border:1px solid {% if forecast.urgent %}var(--red){% else %}rgba(96,165,250,0.3){% endif %}">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="width:42px;height:42px;border-radius:12px;background:{% if forecast.urgent %}var(--red){% else %}linear-gradient(135deg,var(--blue),var(--purple)){% endif %};color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🔮</div>
+        <div style="flex:1;min-width:240px">
+            <div style="font-size:11px;color:{% if forecast.urgent %}var(--red){% else %}var(--blue){% endif %};text-transform:uppercase;letter-spacing:1px;font-weight:800">Forecast — KI-Prognose</div>
+            <div style="font-size:16px;font-weight:700;color:var(--text);margin-top:3px">{{ forecast.message }}</div>
+        </div>
+        {% if not forecast.urgent and forecast.weeks %}
+        <div style="text-align:right">
+            <div style="font-size:32px;font-weight:900;color:var(--gold);line-height:1">{{ forecast.weeks }}</div>
+            <div style="font-size:11px;color:var(--text-muted)">Wochen</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% elif forecast and forecast.reached %}
+<div class="card" style="background:var(--green-soft);border:1px solid var(--green)">
+    <div style="display:flex;align-items:center;gap:14px">
+        <div style="font-size:32px">{% if 'Höchste' in forecast.message %}👑{% else %}✓{% endif %}</div>
+        <div style="font-size:15px;font-weight:700;color:var(--green)">{{ forecast.message }}</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 🚨 Anomalie-Detection -->
+{% if anomalies %}
+<div class="card" style="background:var(--red-soft);border:1px solid var(--red)">
+    <div class="card-title" style="color:var(--red)">
+        🚨 Anomalie-Frühwarnung
+        <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:500">{{ anomalies|length }} Partner mit starkem Einbruch</span>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">⚠ Diese Partner haben in den letzten 30 Tagen <strong>>50% weniger</strong> EH gemacht als im Vergleich davor — sofort kontaktieren!</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+        {% for a in anomalies %}
+        <div style="background:var(--surface);border:1px solid var(--red);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div style="font-size:22px">📉</div>
+            <div style="flex:1;min-width:200px">
+                <div style="font-size:14px;font-weight:700;color:var(--text)">{{ a.name }}</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">{{ a.eh_prev_30 }} EH (vor 30-60d) → {{ a.eh_30 }} EH (letzte 30d)</div>
+            </div>
+            <span style="font-size:14px;font-weight:800;color:var(--red);padding:4px 12px;background:var(--red-soft);border:1px solid var(--red);border-radius:99px">−{{ a.drop_pct }}%</span>
+            {% if a.phone %}<a href="tel:{{ a.phone }}" class="btn btn-primary btn-sm">📞 Anrufen</a>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- 🧠 KI Power-Empfehlungen -->
 {% if ki_recs %}
 <div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(212,168,67,0.05) 100%);border:1px solid rgba(212,168,67,0.2)">
