@@ -27,12 +27,45 @@ DB_PATH = os.path.join(DATA_DIR, 'vertrieb.db')
 EH_FAKTOR = 0.8
 
 CAREER_LEVELS = [
-    {'level': 1, 'name': 'Repräsentant',           'short': 'REP',  'min_eh': 0,     'commission': 5.00,  'color': '#94a3b8'},
-    {'level': 2, 'name': 'Leitender Repräsentant', 'short': 'LREP', 'min_eh': 1000,  'commission': 9.50,  'color': '#3b82f6'},
-    {'level': 3, 'name': 'Hauptrepräsentant',      'short': 'HREP', 'min_eh': 3500,  'commission': 14.00, 'color': '#8b5cf6'},
-    {'level': 4, 'name': 'Chefrepräsentant',       'short': 'CREP', 'min_eh': 9000,  'commission': 18.00, 'color': '#10b981'},
-    {'level': 5, 'name': 'Direktionsrepräsentant', 'short': 'DREP', 'min_eh': 25000, 'commission': 20.70, 'color': '#c08a2e'},
-    {'level': 6, 'name': 'Generalrepräsentant',    'short': 'GREP', 'min_eh': 60000, 'commission': 23.00, 'color': '#92400e'},
+    {'level': 1, 'name': 'Repräsentant',           'short': 'REP',  'min_eh': 0,     'commission': 5.00,  'color': '#94a3b8',
+     'rules': []},
+    {'level': 2, 'name': 'Leitender Repräsentant', 'short': 'LREP', 'min_eh': 1000,  'commission': 9.50,  'color': '#3b82f6',
+     'rules': [
+         {'type': 'gesamt_eh', 'target': 1000,
+          'label': 'Gesamt-EH (eigen + Team)', 'hint': 'Egal wie aufgeteilt'}
+     ]},
+    {'level': 3, 'name': 'Hauptrepräsentant',      'short': 'HREP', 'min_eh': 3500,  'commission': 14.00, 'color': '#8b5cf6',
+     'rules': [
+         {'type': 'gesamt_eh', 'target': 3500,
+          'label': 'Gesamt-EH', 'hint': 'eigen + Team'},
+         {'type': 'max_strang_pct', 'pct': 70,
+          'label': 'Max. 70% aus einem Strang', 'hint': 'mind. 30% diversifiziert (andere Stränge oder eigen)'}
+     ]},
+    {'level': 4, 'name': 'Chefrepräsentant',       'short': 'CREP', 'min_eh': 9000,  'commission': 18.00, 'color': '#10b981',
+     'rules': [
+         {'type': 'gesamt_eh', 'target': 9000,
+          'label': 'Gesamt-EH', 'hint': 'eigen + Team'},
+         {'type': 'qualified_straenge', 'min_count': 2, 'min_per_strang': 1200, 'max_per_strang': 4500,
+          'label': 'Mind. 2 qualifizierte Stränge', 'hint': 'je 1.200 - 4.500 EH (Strang zählt erst ab 1.200)'}
+     ]},
+    {'level': 5, 'name': 'Direktionsrepräsentant', 'short': 'DREP', 'min_eh': 25000, 'commission': 20.70, 'color': '#c08a2e',
+     'rules': [
+         {'type': 'gesamt_eh', 'target': 25000,
+          'label': 'Gesamt-EH', 'hint': 'eigen + Team'},
+         {'type': 'max_per_strang', 'cap': 12500,
+          'label': 'Max. 12.500 EH pro Strang', 'hint': 'Diversifikation: 2 Stränge max 12.500 EH'},
+         {'type': 'restbereich_min', 'min_eh': 1800,
+          'label': 'Restbereich min. 1.800 EH', 'hint': 'Eigene EH + kleine Stränge'}
+     ]},
+    {'level': 6, 'name': 'Generalrepräsentant',    'short': 'GREP', 'min_eh': 60000, 'commission': 23.00, 'color': '#92400e',
+     'rules': [
+         {'type': 'gesamt_eh', 'target': 60000,
+          'label': 'Gesamt-EH', 'hint': 'eigen + Team'},
+         {'type': 'max_per_strang', 'cap': 12500,
+          'label': 'Max. 12.500 EH pro Strang', 'hint': 'Wie Stufe 5'},
+         {'type': 'restbereich_min', 'min_eh': 2400,
+          'label': 'Restbereich min. 2.400 EH', 'hint': 'Eigene EH + kleine Stränge'}
+     ]},
 ]
 
 TERMINE_PRO_ABSCHLUSS = 3  # Konversionsrate: ca. 3 Termine = 1 Abschluss
@@ -205,9 +238,131 @@ def get_period_stats(scope_user_id=None):
     }
 
 
+def get_straenge_for_user(user_id, db=None):
+    """Berechnet die Stränge eines Users.
+    Ein Strang = direkter Downline-Partner + dessen ganze Downline (rekursiv)."""
+    own_db = db is None
+    if own_db:
+        db = get_db()
+    direct = db.execute(
+        'SELECT id, name FROM users WHERE parent_id = ? AND active = 1', (user_id,)
+    ).fetchall()
+    straenge = []
+    for d in direct:
+        chain_ids = [d['id']] + get_all_descendants(d['id'])
+        ph = ','.join('?' * len(chain_ids))
+        eh = db.execute(
+            f'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+            chain_ids
+        ).fetchone()['s']
+        straenge.append({'id': d['id'], 'name': d['name'], 'eh': float(eh)})
+    straenge.sort(key=lambda s: -s['eh'])
+    if own_db:
+        db.close()
+    return straenge
+
+
+def evaluate_career_rule(rule, ctx):
+    """Wertet eine einzelne Karriere-Regel gegen den Kontext aus."""
+    own_eh = ctx['own_eh']
+    total_eh = ctx['total_eh']  # eigen + alle Stränge ungekappt
+    straenge = ctx['straenge']  # sortiert absteigend
+
+    if rule['type'] == 'gesamt_eh':
+        target = rule['target']
+        cur = total_eh
+        done = cur >= target
+        pct = min(100, int(cur / target * 100)) if target > 0 else 100
+        return {
+            'icon': '⚡', 'type': rule['type'],
+            'label': rule['label'], 'hint': rule.get('hint', ''),
+            'current_label': f'{int(cur):,}'.replace(',', '.'),
+            'target_label': f'{int(target):,} EH'.replace(',', '.'),
+            'pct': pct, 'done': done,
+        }
+
+    if rule['type'] == 'max_strang_pct':
+        # Kein Strang darf > X% des Total ausmachen
+        pct_limit = rule['pct']
+        if total_eh == 0 or not straenge:
+            done = True
+            top_pct = 0
+            top_name = '–'
+            top_eh = 0
+        else:
+            top_eh = straenge[0]['eh']
+            top_pct = (top_eh / total_eh * 100) if total_eh > 0 else 0
+            top_name = straenge[0]['name']
+            done = top_pct <= pct_limit
+        return {
+            'icon': '⚖️', 'type': rule['type'],
+            'label': rule['label'], 'hint': rule.get('hint', ''),
+            'current_label': f"{top_name}: {int(top_pct)}%",
+            'target_label': f'max {pct_limit}%',
+            'pct': min(100, int(top_pct / pct_limit * 100)) if pct_limit > 0 else 0,
+            'done': done,
+            'detail': f"Größter Strang ({top_name}): {int(top_eh):,} EH von {int(total_eh):,} = {top_pct:.0f}%".replace(',', '.'),
+        }
+
+    if rule['type'] == 'qualified_straenge':
+        # Mind. X Stränge mit min_per_strang ≤ EH ≤ max_per_strang (cap zählt für Eligibility)
+        min_count = rule['min_count']
+        min_per = rule['min_per_strang']
+        max_per = rule['max_per_strang']
+        qualified = [s for s in straenge if s['eh'] >= min_per]
+        # Stränge die genau im Range sind
+        in_range = [s for s in straenge if min_per <= s['eh']]
+        done = len(in_range) >= min_count
+        return {
+            'icon': '⬡', 'type': rule['type'],
+            'label': rule['label'], 'hint': rule.get('hint', ''),
+            'current_label': f'{len(qualified)} qualifiziert',
+            'target_label': f'≥ {min_count}',
+            'pct': min(100, int(len(qualified) / min_count * 100)) if min_count > 0 else 100,
+            'done': done,
+            'detail': ', '.join([f"{s['name']}: {int(s['eh']):,}".replace(',', '.') + " EH" for s in straenge[:5]]) or 'Keine Stränge vorhanden',
+        }
+
+    if rule['type'] == 'max_per_strang':
+        # Pro Strang werden max X EH gezählt — Rest muss aus anderen Quellen kommen
+        cap = rule['cap']
+        # Top-Strang vs. Cap
+        top = straenge[0] if straenge else {'name': '–', 'eh': 0}
+        # Anrechenbares Total: own_eh + min(cap, eh) für jeden Strang
+        capped_total = own_eh + sum(min(cap, s['eh']) for s in straenge)
+        # OK wenn top <= cap (oder durch capping eh okay)
+        done = (not straenge) or top['eh'] <= cap
+        return {
+            'icon': '🎯', 'type': rule['type'],
+            'label': rule['label'], 'hint': rule.get('hint', ''),
+            'current_label': f"Top: {top['name']} {int(top['eh']):,}".replace(',', '.') + ' EH',
+            'target_label': f'max {cap:,}'.replace(',', '.') + ' EH/Strang',
+            'pct': min(100, int(top['eh'] / cap * 100)) if cap > 0 else 0,
+            'done': done,
+            'detail': f"Anrechenbar mit Cap: {int(capped_total):,} EH".replace(',', '.'),
+        }
+
+    if rule['type'] == 'restbereich_min':
+        # Restbereich = own_eh + EH aus Strängen die nicht qualifiziert sind / unter Mindestschwelle
+        # Pragmatisch: Restbereich = own_eh (eigene Aktivität)
+        min_rest = rule['min_eh']
+        cur = own_eh
+        done = cur >= min_rest
+        return {
+            'icon': '🏠', 'type': rule['type'],
+            'label': rule['label'], 'hint': rule.get('hint', ''),
+            'current_label': f'{int(cur):,}'.replace(',', '.') + ' EH',
+            'target_label': f'min {min_rest:,}'.replace(',', '.') + ' EH',
+            'pct': min(100, int(cur / min_rest * 100)) if min_rest > 0 else 100,
+            'done': done,
+            'detail': f"Restbereich = eigene EH (eigene Verträge)",
+        }
+
+    return None
+
+
 def get_career_criteria_status(user_id):
-    """Liefert Status zu Kriterien für die nächste Stufe.
-    Stufen-Kriterien können später erweitert werden."""
+    """Detaillierter Status zu Kriterien für die nächste Stufe (mit echten Regeln)."""
     db = get_db()
     user = db.execute('SELECT manual_career_level FROM users WHERE id = ?', (user_id,)).fetchone()
     if not user:
@@ -225,47 +380,42 @@ def get_career_criteria_status(user_id):
     direct_partners = db.execute(
         'SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (user_id,)
     ).fetchone()['c']
-    descendants = get_all_descendants(user_id)
-    if descendants:
-        ph = ','.join('?' * len(descendants))
-        team_eh = db.execute(
-            f'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
-            descendants
-        ).fetchone()['s']
-    else:
-        team_eh = 0
+    straenge = get_straenge_for_user(user_id, db=db)
+    team_eh = sum(s['eh'] for s in straenge)
+    total_eh = own_eh + team_eh
     db.close()
 
     current = career_for_row(user['manual_career_level'], own_eh)
-    next_level = next((c for c in CAREER_LEVELS if c['level'] == current['level'] + 1), None)
+    next_level = next((cl for cl in CAREER_LEVELS if cl['level'] == current['level'] + 1), None)
     if not next_level:
-        return {'current': current, 'next_level': None, 'criteria': [], 'completed_count': 0, 'total_count': 0}
+        return {
+            'current': current, 'next_level': None,
+            'criteria': [], 'completed_count': 0, 'total_count': 0,
+            'straenge': straenge, 'own_eh': int(own_eh), 'team_eh': int(team_eh), 'total_eh': int(total_eh),
+        }
 
-    # Kriterien: aktuell nur EH (Min-Anforderung) — kann später erweitert werden
-    criteria = [
-        {
-            'icon': '⚡', 'label': 'Eigene Einheiten (EH)',
-            'current': int(own_eh), 'target': next_level['min_eh'],
-            'unit': 'EH', 'pct': min(100, int((own_eh / next_level['min_eh'] * 100) if next_level['min_eh'] > 0 else 100)),
-            'done': own_eh >= next_level['min_eh'],
-            'hint': f"Brutto-Volumen × 0,8 = EH"
-        },
-    ]
-    # Optional: Bonus-Kriterien (informativ, zählen aktuell nicht für Beförderung)
+    ctx = {'own_eh': float(own_eh), 'total_eh': float(total_eh),
+           'straenge': straenge, 'team_eh': float(team_eh)}
+
+    criteria = []
+    for rule in next_level['rules']:
+        evaluated = evaluate_career_rule(rule, ctx)
+        if evaluated:
+            criteria.append(evaluated)
+
     bonus = [
-        {'icon': '📄', 'label': 'Verträge (Karriere gesamt)', 'current': contracts, 'target': None, 'hint': 'Nur Info'},
-        {'icon': '👥', 'label': 'Direkte Partner', 'current': direct_partners, 'target': None, 'hint': 'Nur Info'},
-        {'icon': '⬢', 'label': 'Team-EH (Downline)', 'current': int(team_eh), 'target': None, 'unit': 'EH', 'hint': 'Nur Info'},
+        {'icon': '📄', 'label': 'Verträge (gesamt)', 'current': contracts, 'unit': '', 'hint': 'Karriere gesamt'},
+        {'icon': '👥', 'label': 'Direkte Partner', 'current': direct_partners, 'unit': '', 'hint': 'Aktive Partner unter dir'},
+        {'icon': '⬢', 'label': 'Team-EH (Downline)', 'current': int(team_eh), 'unit': 'EH', 'hint': 'Summe aller Stränge'},
     ]
     completed = sum(1 for c in criteria if c.get('done'))
     return {
-        'current': current,
-        'next_level': next_level,
-        'criteria': criteria,
-        'bonus': bonus,
-        'completed_count': completed,
-        'total_count': len(criteria),
-        'all_done': completed == len(criteria)
+        'current': current, 'next_level': next_level,
+        'criteria': criteria, 'bonus': bonus,
+        'completed_count': completed, 'total_count': len(criteria),
+        'all_done': completed == len(criteria) if criteria else False,
+        'straenge': straenge,
+        'own_eh': int(own_eh), 'team_eh': int(team_eh), 'total_eh': int(total_eh),
     }
 
 

@@ -170,30 +170,84 @@
             {{ career_criteria.completed_count }}/{{ career_criteria.total_count }} Kriterien
         </span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:16px">
+
+    <!-- Total-Übersicht -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Gesamt-EH</div>
+            <div style="font-size:20px;font-weight:800;color:var(--gold);margin-top:2px" class="money">{{ "{:,.0f}".format(career_criteria.total_eh).replace(",", ".") }}</div>
+        </div>
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Eigen (Restbereich)</div>
+            <div style="font-size:20px;font-weight:800;color:var(--text);margin-top:2px" class="money">{{ "{:,.0f}".format(career_criteria.own_eh).replace(",", ".") }}</div>
+        </div>
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Team-EH</div>
+            <div style="font-size:20px;font-weight:800;color:var(--text);margin-top:2px" class="money">{{ "{:,.0f}".format(career_criteria.team_eh).replace(",", ".") }}</div>
+        </div>
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Anzahl Stränge</div>
+            <div style="font-size:20px;font-weight:800;color:var(--text);margin-top:2px">{{ career_criteria.straenge|length }}</div>
+        </div>
+    </div>
+
+    <!-- Pflicht-Kriterien -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
         {% for c in career_criteria.criteria %}
         <div style="background:var(--bg-2);border:1.5px solid {% if c.done %}var(--green){% else %}var(--border){% endif %};border-radius:14px;padding:16px 18px">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-                <div style="font-size:22px">{{ c.icon }}</div>
-                <div style="flex:1">
-                    <div style="font-size:13px;font-weight:700;color:var(--text)">{{ c.label }}</div>
-                    {% if c.hint %}<div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ c.hint }}</div>{% endif %}
+            <div style="display:flex;align-items:flex-start;gap:12px">
+                <div style="font-size:22px;line-height:1">{{ c.icon }}</div>
+                <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                        <div>
+                            <div style="font-size:14px;font-weight:700;color:var(--text)">{{ c.label }}</div>
+                            {% if c.hint %}<div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ c.hint }}</div>{% endif %}
+                        </div>
+                        {% if c.done %}
+                        <span style="background:var(--green);color:#fff;padding:4px 10px;border-radius:14px;font-size:11px;font-weight:800">✓ Erfüllt</span>
+                        {% else %}
+                        <span style="background:var(--gold-soft);color:var(--gold);padding:4px 10px;border-radius:14px;font-size:11px;font-weight:700">In Arbeit</span>
+                        {% endif %}
+                    </div>
+                    <div style="margin-top:10px">
+                        <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px">
+                            <strong style="color:{% if c.done %}var(--green){% else %}var(--gold){% endif %}">{{ c.current_label }}</strong>
+                            <span style="color:var(--text-muted);font-size:12px">{{ c.target_label }}</span>
+                        </div>
+                        <div style="background:var(--border);border-radius:8px;height:6px;overflow:hidden;margin-top:6px">
+                            <div style="height:100%;width:{{ c.pct }}%;background:{% if c.done %}var(--green){% else %}linear-gradient(90deg,var(--gold),var(--gold-light)){% endif %};border-radius:8px;transition:width 0.6s"></div>
+                        </div>
+                        {% if c.detail %}<div style="font-size:11px;color:var(--text-muted);margin-top:6px;font-style:italic">{{ c.detail }}</div>{% endif %}
+                    </div>
                 </div>
-                {% if c.done %}<div style="background:var(--green);color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">✓</div>{% endif %}
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-                <div style="font-size:18px;font-weight:800;color:{% if c.done %}var(--green){% else %}var(--gold){% endif %}" class="money">{{ "{:,.0f}".format(c.current).replace(",", ".") }}</div>
-                {% if c.target %}<div style="font-size:12px;color:var(--text-muted)">/ {{ "{:,.0f}".format(c.target).replace(",", ".") }} {{ c.unit or '' }}</div>{% endif %}
-            </div>
-            {% if c.target %}
-            <div style="background:var(--border);border-radius:8px;height:6px;overflow:hidden">
-                <div style="height:100%;width:{{ c.pct }}%;background:{% if c.done %}var(--green){% else %}linear-gradient(90deg,var(--gold),var(--gold-light)){% endif %};border-radius:8px"></div>
-            </div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:6px;text-align:right">{{ c.pct }}%</div>
-            {% endif %}
         </div>
         {% endfor %}
     </div>
+
+    <!-- Stränge -->
+    {% if career_criteria.straenge %}
+    <div style="background:var(--bg);border-radius:12px;padding:16px 18px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.7px;font-weight:700;margin-bottom:12px">⬡ Meine Stränge</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+            {% for s in career_criteria.straenge %}
+            {% set s_pct = ((s.eh / career_criteria.total_eh * 100) if career_criteria.total_eh > 0 else 0) %}
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+                <div style="flex:1;min-width:0">
+                    <div style="display:flex;justify-content:space-between;font-size:13px">
+                        <strong style="color:var(--text)">{{ s.name }}</strong>
+                        <span><strong style="color:var(--gold)" class="money">{{ "{:,.0f}".format(s.eh).replace(",", ".") }}</strong> <span style="color:var(--text-muted);font-size:11px">EH ({{ "%.0f"|format(s_pct) }}%)</span></span>
+                    </div>
+                    <div style="background:var(--border);border-radius:6px;height:4px;overflow:hidden;margin-top:5px">
+                        <div style="height:100%;width:{{ s_pct }}%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:6px"></div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     {% if career_criteria.bonus %}
     <div style="background:var(--bg);border-radius:10px;padding:14px 18px">
         <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.7px;font-weight:700;margin-bottom:10px">📊 Zusatz-Kennzahlen</div>
