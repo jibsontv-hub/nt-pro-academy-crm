@@ -4316,6 +4316,7 @@ def dashboard():
         ki_recs = get_ki_recommendations(current_user.id, scope_user_id=current_user.id)
         forecast = get_forecast(current_user.id)
         ai_briefing = ai_generate_weekly_briefing(current_user.id)
+        deadlines = get_production_deadlines()
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
