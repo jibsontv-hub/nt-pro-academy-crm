@@ -160,7 +160,10 @@ def cache_get(key):
             return None
         return entry['value']
 
-def cache_set(key, value, ttl_seconds=60):
+def cache_set(key, value, ttl_seconds=60, ttl=None):
+    """Setzt Wert in Cache. Akzeptiert ttl_seconds oder ttl als Alias."""
+    if ttl is not None:
+        ttl_seconds = ttl
     with _CACHE_LOCK:
         _CACHE[key] = {'value': value, 'expires': time.time() + ttl_seconds}
 
