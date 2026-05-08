@@ -19,6 +19,11 @@
                 <input type="email" name="email" value="{{ lead.email if lead else '' }}" placeholder="kunde@email.de">
             </div>
             <div class="form-group">
+                <label>🎂 Geburtstag (optional)</label>
+                <input type="date" name="birthday" value="{{ lead.birthday if lead else '' }}">
+                <span style="font-size:11px;color:var(--text-soft)">System erinnert dich automatisch zum Glückwunsch-Anruf</span>
+            </div>
+            <div class="form-group">
                 <label>Produkt-Interesse</label>
                 <select name="produkt">
                     <option value="Ergo Rente Chance (ETF & Fonds)" {% if not lead or lead.produkt == 'Ergo Rente Chance (ETF & Fonds)' %}selected{% endif %}>★ Ergo Rente Chance (ETF & Fonds) — Hauptprodukt</option>

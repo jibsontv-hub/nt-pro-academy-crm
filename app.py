@@ -103,6 +103,114 @@ def get_week_start(d=None):
     return (d - timedelta(days=d.weekday())).strftime('%Y-%m-%d')
 
 
+def days_until_birthday(birthday_str):
+    """Tage bis zum nächsten Geburtstag. None wenn kein Geburtstag."""
+    if not birthday_str:
+        return None
+    try:
+        # Akzeptiert YYYY-MM-DD oder MM-DD
+        if len(birthday_str) >= 10:
+            bd = datetime.strptime(birthday_str[:10], '%Y-%m-%d').date()
+        else:
+            bd = datetime.strptime(birthday_str[:5], '%m-%d').date()
+        today = date.today()
+        next_bd = bd.replace(year=today.year)
+        if next_bd < today:
+            next_bd = next_bd.replace(year=today.year + 1)
+        return (next_bd - today).days
+    except (ValueError, TypeError):
+        return None
+
+
+def calculate_age(birthday_str):
+    """Aktuelles Alter (für nächsten Geburtstag)."""
+    if not birthday_str or len(birthday_str) < 10:
+        return None
+    try:
+        bd = datetime.strptime(birthday_str[:10], '%Y-%m-%d').date()
+        today = date.today()
+        age = today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
+        return age
+    except (ValueError, TypeError):
+        return None
+
+
+def get_greeting_for_user(name, career, next_level, own_eh, eh_to_next):
+    """Personalisierte Begrüßung — motivierend + datengestützt."""
+    h = datetime.now().hour
+    if h < 11:
+        time_greeting = 'Guten Morgen'
+    elif h < 14:
+        time_greeting = 'Hallo'
+    elif h < 18:
+        time_greeting = 'Hi'
+    else:
+        time_greeting = 'Guten Abend'
+    first_name = name.split()[0] if name else 'Champion'
+
+    if next_level and eh_to_next > 0:
+        if eh_to_next <= 200:
+            sub = f"Nur noch {int(eh_to_next)} EH bis {next_level['short']} — let's GO! 🚀"
+        elif eh_to_next <= 1000:
+            sub = f"Noch {int(eh_to_next)} EH bis {next_level['short']} — du hast das! 💪"
+        else:
+            sub = f"Auf zu {next_level['short']} ({int(eh_to_next)} EH übrig) — Schritt für Schritt 🎯"
+    elif not next_level:
+        sub = "Höchste Stufe erreicht — Vorbild für alle! 👑"
+    else:
+        sub = "Lass uns heute Großes erreichen 💪"
+
+    return {'greeting': f'{time_greeting}, {first_name}!', 'sub': sub, 'first_name': first_name}
+
+
+def get_upcoming_birthdays(scope_user_id=None, days_ahead=30):
+    """Liefert kommende Geburtstage in den nächsten X Tagen.
+    scope_user_id=None = alle, sonst nur User-Downline + deren Kunden."""
+    db = get_db()
+    if scope_user_id:
+        ids = [scope_user_id] + get_all_descendants(scope_user_id)
+        ph = ','.join('?' * len(ids))
+        partner_rows = db.execute(f'SELECT id, name, birthday, phone, email FROM users WHERE id IN ({ph}) AND birthday IS NOT NULL AND active = 1', ids).fetchall()
+        kunden_rows = db.execute(f'SELECT id, name, birthday, phone, email, owner_id FROM leads WHERE owner_id IN ({ph}) AND birthday IS NOT NULL', ids).fetchall()
+    else:
+        partner_rows = db.execute('SELECT id, name, birthday, phone, email FROM users WHERE birthday IS NOT NULL AND active = 1').fetchall()
+        kunden_rows = db.execute('SELECT id, name, birthday, phone, email, owner_id FROM leads WHERE birthday IS NOT NULL').fetchall()
+
+    # Owner-Namen für Kunden
+    owner_names = {}
+    if kunden_rows:
+        owner_ids = list(set(r['owner_id'] for r in kunden_rows if r['owner_id']))
+        if owner_ids:
+            ph = ','.join('?' * len(owner_ids))
+            for r in db.execute(f'SELECT id, name FROM users WHERE id IN ({ph})', owner_ids).fetchall():
+                owner_names[r['id']] = r['name']
+    db.close()
+
+    result = []
+    for r in partner_rows:
+        d_until = days_until_birthday(r['birthday'])
+        if d_until is not None and d_until <= days_ahead:
+            result.append({
+                'type': 'partner', 'id': r['id'], 'name': r['name'],
+                'phone': r['phone'], 'email': r['email'],
+                'birthday': r['birthday'], 'days_until': d_until,
+                'age': calculate_age(r['birthday']),
+                'owner_name': None
+            })
+    for r in kunden_rows:
+        d_until = days_until_birthday(r['birthday'])
+        if d_until is not None and d_until <= days_ahead:
+            result.append({
+                'type': 'kunde', 'id': r['id'], 'name': r['name'],
+                'phone': r['phone'], 'email': r['email'],
+                'birthday': r['birthday'], 'days_until': d_until,
+                'age': calculate_age(r['birthday']),
+                'owner_name': owner_names.get(r['owner_id'], '–')
+            })
+    result.sort(key=lambda x: x['days_until'])
+    return result
+
+
 class User(UserMixin):
     def __init__(self, row):
         self.id = row['id']
@@ -308,8 +416,24 @@ def get_smart_insights(scope_user_id=None):
     team_score = int((activity_score * 0.4 + contract_score * 0.3 + growth_score * 0.3))
 
     db.close()
+
+    # Geburtstage (heute + kommende 14 Tage)
+    upcoming_bdays = get_upcoming_birthdays(scope_user_id=scope_user_id, days_ahead=14)
+    today_bdays = [b for b in upcoming_bdays if b['days_until'] == 0]
+
+    # Geburtstage zu Urgent Calls hinzufügen
+    for b in today_bdays:
+        prefix = '🎂 ' + ('Kunden-Geburtstag' if b['type'] == 'kunde' else 'Partner-Geburtstag')
+        suffix = f' (wird {b["age"]+1})' if b['age'] is not None else ''
+        urgent_calls.insert(0, {
+            'id': b['id'], 'name': b['name'],
+            'phone': b['phone'], 'email': b['email'],
+            'reason': f'{prefix} HEUTE!{suffix} — Glückwunsch anrufen 📞',
+            'priority': 'hoch', 'icon': '🎂'
+        })
+
     return {
-        'urgent_calls': urgent_calls,
+        'urgent_calls': urgent_calls[:10],
         'congrats': congrats,
         'inactive': [dict(r) for r in inactive_rows],
         'pending_research': [dict(r) for r in pending_research],
@@ -322,6 +446,8 @@ def get_smart_insights(scope_user_id=None):
         'contracts_30d': contracts_30d,
         'new_partners_30d': new_partners_30d,
         'total_active': total_active,
+        'upcoming_birthdays': upcoming_bdays,
+        'today_birthdays': today_bdays,
     }
 
 
@@ -659,6 +785,7 @@ def init_db():
             vision TEXT DEFAULT '',
             last_login TEXT,
             login_count INTEGER DEFAULT 0,
+            birthday TEXT,
             active INTEGER DEFAULT 1,
             FOREIGN KEY (parent_id) REFERENCES users(id)
         );
@@ -669,6 +796,7 @@ def init_db():
             name TEXT NOT NULL,
             email TEXT,
             phone TEXT,
+            birthday TEXT,
             produkt TEXT,
             status TEXT DEFAULT 'neu',
             notizen TEXT,
@@ -798,15 +926,23 @@ def init_db():
 
     # Migration: neue Spalten für bestehende DBs nachrüsten
     try:
+        # users
         cols = db.execute("PRAGMA table_info(users)").fetchall()
         col_names = [c['name'] for c in cols]
         for new_col, sql_type in [
             ('vision', "TEXT DEFAULT ''"),
             ('last_login', "TEXT"),
             ('login_count', "INTEGER DEFAULT 0"),
+            ('birthday', "TEXT"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
+
+        # leads
+        lead_cols = db.execute("PRAGMA table_info(leads)").fetchall()
+        lead_col_names = [c['name'] for c in lead_cols]
+        if 'birthday' not in lead_col_names:
+            db.execute("ALTER TABLE leads ADD COLUMN birthday TEXT")
         db.commit()
     except Exception as e:
         print(f"Migration warning: {e}")
@@ -956,6 +1092,16 @@ def build_tree(user_id, db):
     appointments_done = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id = ? AND status = "erledigt"', (user_id,)).fetchone()['c']
     leads = db.execute('SELECT COUNT(*) as c FROM leads WHERE owner_id = ?', (user_id,)).fetchone()['c']
 
+    # FIX: korrekte Stufe = max(manuelle Stufe, durch EH erreichte Stufe)
+    earned_level = 1
+    for cl in CAREER_LEVELS:
+        if own_eh >= cl['min_eh']:
+            earned_level = cl['level']
+        else:
+            break
+    final_level = max(user['manual_career_level'] or 1, earned_level)
+    career = next((c for c in CAREER_LEVELS if c['level'] == final_level), CAREER_LEVELS[0])
+
     children = []
     team_eh = own_eh
     team_size = 1
@@ -972,7 +1118,7 @@ def build_tree(user_id, db):
         'own_eh': own_eh, 'team_eh': team_eh,
         'contracts': contracts, 'appointments_done': appointments_done, 'leads': leads,
         'team_size': team_size,
-        'career': get_career_level(own_eh),
+        'career': career,
         'children': children
     }
 
@@ -1061,17 +1207,19 @@ def login():
 @app.route('/profil', methods=['GET', 'POST'])
 @login_required
 def profil():
-    """Eigenes Profil — jeder darf seine Vision + Passwort selbst ändern."""
+    """Eigenes Profil — jeder darf Vision, Passwort, Telefon selbst ändern."""
     db = get_db()
     if request.method == 'POST':
         vision = request.form.get('vision', '').strip()
+        phone = request.form.get('phone', '').strip()
+        birthday = request.form.get('birthday', '').strip() or None
         new_password = request.form.get('password', '').strip()
         if new_password:
-            db.execute('UPDATE users SET vision=?, password=? WHERE id=?',
-                       (vision, hash_password(new_password), current_user.id))
+            db.execute('UPDATE users SET vision=?, phone=?, birthday=?, password=? WHERE id=?',
+                       (vision, phone, birthday, hash_password(new_password), current_user.id))
         else:
-            db.execute('UPDATE users SET vision=? WHERE id=?',
-                       (vision, current_user.id))
+            db.execute('UPDATE users SET vision=?, phone=?, birthday=? WHERE id=?',
+                       (vision, phone, birthday, current_user.id))
         db.commit()
         db.close()
         flash('Profil aktualisiert!', 'success')
@@ -1210,6 +1358,8 @@ def dashboard():
         db.close()
         # KI-Coach: Top-3 Anrufe für Quick-Card
         coach_insights = get_smart_insights(scope_user_id=None)
+        # Personalisierte Begrüßung
+        greeting = get_greeting_for_user(current_user.name, career, next_level, own_eh, eh_to_next)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -1223,7 +1373,7 @@ def dashboard():
             my_commissions=my_commissions, comparison=comparison,
             partner_growth=json.dumps([dict(r) for r in partner_growth]),
             vision_text=admin_vision, show_vision=admin_show_vision,
-            coach_insights=coach_insights
+            coach_insights=coach_insights, greeting=greeting
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -1288,6 +1438,7 @@ def dashboard():
         db.close()
         # KI-Coach: Insights für Partner (nur eigene Downline)
         coach_insights = get_smart_insights(scope_user_id=current_user.id)
+        greeting = get_greeting_for_user(current_user.name, career, next_level, own_eh, eh_to_next)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -1297,7 +1448,7 @@ def dashboard():
             my_commissions=my_commissions, global_top=global_top,
             monthly_data=json.dumps([dict(r) for r in monthly_data]),
             vision_text=vision_text, show_vision=show_vision,
-            coach_insights=coach_insights
+            coach_insights=coach_insights, greeting=greeting
         )
 
 
@@ -1321,9 +1472,10 @@ def leads():
 def lead_neu():
     if request.method == 'POST':
         db = get_db()
-        db.execute('INSERT INTO leads (owner_id, name, email, phone, produkt, status, notizen) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        db.execute('INSERT INTO leads (owner_id, name, email, phone, birthday, produkt, status, notizen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             (current_user.id, request.form['name'], request.form.get('email', ''),
-             request.form.get('phone', ''), request.form.get('produkt', ''),
+             request.form.get('phone', ''), request.form.get('birthday') or None,
+             request.form.get('produkt', ''),
              request.form.get('status', 'neu'), request.form.get('notizen', '')))
         db.commit()
         db.close()
@@ -1344,8 +1496,9 @@ def lead_edit(lead_id):
         db.close()
         return redirect(url_for('leads'))
     if request.method == 'POST':
-        db.execute('UPDATE leads SET name=?, email=?, phone=?, produkt=?, status=?, notizen=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+        db.execute('UPDATE leads SET name=?, email=?, phone=?, birthday=?, produkt=?, status=?, notizen=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
             (request.form['name'], request.form.get('email', ''), request.form.get('phone', ''),
+             request.form.get('birthday') or None,
              request.form.get('produkt', ''), request.form.get('status', 'neu'),
              request.form.get('notizen', ''), lead_id))
         db.commit()

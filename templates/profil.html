@@ -34,6 +34,20 @@
 
             <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)">
 
+            <!-- Telefon ändern -->
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>📞 Meine Telefonnummer</label>
+                    <input type="text" name="phone" value="{{ user.phone or '' }}" placeholder="+49 170 1234567">
+                    <span style="font-size:11px;color:var(--text-soft)">Wichtig für „Anrufen"-Buttons im KI-Coach</span>
+                </div>
+                <div class="form-group">
+                    <label>🎂 Mein Geburtstag</label>
+                    <input type="date" name="birthday" value="{{ user.birthday or '' }}">
+                    <span style="font-size:11px;color:var(--text-soft)">Wird im Team-Geburtstags-Kalender angezeigt</span>
+                </div>
+            </div>
+
             <!-- Passwort ändern -->
             <div class="form-group full">
                 <label>🔐 Neues Passwort (optional)</label>
