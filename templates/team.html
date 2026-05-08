@@ -24,6 +24,7 @@
                     </td>
                     <td>
                         <span class="stufe-pill" style="background:{{ m.career.color }}15;color:{{ m.career.color }};border:1px solid {{ m.career.color }}50">{{ m.career.short }}</span>
+                        {% if m.role == 'admin' %}<span class="stufe-pill" style="background:var(--gold-soft);color:var(--gold);font-size:9px;padding:1px 6px;margin-left:3px">⚡ ADMIN</span>{% elif m.is_co_admin %}<span class="stufe-pill" style="background:rgba(167,139,250,0.15);color:var(--purple);font-size:9px;padding:1px 6px;margin-left:3px">⚡ CO-ADMIN</span>{% endif %}
                         <div style="font-size:10px;color:var(--text-soft);margin-top:2px">{{ m.career.name }}</div>
                     </td>
                     <td>
@@ -39,9 +40,14 @@
                     <td style="white-space:nowrap">
                         <a href="/coaching/{{ m.id }}" class="btn btn-primary btn-sm" title="Coaching-Karte" style="background:var(--gold);color:#fff">🎯</a>
                         <a href="/team/{{ m.id }}/edit" class="btn btn-secondary btn-sm" title="Bearbeiten">✎</a>
-                        {% if current_user.role == 'admin' and m.id != current_user.id %}
-                        <form method="POST" action="/admin/team/{{ m.id }}/reset-password" style="display:inline" onsubmit="return confirm('Passwort für {{ m.name }} zurücksetzen? Ein neues Zufallspasswort wird erzeugt und angezeigt.')">
+                        {% if current_user.has_admin_access and m.id != current_user.id %}
+                        <form method="POST" action="/admin/team/{{ m.id }}/reset-password" style="display:inline" onsubmit="return confirm('Passwort für {{ m.name }} zurücksetzen?')">
                             <button type="submit" class="btn btn-secondary btn-sm" title="Passwort zurücksetzen">🔑</button>
+                        </form>
+                        {% endif %}
+                        {% if current_user.role == 'admin' and m.id != current_user.id and m.role != 'admin' %}
+                        <form method="POST" action="/admin/team/{{ m.id }}/toggle-co-admin" style="display:inline" onsubmit="return confirm('{{ m.name }} {% if m.is_co_admin %}vom Co-Admin-Status entfernen{% else %}zum Co-Admin machen{% endif %}?')">
+                            <button type="submit" class="btn btn-secondary btn-sm" title="{% if m.is_co_admin %}Co-Admin entziehen{% else %}Zum Co-Admin machen{% endif %}" style="{% if m.is_co_admin %}background:var(--gold-soft);color:var(--gold);border-color:var(--gold){% endif %}">⚡</button>
                         </form>
                         {% endif %}
                         {% if m.id != current_user.id %}

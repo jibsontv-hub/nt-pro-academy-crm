@@ -590,7 +590,7 @@
                 <span class="nav-icon">◉</span> Quoten & Ziele
             </a>
 
-            {% if current_user.role == 'admin' %}
+            {% if current_user.has_admin_access %}
             <div class="nav-section">Administration</div>
             <a href="/admin/genehmigungen" class="nav-link {% if '/admin/genehmigungen' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
                 <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">✓</span> Genehmigungen</span>
@@ -604,12 +604,17 @@
             <a href="/admin/import" class="nav-link {% if '/admin/import' in request.path %}active{% endif %}">
                 <span class="nav-icon">↑</span> Partner-Import (CSV)
             </a>
-            <a href="/admin/mail" class="nav-link {% if request.path == '/admin/mail' or '/admin/email' in request.path %}active{% endif %}">
+            <a href="/admin/mail" class="nav-link {% if request.path == '/admin/mail' %}active{% endif %}">
                 <span class="nav-icon">📨</span> E-Mail senden
+            </a>
+            {% if current_user.role == 'admin' %}
+            <a href="/admin/email-settings" class="nav-link {% if '/admin/email-settings' in request.path %}active{% endif %}">
+                <span class="nav-icon">⚙</span> E-Mail-Server
             </a>
             <a href="/admin/ki-settings" class="nav-link {% if '/admin/ki-settings' in request.path %}active{% endif %}">
                 <span class="nav-icon">🧠</span> KI-Power (Claude)
             </a>
+            {% endif %}
             <a href="/admin/aktivitaet" class="nav-link {% if '/admin/aktivitaet' in request.path %}active{% endif %}">
                 <span class="nav-icon">◷</span> Aktivität
             </a>
@@ -626,7 +631,7 @@
                 {{ my_career.short }} · {{ my_career.name }}
             </span>
             {% endif %}
-            {% if current_user.role == 'admin' %}
+            {% if current_user.has_admin_access %}
             <div style="font-size:9px;color:var(--gold);margin-top:5px;font-weight:700;letter-spacing:0.8px">⚡ ADMIN</div>
             {% endif %}
             <a href="/logout" class="logout-link">↩ Abmelden</a>

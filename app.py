@@ -144,6 +144,30 @@ def get_db():
     return conn
 
 
+def auto_backup_if_needed():
+    """Erstellt täglich automatisch ein Backup der DB. Behält die letzten 14 Tage."""
+    try:
+        backup_dir = os.path.join(DATA_DIR, 'backups')
+        os.makedirs(backup_dir, exist_ok=True)
+        today_str = date.today().strftime('%Y-%m-%d')
+        backup_file = os.path.join(backup_dir, f'vertrieb-{today_str}.db')
+        if not os.path.exists(backup_file) and os.path.exists(DB_PATH):
+            import shutil
+            shutil.copy2(DB_PATH, backup_file)
+            # Cleanup: Backups älter als 14 Tage löschen
+            cutoff = (date.today() - timedelta(days=14))
+            for f in os.listdir(backup_dir):
+                if f.startswith('vertrieb-') and f.endswith('.db'):
+                    try:
+                        f_date = datetime.strptime(f[9:19], '%Y-%m-%d').date()
+                        if f_date < cutoff:
+                            os.remove(os.path.join(backup_dir, f))
+                    except (ValueError, IndexError):
+                        pass
+    except Exception as e:
+        print(f"Auto-backup warning: {e}")
+
+
 # === In-Memory Cache mit TTL ===
 import time
 import threading
@@ -680,6 +704,84 @@ Liefere JSON mit diagnose, fokus, frage."""
     return {'diagnose': text, 'fokus': '', 'frage': ''}
 
 
+def send_welcome_email(user_email, user_name, password, sender_name='dein Upline'):
+    """Sendet Welcome-E-Mail mit Login-Daten an neuen Partner."""
+    if not is_smtp_configured():
+        return False, 'SMTP nicht konfiguriert'
+
+    subject = f'🎉 Willkommen bei NT Pro Academy, {user_name.split()[0]}!'
+    base_url = get_setting('app_base_url', 'http://localhost:5001')
+
+    text = f"""Hi {user_name.split()[0]},
+
+willkommen im Team! 🚀
+
+Du hast ab sofort Zugang zum NT Pro Academy Control Hub.
+
+Deine Login-Daten:
+🔑 E-Mail: {user_email}
+🔐 Passwort: {password}
+
+→ Login: {base_url}/login
+
+WICHTIG: Beim ersten Login wirst du gebeten, ein neues Passwort zu setzen.
+
+Was dich erwartet:
+• KI-Coach mit personalisiertem Wochen-Briefing
+• Karriere-Engine: tracking deiner Stufen-Reise (REP → GREP)
+• Provisions-Übersicht (Differenz-System automatisch)
+• Trophäen für deine Erfolge
+• Onboarding-Wizard mit Sprachausgabe
+
+Lass uns starten! 💪
+
+{sender_name}"""
+
+    html = f"""<!DOCTYPE html><html><body style="font-family:Inter,Arial,sans-serif;background:#f6f7fb;margin:0;padding:24px">
+<table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;border:1px solid #ebeef4;overflow:hidden">
+<tr><td style="padding:36px 28px;background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 100%);text-align:center">
+<div style="font-size:36px;margin-bottom:8px">⚡</div>
+<div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-0.4px">Willkommen, {user_name.split()[0]}!</div>
+<div style="font-size:13px;color:#d4a843;letter-spacing:1.5px;text-transform:uppercase;margin-top:8px;font-weight:700">NT Pro Academy · Control Hub</div>
+</td></tr>
+<tr><td style="padding:32px 28px;color:#0f172a;line-height:1.6;font-size:15px">
+<p>Hi <strong>{user_name.split()[0]}</strong>,</p>
+<p>willkommen im Team! 🚀 Du hast ab sofort Zugang zum NT Pro Academy Control Hub.</p>
+
+<div style="background:#faf6ec;border:1px solid #e8d59a;border-radius:12px;padding:20px;margin:20px 0">
+<div style="font-size:11px;color:#7a5c1a;text-transform:uppercase;letter-spacing:1px;font-weight:800;margin-bottom:10px">🔑 Deine Login-Daten</div>
+<div style="font-size:13px;color:#64748b">E-Mail:</div>
+<div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:10px">{user_email}</div>
+<div style="font-size:13px;color:#64748b">Passwort:</div>
+<div style="font-family:Menlo,Monaco,monospace;font-size:15px;font-weight:700;color:#b8902e;background:#fff;padding:8px 12px;border-radius:6px;display:inline-block">{password}</div>
+</div>
+
+<div style="text-align:center;margin:28px 0">
+<a href="{base_url}/login" style="display:inline-block;background:#0f1c3f;color:#fff;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;font-size:14px">→ Jetzt einloggen</a>
+</div>
+
+<div style="background:#fef3e7;border-left:3px solid #b8590a;padding:12px 16px;border-radius:6px;font-size:13px;color:#7a3d0a;margin:20px 0">
+<strong>⚠ WICHTIG:</strong> Beim ersten Login wirst du gebeten, ein neues sicheres Passwort zu setzen.
+</div>
+
+<p style="margin-top:24px;font-weight:700">Was dich erwartet:</p>
+<ul style="margin-left:20px;line-height:2;color:#0f172a;font-size:14px">
+<li>🧠 KI-Coach mit personalisiertem Wochen-Briefing</li>
+<li>⬡ Karriere-Engine — REP → GREP tracking</li>
+<li>💰 Provisions-Übersicht automatisch</li>
+<li>🏆 Trophäen für deine Erfolge</li>
+<li>🎤 Onboarding-Wizard mit Sprachausgabe</li>
+</ul>
+<p>Lass uns starten! 💪</p>
+<p style="color:#64748b;font-size:13px">{sender_name}</p>
+</td></tr>
+<tr><td style="padding:18px 28px;background:#fafbfc;color:#94a3b8;font-size:11px;border-top:1px solid #ebeef4">
+NT Pro Academy · Control Hub · Diese E-Mail wurde automatisch beim Anlegen deines Accounts versendet.
+</td></tr></table></body></html>"""
+
+    return send_email(user_email, subject, text, body_html=html, sent_by=None)
+
+
 def send_bulk_emails(recipients, subject, body_text, body_html=None, sent_by=None):
     """Sendet E-Mail an mehrere Empfänger. Returns (success_count, fail_list)."""
     success = 0
@@ -1212,6 +1314,19 @@ class User(UserMixin):
         self.phone = row['phone']
         self.joined_date = row['joined_date']
         self.manual_career_level = row['manual_career_level'] if 'manual_career_level' in row.keys() else 1
+        try:
+            self.is_co_admin = bool(row['is_co_admin']) if 'is_co_admin' in row.keys() else False
+        except Exception:
+            self.is_co_admin = False
+        try:
+            self.must_change_password = bool(row['must_change_password']) if 'must_change_password' in row.keys() else False
+        except Exception:
+            self.must_change_password = False
+
+    @property
+    def has_admin_access(self):
+        """Admin oder Co-Admin haben Admin-Rechte."""
+        return self.role == 'admin' or self.is_co_admin
 
 
 def auto_promote_user(user_id):
@@ -1512,11 +1627,36 @@ def inject_career():
     return {}
 
 
+# === ADMIN: CO-ADMIN-TOGGLE ===
+@app.route('/admin/team/<int:uid>/toggle-co-admin', methods=['POST'])
+@login_required
+def admin_toggle_co_admin(uid):
+    """Nur der echte Admin (nicht Co-Admin) darf Co-Admin-Status verteilen."""
+    if current_user.role != 'admin':
+        flash('Nur der Hauptadmin kann Co-Admins ernennen', 'error')
+        return redirect(url_for('team'))
+    db = get_db()
+    user = db.execute('SELECT id, name, is_co_admin FROM users WHERE id = ?', (uid,)).fetchone()
+    if not user:
+        db.close()
+        return redirect(url_for('team'))
+    new_state = 0 if user['is_co_admin'] else 1
+    db.execute('UPDATE users SET is_co_admin = ? WHERE id = ?', (new_state, uid))
+    db.commit()
+    db.close()
+    cache_invalidate('ctx:')
+    log_activity(current_user.id, 'co_admin_change',
+                 f'{user["name"]} ist jetzt {"Co-Admin" if new_state else "kein Co-Admin mehr"}',
+                 icon='⚡', color='gold')
+    flash(f'{user["name"]} ist jetzt {"Co-Admin (kann Admin-Aktionen)" if new_state else "kein Co-Admin mehr"}.', 'success')
+    return redirect(url_for('team'))
+
+
 # === ADMIN: PASSWORT-RESET ===
 @app.route('/admin/team/<int:uid>/reset-password', methods=['POST'])
 @login_required
 def admin_reset_password(uid):
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         return redirect(url_for('dashboard'))
     new_pw = generate_random_password()
     db = get_db()
@@ -1533,6 +1673,7 @@ def admin_reset_password(uid):
 @login_required
 def admin_ki_settings():
     if current_user.role != 'admin':
+        flash('Nur Hauptadmin', 'error')
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
@@ -1557,7 +1698,7 @@ def admin_ki_settings():
 @login_required
 def admin_email_settings():
     if current_user.role != 'admin':
-        flash('Keine Berechtigung', 'error')
+        flash('Nur Hauptadmin kann E-Mail-Server konfigurieren', 'error')
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
@@ -1619,7 +1760,7 @@ def admin_email_test():
 @login_required
 def admin_mail():
     """Bulk-Mailer für Admin."""
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         flash('Keine Berechtigung', 'error')
         return redirect(url_for('dashboard'))
 
@@ -1686,7 +1827,7 @@ Diese Nachricht wurde von {current_user.name} versendet.
 @app.route('/admin/backup')
 @login_required
 def admin_backup():
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         return redirect(url_for('dashboard'))
     if not os.path.exists(DB_PATH):
         flash('Datenbank-Datei nicht gefunden!', 'error')
@@ -1701,7 +1842,7 @@ def admin_backup():
 @app.route('/admin/aktivitaet')
 @login_required
 def admin_aktivitaet():
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         flash('Keine Berechtigung', 'error')
         return redirect(url_for('dashboard'))
     db = get_db()
@@ -1739,7 +1880,7 @@ def admin_aktivitaet():
 @app.route('/admin/import', methods=['GET', 'POST'])
 @login_required
 def admin_import():
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         flash('Keine Berechtigung', 'error')
         return redirect(url_for('dashboard'))
 
@@ -1833,7 +1974,7 @@ def admin_import():
 @app.route('/admin/import/template')
 @login_required
 def admin_import_template():
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         return redirect(url_for('dashboard'))
     template = (
         'name,email,phone,parent_email,stufe\n'
@@ -1852,7 +1993,7 @@ def admin_import_template():
 @app.route('/admin/genehmigungen')
 @login_required
 def admin_genehmigungen():
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         flash('Keine Berechtigung', 'error')
         return redirect(url_for('dashboard'))
     db = get_db()
@@ -1878,7 +2019,7 @@ def admin_genehmigungen():
 @app.route('/admin/genehmigungen/<int:uid>/approve', methods=['POST'])
 @login_required
 def genehmigung_approve(uid):
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         return redirect(url_for('dashboard'))
     db = get_db()
     user = db.execute('SELECT pending_career_level FROM users WHERE id = ?', (uid,)).fetchone()
@@ -1903,7 +2044,7 @@ def genehmigung_approve(uid):
 @app.route('/admin/genehmigungen/<int:uid>/reject', methods=['POST'])
 @login_required
 def genehmigung_reject(uid):
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         return redirect(url_for('dashboard'))
     db = get_db()
     db.execute('''UPDATE users SET pending_career_level = NULL,
@@ -1941,6 +2082,8 @@ def init_db():
             login_count INTEGER DEFAULT 0,
             birthday TEXT,
             onboarding_done INTEGER DEFAULT 0,
+            is_co_admin INTEGER DEFAULT 0,
+            must_change_password INTEGER DEFAULT 0,
             active INTEGER DEFAULT 1,
             FOREIGN KEY (parent_id) REFERENCES users(id)
         );
@@ -2147,6 +2290,8 @@ def init_db():
             ('login_count', "INTEGER DEFAULT 0"),
             ('birthday', "TEXT"),
             ('onboarding_done', "INTEGER DEFAULT 0"),
+            ('is_co_admin', "INTEGER DEFAULT 0"),
+            ('must_change_password', "INTEGER DEFAULT 0"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -2428,6 +2573,17 @@ def login():
             db2.close()
             if not existing:
                 log_activity(row['id'], 'login', f'{row["name"]} ist heute eingeloggt', icon='🔓', color='blue')
+                # Auto-Backup einmal pro Tag (beim ersten Admin-Login)
+                if row['role'] == 'admin':
+                    auto_backup_if_needed()
+            # Forced Passwort-Change wenn aktiviert
+            try:
+                must_change = row['must_change_password']
+            except Exception:
+                must_change = 0
+            if must_change:
+                session['must_change_password'] = True
+                return redirect(url_for('passwort_aendern'))
             # Erstes Login → Onboarding-Wizard zeigen (nur Nicht-Admins)
             if not onboarding_done and row['role'] != 'admin':
                 return redirect(url_for('willkommen'))
@@ -2480,6 +2636,30 @@ def profil():
     user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     db.close()
     return render_template('profil.html', user=user)
+
+
+@app.route('/passwort-aendern', methods=['GET', 'POST'])
+@login_required
+def passwort_aendern():
+    """Pflicht-Passwort-Änderung beim ersten Login."""
+    if request.method == 'POST':
+        new_pw = (request.form.get('password') or '').strip()
+        confirm = (request.form.get('confirm') or '').strip()
+        if len(new_pw) < 6:
+            flash('Passwort muss mindestens 6 Zeichen haben', 'error')
+            return render_template('passwort_aendern.html')
+        if new_pw != confirm:
+            flash('Passwörter stimmen nicht überein', 'error')
+            return render_template('passwort_aendern.html')
+        db = get_db()
+        db.execute('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?',
+                   (hash_password(new_pw), current_user.id))
+        db.commit()
+        db.close()
+        session.pop('must_change_password', None)
+        flash('✅ Passwort erfolgreich geändert!', 'success')
+        return redirect(url_for('dashboard'))
+    return render_template('passwort_aendern.html')
 
 
 @app.route('/willkommen')
@@ -3561,12 +3741,14 @@ def team_neu():
         if existing:
             flash('E-Mail bereits vorhanden!', 'error')
         else:
+            generated_password = (request.form.get('password') or '').strip() or generate_random_password()
             cur = db.execute('''INSERT INTO users (name, email, password, role, parent_id, level, phone,
-                          manual_career_level, pending_career_level, pending_by_user_id, pending_at)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                (request.form['name'], email, hash_password(request.form.get('password', 'start123')),
+                          manual_career_level, pending_career_level, pending_by_user_id, pending_at,
+                          must_change_password)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (request.form['name'], email, hash_password(generated_password),
                  'partner', parent_id, new_level, request.form.get('phone', ''),
-                 manual_level, pending_level, pending_by, pending_at))
+                 manual_level, pending_level, pending_by, pending_at, 1))
             new_user_id = cur.lastrowid
             db.commit()
             db.close()
@@ -3574,10 +3756,20 @@ def team_neu():
             log_activity(new_user_id, 'partner_neu',
                 f'{request.form["name"]} ist neuer Geschäftspartner ({stufe_short})',
                 icon='👥', color='green')
-            if pending_level:
-                flash(f'Mitglied angelegt! Login: {email}. Stufe {pending_level} wartet auf Admin-Bestätigung.', 'success')
+
+            # Welcome-E-Mail
+            mail_status = ''
+            if is_smtp_configured():
+                ok, err = send_welcome_email(email, request.form['name'], generated_password,
+                                              sender_name=current_user.name)
+                mail_status = ' 📧 Welcome-E-Mail verschickt.' if ok else f' ⚠ E-Mail fehlgeschlagen: {(err or "")[:80]}'
             else:
-                flash(f'Mitglied angelegt! Login: {email} / Passwort: {request.form.get("password", "start123")}', 'success')
+                mail_status = ' (SMTP nicht konfiguriert — Login-Daten manuell weitergeben)'
+
+            if pending_level:
+                flash(f'Mitglied angelegt! Stufe {pending_level} wartet auf Bestätigung.{mail_status}', 'success')
+            else:
+                flash(f'Mitglied angelegt! Login: {email} / Passwort: {generated_password}{mail_status}', 'success')
             return redirect(url_for('team'))
     db.close()
     return render_template('team_form.html', member=None, possible_parents=possible_parents, all_levels=CAREER_LEVELS)
@@ -3739,7 +3931,7 @@ def aufgabe_toggle():
 @app.route('/admin/aufgaben', methods=['GET', 'POST'])
 @login_required
 def admin_aufgaben():
-    if current_user.role != 'admin':
+    if not current_user.has_admin_access:
         flash('Nur Admins haben Zugriff', 'error')
         return redirect(url_for('dashboard'))
 
