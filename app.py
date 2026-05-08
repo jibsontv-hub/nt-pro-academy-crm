@@ -144,6 +144,154 @@ def get_db():
     return conn
 
 
+def send_eingabeschluss_reminders():
+    """Sendet 3 Tage vor Eingabeschluss E-Mails an Partner mit offenen Verträgen.
+    Wird beim Login getriggert. Versendet nur 1× pro Eingabeschluss-Periode."""
+    if not is_smtp_configured():
+        return 0
+
+    deadlines = get_production_deadlines()
+    if not deadlines or deadlines['eingabe_passed']:
+        return 0
+
+    # Trigger nur bei genau 3 Tagen vor Eingabeschluss
+    if deadlines['eingabe_in_days'] != 3:
+        return 0
+
+    # Schon gesendet?
+    period_key = f'reminder_3d_{deadlines["eingabeschluss"].strftime("%Y-%m")}'
+    if get_setting(period_key) == '1':
+        return 0
+
+    db = get_db()
+    # Alle Partner mit offenen Verträgen oder hängender Recherche
+    rows = db.execute('''
+        SELECT u.id, u.name, u.email,
+               SUM(CASE WHEN c.status = 'offen' THEN 1 ELSE 0 END) as open_count,
+               SUM(CASE WHEN c.recherche_status IN ('ausstehend','') AND c.einheiten > 0 THEN 1 ELSE 0 END) as pending_research
+        FROM users u
+        JOIN contracts c ON c.owner_id = u.id
+        WHERE u.active = 1
+          AND (c.status = 'offen' OR c.recherche_status IN ('ausstehend',''))
+        GROUP BY u.id
+        HAVING open_count > 0 OR pending_research > 0
+    ''').fetchall()
+    db.close()
+
+    eingabe_str = deadlines['eingabeschluss'].strftime('%d.%m.%Y')
+    weekday = deadlines['eingabe_weekday']
+    sent = 0
+    for r in rows:
+        total = (r['open_count'] or 0) + (r['pending_research'] or 0)
+        first_name = r['name'].split()[0] if r['name'] else ''
+        subject = f'⏰ Nur noch 3 Tage bis Eingabeschluss — {total} Vertrag{"" if total == 1 else "äge"} klären!'
+        text = f"""Hi {first_name},
+
+in 3 Tagen ist Eingabeschluss ({weekday}, {eingabe_str}).
+
+DU HAST AKTUELL:
+• {r['open_count'] or 0} offene Verträge (noch nicht abgeschlossen)
+• {r['pending_research'] or 0} Verträge mit hängender Recherche
+
+Diese müssen bis zum Eingabeschluss FERTIG sein, sonst zählen die EH erst im nächsten Monat!
+
+Was du jetzt machst:
+1. Geh ins NT Pro Academy Control Hub
+2. Klick auf "Verträge"
+3. Setz alle offenen auf "abgeschlossen" + freigegebene Recherche
+
+Wenn du Hilfe brauchst — meld dich bei deinem Upline.
+
+Komm, das schaffst du! 🚀
+
+NT Pro Academy"""
+
+        html = f"""<!DOCTYPE html><html><body style="font-family:Inter,Arial,sans-serif;background:#f6f7fb;margin:0;padding:24px">
+<table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;border:1px solid #ebeef4;overflow:hidden">
+<tr><td style="padding:36px 28px;background:linear-gradient(135deg,#dc2626 0%,#7c2d12 100%);text-align:center;color:#fff">
+<div style="font-size:42px;margin-bottom:8px">⏰</div>
+<div style="font-size:24px;font-weight:900;letter-spacing:-0.5px">Nur noch 3 Tage!</div>
+<div style="font-size:14px;color:#fbbf24;margin-top:6px;font-weight:700">Eingabeschluss: {weekday} {eingabe_str}</div>
+</td></tr>
+<tr><td style="padding:32px 28px;color:#0f172a;line-height:1.6;font-size:15px">
+<p>Hi <strong>{first_name}</strong>,</p>
+<p>du hast aktuell <strong style="color:#dc2626">{total} Vertrag{"" if total == 1 else "äge"} offen</strong>, die bis zum Eingabeschluss fertig sein müssen — sonst zählen die EH erst nächsten Monat!</p>
+
+<div style="background:#fef2f2;border-left:4px solid #dc2626;padding:18px 20px;margin:20px 0;border-radius:6px">
+<div style="font-weight:800;color:#7f1d1d;font-size:13px;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:8px">📋 Dein offenes Pensum</div>
+<div style="font-size:14px;color:#0f172a">
+• <strong>{r['open_count'] or 0}</strong> offene Verträge<br>
+• <strong>{r['pending_research'] or 0}</strong> mit hängender Recherche
+</div>
+</div>
+
+<p style="font-weight:700;margin-top:24px">Was du jetzt machst:</p>
+<ol style="margin-left:20px;line-height:2;color:#0f172a;font-size:14px">
+<li>Login: <a href="https://proacademy.pythonanywhere.com" style="color:#b8902e;font-weight:600">proacademy.pythonanywhere.com</a></li>
+<li>Klick auf <strong>„Verträge"</strong></li>
+<li>Status auf <strong>„abgeschlossen"</strong> + Recherche auf <strong>„freigegeben"</strong></li>
+</ol>
+
+<p style="margin-top:24px">Komm, das schaffst du! 💪</p>
+<p style="color:#64748b;font-size:13px">NTcoach</p>
+</td></tr>
+<tr><td style="padding:18px 28px;background:#fafbfc;color:#94a3b8;font-size:11px;border-top:1px solid #ebeef4">
+NT Pro Academy · Automatische Erinnerung 3 Tage vor Produktionsschluss
+</td></tr></table></body></html>"""
+
+        ok, _ = send_email(r['email'], subject, text, body_html=html, sent_by=None)
+        if ok:
+            sent += 1
+
+    set_setting(period_key, '1')
+    log_activity(None, 'eingabe_reminder', f'⏰ Eingabeschluss-Reminder an {sent} Partner versendet', icon='⏰', color='red')
+    return sent
+
+
+def send_zvg_reminder():
+    """Erinnert Admin nach Eingabeschluss an Zielvereinbarungsgespräche (ZVGs)."""
+    deadlines = get_production_deadlines()
+    if not deadlines:
+        return 0
+    # Trigger genau am Tag nach Eingabeschluss
+    days_since = -deadlines['eingabe_in_days']  # Wenn -2 = vor 2 Tagen
+    if days_since != 1:
+        return 0
+    period_key = f'zvg_reminder_{deadlines["eingabeschluss"].strftime("%Y-%m")}'
+    if get_setting(period_key) == '1':
+        return 0
+    if not is_smtp_configured():
+        set_setting(period_key, '1')
+        return 0
+
+    db = get_db()
+    admin = db.execute("SELECT email, name FROM users WHERE role='admin' AND active=1 LIMIT 1").fetchone()
+    db.close()
+    if not admin:
+        return 0
+
+    text = f"""Hi {admin['name'].split()[0]},
+
+der Eingabeschluss vom {deadlines['eingabeschluss_str']} ist durch.
+
+JETZT IST ZEIT FÜR DIE ZVGs (Zielvereinbarungsgespräche):
+• Mit jedem direkten Partner einzeln
+• Ergebnis bewerten
+• Ziele für nächsten Monat festlegen
+• Konkrete nächste Schritte definieren
+
+Dazu: alle 2 Wochen Kontrollgespräche planen.
+
+Plan dir die Zeit ein — das ist DEIN Hebel als Direktionsrepräsentant.
+
+NTcoach"""
+
+    send_email(admin['email'], '🎯 Zeit für ZVGs nach Produktionsschluss', text, sent_by=None)
+    set_setting(period_key, '1')
+    log_activity(None, 'zvg_reminder', '🎯 ZVG-Reminder an Admin versendet', icon='🎯', color='gold')
+    return 1
+
+
 def auto_backup_if_needed():
     """Erstellt täglich automatisch ein Backup der DB. Behält die letzten 14 Tage."""
     try:
@@ -403,6 +551,167 @@ def claude_chat(prompt, system_prompt=None, max_tokens=1024, model='claude-sonne
         return None, f'HTTP {e.code}: {err_body[:200]}'
     except Exception as e:
         return None, f'API-Fehler: {str(e)[:200]}'
+
+
+def build_user_context(user_id):
+    """Baut einen kompakten Daten-Kontext über den User für KI-Chat."""
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return None
+
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    week_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) >= date("now","-7 days")', (user_id,)).fetchone()['s']
+    contracts = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['c']
+    pending_recherche = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (user_id,)).fetchone()['c']
+    open_contracts = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="offen"', (user_id,)).fetchone()['c']
+    leads = db.execute('SELECT COUNT(*) as c FROM leads WHERE owner_id=?', (user_id,)).fetchone()['c']
+    open_appts = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND status="geplant"', (user_id,)).fetchone()['c']
+    direct_partners = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (user_id,)).fetchone()['c']
+
+    descendants = get_all_descendants(user_id)
+    team_size = len(descendants)
+    if descendants:
+        ph = ','.join('?' * len(descendants))
+        team_eh = db.execute(f'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"', descendants).fetchone()['s']
+        inactive_partners = db.execute(f'SELECT COUNT(*) as c FROM users WHERE id IN ({ph}) AND active=1 AND (last_login IS NULL OR last_login < datetime("now","-7 days"))', descendants).fetchone()['c']
+    else:
+        team_eh = 0
+        inactive_partners = 0
+
+    db.close()
+    career = career_for_row(user['manual_career_level'], own_eh)
+    next_lvl = next((c for c in CAREER_LEVELS if c['level'] == career['level'] + 1), None)
+    eh_to_go = max(0, next_lvl['min_eh'] - own_eh) if next_lvl else 0
+
+    deadlines = get_production_deadlines()
+
+    return {
+        'name': user['name'],
+        'role': user['role'],
+        'career': f"{career['short']} ({career['name']})",
+        'next_level': f"{next_lvl['short']} (in {int(eh_to_go)} EH)" if next_lvl else 'Höchste Stufe',
+        'own_eh': int(own_eh),
+        'week_eh': int(week_eh),
+        'contracts': contracts,
+        'pending_recherche': pending_recherche,
+        'open_contracts': open_contracts,
+        'leads': leads,
+        'open_appointments': open_appts,
+        'direct_partners': direct_partners,
+        'team_size': team_size,
+        'team_eh': int(team_eh),
+        'inactive_partners': inactive_partners,
+        'vision': user['vision'] or '–',
+        'eingabeschluss': deadlines['eingabeschluss_str'] + ' (in ' + str(deadlines['eingabe_in_days']) + ' Tagen)' if deadlines else '–',
+        'grundseminar': deadlines['grundseminar_str'] if deadlines else '–',
+    }
+
+
+def chat_with_assistant(user_id, user_message):
+    """Sendet Nachricht an den KI-Assistenten und bekommt Antwort.
+    Nutzt Claude API + speichert Verlauf."""
+    if not is_ai_configured():
+        return None, 'KI ist nicht konfiguriert. Admin muss API-Key eintragen.'
+
+    db = get_db()
+    # Speichere User-Message
+    db.execute('INSERT INTO chat_messages (user_id, role, content) VALUES (?, ?, ?)',
+               (user_id, 'user', user_message))
+    db.commit()
+
+    # Hole letzte 10 Messages als Verlauf
+    history_rows = db.execute(
+        'SELECT role, content FROM chat_messages WHERE user_id=? ORDER BY id DESC LIMIT 10',
+        (user_id,)
+    ).fetchall()
+    history = list(reversed([{'role': r['role'], 'content': r['content']} for r in history_rows]))
+    db.close()
+
+    # Kontext über den User aufbauen
+    ctx = build_user_context(user_id)
+    if not ctx:
+        return None, 'User-Daten nicht gefunden.'
+
+    system_prompt = f"""Du bist NTcoach — ein KI-Assistent für Strukturvertrieb-Profis bei NT Pro Academy.
+
+DEINE PERSÖNLICHKEIT:
+- Du sprichst direkt, klar, motivierend — wie ein erfahrener Mentor mit Vertriebs-Erfahrung
+- Du bist der "kranke Assistent": ehrlich, smart, manchmal frech, aber immer hilfreich
+- Du machst aktiv Vorschläge: wen anrufen, was angehen, wo der Fokus liegt
+- KURZ und PRÄZISE — keine langen Vorträge. Max 4-5 Sätze pro Antwort.
+- Du sprichst Deutsch und duzt den User
+
+DEIN JOB:
+- Hilfst dem User Entscheidungen zu treffen
+- Erinnerst an wichtige Sachen (ZVGs, Eingabeschluss, Grundseminar)
+- Schlägst konkrete Aktionen vor
+- Bist NICHT übervorsichtig — sag direkt was zu tun ist
+
+AKTUELLER STAND VON {ctx['name']} ({ctx['role']}):
+- Karriere-Stufe: {ctx['career']}
+- Nächste Stufe: {ctx['next_level']}
+- Eigene EH: {ctx['own_eh']} | Team-EH: {ctx['team_eh']} | Diese Woche: {ctx['week_eh']} EH
+- Verträge gesamt: {ctx['contracts']} | Hängende Recherchen: {ctx['pending_recherche']} | Offene: {ctx['open_contracts']}
+- Leads/Namensliste: {ctx['leads']} | Geplante Termine: {ctx['open_appointments']}
+- Direkte Partner: {ctx['direct_partners']} | Team-Größe gesamt: {ctx['team_size']}
+- Inaktive Partner (>7 Tage): {ctx['inactive_partners']}
+- Vision: {ctx['vision']}
+
+WICHTIGE TERMINE:
+- Eingabeschluss/Produktionsschluss: {ctx['eingabeschluss']}
+- Grundseminar: {ctx['grundseminar']}
+
+BESONDERS WICHTIG IM VERTRIEB:
+- ZVG = Zielvereinbarungsgespräche (Admin macht die mit jedem Partner nach Produktionsschluss)
+- Kontrollgespräche alle 2 Wochen mit jedem direkten Partner
+- 3 Termine = 1 Abschluss (Faustregel)
+- Differenzprovision: REP 5€/EH, LREP 9,50€, HREP 14€, CREP 18€, DREP 20,70€, GREP 23€
+
+Antworte jetzt direkt auf die Frage des Users mit konkreten Tipps oder Aktionen.
+"""
+
+    # Claude-Call mit Conversation-History
+    try:
+        import urllib.request, urllib.error
+        api_key = get_setting('anthropic_api_key')
+        body = {
+            'model': 'claude-sonnet-4-5-20250929',
+            'max_tokens': 600,
+            'system': system_prompt,
+            'messages': history,
+        }
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages',
+            data=json.dumps(body).encode('utf-8'),
+            headers={
+                'Content-Type': 'application/json',
+                'x-api-key': api_key,
+                'anthropic-version': '2023-06-01'
+            },
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+        text = data.get('content', [{}])[0].get('text', '').strip()
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode('utf-8')
+        except Exception:
+            err_body = str(e)
+        return None, f'HTTP {e.code}: {err_body[:200]}'
+    except Exception as e:
+        return None, f'Fehler: {str(e)[:200]}'
+
+    # Speichere Assistant-Antwort
+    db = get_db()
+    db.execute('INSERT INTO chat_messages (user_id, role, content) VALUES (?, ?, ?)',
+               (user_id, 'assistant', text))
+    db.commit()
+    db.close()
+
+    return text, None
 
 
 def heuristic_weekly_briefing(user_id):
@@ -1996,6 +2305,47 @@ def admin_email_test():
     return redirect(url_for('admin_email_settings'))
 
 
+@app.route('/admin/eingabe-reminder-now', methods=['POST'])
+@login_required
+def admin_eingabe_reminder_now():
+    """Manuelle Trigger für den Eingabeschluss-Reminder (auch außerhalb 3-Tage-Fenster)."""
+    if not current_user.has_admin_access:
+        return redirect(url_for('dashboard'))
+    if not is_smtp_configured():
+        flash('SMTP nicht konfiguriert', 'error')
+        return redirect(url_for('admin_mail'))
+
+    deadlines = get_production_deadlines()
+    if not deadlines:
+        flash('Keine Eingabeschluss-Daten', 'error')
+        return redirect(url_for('admin_mail'))
+
+    db = get_db()
+    rows = db.execute('''
+        SELECT u.id, u.name, u.email,
+               SUM(CASE WHEN c.status = 'offen' THEN 1 ELSE 0 END) as open_count,
+               SUM(CASE WHEN c.recherche_status IN ('ausstehend','') AND c.einheiten > 0 THEN 1 ELSE 0 END) as pending_research
+        FROM users u JOIN contracts c ON c.owner_id = u.id
+        WHERE u.active = 1 AND (c.status = 'offen' OR c.recherche_status IN ('ausstehend',''))
+        GROUP BY u.id
+        HAVING open_count > 0 OR pending_research > 0
+    ''').fetchall()
+    db.close()
+
+    eingabe_str = deadlines['eingabeschluss_str']
+    sent = 0
+    for r in rows:
+        total = (r['open_count'] or 0) + (r['pending_research'] or 0)
+        first_name = r['name'].split()[0] if r['name'] else ''
+        ok, _ = send_email(r['email'],
+                          f'⏰ Eingabeschluss {eingabe_str} — {total} Vertrag{"" if total==1 else "äge"} klären!',
+                          f'Hi {first_name},\n\nbis Eingabeschluss am {eingabe_str} hast du noch {r["open_count"] or 0} offene Verträge und {r["pending_research"] or 0} hängende Recherchen.\n\nLogin: https://proacademy.pythonanywhere.com\n\nNTcoach',
+                          sent_by=current_user.id)
+        if ok: sent += 1
+    flash(f'✅ {sent} Reminder verschickt', 'success')
+    return redirect(url_for('admin_mail'))
+
+
 @app.route('/admin/mail', methods=['GET', 'POST'])
 @login_required
 def admin_mail():
@@ -2461,6 +2811,15 @@ def init_db():
             FOREIGN KEY (author_user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS user_achievements (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -2819,9 +3178,14 @@ def login():
             db2.close()
             if not existing:
                 log_activity(row['id'], 'login', f'{row["name"]} ist heute eingeloggt', icon='🔓', color='blue')
-                # Auto-Backup einmal pro Tag (beim ersten Admin-Login)
+                # Auto-Backup + Reminder einmal pro Tag (beim ersten Admin-Login)
                 if row['role'] == 'admin':
                     auto_backup_if_needed()
+                    try:
+                        send_eingabeschluss_reminders()
+                        send_zvg_reminder()
+                    except Exception as e:
+                        print(f"Auto-Reminder warning: {e}")
             # Forced Passwort-Change wenn aktiviert
             try:
                 must_change = row['must_change_password']
@@ -3013,6 +3377,42 @@ def passwort_aendern():
         flash('✅ Passwort erfolgreich geändert!', 'success')
         return redirect(url_for('dashboard'))
     return render_template('passwort_aendern.html')
+
+
+@app.route('/assistent')
+@login_required
+def assistent():
+    """KI-Chat-Assistent NTcoach."""
+    db = get_db()
+    msgs = db.execute(
+        'SELECT role, content, created_at FROM chat_messages WHERE user_id=? ORDER BY id ASC LIMIT 50',
+        (current_user.id,)
+    ).fetchall()
+    db.close()
+    return render_template('assistent.html', messages=msgs, ai_configured=is_ai_configured())
+
+
+@app.route('/api/chat', methods=['POST'])
+@login_required
+def api_chat():
+    """Sendet Nachricht an Assistent + bekommt Antwort als JSON."""
+    msg = (request.get_json(silent=True) or {}).get('message', '').strip() if request.is_json else (request.form.get('message') or '').strip()
+    if not msg:
+        return jsonify({'error': 'Keine Nachricht'}), 400
+    text, err = chat_with_assistant(current_user.id, msg)
+    if err:
+        return jsonify({'error': err}), 500
+    return jsonify({'response': text})
+
+
+@app.route('/api/chat/clear', methods=['POST'])
+@login_required
+def api_chat_clear():
+    db = get_db()
+    db.execute('DELETE FROM chat_messages WHERE user_id=?', (current_user.id,))
+    db.commit()
+    db.close()
+    return jsonify({'ok': True})
 
 
 @app.route('/willkommen')

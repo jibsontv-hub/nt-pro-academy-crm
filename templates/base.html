@@ -588,6 +588,9 @@
             <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">
                 <span class="nav-icon">▦</span> Dashboard
             </a>
+            <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}">
+                <span class="nav-icon">🤖</span> NTcoach (Chat)
+            </a>
             <a href="/coach" class="nav-link {% if request.path == '/coach' %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
                 <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">🧠</span> KI-Coach</span>
                 {% if coach_alerts and coach_alerts > 0 %}

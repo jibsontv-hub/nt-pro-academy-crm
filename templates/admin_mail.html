@@ -18,6 +18,20 @@
     </div>
 </div>
 
+<!-- Quick-Action: Eingabeschluss-Reminder -->
+<div class="card" style="background:linear-gradient(135deg,var(--surface),rgba(220,38,38,0.05));border:1px solid rgba(220,38,38,0.25)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
+        <div>
+            <div style="font-weight:800;font-size:15px;color:var(--text)">⏰ Eingabeschluss-Reminder JETZT senden</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px">Schickt sofort eine Erinnerung an alle Partner mit offenen Verträgen oder hängender Recherche.</div>
+        </div>
+        <form method="POST" action="/admin/eingabe-reminder-now" onsubmit="return confirm('Reminder JETZT an alle Partner mit offenen Verträgen schicken?')">
+            <button type="submit" class="btn btn-primary" style="background:#dc2626;border-color:#dc2626">📨 Jetzt erinnern</button>
+        </form>
+    </div>
+    <div style="font-size:11px;color:var(--text-soft);margin-top:8px">💡 Automatisch wird der Reminder 3 Tage vor Eingabeschluss versendet.</div>
+</div>
+
 <form method="POST" id="mailForm">
     <!-- Empfänger -->
     <div class="card">

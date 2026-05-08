@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}NTcoach – KI-Assistent{% endblock %}
+{% block page_title %}🤖 NTcoach{% endblock %}
+{% block topbar_actions %}
+<button onclick="clearChat()" class="btn btn-secondary btn-sm" title="Verlauf löschen">↺ Neu</button>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:880px;margin:0 auto">
+
+{% if not ai_configured %}
+<div class="card" style="background:var(--orange-soft);border:1px solid var(--orange)">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="font-size:24px">⚠️</span>
+        <div>
+            <div style="font-size:15px;font-weight:700;color:var(--text)">KI noch nicht konfiguriert</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px">Der Hauptadmin muss zuerst einen Anthropic API-Key in den Einstellungen eintragen, damit der Chat funktioniert.</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Hero -->
+<div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(167,139,250,0.06) 100%);border:1px solid rgba(167,139,250,0.25)">
+    <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#a78bfa,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff">🤖</div>
+        <div style="flex:1">
+            <div style="font-size:18px;font-weight:800;letter-spacing:-0.4px">NTcoach — Dein KI-Assistent</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Kennt deinen kompletten Vertrieb · gibt smarte Tipps · erinnert an Wichtiges</div>
+        </div>
+    </div>
+</div>
+
+<!-- Chat -->
+<div class="card" style="padding:0;overflow:hidden">
+    <div id="chatMessages" style="padding:24px;height:520px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;background:var(--bg-2)">
+        {% if messages %}
+            {% for m in messages %}
+            {% if m.role == 'user' %}
+            <div style="align-self:flex-end;max-width:75%">
+                <div style="background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#0f1c3f;padding:11px 16px;border-radius:18px 18px 4px 18px;font-size:14px;line-height:1.5;font-weight:500;box-shadow:0 2px 8px rgba(212,168,67,0.2)">{{ m.content }}</div>
+                <div style="font-size:10px;color:var(--text-soft);margin-top:4px;text-align:right">{{ m.created_at[11:16] }}</div>
+            </div>
+            {% else %}
+            <div style="align-self:flex-start;max-width:80%;display:flex;gap:10px;align-items:flex-start">
+                <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#a78bfa,#8b5cf6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
+                <div>
+                    <div style="background:var(--surface);border:1px solid var(--border);padding:11px 16px;border-radius:18px 18px 18px 4px;font-size:14px;line-height:1.6;color:var(--text);white-space:pre-wrap;box-shadow:var(--shadow-sm)">{{ m.content }}</div>
+                    <div style="font-size:10px;color:var(--text-soft);margin-top:4px">NTcoach · {{ m.created_at[11:16] }}</div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        {% else %}
+            <!-- Welcome-State -->
+            <div style="text-align:center;padding:60px 20px;color:var(--text-muted)">
+                <div style="font-size:60px;margin-bottom:16px">🤖</div>
+                <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px">Hi! Ich bin NTcoach.</div>
+                <div style="font-size:14px;line-height:1.6;max-width:440px;margin:0 auto">
+                    Ich kenne deinen kompletten Vertrieb und helfe dir bei Entscheidungen. Frag mich alles — von „Wen soll ich heute anrufen?" bis „Was ist mein nächster Schritt zur Beförderung?"
+                </div>
+                <div style="margin-top:24px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+                    <button onclick="askSuggestion('Was sollte ich heute als erstes machen?')" class="suggest-btn">📋 Was tun heute?</button>
+                    <button onclick="askSuggestion('Welche Partner haben Aufmerksamkeit nötig?')" class="suggest-btn">🎯 Wer braucht mich?</button>
+                    <button onclick="askSuggestion('Wie steht meine Karriere?')" class="suggest-btn">📈 Mein Stand?</button>
+                    <button onclick="askSuggestion('Was muss ich vor Eingabeschluss klären?')" class="suggest-btn">⏰ Eingabeschluss</button>
+                    <button onclick="askSuggestion('Plane meine Woche')" class="suggest-btn">🗓 Wochenplan</button>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Input -->
+    <div style="border-top:1px solid var(--border);padding:14px 18px;background:var(--surface)">
+        <form id="chatForm" onsubmit="sendMessage(event)">
+            <div style="display:flex;gap:10px;align-items:flex-end">
+                <textarea id="chatInput" placeholder="Frag NTcoach…" rows="1" required
+                    onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage(event)}"
+                    style="flex:1;padding:12px 14px;border:1px solid var(--border);border-radius:12px;font-size:14px;resize:none;font-family:inherit;background:var(--bg-2);color:var(--text);max-height:150px"></textarea>
+                <button type="button" onclick="toggleVoiceInput()" id="voiceBtn" title="Per Sprache"
+                    style="width:44px;height:44px;border-radius:12px;background:var(--bg-2);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:18px;flex-shrink:0">🎙</button>
+                <button type="submit" id="sendBtn"
+                    style="height:44px;padding:0 22px;background:var(--navy);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-size:14px;flex-shrink:0">Senden</button>
+            </div>
+        </form>
+        <div style="font-size:10px;color:var(--text-soft);margin-top:8px;text-align:center">
+            Enter = senden · Shift+Enter = neue Zeile · 🎙 = Sprache · Antworten kommen von Claude AI
+        </div>
+    </div>
+</div>
+
+<style>
+.suggest-btn {
+    padding: 9px 14px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 99px; color: var(--text); font-size: 12px; cursor: pointer;
+    font-family: inherit; font-weight: 500; transition: all 0.15s;
+}
+.suggest-btn:hover { background: var(--gold-soft); border-color: var(--gold); color: var(--navy); }
+#chatMessages::-webkit-scrollbar { width: 6px; }
+#chatMessages::-webkit-scrollbar-track { background: transparent; }
+#chatMessages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+@keyframes typing-dot {
+    0%, 60%, 100% { opacity: 0.3; }
+    30% { opacity: 1; }
+}
+.typing-dot { animation: typing-dot 1.4s infinite; }
+</style>
+
+</div>
+
+<script>
+const chatBox = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const sendBtn = document.getElementById('sendBtn');
+
+function escapeHtml(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function appendMessage(role, content, time) {
+    if (chatBox.querySelector('[style*="text-align:center"][style*="padding:60px"]')) {
+        chatBox.innerHTML = ''; // Welcome-State entfernen
+    }
+    const t = time || new Date().toTimeString().slice(0,5);
+    let html;
+    if (role === 'user') {
+        html = `<div style="align-self:flex-end;max-width:75%">
+            <div style="background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#0f1c3f;padding:11px 16px;border-radius:18px 18px 4px 18px;font-size:14px;line-height:1.5;font-weight:500;box-shadow:0 2px 8px rgba(212,168,67,0.2)">${escapeHtml(content)}</div>
+            <div style="font-size:10px;color:var(--text-soft);margin-top:4px;text-align:right">${t}</div>
+        </div>`;
+    } else {
+        html = `<div style="align-self:flex-start;max-width:80%;display:flex;gap:10px;align-items:flex-start">
+            <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#a78bfa,#8b5cf6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
+            <div><div style="background:var(--surface);border:1px solid var(--border);padding:11px 16px;border-radius:18px 18px 18px 4px;font-size:14px;line-height:1.6;color:var(--text);white-space:pre-wrap;box-shadow:var(--shadow-sm)">${escapeHtml(content)}</div>
+            <div style="font-size:10px;color:var(--text-soft);margin-top:4px">NTcoach · ${t}</div></div>
+        </div>`;
+    }
+    chatBox.insertAdjacentHTML('beforeend', html);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+function appendTyping() {
+    const html = `<div id="typing-indicator" style="align-self:flex-start;display:flex;gap:10px;align-items:center">
+        <div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#a78bfa,#8b5cf6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">🤖</div>
+        <div style="background:var(--surface);border:1px solid var(--border);padding:14px 18px;border-radius:18px;display:flex;gap:5px">
+            <span class="typing-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text-soft)"></span>
+            <span class="typing-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text-soft);animation-delay:0.15s"></span>
+            <span class="typing-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text-soft);animation-delay:0.3s"></span>
+        </div>
+    </div>`;
+    chatBox.insertAdjacentHTML('beforeend', html);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+function removeTyping() {
+    const t = document.getElementById('typing-indicator');
+    if (t) t.remove();
+}
+
+async function sendMessage(e) {
+    if (e) e.preventDefault();
+    const msg = chatInput.value.trim();
+    if (!msg) return;
+    appendMessage('user', msg);
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    sendBtn.disabled = true; sendBtn.textContent = '...';
+    appendTyping();
+    try {
+        const r = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: msg})
+        });
+        const data = await r.json();
+        removeTyping();
+        if (data.error) {
+            appendMessage('assistant', '⚠️ ' + data.error);
+        } else {
+            appendMessage('assistant', data.response);
+            // Voice-Output (optional, nur wenn Browser unterstützt + niedrige Lautstärke)
+            try {
+                if ('speechSynthesis' in window && data.response.length < 500) {
+                    const u = new SpeechSynthesisUtterance(data.response);
+                    u.lang = 'de-DE'; u.rate = 1.05; u.volume = 0.7;
+                    const v = window.speechSynthesis.getVoices().find(x => x.lang === 'de-DE');
+                    if (v) u.voice = v;
+                    // Auto-Play nur wenn User bewusst aktiviert (vorerst aus)
+                }
+            } catch(e){}
+        }
+    } catch (err) {
+        removeTyping();
+        appendMessage('assistant', '⚠️ Fehler: ' + err.message);
+    }
+    sendBtn.disabled = false; sendBtn.textContent = 'Senden';
+    chatInput.focus();
+}
+
+function askSuggestion(text) {
+    chatInput.value = text;
+    sendMessage();
+}
+
+async function clearChat() {
+    if (!confirm('Chat-Verlauf löschen?')) return;
+    await fetch('/api/chat/clear', {method: 'POST'});
+    location.reload();
+}
+
+// Auto-Resize Textarea
+chatInput.addEventListener('input', () => {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 150) + 'px';
+});
+
+// Voice-Input (Web Speech API)
+let recognition = null;
+let isRecording = false;
+function toggleVoiceInput() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert('Spracheingabe wird in deinem Browser nicht unterstützt');
+        return;
+    }
+    const VBtn = document.getElementById('voiceBtn');
+    if (isRecording) {
+        if (recognition) recognition.stop();
+        return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SR();
+    recognition.lang = 'de-DE';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.onstart = () => {
+        isRecording = true;
+        VBtn.style.background = '#dc2626'; VBtn.style.color = '#fff'; VBtn.textContent = '⏹';
+    };
+    recognition.onresult = (event) => {
+        let txt = '';
+        for (let i = 0; i < event.results.length; i++) txt += event.results[i][0].transcript;
+        chatInput.value = txt;
+    };
+    recognition.onend = () => {
+        isRecording = false;
+        VBtn.style.background = ''; VBtn.style.color = ''; VBtn.textContent = '🎙';
+    };
+    recognition.start();
+}
+
+// Auto-Scroll bei Initial-Load
+chatBox.scrollTop = chatBox.scrollHeight;
+chatInput.focus();
+</script>
+{% endblock %}
