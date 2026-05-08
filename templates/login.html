@@ -6,73 +6,106 @@
     <title>Login – NT Pro Academy Control Hub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #f7f8fb;
+            background: #f6f7fb;
+            background-image:
+                radial-gradient(at 15% 20%, rgba(184,144,46,0.06) 0px, transparent 50%),
+                radial-gradient(at 85% 80%, rgba(15,28,63,0.05) 0px, transparent 50%);
             min-height: 100vh; display: flex; align-items: center; justify-content: center;
-            -webkit-font-smoothing: antialiased;
+            -webkit-font-smoothing: antialiased; padding: 20px;
         }
         .layout {
             display: grid; grid-template-columns: 1fr 1fr;
-            width: 100%; max-width: 1100px; min-height: 600px;
-            background: #fff; border-radius: 14px; overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 12px 40px rgba(15,28,63,0.08);
-            border: 1px solid #e5e8ee;
+            width: 100%; max-width: 1100px; min-height: 620px;
+            background: #fff; border-radius: 24px; overflow: hidden;
+            box-shadow: 0 1px 3px rgba(15,28,63,0.06), 0 24px 60px rgba(15,28,63,0.12);
+            border: 1px solid rgba(255,255,255,0.4);
+            animation: fadeUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         .left {
-            background: linear-gradient(135deg, #0f1c3f 0%, #1a2c5b 100%);
-            padding: 50px 44px; color: #fff;
+            background: linear-gradient(135deg, #0a132d 0%, #1a2c5b 100%);
+            padding: 56px 48px; color: #fff;
             display: flex; flex-direction: column; justify-content: space-between;
             position: relative; overflow: hidden;
         }
-        .left::after {
-            content: ''; position: absolute; right: -100px; bottom: -100px;
-            width: 300px; height: 300px; border-radius: 50%;
-            background: radial-gradient(circle, rgba(212,168,67,0.12) 0%, transparent 70%);
+        .left::before {
+            content: ''; position: absolute; left: -80px; top: -80px;
+            width: 280px; height: 280px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(212,168,67,0.18) 0%, transparent 70%);
         }
+        .left::after {
+            content: ''; position: absolute; right: -120px; bottom: -120px;
+            width: 380px; height: 380px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(212,168,67,0.14) 0%, transparent 70%);
+        }
+        .left > * { position: relative; z-index: 1; }
         .brand-icon {
-            width: 44px; height: 44px; border-radius: 10px;
-            background: rgba(212,168,67,0.18); border: 1px solid rgba(212,168,67,0.3);
+            width: 52px; height: 52px; border-radius: 14px;
+            background: linear-gradient(135deg, rgba(212,168,67,0.28), rgba(212,168,67,0.12));
+            border: 1px solid rgba(212,168,67,0.35);
             color: #d4a843; display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 16px; margin-bottom: 24px;
+            font-weight: 800; font-size: 17px; margin-bottom: 28px;
+            box-shadow: 0 8px 24px rgba(212,168,67,0.15), inset 0 1px 0 rgba(212,168,67,0.4);
         }
         .brand-title {
-            font-size: 26px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px;
+            font-size: 30px; font-weight: 900; letter-spacing: -0.7px; margin-bottom: 8px;
+            background: linear-gradient(135deg, #fff 0%, #d4a843 100%);
+            -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
         }
-        .brand-subtitle { font-size: 13px; color: rgba(255,255,255,0.6); letter-spacing: 1px; text-transform: uppercase; font-weight: 600; }
-        .pitch { margin-top: 36px; }
-        .pitch-item { display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start; }
+        .brand-subtitle { font-size: 12px; color: rgba(255,255,255,0.55); letter-spacing: 2.5px; text-transform: uppercase; font-weight: 700; }
+        .pitch { margin-top: 44px; }
+        .pitch-item {
+            display: flex; gap: 14px; margin-bottom: 18px; align-items: flex-start;
+            padding: 10px; border-radius: 12px;
+            transition: background 0.2s;
+        }
+        .pitch-item:hover { background: rgba(255,255,255,0.04); }
         .pitch-item-icon {
-            width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
-            background: rgba(212,168,67,0.15); color: #d4a843;
-            display: flex; align-items: center; justify-content: center; font-size: 13px;
+            width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+            background: linear-gradient(135deg, rgba(212,168,67,0.22), rgba(212,168,67,0.08));
+            border: 1px solid rgba(212,168,67,0.25);
+            color: #d4a843; display: flex; align-items: center; justify-content: center; font-size: 15px;
         }
-        .pitch-item-text { font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.5; }
-        .pitch-item-text strong { color: #fff; }
-        .footer-note { font-size: 11px; color: rgba(255,255,255,0.4); position: relative; z-index: 1; letter-spacing: 0.5px; }
-        .right { padding: 56px 50px; display: flex; flex-direction: column; justify-content: center; }
-        .right h1 { font-size: 24px; font-weight: 800; color: #1a1f36; margin-bottom: 6px; letter-spacing: -0.4px; }
-        .right .desc { font-size: 13px; color: #6b7280; margin-bottom: 32px; }
-        .form-group { margin-bottom: 18px; }
+        .pitch-item-text { font-size: 13px; color: rgba(255,255,255,0.78); line-height: 1.55; padding-top: 7px; }
+        .pitch-item-text strong { color: #fff; font-weight: 700; }
+        .footer-note { font-size: 11px; color: rgba(255,255,255,0.35); letter-spacing: 0.5px; }
+        .right { padding: 60px 56px; display: flex; flex-direction: column; justify-content: center; }
+        .right h1 { font-size: 28px; font-weight: 800; color: #0f172a; margin-bottom: 8px; letter-spacing: -0.6px; }
+        .right .desc { font-size: 14px; color: #64748b; margin-bottom: 36px; line-height: 1.5; }
+        .form-group { margin-bottom: 20px; }
         label {
-            display: block; font-size: 11px; font-weight: 600; color: #6b7280;
-            text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 7px;
+            display: block; font-size: 11px; font-weight: 700; color: #64748b;
+            text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px;
         }
         input {
-            width: 100%; padding: 12px 14px; border: 1px solid #d1d5dc;
-            border-radius: 8px; font-size: 14px; color: #1a1f36; background: #fff;
-            font-family: inherit; transition: all 0.15s;
+            width: 100%; padding: 13px 16px; border: 1.5px solid #e2e8f0;
+            border-radius: 12px; font-size: 14px; color: #0f172a; background: #fff;
+            font-family: inherit; transition: all 0.18s ease;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
         }
-        input:focus { outline: none; border-color: #0f1c3f; box-shadow: 0 0 0 3px rgba(15,28,63,0.08); }
+        input:hover { border-color: #cbd5e1; }
+        input:focus { outline: none; border-color: #0f1c3f; box-shadow: 0 0 0 4px rgba(15,28,63,0.08), 0 1px 2px rgba(15,23,42,0.04); }
         .btn-login {
-            width: 100%; padding: 13px; background: #0f1c3f; color: #fff;
-            border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
-            cursor: pointer; transition: all 0.15s; margin-top: 8px;
+            width: 100%; padding: 14px; background: linear-gradient(135deg, #0f1c3f 0%, #1a2c5b 100%);
+            color: #fff; border: none; border-radius: 12px;
+            font-size: 14px; font-weight: 700; cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); margin-top: 8px;
+            font-family: inherit; letter-spacing: -0.1px;
+            box-shadow: 0 4px 12px rgba(15,28,63,0.18), inset 0 1px 0 rgba(255,255,255,0.1);
         }
-        .btn-login:hover { background: #1a2c5b; }
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(15,28,63,0.28), inset 0 1px 0 rgba(255,255,255,0.15);
+        }
+        .btn-login:active { transform: translateY(0); }
         .flash {
             padding: 11px 14px; border-radius: 8px; margin-bottom: 18px;
             font-size: 13px; background: #fef0ee; color: #b8311a; border: 1px solid #f5c8c0;
