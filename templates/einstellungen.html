@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Einstellungen – NT Pro Academy{% endblock %}
+{% block page_title %}⚙ Einstellungen{% endblock %}
+
+{% block content %}
+<div style="max-width:780px">
+
+    <!-- Anzeige & Theme -->
+    <div class="card">
+        <div class="card-title">🎨 Anzeige & Theme</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">Wähle, wie das Control Hub für dich aussieht.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+            <button onclick="setTheme('light')" id="theme-light" class="theme-card-btn">
+                <div class="theme-preview" style="background:linear-gradient(135deg,#fff,#f6f7fb);border:1px solid #ebeef4">
+                    <div style="background:#0f1c3f;height:8px;width:40%;border-radius:2px"></div>
+                    <div style="background:#b8902e;height:6px;width:60%;border-radius:2px;margin-top:6px"></div>
+                </div>
+                <div style="font-weight:700;font-size:13px;color:var(--text);margin-top:10px">☀️ Hell</div>
+                <div style="font-size:11px;color:var(--text-muted)">Tageslicht-Modus</div>
+            </button>
+            <button onclick="setTheme('dark')" id="theme-dark" class="theme-card-btn">
+                <div class="theme-preview" style="background:linear-gradient(135deg,#131829,#0a0e1a);border:1px solid #1f2640">
+                    <div style="background:#d4a843;height:8px;width:40%;border-radius:2px"></div>
+                    <div style="background:#60a5fa;height:6px;width:60%;border-radius:2px;margin-top:6px"></div>
+                </div>
+                <div style="font-weight:700;font-size:13px;color:var(--text);margin-top:10px">🌙 Dunkel</div>
+                <div style="font-size:11px;color:var(--text-muted)">Augen-Schoner</div>
+            </button>
+            <button onclick="setTheme('auto')" id="theme-auto" class="theme-card-btn">
+                <div class="theme-preview" style="background:linear-gradient(135deg,#fff 0%,#fff 50%,#0a0e1a 50%,#131829 100%);border:1px solid var(--border)">
+                    <div style="background:var(--gold);height:8px;width:40%;border-radius:2px"></div>
+                    <div style="background:#60a5fa;height:6px;width:60%;border-radius:2px;margin-top:6px;opacity:0.6"></div>
+                </div>
+                <div style="font-weight:700;font-size:13px;color:var(--text);margin-top:10px">🌓 System</div>
+                <div style="font-size:11px;color:var(--text-muted)">Folgt deinem Gerät</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Account-Verknüpfung -->
+    <div class="card">
+        <div class="card-title">👤 Mein Account</div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" value="{{ user.name }}" disabled>
+            </div>
+            <div class="form-group">
+                <label>E-Mail (Login)</label>
+                <input type="text" value="{{ user.email }}" disabled>
+            </div>
+            <div class="form-group">
+                <label>Karriere-Stufe</label>
+                {% if my_career %}
+                <input type="text" value="{{ my_career.short }} – {{ my_career.name }}" disabled style="color:{{ my_career.color }};font-weight:700">
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label>Mitglied seit</label>
+                <input type="text" value="{{ user.joined_date }}" disabled>
+            </div>
+        </div>
+        <div style="margin-top:14px;font-size:12px;color:var(--text-muted)">
+            Profil-Daten ändern (Telefon, Geburtstag, Vision, Passwort): <a href="/profil" style="color:var(--gold);font-weight:600">→ Mein Profil</a>
+        </div>
+    </div>
+
+    <!-- Daten -->
+    <div class="card">
+        <div class="card-title">💾 Meine Daten</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="settings-row">
+                <div>
+                    <div style="font-weight:700;color:var(--text);font-size:14px">Login-Aktivität</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+                        {% if user.last_login %}Letzter Login: {{ user.last_login[:16] }} · Insgesamt {{ user.login_count or 0 }} Logins{% else %}Noch keine Login-Daten{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% if current_user.role == 'admin' %}
+            <div class="settings-row">
+                <div>
+                    <div style="font-weight:700;color:var(--text);font-size:14px">📥 Datenbank-Backup</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Lade die komplette DB als Sicherung herunter (mind. 1× pro Woche empfohlen)</div>
+                </div>
+                <a href="/admin/backup" class="btn btn-secondary btn-sm">Download</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Benachrichtigungen (Slot für Zukunft) -->
+    <div class="card">
+        <div class="card-title">🔔 Benachrichtigungen</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Konfiguration kommt bald — derzeit erscheinen Hinweise live im KI-Coach.</div>
+        <div style="display:flex;flex-direction:column;gap:10px;opacity:0.6">
+            <label class="settings-row" style="cursor:not-allowed">
+                <div>
+                    <div style="font-weight:700;color:var(--text);font-size:14px">Daily Briefing per E-Mail</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Tägliche KI-Zusammenfassung um 7:00 Uhr</div>
+                </div>
+                <input type="checkbox" disabled style="width:18px;height:18px">
+            </label>
+            <label class="settings-row" style="cursor:not-allowed">
+                <div>
+                    <div style="font-weight:700;color:var(--text);font-size:14px">Termin-Erinnerung</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">1 Tag vor jedem Termin</div>
+                </div>
+                <input type="checkbox" disabled style="width:18px;height:18px">
+            </label>
+            <label class="settings-row" style="cursor:not-allowed">
+                <div>
+                    <div style="font-weight:700;color:var(--text);font-size:14px">Geburtstags-Hinweise</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Bei Kunden- oder Partner-Geburtstag</div>
+                </div>
+                <input type="checkbox" disabled style="width:18px;height:18px">
+            </label>
+        </div>
+        <div style="margin-top:14px;padding:10px 14px;background:var(--blue-soft);border:1px solid var(--blue);border-radius:8px;font-size:12px;color:var(--text)">
+            💡 <strong>Bald verfügbar</strong> — sobald E-Mail-Versand konfiguriert ist (z.B. Brevo Free Tier).
+        </div>
+    </div>
+
+    <!-- Datenschutz -->
+    <div class="card">
+        <div class="card-title">🔒 Datenschutz & Sicherheit</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="settings-row">
+                <div>
+                    <div style="font-weight:700;color:var(--text);font-size:14px">Passwort ändern</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Aktuell verschlüsselt mit pbkdf2:sha256</div>
+                </div>
+                <a href="/profil" class="btn btn-secondary btn-sm">Profil →</a>
+            </div>
+            <div class="settings-row">
+                <div>
+                    <div style="font-weight:700;color:var(--text);font-size:14px">Sichtbarkeit</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+                        {% if current_user.role == 'admin' %}Du siehst <strong>alle</strong> Mitglieder + Vertriebs-Daten (Admin){% else %}Du siehst nur <strong>deine eigene Downline</strong> + globale Top-Performer-Liste{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Über -->
+    <div class="card">
+        <div class="card-title">ℹ️ Über</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.7">
+            <strong style="color:var(--text)">NT Pro Academy — Control Hub</strong><br>
+            Strukturvertrieb-Management mit echtem Differenz-Provisionssystem · KI-Coach · Karriere-Engine.<br>
+            <span style="font-size:11px;color:var(--text-soft)">Version 2026.05 · Built for performance.</span>
+        </div>
+    </div>
+
+</div>
+
+<style>
+    .theme-card-btn {
+        background: var(--surface); border: 2px solid var(--border);
+        border-radius: 14px; padding: 16px; cursor: pointer; text-align: left;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        font-family: inherit;
+    }
+    .theme-card-btn:hover { border-color: var(--gold); transform: translateY(-2px); }
+    .theme-card-btn.active { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(184,144,46,0.15); }
+    .theme-preview { padding: 14px; border-radius: 10px; height: 70px; }
+    .settings-row {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 14px; background: var(--bg-2); border: 1px solid var(--border);
+        border-radius: 10px; gap: 14px;
+    }
+</style>
+<script>
+function setTheme(t) {
+    if (t === 'auto') {
+        const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        try { localStorage.setItem('ntpro-theme', 'auto'); } catch(e){}
+    } else {
+        document.documentElement.setAttribute('data-theme', t);
+        try { localStorage.setItem('ntpro-theme', t); } catch(e){}
+    }
+    markActive();
+    if (window.Chart && Chart.instances) {
+        Object.values(Chart.instances).forEach(c => { try { c.update(); } catch(e){} });
+    }
+}
+function markActive() {
+    const stored = localStorage.getItem('ntpro-theme') || 'light';
+    document.querySelectorAll('.theme-card-btn').forEach(b => b.classList.remove('active'));
+    const el = document.getElementById('theme-' + stored);
+    if (el) el.classList.add('active');
+}
+markActive();
+</script>
+{% endblock %}

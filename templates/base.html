@@ -86,17 +86,22 @@
         }
 
         /* === DARK-MODE CATCH-ALLS für hardcodierte Inline-Styles === */
-        [data-theme="dark"] [style*="background:#fff"]:not([style*="rgba"]),
-        [data-theme="dark"] [style*="background: #fff"]:not([style*="rgba"]),
+        [data-theme="dark"] [style*="background:#fff"]:not([style*="rgba"]):not([style*="rgb("]),
+        [data-theme="dark"] [style*="background: #fff"]:not([style*="rgba"]):not([style*="rgb("]),
         [data-theme="dark"] [style*="background:#ffffff"],
-        [data-theme="dark"] [style*="background:white"] {
+        [data-theme="dark"] [style*="background: #ffffff"],
+        [data-theme="dark"] [style*="background:white"],
+        [data-theme="dark"] [style*="background: white"] {
             background: var(--surface) !important;
         }
         [data-theme="dark"] [style*="background:#fafbfc"],
         [data-theme="dark"] [style*="background: #fafbfc"],
+        [data-theme="dark"] [style*="background:#fafbff"],
         [data-theme="dark"] [style*="background:#f6f7fb"],
+        [data-theme="dark"] [style*="background: #f6f7fb"],
         [data-theme="dark"] [style*="background:#fbfcfe"],
-        [data-theme="dark"] [style*="background:#f8fafc"] {
+        [data-theme="dark"] [style*="background:#f8fafc"],
+        [data-theme="dark"] [style*="background:#f5f5f7"] {
             background: var(--bg-2) !important;
         }
         [data-theme="dark"] [style*="color:#0f1c3f"],
@@ -104,20 +109,37 @@
         [data-theme="dark"] [style*="color:#1a1f36"],
         [data-theme="dark"] [style*="color: #1a1f36"],
         [data-theme="dark"] [style*="color:#1a2c5b"],
+        [data-theme="dark"] [style*="color: #1a2c5b"],
         [data-theme="dark"] [style*="color:#0f172a"],
+        [data-theme="dark"] [style*="color: #0f172a"],
         [data-theme="dark"] [style*="color:#0a132d"] {
             color: var(--text) !important;
         }
         [data-theme="dark"] [style*="color:#6b7280"],
-        [data-theme="dark"] [style*="color:#64748b"] {
+        [data-theme="dark"] [style*="color: #6b7280"],
+        [data-theme="dark"] [style*="color:#64748b"],
+        [data-theme="dark"] [style*="color: #64748b"] {
             color: var(--text-muted) !important;
         }
         [data-theme="dark"] [style*="color:#9ca3af"],
-        [data-theme="dark"] [style*="color:#94a3b8"] {
+        [data-theme="dark"] [style*="color: #9ca3af"],
+        [data-theme="dark"] [style*="color:#94a3b8"],
+        [data-theme="dark"] [style*="color: #94a3b8"] {
             color: var(--text-soft) !important;
         }
-        [data-theme="dark"] [style*="color:#7a5c1a"] {
+        [data-theme="dark"] [style*="color:#7a5c1a"],
+        [data-theme="dark"] [style*="color: #7a5c1a"],
+        [data-theme="dark"] [style*="color:#7a3d0a"] {
             color: var(--gold-light) !important;
+        }
+        /* Borders die hell sind */
+        [data-theme="dark"] [style*="border:1px solid #ebeef4"],
+        [data-theme="dark"] [style*="border: 1px solid #ebeef4"],
+        [data-theme="dark"] [style*="border:1px solid #d1d5dc"],
+        [data-theme="dark"] [style*="border: 1px solid #d1d5dc"],
+        [data-theme="dark"] [style*="border:1px solid #f0f0f0"],
+        [data-theme="dark"] [style*="border:1px solid #e5e8ee"] {
+            border-color: var(--border) !important;
         }
         /* Helle Highlight-Backgrounds: zu dunkleren Akzenten */
         [data-theme="dark"] [style*="background:#faf6ec"] { background: var(--gold-soft) !important; }
@@ -176,14 +198,31 @@
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg); color: var(--text);
-            font-feature-settings: "cv02","cv03","cv04","cv11";
+            font-feature-settings: "cv02","cv03","cv04","cv11", "ss01", "ss02";
             -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+        /* Modernes Ambient-Light Background — subtle Glow-Effekte */
+        body::before {
+            content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(184,144,46,0.05), transparent 60%),
+                radial-gradient(ellipse 60% 40% at 100% 50%, rgba(15,28,63,0.04), transparent 60%);
+        }
+        [data-theme="dark"] body::before {
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212,168,67,0.08), transparent 60%),
+                radial-gradient(ellipse 60% 40% at 100% 50%, rgba(96,165,250,0.05), transparent 60%);
         }
 
-        /* Sidebar */
+        /* Sidebar — Premium Glassmorphism */
         .sidebar {
             position: fixed; left: 0; top: 0; width: 256px; height: 100vh;
-            background: var(--surface); border-right: 1px solid var(--border);
+            background: color-mix(in srgb, var(--surface) 92%, transparent);
+            backdrop-filter: blur(20px) saturate(150%);
+            -webkit-backdrop-filter: blur(20px) saturate(150%);
+            border-right: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
             z-index: 100; display: flex; flex-direction: column;
         }
         .sidebar-logo {
@@ -256,18 +295,28 @@
         /* Main */
         .main { margin-left: 256px; min-height: 100vh; }
         .topbar {
-            background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            background: color-mix(in srgb, var(--surface) 78%, transparent);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
             padding: 18px 36px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
             display: flex; align-items: center; justify-content: space-between;
             position: sticky; top: 0; z-index: 50;
         }
         .topbar-title { font-size: 19px; font-weight: 800; color: var(--text); letter-spacing: -0.4px; }
         .topbar-actions { display: flex; gap: 10px; }
-        .content { padding: 28px 36px; max-width: 1500px; animation: fadeInUp 0.35s ease; }
+        .content { padding: 32px 40px; max-width: 1520px; animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(8px); }
+            from { opacity: 0; transform: translateY(12px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes pulseGold {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(184,144,46,0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(184,144,46,0); }
         }
 
         /* Modern Cards (Premium Look) */
@@ -536,6 +585,9 @@
             </a>
             <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}">
                 <span class="nav-icon">★</span> Mein Profil & Vision
+            </a>
+            <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path %}active{% endif %}">
+                <span class="nav-icon">⚙</span> Einstellungen
             </a>
 
             <div class="nav-section">Vertrieb</div>

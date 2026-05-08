@@ -46,25 +46,31 @@ CAREER_LEVELS = [
          {'type': 'gesamt_eh', 'target': 9000,
           'label': 'Gesamt-EH', 'hint': 'eigen + Team'},
          {'type': 'qualified_straenge', 'min_count': 2, 'min_per_strang': 1200, 'max_per_strang': 4500,
-          'label': 'Mind. 2 qualifizierte Stränge', 'hint': 'je 1.200 - 4.500 EH (Strang zählt erst ab 1.200)'}
+          'label': 'Mind. 2 qualifizierte Stränge', 'hint': 'je 1.200 - 4.500 EH (Strang zählt erst ab 1.200)'},
+         {'type': 'restbereich_min', 'min_eh': 1200,
+          'label': 'Restbereich min. 1.200 EH', 'hint': 'Pflicht: eigene EH + kleine Stränge'}
      ]},
     {'level': 5, 'name': 'Direktionsrepräsentant', 'short': 'DREP', 'min_eh': 25000, 'commission': 20.70, 'color': '#c08a2e',
      'rules': [
          {'type': 'gesamt_eh', 'target': 25000,
           'label': 'Gesamt-EH', 'hint': 'eigen + Team'},
+         {'type': 'qualified_straenge', 'min_count': 2, 'min_per_strang': 1200, 'max_per_strang': 99999,
+          'label': 'Mind. 2 qualifizierte Stränge', 'hint': 'je mind. 1.200 EH'},
          {'type': 'max_per_strang', 'cap': 12500,
-          'label': 'Max. 12.500 EH pro Strang', 'hint': 'Diversifikation: 2 Stränge max 12.500 EH'},
+          'label': 'Max. 12.500 EH pro Strang', 'hint': 'Diversifikation'},
          {'type': 'restbereich_min', 'min_eh': 1800,
-          'label': 'Restbereich min. 1.800 EH', 'hint': 'Eigene EH + kleine Stränge'}
+          'label': 'Restbereich min. 1.800 EH', 'hint': 'Pflicht: eigene EH + kleine Stränge'}
      ]},
     {'level': 6, 'name': 'Generalrepräsentant',    'short': 'GREP', 'min_eh': 60000, 'commission': 23.00, 'color': '#92400e',
      'rules': [
          {'type': 'gesamt_eh', 'target': 60000,
           'label': 'Gesamt-EH', 'hint': 'eigen + Team'},
+         {'type': 'qualified_straenge', 'min_count': 2, 'min_per_strang': 1200, 'max_per_strang': 99999,
+          'label': 'Mind. 2 qualifizierte Stränge', 'hint': 'je mind. 1.200 EH'},
          {'type': 'max_per_strang', 'cap': 12500,
           'label': 'Max. 12.500 EH pro Strang', 'hint': 'Wie Stufe 5'},
          {'type': 'restbereich_min', 'min_eh': 2400,
-          'label': 'Restbereich min. 2.400 EH', 'hint': 'Eigene EH + kleine Stränge'}
+          'label': 'Restbereich min. 2.400 EH', 'hint': 'Pflicht: eigene EH + kleine Stränge'}
      ]},
 ]
 
@@ -1523,6 +1529,22 @@ def profil():
     user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     db.close()
     return render_template('profil.html', user=user)
+
+
+@app.route('/einstellungen', methods=['GET', 'POST'])
+@login_required
+def einstellungen():
+    """Account-Einstellungen für jeden User."""
+    db = get_db()
+    if request.method == 'POST':
+        # Aktuell speichern wir hauptsächlich Vision/Telefon im Profil,
+        # Theme bleibt clientseitig (LocalStorage). Hier können später
+        # weitere Server-Side Settings dazu (E-Mail-Benachrichtigungen, etc.)
+        flash('Einstellungen gespeichert!', 'success')
+        return redirect(url_for('einstellungen'))
+    user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
+    db.close()
+    return render_template('einstellungen.html', user=user)
 
 
 @app.route('/api/vision-seen', methods=['POST'])
