@@ -1587,6 +1587,8 @@ ACHIEVEMENTS = [
     {'code': 'contracts_50',      'icon': '📊', 'name': '50 Verträge',              'desc': '50 abgeschlossene Verträge',                               'tier': 'gold'},
     # === ECHTE BELOHNUNGEN (Reward-Tier) ===
     {'code': 'reward_ferrari',         'icon': '🏎️', 'name': 'Ferrari-Abzeichen',         'desc': '99 EH erreicht — exklusives Ferrari-Pin als Belohnung',                'tier': 'reward'},
+    {'code': 'reward_goldene_nadel',   'icon': '📎', 'name': 'Goldene Nadel',            'desc': '500 EH + 11 Anträge innerhalb von 30 Tagen — goldene Nadel',          'tier': 'reward'},
+    {'code': 'reward_platin_nadel',    'icon': '📎', 'name': 'Platin Nadel',             'desc': '6 direkte Partner in 6 Monaten mit je 66 EH — Platin-Nadel',          'tier': 'reward'},
     {'code': 'reward_montblanc_pen',   'icon': '🖋️', 'name': 'Montblanc-Kugelschreiber', 'desc': 'Stufe 3 (HREP) erreicht — hochwertiger Montblanc-Kuli',               'tier': 'reward'},
     {'code': 'reward_montblanc_bag',   'icon': '👜', 'name': 'Montblanc-Tasche',         'desc': '666 EH in 2 Monaten produziert — Montblanc-Tasche als Belohnung',     'tier': 'reward'},
     {'code': 'reward_breitling',       'icon': '⌚', 'name': 'Breitling-Uhr',            'desc': 'Stufe 4 (CREP) erreicht — Breitling-Uhr im Wert von 7.000 €',         'tier': 'reward'},
@@ -1718,6 +1720,56 @@ def check_achievements_for_user(user_id):
     ).fetchone()['s']
     if eh_60d >= 666:
         maybe_unlock('reward_montblanc_bag')
+
+    # Goldene Nadel: 500 EH + 11 Anträge in 30 Tagen (rolling)
+    # Pragmatisch: irgendein 30-Tage-Fenster mit beiden Bedingungen
+    contracts_history = db.execute('''
+        SELECT date(abschluss_date) as ad, einheiten FROM contracts
+        WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"
+        AND abschluss_date IS NOT NULL
+        ORDER BY abschluss_date ASC
+    ''', (user_id,)).fetchall()
+    gold_nadel = False
+    for i, c1 in enumerate(contracts_history):
+        try:
+            d1 = datetime.strptime(c1['ad'], '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            continue
+        cnt, eh_sum = 0, 0.0
+        for c2 in contracts_history[i:]:
+            try:
+                d2 = datetime.strptime(c2['ad'], '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                continue
+            if (d2 - d1).days > 30:
+                break
+            cnt += 1
+            eh_sum += c2['einheiten'] or 0
+            if cnt >= 11 and eh_sum >= 500:
+                gold_nadel = True
+                break
+        if gold_nadel:
+            break
+    if gold_nadel:
+        maybe_unlock('reward_goldene_nadel')
+
+    # Platin Nadel: 6 direkte Partner in 6 Monaten mit je 66 EH
+    direct_180d = db.execute('''
+        SELECT id FROM users
+        WHERE parent_id=? AND active=1
+        AND date(joined_date) >= date("now","-180 days")
+    ''', (user_id,)).fetchall()
+    qualified = 0
+    for p in direct_180d:
+        p_eh = db.execute('''
+            SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
+            WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"
+            AND date(abschluss_date) >= date("now","-180 days")
+        ''', (p['id'],)).fetchone()['s']
+        if p_eh >= 66:
+            qualified += 1
+    if qualified >= 6:
+        maybe_unlock('reward_platin_nadel')
 
     db.close()
     return new_unlocks
@@ -3274,6 +3326,29 @@ def login():
         record_login_attempt(block_key, success=False)
         flash('Falsche E-Mail oder Passwort', 'error')
     return render_template('login.html')
+
+
+@app.route('/favicon.svg')
+def favicon_svg():
+    """SVG-Favicon mit NT-Logo (Navy + Gold)."""
+    svg = '''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0f1c3f"/>
+            <stop offset="100%" stop-color="#1a2c5b"/>
+        </linearGradient>
+    </defs>
+    <rect width="100" height="100" rx="22" fill="url(#bg)"/>
+    <text x="50" y="68" font-family="Inter, Arial, sans-serif" font-weight="900" font-size="42" fill="#d4a843" text-anchor="middle" letter-spacing="-3">NT</text>
+</svg>'''
+    return Response(svg, mimetype='image/svg+xml', headers={'Cache-Control': 'public, max-age=86400'})
+
+
+@app.route('/favicon.ico')
+def favicon_ico():
+    """Fallback für Browser die kein SVG-Favicon können."""
+    return redirect('/favicon.svg', code=302)
 
 
 @app.route('/api/health')
