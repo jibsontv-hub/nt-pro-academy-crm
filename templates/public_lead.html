@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Werde Geschäftspartner – NT Pro Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #0a0e1a; color: #f1f5f9;
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+}
+body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+        radial-gradient(ellipse 70% 60% at 30% 0%, rgba(212,168,67,0.18), transparent 70%),
+        radial-gradient(ellipse 60% 50% at 100% 50%, rgba(96,165,250,0.1), transparent 70%);
+}
+.wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 60px; }
+.brand-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, #d4a843, #b8902e);
+    color: #0f1c3f; font-weight: 900; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+}
+.brand-text strong { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; display: block; }
+.brand-text small { font-size: 11px; color: #64748b; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
+
+.hero { display: grid; grid-template-columns: 1fr 480px; gap: 60px; align-items: start; }
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr; gap: 40px; } }
+
+.hero-left h1 {
+    font-size: 56px; font-weight: 900; letter-spacing: -2px; line-height: 1.05;
+    margin-bottom: 20px;
+}
+.hero-left h1 .accent {
+    background: linear-gradient(135deg, #d4a843, #fff);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+@media (max-width: 600px) { .hero-left h1 { font-size: 38px; } }
+.hero-left p { font-size: 17px; color: #94a3b8; line-height: 1.6; margin-bottom: 28px; max-width: 480px; }
+.benefits { display: flex; flex-direction: column; gap: 14px; }
+.benefit {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 16px 18px; background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06); border-radius: 14px;
+}
+.benefit-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(212,168,67,0.15); color: #d4a843;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-size: 16px;
+}
+.benefit-title { font-weight: 700; font-size: 14px; }
+.benefit-desc { font-size: 12px; color: #94a3b8; margin-top: 3px; line-height: 1.5; }
+
+.form-card {
+    background: rgba(19,24,41,0.7); backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 20px;
+    padding: 36px 32px; box-shadow: 0 25px 80px rgba(0,0,0,0.5);
+    position: sticky; top: 30px;
+}
+.form-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px; }
+.form-sub { font-size: 13px; color: #94a3b8; margin-bottom: 24px; line-height: 1.5; }
+label {
+    font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.7px;
+    font-weight: 700; display: block; margin-bottom: 6px; margin-top: 14px;
+}
+label:first-of-type { margin-top: 0; }
+input, textarea {
+    width: 100%; padding: 12px 14px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+    color: #f1f5f9; font-size: 14px; font-family: inherit; transition: all 0.2s;
+}
+input:focus, textarea:focus { outline: none; border-color: #d4a843; background: rgba(255,255,255,0.06); }
+input::placeholder, textarea::placeholder { color: #475569; }
+textarea { resize: vertical; min-height: 80px; }
+.privacy-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; font-size: 12px; color: #94a3b8; line-height: 1.5; }
+.privacy-row input { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; accent-color: #d4a843; }
+.privacy-row a { color: #d4a843; text-decoration: none; font-weight: 600; }
+.btn-submit {
+    width: 100%; padding: 14px; margin-top: 20px;
+    background: linear-gradient(135deg, #d4a843, #f0c970);
+    color: #0f1c3f; border: none; border-radius: 12px; font-size: 15px; font-weight: 800;
+    cursor: pointer; font-family: inherit;
+    box-shadow: 0 4px 14px rgba(212,168,67,0.35);
+    transition: all 0.2s;
+}
+.btn-submit:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(212,168,67,0.5); }
+
+.success {
+    text-align: center; padding: 36px 20px;
+}
+.success-icon {
+    width: 80px; height: 80px; border-radius: 24px; margin: 0 auto 20px;
+    background: linear-gradient(135deg, #34d399, #10b981);
+    display: flex; align-items: center; justify-content: center; font-size: 40px;
+}
+.success h2 { font-size: 26px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
+.success p { font-size: 14px; color: #94a3b8; line-height: 1.6; }
+
+.error-box {
+    background: rgba(220,38,38,0.15); color: #fca5a5;
+    border: 1px solid rgba(220,38,38,0.3); border-radius: 10px;
+    padding: 12px 16px; font-size: 13px; margin-bottom: 14px;
+}
+.footer { text-align: center; margin-top: 60px; font-size: 11px; color: #475569; }
+.footer a { color: #94a3b8; text-decoration: none; margin: 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="brand">
+        <div class="brand-icon">NT</div>
+        <div class="brand-text">
+            <strong>NT Pro Academy</strong>
+            <small>Strukturvertrieb · Karriere · Vermögen</small>
+        </div>
+    </div>
+
+    {% if success %}
+    <div class="form-card" style="max-width:560px;margin:60px auto;position:static">
+        <div class="success">
+            <div class="success-icon">✓</div>
+            <h2>{% if duplicate %}Wir kennen dich schon!{% else %}Vielen Dank!{% endif %}</h2>
+            <p>
+                {% if duplicate %}
+                Mit dieser E-Mail haben wir schon eine Anfrage erhalten. Wir melden uns bei dir, sobald jemand Zeit hat.
+                {% else %}
+                Deine Anmeldung ist eingegangen. <strong style="color:#d4a843">Wir melden uns innerhalb von 24-48 Std.</strong> bei dir.
+                <br><br>
+                In der Zwischenzeit: schau dich auf unseren Social-Media-Kanälen um — da gibt's viele Insights zu Karriere, Vertrieb und Finanzwissen.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    {% else %}
+    <div class="hero">
+        <div class="hero-left">
+            <h1>Werde Teil von <span class="accent">NT Pro Academy</span></h1>
+            <p>Strukturvertrieb mit echtem System: Karriere-Tracking, Provisionen automatisch, KI-Coach, Onboarding mit Sprachausgabe — alles in einem Cockpit.</p>
+            <div class="benefits">
+                <div class="benefit">
+                    <div class="benefit-icon">⚡</div>
+                    <div>
+                        <div class="benefit-title">Klare Karriere-Wege</div>
+                        <div class="benefit-desc">REP → LREP → HREP → CREP → DREP → GREP. Klare Kriterien, automatische Beförderung.</div>
+                    </div>
+                </div>
+                <div class="benefit">
+                    <div class="benefit-icon">💰</div>
+                    <div>
+                        <div class="benefit-title">Faire Differenz-Provisionen</div>
+                        <div class="benefit-desc">5,00 - 23,00 €/EH je nach Stufe. Volle Transparenz, automatische Auszahlung.</div>
+                    </div>
+                </div>
+                <div class="benefit">
+                    <div class="benefit-icon">🧠</div>
+                    <div>
+                        <div class="benefit-title">KI-Mentor</div>
+                        <div class="benefit-desc">Tägliche Empfehlungen, Coaching-Diagnose, Wochen-Briefing — wie ein echter Mentor.</div>
+                    </div>
+                </div>
+                <div class="benefit">
+                    <div class="benefit-icon">🏆</div>
+                    <div>
+                        <div class="benefit-title">Wettbewerb + Trophäen</div>
+                        <div class="benefit-desc">27 Achievements, Wochen-Ranking, Live-Feed — Motivation pur.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form class="form-card" method="POST">
+            <div class="form-title">📋 Jetzt unverbindlich anmelden</div>
+            <div class="form-sub">Wir melden uns innerhalb von 24-48 Std. bei dir.</div>
+
+            {% if error %}<div class="error-box">⚠️ {{ error }}</div>{% endif %}
+
+            <label>Vollständiger Name *</label>
+            <input type="text" name="name" required placeholder="Max Mustermann" autocomplete="name">
+
+            <label>E-Mail *</label>
+            <input type="email" name="email" required placeholder="max@email.de" autocomplete="email">
+
+            <label>Telefon</label>
+            <input type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
+
+            <label>Wer hat dich empfohlen?</label>
+            <input type="text" name="referred_by" value="{{ referred_by or '' }}" placeholder="Name oder E-Mail des Partners">
+
+            <label>Deine Nachricht (optional)</label>
+            <textarea name="message" placeholder="Erzähl kurz etwas über dich oder warum du Interesse hast…"></textarea>
+
+            <div class="privacy-row">
+                <input type="checkbox" name="privacy" value="1" id="privacy" required>
+                <label for="privacy" style="font-size:12px;color:#94a3b8;text-transform:none;letter-spacing:0;font-weight:500;margin:0">
+                    Ich habe die <a href="/datenschutz" target="_blank">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zu.
+                </label>
+            </div>
+
+            <button type="submit" class="btn-submit">Anmelden →</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        © {{ '' }}2026 NT Pro Academy
+        <a href="/datenschutz">Datenschutz</a>
+        <a href="/login">Login für Mitglieder</a>
+    </div>
+</div>
+</body>
+</html>

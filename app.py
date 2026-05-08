@@ -1627,6 +1627,35 @@ def inject_career():
     return {}
 
 
+# === ADMIN: AUDIT-LOG ===
+@app.route('/admin/audit')
+@login_required
+def admin_audit():
+    """Audit-Log: alle sicherheitsrelevanten Aktionen."""
+    if current_user.role != 'admin':
+        flash('Nur Hauptadmin', 'error')
+        return redirect(url_for('dashboard'))
+    db = get_db()
+    rows = db.execute('''
+        SELECT a.*, u.name as user_name FROM activity_log a
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.event_type IN ('login', 'co_admin_change', 'partner_neu', 'achievement', 'public_lead')
+        OR a.event_type LIKE '%password%'
+        OR a.event_type LIKE '%delete%'
+        OR a.event_type LIKE '%admin%'
+        ORDER BY a.created_at DESC LIMIT 200
+    ''').fetchall()
+    db.close()
+    return render_template('admin_audit.html', entries=rows)
+
+
+# === DATENSCHUTZ ===
+@app.route('/datenschutz')
+def datenschutz():
+    """Öffentliche Datenschutz-Seite."""
+    return render_template('datenschutz.html')
+
+
 # === ADMIN: CO-ADMIN-TOGGLE ===
 @app.route('/admin/team/<int:uid>/toggle-co-admin', methods=['POST'])
 @login_required
@@ -2301,6 +2330,12 @@ def init_db():
         lead_col_names = [c['name'] for c in lead_cols]
         if 'birthday' not in lead_col_names:
             db.execute("ALTER TABLE leads ADD COLUMN birthday TEXT")
+        if 'source' not in lead_col_names:
+            db.execute("ALTER TABLE leads ADD COLUMN source TEXT DEFAULT 'manual'")
+        if 'public_message' not in lead_col_names:
+            db.execute("ALTER TABLE leads ADD COLUMN public_message TEXT")
+        if 'referred_by' not in lead_col_names:
+            db.execute("ALTER TABLE leads ADD COLUMN referred_by TEXT")
         db.commit()
     except Exception as e:
         print(f"Migration warning: {e}")
@@ -2636,6 +2671,107 @@ def profil():
     user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     db.close()
     return render_template('profil.html', user=user)
+
+
+# === PUBLIC LEAD-CAPTURE (kein Login) ===
+@app.route('/start', methods=['GET', 'POST'])
+@app.route('/interesse', methods=['GET', 'POST'])
+def public_lead_capture():
+    """Öffentliche Lead-Capture-Page für Werbung, Social Media, etc."""
+    # Rate-Limit pro IP
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'unknown').split(',')[0].strip()
+
+    if request.method == 'POST':
+        # Rate-Limit Check (max 3 Submissions pro 15 Min pro IP)
+        block_key = f'public_lead:{client_ip}'
+        if is_login_blocked(block_key):
+            return render_template('public_lead.html', error='Zu viele Anfragen. Bitte später erneut versuchen.')
+
+        name = (request.form.get('name') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
+        phone = (request.form.get('phone') or '').strip()
+        message = (request.form.get('message') or '').strip()
+        referred_by = (request.form.get('referred_by') or '').strip()
+        privacy = request.form.get('privacy')
+
+        if not name or not email or '@' not in email:
+            return render_template('public_lead.html', error='Bitte Name und gültige E-Mail eingeben.')
+        if not privacy:
+            return render_template('public_lead.html', error='Bitte Datenschutzerklärung akzeptieren.')
+
+        record_login_attempt(block_key, success=False)  # Counter für IP
+
+        # Auto-Zuordnung: wenn Empfehlungs-Code → diesem Berater zuordnen
+        db = get_db()
+        owner_id = None
+        if referred_by:
+            ref_user = db.execute(
+                'SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(name) LIKE ? AND active = 1',
+                (referred_by.lower(), f'%{referred_by.lower()}%')
+            ).fetchone()
+            if ref_user:
+                owner_id = ref_user['id']
+        if not owner_id:
+            # Fallback: Admin
+            admin = db.execute("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").fetchone()
+            owner_id = admin['id'] if admin else 1
+
+        # Existiert E-Mail schon?
+        existing = db.execute('SELECT id FROM leads WHERE LOWER(email) = ?', (email,)).fetchone()
+        if existing:
+            db.close()
+            return render_template('public_lead.html', success=True, duplicate=True)
+
+        cur = db.execute('''INSERT INTO leads (owner_id, name, email, phone, status, notizen,
+                            source, public_message, referred_by)
+                            VALUES (?, ?, ?, ?, 'neu', ?, 'public', ?, ?)''',
+                       (owner_id, name, email, phone,
+                        f'Über Online-Form. {message}' if message else 'Über Online-Form.',
+                        message, referred_by))
+        new_id = cur.lastrowid
+        db.commit()
+        db.close()
+
+        log_activity(owner_id, 'public_lead',
+                    f'🌐 Neue öffentliche Anmeldung: {name} ({email})',
+                    icon='🌐', color='gold')
+
+        # Optional: Notification-E-Mail an Admin
+        if is_smtp_configured():
+            admin_email = (get_setting('smtp_from_email') or '').strip()
+            if admin_email:
+                try:
+                    notify_text = f"Neue Anmeldung über öffentliche Form:\n\nName: {name}\nE-Mail: {email}\nTelefon: {phone}\n\nNachricht:\n{message or '(keine)'}\n\nEmpfohlen von: {referred_by or '–'}"
+                    send_email(admin_email, f'🌐 Neue Anmeldung: {name}', notify_text, sent_by=None)
+                except Exception:
+                    pass
+
+        return render_template('public_lead.html', success=True)
+
+    # GET: Form anzeigen
+    db = get_db()
+    # Optional Referral aus URL (?ref=email)
+    ref = request.args.get('ref', '').strip()
+    db.close()
+    return render_template('public_lead.html', referred_by=ref)
+
+
+@app.route('/admin/inbox')
+@login_required
+def admin_inbox():
+    """Bewerber-Inbox: alle öffentlichen Lead-Anmeldungen."""
+    if not current_user.has_admin_access:
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('dashboard'))
+    db = get_db()
+    rows = db.execute('''
+        SELECT l.*, u.name as owner_name FROM leads l
+        LEFT JOIN users u ON l.owner_id = u.id
+        WHERE l.source = 'public'
+        ORDER BY l.created_at DESC LIMIT 200
+    ''').fetchall()
+    db.close()
+    return render_template('admin_inbox.html', leads=rows)
 
 
 @app.route('/passwort-aendern', methods=['GET', 'POST'])

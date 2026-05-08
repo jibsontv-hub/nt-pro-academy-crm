@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Bewerber-Inbox – NT Pro Academy{% endblock %}
+{% block page_title %}🌐 Bewerber-Inbox{% endblock %}
+
+{% block content %}
+<div class="card" style="background:var(--blue-soft);border:1px solid var(--blue)">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="font-size:22px">📬</span>
+        <div style="font-size:13px;color:var(--text)">
+            <strong>Public Lead-Capture aktiv:</strong> Hier landen alle Anmeldungen über deine öffentliche Werbe-URL.
+            <br>
+            <strong style="color:var(--gold)">Dein Werbe-Link:</strong>
+            <code style="background:var(--bg);padding:3px 8px;border-radius:5px;font-size:12px">https://proacademy.pythonanywhere.com/start</code>
+            (oder lokal: <code style="background:var(--bg);padding:3px 8px;border-radius:5px;font-size:12px">/start</code>)
+            <br>
+            <strong style="color:var(--gold)">Mit Empfehlungs-Code:</strong>
+            <code style="background:var(--bg);padding:3px 8px;border-radius:5px;font-size:12px">/start?ref=NAME-ODER-EMAIL</code>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">
+        Anmeldungen ({{ leads|length }})
+        <input type="text" id="searchInput" placeholder="🔍 Suchen..." onkeyup="filterTable()" style="padding:6px 10px;border:1px solid var(--border-strong);border-radius:6px;font-size:12px;width:180px;text-transform:none;letter-spacing:0">
+    </div>
+    {% if leads %}
+    <div class="table-wrap">
+        <table id="mainTable">
+            <thead>
+                <tr><th>Datum</th><th>Name / Kontakt</th><th>Empfohlen von</th><th>Nachricht</th><th>Zugewiesen an</th><th>Status</th><th>Aktion</th></tr>
+            </thead>
+            <tbody>
+                {% for l in leads %}
+                <tr>
+                    <td><span style="font-size:12px;color:var(--text-muted)">{{ l.created_at[:16] }}</span></td>
+                    <td>
+                        <strong>{{ l.name }}</strong>
+                        <div style="font-size:11px;color:var(--text-muted)">📧 {{ l.email }}</div>
+                        {% if l.phone %}<div style="font-size:11px;color:var(--text-muted)">📞 {{ l.phone }}</div>{% endif %}
+                    </td>
+                    <td>{% if l.referred_by %}<span style="font-size:12px">{{ l.referred_by }}</span>{% else %}<span style="color:var(--text-soft)">–</span>{% endif %}</td>
+                    <td style="max-width:240px;font-size:12px;color:var(--text-muted)">
+                        {{ (l.public_message[:120] + '…') if l.public_message and l.public_message|length > 120 else (l.public_message or '–') }}
+                    </td>
+                    <td><strong>{{ l.owner_name or '–' }}</strong></td>
+                    <td><span class="status-badge status-{{ l.status }}">{{ l.status }}</span></td>
+                    <td style="white-space:nowrap">
+                        <a href="/leads/{{ l.id }}/edit" class="btn btn-secondary btn-sm">✎ Bearbeiten</a>
+                        {% if l.phone %}<a href="tel:{{ l.phone }}" class="btn btn-primary btn-sm">📞</a>{% endif %}
+                        <a href="mailto:{{ l.email }}" class="btn btn-secondary btn-sm">✉</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:48px 20px;color:var(--text-soft)">
+        <div style="font-size:48px;margin-bottom:14px">📭</div>
+        <div style="font-size:16px;color:var(--text);font-weight:700;margin-bottom:6px">Noch keine Anmeldungen</div>
+        <div style="font-size:13px">Verteile deinen Werbe-Link <code style="background:var(--bg);padding:2px 6px;border-radius:4px">/start</code> auf Social Media, in deiner Bio, oder direkt zu Interessenten.</div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function filterTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(input) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

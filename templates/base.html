@@ -601,6 +601,9 @@
             <a href="/admin/aufgaben" class="nav-link {% if '/admin/aufgaben' in request.path %}active{% endif %}">
                 <span class="nav-icon">⚙</span> Aufgaben-Slots
             </a>
+            <a href="/admin/inbox" class="nav-link {% if '/admin/inbox' in request.path %}active{% endif %}">
+                <span class="nav-icon">📬</span> Bewerber-Inbox
+            </a>
             <a href="/admin/import" class="nav-link {% if '/admin/import' in request.path %}active{% endif %}">
                 <span class="nav-icon">↑</span> Partner-Import (CSV)
             </a>
@@ -613,6 +616,9 @@
             </a>
             <a href="/admin/ki-settings" class="nav-link {% if '/admin/ki-settings' in request.path %}active{% endif %}">
                 <span class="nav-icon">🧠</span> KI-Power (Claude)
+            </a>
+            <a href="/admin/audit" class="nav-link {% if '/admin/audit' in request.path %}active{% endif %}">
+                <span class="nav-icon">🔍</span> Audit-Log
             </a>
             {% endif %}
             <a href="/admin/aktivitaet" class="nav-link {% if '/admin/aktivitaet' in request.path %}active{% endif %}">
