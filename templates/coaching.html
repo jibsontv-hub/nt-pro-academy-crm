@@ -118,6 +118,59 @@
     </div>
 </div>
 
+<!-- Aktivitäts-Heatmap -->
+{% if heatmap %}
+<div class="card">
+    <div class="card-title">
+        🔥 Aktivitäts-Heatmap
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">Letzte 180 Tage</span>
+    </div>
+    <div style="overflow-x:auto;padding:6px 0">
+        <div style="display:inline-flex;gap:3px;align-items:flex-start">
+            {# Wochenweise gruppieren #}
+            {% set ns = namespace(week=[]) %}
+            {% set weeks = [] %}
+            {% for d in heatmap %}
+                {% if d.weekday == 0 and ns.week %}
+                    {% set _ = weeks.append(ns.week) %}
+                    {% set ns.week = [] %}
+                {% endif %}
+                {% set _ = ns.week.append(d) %}
+            {% endfor %}
+            {% if ns.week %}{% set _ = weeks.append(ns.week) %}{% endif %}
+            {% for w in weeks %}
+            <div style="display:flex;flex-direction:column;gap:3px">
+                {% for d in w %}
+                {% set lvl = 0 %}
+                {% if d.count >= 1 %}{% set lvl = 1 %}{% endif %}
+                {% if d.count >= 3 %}{% set lvl = 2 %}{% endif %}
+                {% if d.count >= 6 %}{% set lvl = 3 %}{% endif %}
+                {% if d.count >= 10 %}{% set lvl = 4 %}{% endif %}
+                {% set bg = ['var(--bg-2)','rgba(184,144,46,0.25)','rgba(184,144,46,0.5)','rgba(184,144,46,0.75)','var(--gold)'][lvl] %}
+                <div title="{{ d.date }}: {{ d.count }} Aktivität{% if d.count != 1 %}en{% endif %}"
+                     style="width:12px;height:12px;border-radius:3px;background:{{ bg }};border:1px solid {% if lvl == 0 %}var(--border){% else %}transparent{% endif %};transition:transform 0.15s"
+                     onmouseenter="this.style.transform='scale(1.3)';this.style.boxShadow='0 0 0 1px var(--gold)'"
+                     onmouseleave="this.style.transform='scale(1)';this.style.boxShadow='none'"></div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;margin-top:14px;font-size:11px;color:var(--text-muted)">
+        <span>Weniger</span>
+        <div style="display:flex;gap:3px">
+            <div style="width:11px;height:11px;background:var(--bg-2);border:1px solid var(--border);border-radius:2px"></div>
+            <div style="width:11px;height:11px;background:rgba(184,144,46,0.25);border-radius:2px"></div>
+            <div style="width:11px;height:11px;background:rgba(184,144,46,0.5);border-radius:2px"></div>
+            <div style="width:11px;height:11px;background:rgba(184,144,46,0.75);border-radius:2px"></div>
+            <div style="width:11px;height:11px;background:var(--gold);border-radius:2px"></div>
+        </div>
+        <span>Mehr</span>
+        <span style="margin-left:auto">Verträge zählen 2× · Termine, Leads, Logins zählen 1×</span>
+    </div>
+</div>
+{% endif %}
+
 <div class="grid-2">
 
     <!-- Coaching-Notizen schreiben -->

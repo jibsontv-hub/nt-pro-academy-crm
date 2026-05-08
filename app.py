@@ -425,6 +425,175 @@ def get_career_criteria_status(user_id):
     }
 
 
+# === ACHIEVEMENTS / BADGES ===
+ACHIEVEMENTS = [
+    # Erste Schritte
+    {'code': 'profile_complete',  'icon': '✨', 'name': 'Profil komplett',          'desc': 'Telefon + Vision + Geburtstag gesetzt',                  'tier': 'bronze'},
+    {'code': 'vision_set',        'icon': '★',  'name': 'Vision gesetzt',           'desc': 'Eigenes „Warum" formuliert',                              'tier': 'bronze'},
+    {'code': 'first_lead',        'icon': '◇',  'name': 'Erste Person',             'desc': 'Erster Eintrag in Namensliste',                           'tier': 'bronze'},
+    {'code': 'first_appointment', 'icon': '◷',  'name': 'Erster Termin',            'desc': 'Ersten Kunden-Termin angelegt',                           'tier': 'bronze'},
+    {'code': 'first_contract',    'icon': '📄', 'name': 'Erster Vertrag',           'desc': 'Ersten Vertrag im System angelegt',                       'tier': 'bronze'},
+    {'code': 'first_freigegeben', 'icon': '✅', 'name': 'Freizeichnung erhalten',  'desc': 'Erster freigegebener Vertrag',                            'tier': 'silver'},
+    # EH-Meilensteine
+    {'code': 'eh_500',            'icon': '⚡', 'name': '500 EH',                   'desc': 'Erste 500 Einheiten produziert',                          'tier': 'bronze'},
+    {'code': 'eh_1000',           'icon': '⚡', 'name': '1.000 EH',                 'desc': '1.000 Einheiten — Stufe LREP erreichbar',                'tier': 'silver'},
+    {'code': 'eh_3500',           'icon': '⚡', 'name': '3.500 EH',                 'desc': '3.500 Einheiten — Stufe HREP erreichbar',                'tier': 'silver'},
+    {'code': 'eh_9000',           'icon': '⚡', 'name': '9.000 EH',                 'desc': '9.000 Einheiten — Stufe CREP erreichbar',                'tier': 'gold'},
+    {'code': 'eh_25000',          'icon': '⚡', 'name': '25.000 EH',                'desc': '25.000 Einheiten — Stufe DREP erreichbar',               'tier': 'gold'},
+    {'code': 'eh_60000',          'icon': '⚡', 'name': '60.000 EH',                'desc': '60.000 Einheiten — Stufe GREP erreichbar',               'tier': 'platinum'},
+    # Stufen-Beförderungen
+    {'code': 'level_2',           'icon': '⬆',  'name': 'LREP erreicht',            'desc': 'Beförderung zu Leitendem Repräsentant',                    'tier': 'silver'},
+    {'code': 'level_3',           'icon': '⬆',  'name': 'HREP erreicht',            'desc': 'Beförderung zu Hauptrepräsentant',                         'tier': 'silver'},
+    {'code': 'level_4',           'icon': '⬆',  'name': 'CREP erreicht',            'desc': 'Beförderung zu Chefrepräsentant',                          'tier': 'gold'},
+    {'code': 'level_5',           'icon': '⬆',  'name': 'DREP erreicht',            'desc': 'Beförderung zu Direktionsrepräsentant',                    'tier': 'gold'},
+    {'code': 'level_6',           'icon': '👑', 'name': 'GREP erreicht',            'desc': 'Beförderung zu Generalrepräsentant — Top!',                'tier': 'platinum'},
+    # Team-Aufbau
+    {'code': 'first_partner',     'icon': '👥', 'name': 'Erster Partner',           'desc': 'Ersten direkten Partner gewonnen',                         'tier': 'silver'},
+    {'code': 'partners_5',        'icon': '👥', 'name': '5 Partner',                'desc': '5 direkte Partner unter dir',                              'tier': 'gold'},
+    {'code': 'partners_10',       'icon': '👥', 'name': '10 Partner',               'desc': '10 direkte Partner — wahres Team',                         'tier': 'gold'},
+    {'code': 'partners_25',       'icon': '👥', 'name': '25 Partner',               'desc': '25 direkte Partner — beeindruckend',                       'tier': 'platinum'},
+    # Wettbewerb
+    {'code': 'week_top3',         'icon': '🥉', 'name': 'Top 3 der Woche',          'desc': 'Top 3 im Wochen-Ranking',                                  'tier': 'silver'},
+    {'code': 'week_top1',         'icon': '🥇', 'name': 'Wochen-Champion',          'desc': 'Platz 1 im Wochen-Ranking',                                'tier': 'gold'},
+    # Aktivität
+    {'code': 'streak_7',          'icon': '🔥', 'name': '7-Tage-Streak',            'desc': '7 Tage am Stück eingeloggt',                               'tier': 'silver'},
+    {'code': 'login_30',          'icon': '🔥', 'name': '30 Logins',                'desc': '30 Mal eingeloggt — du bist dabei!',                       'tier': 'silver'},
+    {'code': 'contracts_10',      'icon': '📊', 'name': '10 Verträge',              'desc': '10 abgeschlossene Verträge',                               'tier': 'silver'},
+    {'code': 'contracts_50',      'icon': '📊', 'name': '50 Verträge',              'desc': '50 abgeschlossene Verträge',                               'tier': 'gold'},
+]
+
+ACHIEVEMENT_TIER_COLORS = {
+    'bronze': '#cd7f32', 'silver': '#94a3b8', 'gold': '#d4a843', 'platinum': '#a78bfa'
+}
+
+
+def get_achievement_by_code(code):
+    return next((a for a in ACHIEVEMENTS if a['code'] == code), None)
+
+
+def unlock_achievement(user_id, code, db=None):
+    """Schaltet ein Achievement frei (idempotent — schon vorhanden = no-op)."""
+    own_db = db is None
+    if own_db:
+        db = get_db()
+    existing = db.execute('SELECT id FROM user_achievements WHERE user_id=? AND achievement_code=?', (user_id, code)).fetchone()
+    if not existing:
+        db.execute('INSERT INTO user_achievements (user_id, achievement_code) VALUES (?, ?)', (user_id, code))
+        db.commit()
+        # Für Notification beim nächsten Page-Load
+        ach = get_achievement_by_code(code)
+        if ach:
+            log_activity(user_id, 'achievement', f'🏆 {get_user_name(user_id, db)} hat Achievement „{ach["name"]}" freigeschaltet', icon=ach['icon'], color='gold')
+    if own_db:
+        db.close()
+
+
+def get_user_name(user_id, db):
+    row = db.execute('SELECT name FROM users WHERE id=?', (user_id,)).fetchone()
+    return row['name'] if row else 'Unbekannt'
+
+
+def check_achievements_for_user(user_id):
+    """Prüft alle Achievements für einen User und schaltet neue frei."""
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return []
+
+    new_unlocks = []
+    existing_codes = {r['achievement_code'] for r in db.execute('SELECT achievement_code FROM user_achievements WHERE user_id=?', (user_id,)).fetchall()}
+
+    def maybe_unlock(code):
+        if code not in existing_codes:
+            unlock_achievement(user_id, code, db=db)
+            existing_codes.add(code)
+            ach = get_achievement_by_code(code)
+            if ach:
+                new_unlocks.append(ach)
+
+    # Profil
+    if user['vision'] and user['vision'].strip():
+        maybe_unlock('vision_set')
+    if user['vision'] and user['vision'].strip() and user['phone'] and user['birthday']:
+        maybe_unlock('profile_complete')
+
+    # Leads
+    lead_count = db.execute('SELECT COUNT(*) as c FROM leads WHERE owner_id=?', (user_id,)).fetchone()['c']
+    if lead_count >= 1:
+        maybe_unlock('first_lead')
+
+    # Termine
+    a_count = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=?', (user_id,)).fetchone()['c']
+    if a_count >= 1:
+        maybe_unlock('first_appointment')
+
+    # Verträge
+    c_count = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=?', (user_id,)).fetchone()['c']
+    if c_count >= 1:
+        maybe_unlock('first_contract')
+    if c_count >= 10:
+        maybe_unlock('contracts_10')
+    if c_count >= 50:
+        maybe_unlock('contracts_50')
+
+    # Freigegeben
+    free_count = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status="freigegeben" AND status="abgeschlossen"', (user_id,)).fetchone()['c']
+    if free_count >= 1:
+        maybe_unlock('first_freigegeben')
+
+    # EH
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    if own_eh >= 500:    maybe_unlock('eh_500')
+    if own_eh >= 1000:   maybe_unlock('eh_1000')
+    if own_eh >= 3500:   maybe_unlock('eh_3500')
+    if own_eh >= 9000:   maybe_unlock('eh_9000')
+    if own_eh >= 25000:  maybe_unlock('eh_25000')
+    if own_eh >= 60000:  maybe_unlock('eh_60000')
+
+    # Stufen
+    level = max(user['manual_career_level'] or 1, 1)
+    if level >= 2: maybe_unlock('level_2')
+    if level >= 3: maybe_unlock('level_3')
+    if level >= 4: maybe_unlock('level_4')
+    if level >= 5: maybe_unlock('level_5')
+    if level >= 6: maybe_unlock('level_6')
+
+    # Direkte Partner
+    p_count = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (user_id,)).fetchone()['c']
+    if p_count >= 1:  maybe_unlock('first_partner')
+    if p_count >= 5:  maybe_unlock('partners_5')
+    if p_count >= 10: maybe_unlock('partners_10')
+    if p_count >= 25: maybe_unlock('partners_25')
+
+    # Login-Count
+    if (user['login_count'] or 0) >= 30:
+        maybe_unlock('login_30')
+
+    db.close()
+    return new_unlocks
+
+
+def get_unseen_achievements(user_id):
+    """Liefert noch nicht gesehene Achievements (für Modal-Popup)."""
+    db = get_db()
+    rows = db.execute('SELECT achievement_code, unlocked_at FROM user_achievements WHERE user_id=? AND seen=0 ORDER BY unlocked_at', (user_id,)).fetchall()
+    result = []
+    for r in rows:
+        ach = get_achievement_by_code(r['achievement_code'])
+        if ach:
+            result.append({**ach, 'unlocked_at': r['unlocked_at']})
+    db.close()
+    return result
+
+
+def mark_achievements_seen(user_id):
+    db = get_db()
+    db.execute('UPDATE user_achievements SET seen=1 WHERE user_id=?', (user_id,))
+    db.commit()
+    db.close()
+
+
 def career_for_row(manual_level, eh):
     """Korrekte Karriere-Stufe = MAX(manual_career_level, EH-erreichte Stufe)."""
     earned = 1
@@ -1224,6 +1393,16 @@ def init_db():
             FOREIGN KEY (target_user_id) REFERENCES users(id),
             FOREIGN KEY (author_user_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS user_achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            achievement_code TEXT NOT NULL,
+            unlocked_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            seen INTEGER DEFAULT 0,
+            UNIQUE(user_id, achievement_code),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
     ''')
 
     # Migration: neue Spalten für bestehende DBs nachrüsten
@@ -1492,6 +1671,11 @@ def login():
             db.close()
             login_user(User(row))
             session['show_vision'] = True
+            # Achievements prüfen
+            try:
+                check_achievements_for_user(row['id'])
+            except Exception as e:
+                print(f"Achievement check failed: {e}")
             # Activity log nur bei erstem Login des Tages
             today = date.today().strftime('%Y-%m-%d')
             db2 = get_db()
@@ -1552,6 +1736,167 @@ def einstellungen():
 def vision_seen():
     session.pop('show_vision', None)
     return jsonify({'ok': True})
+
+
+@app.route('/api/achievements/unseen')
+@login_required
+def api_unseen_achievements():
+    """Liefert neu freigeschaltete Achievements (für Modal)."""
+    items = get_unseen_achievements(current_user.id)
+    for it in items:
+        it['tier_color'] = ACHIEVEMENT_TIER_COLORS.get(it.get('tier', 'silver'), '#94a3b8')
+    return jsonify({'unseen': items})
+
+
+@app.route('/api/achievements/seen', methods=['POST'])
+@login_required
+def api_mark_achievements_seen():
+    mark_achievements_seen(current_user.id)
+    return jsonify({'ok': True})
+
+
+def get_activity_heatmap(user_id, days=180):
+    """Liefert Heatmap-Daten: pro Tag die Anzahl Aktivitäten."""
+    db = get_db()
+    rows = db.execute('''
+        SELECT date(created_at) as datum, COUNT(*) as count
+        FROM activity_log
+        WHERE user_id = ? AND date(created_at) >= date('now', '-' || ? || ' days')
+        GROUP BY datum
+    ''', (user_id, days)).fetchall()
+    # Plus Verträge / Termine / Leads als Aktivitäts-Indikatoren
+    contract_rows = db.execute('''
+        SELECT date(created_at) as datum, COUNT(*) as count
+        FROM contracts WHERE owner_id = ? AND date(created_at) >= date('now', '-' || ? || ' days')
+        GROUP BY datum
+    ''', (user_id, days)).fetchall()
+    db.close()
+    counts = {}
+    for r in rows:
+        counts[r['datum']] = counts.get(r['datum'], 0) + r['count']
+    for r in contract_rows:
+        counts[r['datum']] = counts.get(r['datum'], 0) + r['count'] * 2  # Verträge zählen doppelt
+    # Liste aller Tage rückwärts
+    today = date.today()
+    result = []
+    for i in range(days, -1, -1):
+        d = today - timedelta(days=i)
+        d_str = d.strftime('%Y-%m-%d')
+        result.append({
+            'date': d_str,
+            'count': counts.get(d_str, 0),
+            'weekday': d.weekday(),  # 0 = Monday
+            'month': d.month,
+        })
+    return result
+
+
+@app.route('/trophaeen')
+@login_required
+def trophaeen():
+    """Übersicht aller eigenen Achievements + verfügbarer."""
+    db = get_db()
+    user_codes_rows = db.execute('SELECT achievement_code, unlocked_at FROM user_achievements WHERE user_id=? ORDER BY unlocked_at DESC', (current_user.id,)).fetchall()
+    user_codes = {r['achievement_code']: r['unlocked_at'] for r in user_codes_rows}
+    db.close()
+
+    # Sortiert nach Tier dann erreicht/nicht-erreicht
+    tier_order = {'platinum': 0, 'gold': 1, 'silver': 2, 'bronze': 3}
+    items = []
+    for a in ACHIEVEMENTS:
+        items.append({
+            **a,
+            'tier_color': ACHIEVEMENT_TIER_COLORS.get(a['tier'], '#94a3b8'),
+            'unlocked': a['code'] in user_codes,
+            'unlocked_at': user_codes.get(a['code']),
+        })
+    items.sort(key=lambda x: (not x['unlocked'], tier_order.get(x['tier'], 9)))
+    unlocked = sum(1 for i in items if i['unlocked'])
+    return render_template('trophaeen.html', items=items, unlocked_count=unlocked, total_count=len(items))
+
+
+@app.route('/api/search')
+@login_required
+def api_search():
+    """Globale Suche über Partner, Kunden (Leads), Verträge, Termine."""
+    q = (request.args.get('q') or '').strip()
+    if not q or len(q) < 1:
+        return jsonify({'results': []})
+
+    db = get_db()
+    pattern = f'%{q}%'
+
+    # Scope: Admin sieht alle, Partner nur eigene Downline
+    if current_user.role == 'admin':
+        scope_ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE active = 1').fetchall()]
+    else:
+        scope_ids = [current_user.id] + get_all_descendants(current_user.id)
+
+    if not scope_ids:
+        db.close()
+        return jsonify({'results': []})
+    ph = ','.join('?' * len(scope_ids))
+    results = []
+
+    # Partner
+    partners = db.execute(
+        f'SELECT id, name, email, phone, manual_career_level FROM users WHERE id IN ({ph}) AND active = 1 AND (LOWER(name) LIKE LOWER(?) OR LOWER(email) LIKE LOWER(?)) LIMIT 6',
+        scope_ids + [pattern, pattern]
+    ).fetchall()
+    for p in partners:
+        career = next((c for c in CAREER_LEVELS if c['level'] == (p['manual_career_level'] or 1)), CAREER_LEVELS[0])
+        results.append({
+            'type': 'partner', 'icon': '👤', 'group': 'Partner',
+            'id': p['id'], 'title': p['name'],
+            'subtitle': f"{career['short']} · {p['email']}",
+            'url': f'/coaching/{p["id"]}',
+            'badge': career['short'], 'badge_color': career['color']
+        })
+
+    # Leads / Kunden
+    leads = db.execute(
+        f'SELECT l.id, l.name, l.phone, l.status, u.name as berater FROM leads l JOIN users u ON l.owner_id = u.id WHERE l.owner_id IN ({ph}) AND (LOWER(l.name) LIKE LOWER(?) OR LOWER(l.phone) LIKE LOWER(?) OR LOWER(l.email) LIKE LOWER(?)) ORDER BY l.created_at DESC LIMIT 6',
+        scope_ids + [pattern, pattern, pattern]
+    ).fetchall()
+    for l in leads:
+        results.append({
+            'type': 'lead', 'icon': '◇', 'group': 'Kunden / Namensliste',
+            'id': l['id'], 'title': l['name'],
+            'subtitle': f"Status: {l['status']} · Berater: {l['berater']}",
+            'url': f'/leads/{l["id"]}/edit',
+            'badge': l['status'], 'badge_color': '#3b82f6'
+        })
+
+    # Verträge
+    contracts = db.execute(
+        f'SELECT c.id, c.client_name, c.produkt, c.einheiten, c.status, c.recherche_status, u.name as berater FROM contracts c JOIN users u ON c.owner_id = u.id WHERE c.owner_id IN ({ph}) AND (LOWER(c.client_name) LIKE LOWER(?) OR LOWER(c.produkt) LIKE LOWER(?)) ORDER BY c.created_at DESC LIMIT 6',
+        scope_ids + [pattern, pattern]
+    ).fetchall()
+    for c in contracts:
+        results.append({
+            'type': 'contract', 'icon': '📄', 'group': 'Verträge',
+            'id': c['id'], 'title': c['client_name'],
+            'subtitle': f"{c['produkt']} · {int(c['einheiten'] or 0)} EH · {c['berater']}",
+            'url': f'/vertraege/{c["id"]}/edit',
+            'badge': c['status'], 'badge_color': '#10b981' if c['status'] == 'abgeschlossen' else '#94a3b8'
+        })
+
+    # Termine
+    termine = db.execute(
+        f'SELECT a.id, a.title, a.client_name, a.termin_date, a.status, u.name as berater FROM appointments a JOIN users u ON a.owner_id = u.id WHERE a.owner_id IN ({ph}) AND (LOWER(a.title) LIKE LOWER(?) OR LOWER(COALESCE(a.client_name,"")) LIKE LOWER(?)) ORDER BY a.termin_date DESC LIMIT 4',
+        scope_ids + [pattern, pattern]
+    ).fetchall()
+    for a in termine:
+        results.append({
+            'type': 'termin', 'icon': '◷', 'group': 'Termine',
+            'id': a['id'], 'title': a['title'],
+            'subtitle': f"{a['termin_date']} · {a['client_name'] or '–'} · {a['berater']}",
+            'url': f'/termine/{a["id"]}/edit',
+            'badge': a['status'], 'badge_color': '#8b5cf6'
+        })
+
+    db.close()
+    return jsonify({'results': results})
 
 
 @app.route('/logout')
@@ -2616,13 +2961,15 @@ def coaching(uid):
             pass
 
     db.close()
+    heatmap = get_activity_heatmap(uid, days=180)
     return render_template('coaching.html',
         member=dict(member), career=career, next_career=next_career,
         own_eh=own_eh,
         stats={'termine': total_termine, 'vertraege': total_vertraege, 'leads': total_leads,
                'pending_research': pending_research, 'avg_termine_per_close': avg_termine_per_close,
                'downline_count': downline_count, 'full_team': full_team, 'ob_score': ob_score},
-        recent_activity=recent_activity, notes=notes, tipps=tipps)
+        recent_activity=recent_activity, notes=notes, tipps=tipps,
+        heatmap=heatmap)
 
 
 # === KI-COACH ===

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Trophäen – NT Pro Academy{% endblock %}
+{% block page_title %}🏆 Meine Trophäen{% endblock %}
+
+{% block content %}
+<div style="max-width:1100px">
+
+<!-- Hero -->
+<div class="card" style="background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 100%);color:#fff;border:none;text-align:center">
+    <div style="font-size:48px;line-height:1;margin-bottom:8px">🏆</div>
+    <div style="font-size:14px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.5px;font-weight:700">Achievements freigeschaltet</div>
+    <div style="font-size:48px;font-weight:900;color:#d4a843;margin-top:8px;letter-spacing:-1px">{{ unlocked_count }} <span style="font-size:24px;color:rgba(255,255,255,0.4);font-weight:600">/ {{ total_count }}</span></div>
+    <div style="background:rgba(255,255,255,0.1);border-radius:99px;height:8px;max-width:400px;margin:18px auto 0;overflow:hidden">
+        <div style="height:100%;width:{{ ((unlocked_count / total_count * 100) if total_count else 0) | round(0) }}%;background:linear-gradient(90deg,#d4a843,#f0c970);border-radius:99px"></div>
+    </div>
+</div>
+
+<!-- Tier-Übersicht -->
+{% set tiers = [('platinum','Platinum','#a78bfa'),('gold','Gold','#d4a843'),('silver','Silber','#94a3b8'),('bronze','Bronze','#cd7f32')] %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px">
+    {% for code, label, color in tiers %}
+    {% set tcount = items | selectattr('tier','equalto',code) | list | length %}
+    {% set tunlocked = items | selectattr('tier','equalto',code) | selectattr('unlocked') | list | length %}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center">
+        <div style="width:36px;height:36px;border-radius:50%;background:{{ color }}20;border:2px solid {{ color }};margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:{{ color }}">{{ tunlocked }}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">{{ label }}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{{ tunlocked }} / {{ tcount }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Trophäen-Wand -->
+<div class="card">
+    <div class="card-title">Trophäen-Wand</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+        {% for it in items %}
+        <div style="background:{% if it.unlocked %}linear-gradient(135deg,var(--surface),{{ it.tier_color }}10){% else %}var(--bg-2){% endif %};border:1.5px solid {% if it.unlocked %}{{ it.tier_color }}50{% else %}var(--border){% endif %};border-radius:14px;padding:18px;text-align:center;position:relative;transition:transform 0.2s;{% if not it.unlocked %}opacity:0.55{% endif %}" onmouseenter="this.style.transform='translateY(-3px)'" onmouseleave="this.style.transform='translateY(0)'">
+            {% if it.unlocked %}
+            <div style="position:absolute;top:8px;right:8px;background:var(--green);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">✓</div>
+            {% else %}
+            <div style="position:absolute;top:8px;right:8px;font-size:14px;color:var(--text-soft)">🔒</div>
+            {% endif %}
+            <div style="font-size:42px;line-height:1;margin-bottom:10px;{% if not it.unlocked %}filter:grayscale(1){% endif %}">{{ it.icon }}</div>
+            <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px">{{ it.name }}</div>
+            <div style="font-size:11px;color:var(--text-muted);min-height:28px">{{ it.desc }}</div>
+            <div style="margin-top:10px;display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:3px 10px;border-radius:99px;background:{{ it.tier_color }}20;color:{{ it.tier_color }}">{{ it.tier }}</div>
+            {% if it.unlocked and it.unlocked_at %}
+            <div style="font-size:10px;color:var(--text-soft);margin-top:6px">{{ it.unlocked_at[:10] }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+</div>
+{% endblock %}

@@ -49,6 +49,45 @@
     </div>
 </div>
 
+<!-- Bulk-Aktionen -->
+<div class="card">
+    <div class="card-title">⚡ Bulk-Aktionen</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+        Schnelle Aktionen für mehrere Mitglieder gleichzeitig — perfekt um inaktive Partner anzustupsen oder eine Rundmail zu schreiben.
+    </p>
+    {% set inaktive_emails = (members | rejectattr('last_login') | map(attribute='email') | list) + (members | rejectattr('days_ago', 'none') | selectattr('days_ago', 'gt', 7) | map(attribute='email') | list) %}
+    {% set lange_inaktiv_emails = members | rejectattr('days_ago', 'none') | selectattr('days_ago', 'gt', 30) | map(attribute='email') | list %}
+    {% set alle_emails = members | map(attribute='email') | list %}
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="mailto:?bcc={{ inaktive_emails | join(',') }}&subject=Hey%2C%20alles%20OK%3F&body=Hi%2C%0A%0Adu%20warst%20l%C3%A4nger%20nicht%20mehr%20im%20Control%20Hub%20%E2%80%94%20alles%20gut%20bei%20dir%3F%0A%0AMelde%20dich%20kurz!%0A%0AGruss%2C%0ANajib"
+           class="btn btn-secondary btn-sm" title="Öffnet E-Mail-App mit BCC an alle inaktiven">
+            📧 Inaktive (>7d) anschreiben ({{ inaktive_emails|length }})
+        </a>
+        <a href="mailto:?bcc={{ lange_inaktiv_emails | join(',') }}&subject=Lass%20uns%20reden&body=Hi%2C%0A%0Aich%20vermisse%20dich%20im%20Team!%20Lass%20uns%20kurz%20telefonieren%20-%20sag%20mir%20wann%20es%20dir%20passt.%0A%0ANajib"
+           class="btn btn-secondary btn-sm" title="Lange Schweige-Aktion">
+            🔇 Langzeit-Inaktive (>30d) ({{ lange_inaktiv_emails|length }})
+        </a>
+        <a href="mailto:?bcc={{ alle_emails | join(',') }}&subject=Wichtige%20Info&body=Hi%20Team%2C%0A%0A%5BHier%20deine%20Nachricht%5D%0A%0ANajib"
+           class="btn btn-primary btn-sm" title="Rundmail an alle">
+            📣 Rundmail an alle ({{ alle_emails|length }})
+        </a>
+        <button onclick="copyEmails()" class="btn btn-secondary btn-sm" title="Alle E-Mails in Clipboard">
+            📋 Alle E-Mails kopieren
+        </button>
+    </div>
+    <div style="margin-top:14px;padding:10px 14px;background:var(--blue-soft);border:1px solid var(--blue);border-radius:8px;font-size:12px;color:var(--text)">
+        💡 <strong>Tipp:</strong> Klick öffnet deine Standard-E-Mail-App mit allen Empfängern als BCC + vorgefertigtem Text. Du kannst noch anpassen bevor du sendest.
+    </div>
+    <textarea id="emailHidden" style="position:absolute;left:-9999px">{{ alle_emails | join(', ') }}</textarea>
+    <script>
+    function copyEmails() {
+        const ta = document.getElementById('emailHidden');
+        ta.select(); document.execCommand('copy');
+        alert('✅ {{ alle_emails|length }} E-Mail-Adressen in die Zwischenablage kopiert!');
+    }
+    </script>
+</div>
+
 <!-- Tabelle -->
 <div class="card">
     <div class="card-title">

@@ -586,6 +586,9 @@
             <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}">
                 <span class="nav-icon">★</span> Mein Profil & Vision
             </a>
+            <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}">
+                <span class="nav-icon">🏆</span> Trophäen
+            </a>
             <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path %}active{% endif %}">
                 <span class="nav-icon">⚙</span> Einstellungen
             </a>
@@ -656,6 +659,12 @@
         <div class="topbar">
             <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
             <div class="topbar-actions" style="display:flex;align-items:center;gap:10px">
+                <button onclick="openSearch()" title="Suchen (⌘K)" aria-label="Suchen"
+                        style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:var(--bg-2);border:1px solid var(--border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer;transition:all 0.2s;font-family:inherit;min-width:200px">
+                    <span style="font-size:14px">🔍</span>
+                    <span style="flex:1;text-align:left">Suchen…</span>
+                    <kbd style="font-family:inherit;font-size:10px;padding:2px 6px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text-soft)">⌘K</kbd>
+                </button>
                 <button class="theme-toggle" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Theme wechseln">
                     <span class="icon-moon">🌙</span>
                     <span class="icon-sun">☀️</span>
@@ -708,6 +717,250 @@
         }
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeVision();
+        });
+    </script>
+    {% endif %}
+
+    <!-- Achievement-Unlock Modal mit Confetti -->
+    {% if current_user.is_authenticated %}
+    <canvas id="confettiCanvas" style="display:none;position:fixed;inset:0;z-index:10000;pointer-events:none;width:100vw;height:100vh"></canvas>
+    <div id="achievementModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.85);z-index:10001;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(12px)">
+        <div id="achievementCard" style="background:linear-gradient(135deg,var(--surface),var(--bg-2));border-radius:24px;padding:48px 40px;max-width:480px;width:100%;text-align:center;border:2px solid var(--gold);box-shadow:0 25px 80px rgba(0,0,0,0.5);position:relative;animation:popIn 0.5s cubic-bezier(0.16, 1, 0.3, 1)">
+            <div style="font-size:14px;color:var(--gold);text-transform:uppercase;letter-spacing:3px;font-weight:900;margin-bottom:14px">⭐ Neue Trophäe ⭐</div>
+            <div id="achievementIcon" style="font-size:96px;line-height:1;margin:8px 0;animation:bounce 0.6s ease infinite alternate"></div>
+            <div id="achievementName" style="font-size:28px;font-weight:900;color:var(--text);letter-spacing:-0.7px;margin-top:8px"></div>
+            <div id="achievementDesc" style="font-size:14px;color:var(--text-muted);margin-top:8px;line-height:1.5"></div>
+            <div id="achievementTier" style="display:inline-block;margin-top:14px;padding:5px 14px;border-radius:99px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px"></div>
+            <div style="margin-top:24px;display:flex;gap:10px;justify-content:center">
+                <button id="achievementNext" style="display:none;padding:11px 22px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">Nächste →</button>
+                <button onclick="closeAchievementModal()" class="btn btn-gold" style="font-size:14px;padding:13px 28px">🎉 Weiter so!</button>
+            </div>
+            <div id="achievementCounter" style="margin-top:14px;font-size:11px;color:var(--text-soft)"></div>
+        </div>
+    </div>
+    <style>
+        @keyframes bounce { from { transform: translateY(-4px); } to { transform: translateY(4px); } }
+    </style>
+    <script>
+        let _achievementsQueue = [];
+        let _achievementIdx = 0;
+
+        function fetchAchievements() {
+            fetch('/api/achievements/unseen').then(r=>r.json()).then(d => {
+                if (d.unseen && d.unseen.length) {
+                    _achievementsQueue = d.unseen;
+                    _achievementIdx = 0;
+                    showAchievement();
+                }
+            }).catch(()=>{});
+        }
+        function showAchievement() {
+            if (_achievementIdx >= _achievementsQueue.length) {
+                closeAchievementModal();
+                return;
+            }
+            const a = _achievementsQueue[_achievementIdx];
+            document.getElementById('achievementIcon').textContent = a.icon;
+            document.getElementById('achievementName').textContent = a.name;
+            document.getElementById('achievementDesc').textContent = a.desc;
+            const tier = document.getElementById('achievementTier');
+            tier.textContent = a.tier;
+            tier.style.background = (a.tier_color || '#94a3b8') + '25';
+            tier.style.color = a.tier_color || '#94a3b8';
+            tier.style.border = '1px solid ' + (a.tier_color || '#94a3b8') + '60';
+            const counter = document.getElementById('achievementCounter');
+            const nextBtn = document.getElementById('achievementNext');
+            if (_achievementsQueue.length > 1) {
+                counter.textContent = `${_achievementIdx+1} von ${_achievementsQueue.length} neuen Trophäen`;
+                nextBtn.style.display = (_achievementIdx < _achievementsQueue.length - 1) ? 'inline-block' : 'none';
+                nextBtn.onclick = () => { _achievementIdx++; showAchievement(); fireConfetti(); };
+            } else {
+                counter.textContent = '';
+                nextBtn.style.display = 'none';
+            }
+            document.getElementById('achievementModal').style.display = 'flex';
+            fireConfetti();
+        }
+        function closeAchievementModal() {
+            document.getElementById('achievementModal').style.display = 'none';
+            stopConfetti();
+            // Server: gesehen markieren
+            fetch('/api/achievements/seen', {method:'POST'}).catch(()=>{});
+            _achievementsQueue = []; _achievementIdx = 0;
+        }
+
+        // Confetti Engine
+        let _confettiAnim = null;
+        function fireConfetti() {
+            const cv = document.getElementById('confettiCanvas');
+            cv.style.display = 'block';
+            cv.width = window.innerWidth; cv.height = window.innerHeight;
+            const ctx = cv.getContext('2d');
+            const colors = ['#d4a843','#b8902e','#3b82f6','#10b981','#a78bfa','#f59e0b','#ec4899'];
+            const particles = [];
+            for (let i=0; i<150; i++) {
+                particles.push({
+                    x: window.innerWidth/2 + (Math.random()-0.5)*100,
+                    y: window.innerHeight/2,
+                    vx: (Math.random()-0.5)*16,
+                    vy: -Math.random()*16 - 4,
+                    size: Math.random()*6 + 4,
+                    color: colors[Math.floor(Math.random()*colors.length)],
+                    rot: Math.random()*Math.PI,
+                    vrot: (Math.random()-0.5)*0.4,
+                    gravity: 0.4
+                });
+            }
+            cancelAnimationFrame(_confettiAnim);
+            const start = Date.now();
+            function frame() {
+                ctx.clearRect(0,0,cv.width,cv.height);
+                let alive = 0;
+                particles.forEach(p => {
+                    p.vy += p.gravity;
+                    p.x += p.vx; p.y += p.vy;
+                    p.rot += p.vrot;
+                    if (p.y < cv.height + 30) {
+                        alive++;
+                        ctx.save();
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.rot);
+                        ctx.fillStyle = p.color;
+                        ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+                        ctx.restore();
+                    }
+                });
+                if (alive > 0 && Date.now() - start < 4500) {
+                    _confettiAnim = requestAnimationFrame(frame);
+                } else {
+                    stopConfetti();
+                }
+            }
+            frame();
+        }
+        function stopConfetti() {
+            cancelAnimationFrame(_confettiAnim);
+            const cv = document.getElementById('confettiCanvas');
+            const ctx = cv.getContext('2d');
+            ctx.clearRect(0,0,cv.width,cv.height);
+            cv.style.display = 'none';
+        }
+        // Auto-Check beim Pageload
+        setTimeout(fetchAchievements, 800);
+    </script>
+    {% endif %}
+
+    <!-- Globale Suche (Cmd+K) -->
+    {% if current_user.is_authenticated %}
+    <div id="searchOverlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:9998;backdrop-filter:blur(8px);padding:60px 20px 20px;justify-content:center;align-items:flex-start" onclick="if(event.target===this) closeSearch()">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:640px;box-shadow:var(--shadow-lg);overflow:hidden;animation:popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border)">
+                <span style="font-size:18px;color:var(--text-soft)">🔍</span>
+                <input type="text" id="searchInputGlobal" placeholder="Partner, Kunden, Verträge, Termine suchen..." autocomplete="off"
+                       style="flex:1;border:none;outline:none;background:transparent;font-size:16px;color:var(--text);padding:4px 0">
+                <kbd style="font-family:inherit;font-size:11px;padding:3px 7px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--text-muted)">ESC</kbd>
+            </div>
+            <div id="searchResults" style="max-height:480px;overflow-y:auto;padding:8px"></div>
+            <div style="padding:10px 16px;border-top:1px solid var(--border);background:var(--bg-2);display:flex;gap:14px;font-size:11px;color:var(--text-muted)">
+                <span><kbd style="font-family:inherit;background:var(--surface);padding:1px 6px;border-radius:4px;border:1px solid var(--border)">↑↓</kbd> Navigieren</span>
+                <span><kbd style="font-family:inherit;background:var(--surface);padding:1px 6px;border-radius:4px;border:1px solid var(--border)">↵</kbd> Öffnen</span>
+                <span style="margin-left:auto"><kbd style="font-family:inherit;background:var(--surface);padding:1px 6px;border-radius:4px;border:1px solid var(--border)">⌘K</kbd> Toggle</span>
+            </div>
+        </div>
+    </div>
+    <script>
+        let searchSel = 0, searchItems = [];
+        function openSearch() {
+            const ov = document.getElementById('searchOverlay');
+            if (!ov) return;
+            ov.style.display = 'flex';
+            const inp = document.getElementById('searchInputGlobal');
+            inp.value = ''; inp.focus();
+            renderSearch([], '');
+        }
+        function closeSearch() {
+            const ov = document.getElementById('searchOverlay');
+            if (ov) ov.style.display = 'none';
+        }
+        function renderSearch(results, q) {
+            const wrap = document.getElementById('searchResults');
+            if (!q) {
+                wrap.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-soft);font-size:13px">
+                    Tippe um zu suchen — durchsucht <strong>Partner, Kunden, Verträge, Termine</strong>
+                </div>`;
+                searchItems = []; return;
+            }
+            if (!results.length) {
+                wrap.innerHTML = `<div style="padding:32px;text-align:center;color:var(--text-soft);font-size:13px">Keine Treffer für „${escapeHtml(q)}"</div>`;
+                searchItems = []; return;
+            }
+            // Gruppieren
+            const groups = {};
+            results.forEach(r => { (groups[r.group] ||= []).push(r); });
+            let html = '';
+            let idx = 0;
+            for (const [grp, items] of Object.entries(groups)) {
+                html += `<div style="font-size:10px;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.8px;font-weight:700;padding:10px 12px 6px">${escapeHtml(grp)}</div>`;
+                items.forEach(r => {
+                    html += `<a href="${r.url}" data-idx="${idx}" class="search-result" onmouseenter="searchSel=${idx};markSearchSel()" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;text-decoration:none;color:var(--text);transition:background 0.1s">
+                        <div style="font-size:18px;width:32px;text-align:center">${r.icon}</div>
+                        <div style="flex:1;min-width:0">
+                            <div style="font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${highlightMatch(r.title, q)}</div>
+                            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.subtitle || '')}</div>
+                        </div>
+                        ${r.badge ? `<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;background:${r.badge_color}20;color:${r.badge_color};white-space:nowrap">${escapeHtml(r.badge)}</span>` : ''}
+                    </a>`;
+                    idx++;
+                });
+            }
+            wrap.innerHTML = html;
+            searchItems = wrap.querySelectorAll('.search-result');
+            searchSel = 0; markSearchSel();
+        }
+        function escapeHtml(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+        function highlightMatch(text, q) {
+            const e = escapeHtml(text);
+            try {
+                const re = new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi');
+                return e.replace(re,'<mark style="background:rgba(184,144,46,0.25);color:inherit;padding:0 2px;border-radius:3px">$1</mark>');
+            } catch(e2){ return e; }
+        }
+        function markSearchSel() {
+            searchItems.forEach((el,i) => {
+                el.style.background = (i===searchSel) ? 'var(--bg-2)' : 'transparent';
+            });
+            if (searchItems[searchSel]) searchItems[searchSel].scrollIntoView({block:'nearest'});
+        }
+        let searchTimer = null;
+        document.addEventListener('input', e => {
+            if (e.target && e.target.id === 'searchInputGlobal') {
+                const q = e.target.value;
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    if (!q) { renderSearch([], ''); return; }
+                    fetch('/api/search?q=' + encodeURIComponent(q))
+                        .then(r => r.json())
+                        .then(d => renderSearch(d.results || [], q))
+                        .catch(() => {});
+                }, 120);
+            }
+        });
+        document.addEventListener('keydown', e => {
+            // Cmd+K / Ctrl+K
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                const ov = document.getElementById('searchOverlay');
+                if (ov.style.display === 'flex') closeSearch(); else openSearch();
+                return;
+            }
+            if (document.getElementById('searchOverlay').style.display !== 'flex') return;
+            if (e.key === 'Escape') { closeSearch(); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); searchSel = Math.min(searchItems.length-1, searchSel+1); markSearchSel(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); searchSel = Math.max(0, searchSel-1); markSearchSel(); }
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (searchItems[searchSel]) window.location.href = searchItems[searchSel].href;
+            }
         });
     </script>
     {% endif %}
