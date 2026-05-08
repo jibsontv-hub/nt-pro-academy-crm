@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Mein Profil – NT Pro Academy{% endblock %}
+{% block page_title %}Mein Profil & Vision{% endblock %}
+
+{% block content %}
+<div style="max-width:720px">
+
+    <!-- Vision Card (Hero) -->
+    <div class="card" style="background:linear-gradient(135deg,#fff 0%,#faf6ec 100%);border:1.5px solid #e8d59a">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+            <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#d4a843;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800">★</div>
+            <div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Mein Warum / Meine Vision</div>
+                <div style="font-size:18px;font-weight:800;color:var(--navy);letter-spacing:-0.3px;margin-top:2px">Das treibt dich an</div>
+            </div>
+        </div>
+
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:var(--text-muted);line-height:1.6">
+            💡 <strong style="color:var(--text)">Tipp:</strong> Schreib auf, <strong>warum</strong> du das machst — was dich antreibt, welches Ziel du erreichen willst, was sich für dich + deine Familie ändern soll. Dieser Satz erscheint <strong>jedes Mal beim Login</strong> als Erinnerung. Dein eigener Motivator.
+            <br><br>
+            <em>Beispiel: „Ich baue mir ein freies Leben auf, in dem ich mit meiner Familie reisen kann, ohne mir Sorgen um Geld zu machen."</em>
+        </div>
+
+        <form method="POST" id="profilForm">
+            <div class="form-group full">
+                <label>★ Mein Warum (max. 280 Zeichen)</label>
+                <textarea name="vision" maxlength="280" rows="4" placeholder="z.B. Ich erschaffe mir und meiner Familie finanzielle Freiheit, damit wir leben können wie wir wollen."
+                          oninput="document.getElementById('charCount').textContent = this.value.length"
+                          style="font-size:15px;line-height:1.6;min-height:100px">{{ user.vision or '' }}</textarea>
+                <span style="font-size:11px;color:var(--text-soft)">
+                    <span id="charCount">{{ (user.vision or '')|length }}</span> / 280 Zeichen
+                </span>
+            </div>
+
+            <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)">
+
+            <!-- Passwort ändern -->
+            <div class="form-group full">
+                <label>🔐 Neues Passwort (optional)</label>
+                <input type="text" name="password" placeholder="Leer lassen = Passwort bleibt gleich">
+                <span style="font-size:11px;color:var(--text-soft)">
+                    Tipp: Mindestens 8 Zeichen, Mix aus Buchstaben + Zahlen.
+                </span>
+            </div>
+
+            <!-- Account Info (read-only) -->
+            <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)">
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" value="{{ user.name }}" disabled style="background:var(--bg);color:var(--text-muted)">
+                </div>
+                <div class="form-group">
+                    <label>E-Mail (Login)</label>
+                    <input type="text" value="{{ user.email }}" disabled style="background:var(--bg);color:var(--text-muted)">
+                </div>
+                <div class="form-group">
+                    <label>Karriere-Stufe</label>
+                    {% if my_career %}
+                    <input type="text" value="{{ my_career.short }} – {{ my_career.name }}" disabled style="background:var(--bg);color:{{ my_career.color }};font-weight:700">
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label>Dabei seit</label>
+                    <input type="text" value="{{ user.joined_date }}" disabled style="background:var(--bg);color:var(--text-muted)">
+                </div>
+            </div>
+            <div style="font-size:11px;color:var(--text-soft);margin-top:-8px">
+                Name, E-Mail oder Stufe ändern? → wende dich an deinen Upline oder den Admin.
+            </div>
+
+            <div style="margin-top:24px;display:flex;gap:10px">
+                <button type="submit" class="btn btn-primary">💾 Speichern</button>
+                <a href="/dashboard" class="btn btn-secondary">Zurück zum Dashboard</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Vorschau wie es beim Login aussieht -->
+    {% if user.vision %}
+    <div class="card">
+        <div class="card-title">Vorschau: So siehst du es beim nächsten Login</div>
+        <div style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);border-radius:14px;padding:32px;text-align:center;color:#fff">
+            <div style="width:48px;height:48px;border-radius:12px;background:rgba(212,168,67,0.15);color:#d4a843;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;margin:0 auto 14px">★</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:10px">Mein Warum</div>
+            <div style="font-size:18px;font-weight:600;line-height:1.6;font-style:italic;color:#fff">
+                „{{ user.vision }}"
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

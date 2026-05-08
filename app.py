@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import sqlite3
 import hashlib
@@ -232,6 +232,7 @@ def init_db():
             onboarding_einarbeitung_2 INTEGER DEFAULT 0,
             onboarding_einarbeitung_3 INTEGER DEFAULT 0,
             onboarding_seminar_bezahlt INTEGER DEFAULT 0,
+            vision TEXT DEFAULT '',
             active INTEGER DEFAULT 1,
             FOREIGN KEY (parent_id) REFERENCES users(id)
         );
@@ -332,6 +333,16 @@ def init_db():
             FOREIGN KEY (task_id) REFERENCES daily_tasks(id)
         );
     ''')
+
+    # Migration: Spalte 'vision' für bestehende DBs nachrüsten
+    try:
+        cols = db.execute("PRAGMA table_info(users)").fetchall()
+        col_names = [c['name'] for c in cols]
+        if 'vision' not in col_names:
+            db.execute("ALTER TABLE users ADD COLUMN vision TEXT DEFAULT ''")
+            db.commit()
+    except Exception as e:
+        print(f"Migration warning: {e}")
 
     admin = db.execute('SELECT id FROM users WHERE email = ?', ('najib@ntpro.de',)).fetchone()
     if not admin:
@@ -555,9 +566,40 @@ def login():
         db.close()
         if row and row['password'] == hash_password(password):
             login_user(User(row))
+            session['show_vision'] = True  # Vision-Modal beim Dashboard anzeigen
             return redirect(url_for('dashboard'))
         flash('Falsche E-Mail oder Passwort', 'error')
     return render_template('login.html')
+
+
+@app.route('/profil', methods=['GET', 'POST'])
+@login_required
+def profil():
+    """Eigenes Profil — jeder darf seine Vision + Passwort selbst ändern."""
+    db = get_db()
+    if request.method == 'POST':
+        vision = request.form.get('vision', '').strip()
+        new_password = request.form.get('password', '').strip()
+        if new_password:
+            db.execute('UPDATE users SET vision=?, password=? WHERE id=?',
+                       (vision, hash_password(new_password), current_user.id))
+        else:
+            db.execute('UPDATE users SET vision=? WHERE id=?',
+                       (vision, current_user.id))
+        db.commit()
+        db.close()
+        flash('Profil aktualisiert!', 'success')
+        return redirect(url_for('profil'))
+    user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
+    db.close()
+    return render_template('profil.html', user=user)
+
+
+@app.route('/api/vision-seen', methods=['POST'])
+@login_required
+def vision_seen():
+    session.pop('show_vision', None)
+    return jsonify({'ok': True})
 
 
 @app.route('/logout')
@@ -676,6 +718,9 @@ def dashboard():
             GROUP BY monat ORDER BY monat
         ''').fetchall()
 
+        admin_user = db.execute('SELECT vision FROM users WHERE id = ?', (current_user.id,)).fetchone()
+        admin_vision = (admin_user['vision'] if admin_user else '') or ''
+        admin_show_vision = session.pop('show_vision', False) and admin_vision.strip() != ''
         db.close()
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
@@ -688,7 +733,8 @@ def dashboard():
             progress_pct=progress_pct, eh_to_next=eh_to_next, all_levels=CAREER_LEVELS,
             conversion=conversion, termine_pro_abschluss=TERMINE_PRO_ABSCHLUSS,
             my_commissions=my_commissions, comparison=comparison,
-            partner_growth=json.dumps([dict(r) for r in partner_growth])
+            partner_growth=json.dumps([dict(r) for r in partner_growth]),
+            vision_text=admin_vision, show_vision=admin_show_vision
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -731,6 +777,25 @@ def dashboard():
         current_month = date.today().strftime('%Y-%m')
         quota = db.execute('SELECT * FROM quotas WHERE user_id = ? AND monat = ?', (current_user.id, current_month)).fetchone()
 
+        # Monatsentwicklung der letzten 6 Monate (eigenes Team)
+        team_ids = [current_user.id] + get_all_descendants(current_user.id)
+        ph = ','.join('?' * len(team_ids))
+        monthly_data = db.execute(f'''
+            SELECT strftime('%Y-%m', abschluss_date) as monat,
+                   COUNT(*) as anzahl, COALESCE(SUM(einheiten),0) as einheiten,
+                   COALESCE(SUM(volumen),0) as volumen
+            FROM contracts
+            WHERE status = "abgeschlossen" AND recherche_status = "freigegeben"
+              AND owner_id IN ({ph})
+              AND abschluss_date >= date('now', '-6 months')
+            GROUP BY monat ORDER BY monat
+        ''', team_ids).fetchall()
+
+        # Vision aus DB holen (für Modal)
+        own_user = db.execute('SELECT vision FROM users WHERE id = ?', (current_user.id,)).fetchone()
+        vision_text = (own_user['vision'] if own_user else '') or ''
+        show_vision = session.pop('show_vision', False) and vision_text.strip() != ''
+
         db.close()
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
@@ -738,7 +803,9 @@ def dashboard():
             own_eh=own_eh, team_eh=team_eh, career=career, next_level=next_level,
             progress_pct=progress_pct, eh_to_next=eh_to_next, all_levels=CAREER_LEVELS,
             conversion=conversion, termine_pro_abschluss=TERMINE_PRO_ABSCHLUSS,
-            my_commissions=my_commissions, global_top=global_top
+            my_commissions=my_commissions, global_top=global_top,
+            monthly_data=json.dumps([dict(r) for r in monthly_data]),
+            vision_text=vision_text, show_vision=show_vision
         )
 
 

@@ -294,6 +294,9 @@
             <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}">
                 <span class="nav-icon">€</span> Provisionen
             </a>
+            <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}">
+                <span class="nav-icon">★</span> Mein Profil & Vision
+            </a>
 
             <div class="nav-section">Vertrieb</div>
             <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path %}active{% endif %}">
@@ -362,6 +365,40 @@
             {% block content %}{% endblock %}
         </div>
     </div>
+
+    <!-- Vision Modal: Wird beim Login angezeigt, wenn User eine Vision gesetzt hat -->
+    {% if show_vision and vision_text %}
+    <div id="visionOverlay" style="position:fixed;inset:0;background:rgba(15,28,63,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);animation:fadeIn 0.4s">
+        <div style="background:linear-gradient(135deg,#fff 0%,#faf6ec 100%);border:2px solid #d4a843;border-radius:18px;padding:40px;max-width:560px;width:100%;text-align:center;box-shadow:0 25px 80px rgba(0,0,0,0.4);animation:popIn 0.5s">
+            <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#d4a843;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:800;margin:0 auto 20px">★</div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:14px">Mein Warum</div>
+            <div style="font-size:22px;font-weight:700;color:var(--navy);line-height:1.5;letter-spacing:-0.3px;margin-bottom:30px;font-style:italic">
+                „{{ vision_text }}"
+            </div>
+            <button onclick="closeVision()" class="btn btn-primary" style="padding:13px 30px;font-size:14px">
+                Los geht's →
+            </button>
+            <div style="margin-top:14px;font-size:11px;color:var(--text-soft)">
+                Bearbeiten unter <a href="/profil" style="color:var(--gold);text-decoration:none;font-weight:600">Mein Profil & Vision</a>
+            </div>
+        </div>
+    </div>
+    <style>
+        @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+        @keyframes popIn { from { transform:scale(0.85);opacity:0 } to { transform:scale(1);opacity:1 } }
+    </style>
+    <script>
+        function closeVision() {
+            const ov = document.getElementById('visionOverlay');
+            if (ov) ov.style.display = 'none';
+            fetch('/api/vision-seen', {method:'POST'}).catch(()=>{});
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeVision();
+        });
+    </script>
+    {% endif %}
+
     {% block scripts %}{% endblock %}
 </body>
 </html>

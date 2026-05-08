@@ -117,6 +117,15 @@
     </div>
 </div>
 
+<!-- Monatsentwicklung -->
+<div class="card">
+    <div class="card-title">
+        📈 Monatsentwicklung (mein Team)
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">Letzte 6 Monate · Einheiten + Verträge</span>
+    </div>
+    <div class="chart-container" style="height:240px"><canvas id="monthlyPartnerChart"></canvas></div>
+</div>
+
 <!-- Top Performer der ganzen Struktur -->
 <div class="card">
     <div class="card-title">
@@ -230,4 +239,47 @@
     </p>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const monthlyData = {{ monthly_data | safe }};
+const labels = monthlyData.map(d => d.monat);
+const eh = monthlyData.map(d => d.einheiten);
+const vtr = monthlyData.map(d => d.anzahl);
+
+new Chart(document.getElementById('monthlyPartnerChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+        labels: labels.length ? labels : ['Keine Daten'],
+        datasets: [{
+            label: 'Einheiten',
+            data: eh.length ? eh : [0],
+            backgroundColor: '#b8902e',
+            borderRadius: 6,
+            yAxisID: 'y'
+        }, {
+            label: 'Verträge',
+            data: vtr.length ? vtr : [0],
+            type: 'line',
+            borderColor: '#0f1c3f',
+            backgroundColor: 'transparent',
+            borderWidth: 2.5,
+            pointRadius: 4,
+            pointBackgroundColor: '#0f1c3f',
+            yAxisID: 'y1'
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { color: '#1a1f36', font: { size: 12 } } } },
+        scales: {
+            y: { beginAtZero: true, ticks: { color: '#6b7280' }, grid: { color: '#e5e8ee' }, title: { display: true, text: 'EH', color: '#6b7280' } },
+            y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: '#6b7280', stepSize: 1 }, title: { display: true, text: 'Verträge', color: '#6b7280' } },
+            x: { ticks: { color: '#6b7280' }, grid: { display: false } }
+        }
+    }
+});
+</script>
 {% endblock %}
