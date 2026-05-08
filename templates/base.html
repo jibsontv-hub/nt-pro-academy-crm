@@ -722,6 +722,29 @@
         </div>
     </div>
 
+    <!-- Google-Translate (versteckt, nur Engine — wir steuern's via googtrans-Cookie) -->
+    {% if user_lang and user_lang != 'de' %}
+    <style>
+        .skiptranslate, #google_translate_element, .goog-te-banner-frame, .goog-te-gadget { display: none !important; visibility: hidden !important; height: 0 !important; }
+        body { top: 0 !important; }
+        font[style*="background-color"] { background: transparent !important; box-shadow: none !important; }
+        /* Eigennamen + Zahlen nicht übersetzen lassen */
+        .notranslate, .brand-title, .brand-icon, .live-clock, kbd, code, pre { unicode-bidi: isolate; }
+    </style>
+    <div id="google_translate_element" style="display:none"></div>
+    <script>
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'de',
+                includedLanguages: 'en,fr',
+                autoDisplay: false,
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+            }, 'google_translate_element');
+        }
+    </script>
+    <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async></script>
+    {% endif %}
+
     <div class="main">
         <div class="topbar">
             <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menü">☰</button>
@@ -1142,8 +1165,11 @@
                 .then(r => r.json())
                 .then(d => {
                     if (d.ok) {
-                        // Tour-done Flag zurücksetzen damit Tour in neuer Sprache nochmal kommt
                         try { localStorage.removeItem('ntpro-tour-done'); } catch(e){}
+                        // Google-Translate-Cookie setzen damit Page nach Reload sofort übersetzt ist
+                        const gtTarget = (lang === 'de') ? '' : '/de/' + lang;
+                        document.cookie = 'googtrans=' + gtTarget + '; path=/; max-age=31536000';
+                        document.cookie = 'googtrans=' + gtTarget + '; path=/; domain=.pythonanywhere.com; max-age=31536000';
                         location.reload();
                     }
                 }).catch(()=>{});
