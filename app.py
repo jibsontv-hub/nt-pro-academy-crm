@@ -2203,8 +2203,31 @@ def inject_career():
                 cache_set(ai_key, alerts, ttl=300)
             ctx['coach_alerts'] = alerts
             cache_set(cache_key, ctx, ttl=60)
+        # Sprachpräferenz aus DB (für Tour-Voice + Datei-Auswahl)
+        try:
+            db = get_db()
+            row = db.execute('SELECT language FROM users WHERE id=?', (current_user.id,)).fetchone()
+            db.close()
+            ctx['user_lang'] = (row['language'] if row and row['language'] else 'de')
+        except Exception:
+            ctx['user_lang'] = 'de'
         return ctx
-    return {}
+    return {'user_lang': 'de'}
+
+
+@app.route('/api/set-language', methods=['POST'])
+@login_required
+def api_set_language():
+    """Speichert Sprachpräferenz (DE/EN/FR) für aktuellen User."""
+    lang = (request.form.get('lang') or request.json.get('lang') if request.is_json else request.form.get('lang') or '').strip().lower()
+    if lang not in ('de', 'en', 'fr'):
+        return jsonify({'ok': False, 'error': 'invalid_language'}), 400
+    db = get_db()
+    db.execute('UPDATE users SET language=? WHERE id=?', (lang, current_user.id))
+    db.commit()
+    db.close()
+    cache_invalidate(f'ctx:career:{current_user.id}')
+    return jsonify({'ok': True, 'lang': lang})
 
 
 # === ADMIN: AUDIT-LOG ===
@@ -3015,6 +3038,7 @@ def init_db():
             ('onboarding_done', "INTEGER DEFAULT 0"),
             ('is_co_admin', "INTEGER DEFAULT 0"),
             ('must_change_password', "INTEGER DEFAULT 0"),
+            ('language', "TEXT DEFAULT 'de'"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")

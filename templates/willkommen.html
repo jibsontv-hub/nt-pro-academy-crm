@@ -354,8 +354,9 @@ function speakStep(step) {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     const text = stepTexts[step];
     if (!text) return;
-    // 1) Versuche vorgenerierte MP3 mit eigener Stimme
-    const audioFile = '/static/voices/willkommen_' + step + '.mp3';
+    // 1) Versuche vorgenerierte MP3 in der richtigen Sprache
+    const _lang = ('{{ user_lang or "de" }}').toLowerCase();
+    const audioFile = '/static/voices/' + _lang + '/willkommen_' + step + '.mp3';
     const test = new Audio(audioFile);
     test.oncanplaythrough = () => {
         _wAudio = test;

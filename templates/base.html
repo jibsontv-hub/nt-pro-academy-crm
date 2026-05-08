@@ -741,6 +741,21 @@
                     <span class="icon-moon">🌙</span>
                     <span class="icon-sun">☀️</span>
                 </button>
+                <button onclick="toggleLangMenu(event)" title="Sprache / Language / Langue" aria-label="Sprache wechseln"
+                        style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:18px;transition:all 0.15s;font-family:inherit">
+                    {% if user_lang == 'en' %}🇬🇧{% elif user_lang == 'fr' %}🇫🇷{% else %}🇩🇪{% endif %}
+                </button>
+                <div id="langMenu" style="display:none;position:absolute;top:64px;right:80px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px;box-shadow:0 12px 36px rgba(0,0,0,0.3);z-index:9999;min-width:160px">
+                    <button onclick="setLang('de')" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:transparent;border:none;color:var(--text);cursor:pointer;border-radius:8px;font-size:13px;font-family:inherit;text-align:left">
+                        <span style="font-size:18px">🇩🇪</span><span>Deutsch</span>{% if user_lang == 'de' %}<span style="margin-left:auto;color:var(--gold)">✓</span>{% endif %}
+                    </button>
+                    <button onclick="setLang('en')" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:transparent;border:none;color:var(--text);cursor:pointer;border-radius:8px;font-size:13px;font-family:inherit;text-align:left">
+                        <span style="font-size:18px">🇬🇧</span><span>English</span>{% if user_lang == 'en' %}<span style="margin-left:auto;color:var(--gold)">✓</span>{% endif %}
+                    </button>
+                    <button onclick="setLang('fr')" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:transparent;border:none;color:var(--text);cursor:pointer;border-radius:8px;font-size:13px;font-family:inherit;text-align:left">
+                        <span style="font-size:18px">🇫🇷</span><span>Français</span>{% if user_lang == 'fr' %}<span style="margin-left:auto;color:var(--gold)">✓</span>{% endif %}
+                    </button>
+                </div>
                 {% if coach_alerts and coach_alerts > 0 %}
                 <a href="/coach" title="KI-Coach Alerts" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--text);text-decoration:none;font-size:16px;transition:all 0.15s">
                     🔔
@@ -1109,6 +1124,30 @@
                 Object.values(Chart.instances).forEach(c => { try { c.update(); } catch(e){} });
             }
         }
+        // Sprache umschalten
+        function toggleLangMenu(ev) {
+            ev && ev.stopPropagation();
+            const m = document.getElementById('langMenu');
+            if (!m) return;
+            m.style.display = (m.style.display === 'block') ? 'none' : 'block';
+        }
+        document.addEventListener('click', (e) => {
+            const m = document.getElementById('langMenu');
+            if (m && m.style.display === 'block' && !m.contains(e.target)) m.style.display = 'none';
+        });
+        function setLang(lang) {
+            const fd = new FormData();
+            fd.append('lang', lang);
+            fetch('/api/set-language', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.ok) {
+                        // Tour-done Flag zurücksetzen damit Tour in neuer Sprache nochmal kommt
+                        try { localStorage.removeItem('ntpro-tour-done'); } catch(e){}
+                        location.reload();
+                    }
+                }).catch(()=>{});
+        }
     </script>
 
 
@@ -1206,18 +1245,26 @@
                 sp.style.height = (r.height + 16) + 'px';
             }, 350);
         }
-        // Audio-Cache für vorgenerierte MP3s (z.B. mit eigener Stimme via ElevenLabs)
+        // Audio-Cache für vorgenerierte MP3s (mehrsprachig)
         let _tourAudio = null;
-        function pickBestGermanVoice() {
+        const _userLang = ('{{ user_lang or "de" }}').toLowerCase();
+        const _voiceLangMap = {
+            de: { tag: 'de-DE', filter: /(katja|conrad|amala|hedda|helena|anna|petra|bernd|killian|florian)/i },
+            en: { tag: 'en-US', filter: /(guy|davis|jenny|aria|tony|emma|brian|nancy)/i },
+            fr: { tag: 'fr-FR', filter: /(henri|claude|denise|alain|brigitte)/i },
+        };
+        function pickBestVoice() {
+            if (!window.speechSynthesis) return null;
             const voices = window.speechSynthesis.getVoices();
             if (!voices.length) return null;
-            // Priorität: Neural/Premium/Enhanced/Online > Standard > nur de
+            const cfg = _voiceLangMap[_userLang] || _voiceLangMap.de;
+            const tag = cfg.tag;
             const tiers = [
-                v => /de.?DE/i.test(v.lang) && /(neural|premium|enhanced|online|natural)/i.test(v.name),
-                v => /de.?DE/i.test(v.lang) && /(katja|conrad|amala|hedda|helena|anna|petra)/i.test(v.name),
-                v => /de.?DE/i.test(v.lang) && !/(microsoft.*desktop|espeak|festival)/i.test(v.name),
-                v => /de.?DE/i.test(v.lang),
-                v => v.lang && v.lang.startsWith('de'),
+                v => v.lang && v.lang.toLowerCase().startsWith(tag.toLowerCase()) && /(neural|premium|enhanced|online|natural)/i.test(v.name),
+                v => v.lang && v.lang.toLowerCase().startsWith(tag.toLowerCase()) && cfg.filter.test(v.name),
+                v => v.lang && v.lang.toLowerCase().startsWith(tag.toLowerCase()) && !/(microsoft.*desktop|espeak|festival)/i.test(v.name),
+                v => v.lang && v.lang.toLowerCase().startsWith(tag.toLowerCase()),
+                v => v.lang && v.lang.toLowerCase().startsWith(_userLang),
             ];
             for (const f of tiers) { const m = voices.find(f); if (m) return m; }
             return null;
@@ -1227,19 +1274,19 @@
             // Stop alles was läuft
             if (_tourAudio) { try { _tourAudio.pause(); _tourAudio = null; } catch(e){} }
             if (window.speechSynthesis) window.speechSynthesis.cancel();
-            // 1) Versuche vorgenerierte MP3 mit eigener Stimme zu laden
-            const audioFile = '/static/voices/tour_' + (_tourIdx + 1) + '.mp3';
+            // 1) Versuche vorgenerierte MP3 in der richtigen Sprache
+            const audioFile = '/static/voices/' + _userLang + '/tour_' + (_tourIdx + 1) + '.mp3';
             const test = new Audio(audioFile);
             test.oncanplaythrough = () => { _tourAudio = test; test.play().catch(()=>{}); };
             test.onerror = () => {
                 // 2) Fallback auf Browser-TTS mit bester Stimme
                 if (!window.speechSynthesis) return;
                 const u = new SpeechSynthesisUtterance(step.voice || step.text);
-                u.lang = 'de-DE';
+                u.lang = (_voiceLangMap[_userLang] || _voiceLangMap.de).tag;
                 u.rate = 0.95;       // bisschen langsamer = natürlicher
                 u.pitch = 1.05;      // leicht heller
                 u.volume = 1.0;
-                const v = pickBestGermanVoice();
+                const v = pickBestVoice();
                 if (v) u.voice = v;
                 window.speechSynthesis.speak(u);
             };
