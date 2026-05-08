@@ -135,6 +135,18 @@ def calculate_age(birthday_str):
         return None
 
 
+def career_for_row(manual_level, eh):
+    """Korrekte Karriere-Stufe = MAX(manual_career_level, EH-erreichte Stufe)."""
+    earned = 1
+    for cl in CAREER_LEVELS:
+        if (eh or 0) >= cl['min_eh']:
+            earned = cl['level']
+        else:
+            break
+    final = max(manual_level or 1, earned)
+    return next((c for c in CAREER_LEVELS if c['level'] == final), CAREER_LEVELS[0])
+
+
 def get_greeting_for_user(name, career, next_level, own_eh, eh_to_next):
     """Personalisierte Begrüßung — motivierend + datengestützt."""
     h = datetime.now().hour
@@ -566,7 +578,7 @@ def admin_aktivitaet():
     today_str = date.today().strftime('%Y-%m-%d')
     for r in rows:
         d = dict(r)
-        d['career'] = next((c for c in CAREER_LEVELS if c['level'] == r['manual_career_level']), CAREER_LEVELS[0])
+        d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
         # Tage seit letztem Login
         if r['last_login']:
             try:
@@ -1269,7 +1281,7 @@ def dashboard():
 
         # Top Performer mit EH
         top_rows = db.execute('''
-            SELECT u.id, u.name, u.level,
+            SELECT u.id, u.name, u.level, u.manual_career_level,
                    COALESCE(SUM(c.einheiten), 0) as einheiten,
                    COUNT(c.id) as vertraege
             FROM users u
@@ -1282,7 +1294,7 @@ def dashboard():
         top_performer = []
         for r in top_rows:
             d = dict(r)
-            d['career'] = get_career_level(r['einheiten'])
+            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
             top_performer.append(d)
 
         direct_rows = db.execute('''
@@ -1297,7 +1309,7 @@ def dashboard():
         direct_partners = []
         for r in direct_rows:
             d = dict(r)
-            d['career'] = get_career_level(r['einheiten'])
+            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
             direct_partners.append(d)
 
         recent_contracts = db.execute('''
@@ -1410,7 +1422,7 @@ def dashboard():
         direct_team = []
         for r in direct_rows:
             d = dict(r)
-            d['career'] = get_career_level(r['einheiten'])
+            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
             direct_team.append(d)
 
         current_month = date.today().strftime('%Y-%m')
@@ -1726,7 +1738,7 @@ def team():
     members = []
     for r in rows:
         d = dict(r)
-        d['career'] = get_career_level(r['einheiten'])
+        d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
         members.append(d)
     db.close()
     return render_template('team.html', members=members, all_levels=CAREER_LEVELS)
@@ -2017,7 +2029,8 @@ def provisionen():
     for r in user_rows:
         d = dict(r)
         own_eh = db.execute('SELECT COALESCE(SUM(einheiten), 0) as s FROM contracts WHERE owner_id = ? AND status = "abgeschlossen" AND recherche_status = "freigegeben"', (r['id'],)).fetchone()['s']
-        d['career'] = get_career_level(own_eh)
+        manual = db.execute('SELECT manual_career_level FROM users WHERE id = ?', (r['id'],)).fetchone()
+        d['career'] = career_for_row(manual['manual_career_level'] if manual else 1, own_eh)
         d['own_eh'] = own_eh
         user_list.append(d)
 

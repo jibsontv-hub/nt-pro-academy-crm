@@ -7,6 +7,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+      // Dark Mode VOR DOM-Render setzen → kein Flash
+      (function(){
+          try {
+              var t = localStorage.getItem('ntpro-theme') || 'light';
+              document.documentElement.setAttribute('data-theme', t);
+          } catch(e){}
+      })();
+    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -40,6 +49,57 @@
             --orange: #b8590a;
             --orange-soft: #fef3e7;
         }
+        /* === DARK MODE === */
+        [data-theme="dark"] {
+            --navy: #d4a843;        /* Gold als Akzent statt Navy */
+            --navy-light: #e8b958;
+            --gold: #d4a843;
+            --gold-light: #f0c970;
+            --gold-soft: #2a2410;
+            --bg: #0a0e1a;
+            --bg-2: #0f1424;
+            --surface: #131829;
+            --border: #1f2640;
+            --border-strong: #2a3458;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-soft: #64748b;
+            --green: #34d399;
+            --green-soft: #052e1f;
+            --red: #f87171;
+            --red-soft: #2e0f0f;
+            --blue: #60a5fa;
+            --blue-soft: #0a1733;
+            --purple: #a78bfa;
+            --purple-soft: #1a0f2e;
+            --orange: #fbbf24;
+            --orange-soft: #2a1808;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.4);
+            --shadow-lg: 0 12px 32px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.4);
+            --shadow-gold: 0 8px 24px rgba(212,168,67,0.25);
+            --shadow-navy: 0 8px 24px rgba(0,0,0,0.5);
+        }
+        /* Smooth Transitions zwischen Modes */
+        body, .card, .sidebar, .topbar, .kpi-card, table, input, select, textarea, .btn, .nav-link {
+            transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+        }
+        /* Theme-Toggle Button */
+        .theme-toggle {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 38px; height: 38px; border-radius: 10px;
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text); cursor: pointer; font-size: 16px;
+            transition: all 0.2s; user-select: none;
+        }
+        .theme-toggle:hover {
+            background: var(--gold-soft); border-color: var(--gold);
+            transform: translateY(-1px);
+        }
+        .theme-toggle .icon-sun { display: none; }
+        .theme-toggle .icon-moon { display: block; }
+        [data-theme="dark"] .theme-toggle .icon-sun { display: block; }
+        [data-theme="dark"] .theme-toggle .icon-moon { display: none; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg); color: var(--text);
@@ -470,6 +530,10 @@
         <div class="topbar">
             <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
             <div class="topbar-actions" style="display:flex;align-items:center;gap:10px">
+                <button class="theme-toggle" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Theme wechseln">
+                    <span class="icon-moon">🌙</span>
+                    <span class="icon-sun">☀️</span>
+                </button>
                 {% if coach_alerts and coach_alerts > 0 %}
                 <a href="/coach" title="KI-Coach Alerts" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--text);text-decoration:none;font-size:16px;transition:all 0.15s">
                     🔔
@@ -521,6 +585,20 @@
         });
     </script>
     {% endif %}
+
+    <script>
+        // Theme-Toggle
+        function toggleTheme() {
+            const cur = document.documentElement.getAttribute('data-theme') || 'light';
+            const next = cur === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            try { localStorage.setItem('ntpro-theme', next); } catch(e) {}
+            // Charts neu rendern wenn Chart.js da ist
+            if (window.Chart && Chart.instances) {
+                Object.values(Chart.instances).forEach(c => { try { c.update(); } catch(e){} });
+            }
+        }
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>
