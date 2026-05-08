@@ -7,6 +7,56 @@
 
 {% block content %}
 
+<!-- ⏰ DEADLINES: Eingabeschluss + Grundseminar -->
+{% if deadlines %}
+<div class="card" style="background:{% if deadlines.eingabe_urgent %}linear-gradient(135deg,#7c2d12 0%,#9a3412 100%){% elif deadlines.eingabe_today %}linear-gradient(135deg,#dc2626,#7c2d12){% else %}linear-gradient(135deg,#0f1c3f,#1a2c5b){% endif %};color:#fff;border:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:center">
+
+        <!-- Eingabeschluss -->
+        <div style="border-right:1px solid rgba(255,255,255,0.1);padding-right:20px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <div style="font-size:22px">⏰</div>
+                <div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">Eingabeschluss {{ deadlines.month_label }}</div>
+                    <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-top:2px">3. Werktag · Produktionsschluss</div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+                <div style="font-size:32px;font-weight:900;color:#fff;letter-spacing:-0.8px;line-height:1">{{ deadlines.eingabe_weekday }} {{ deadlines.eingabeschluss_str }}</div>
+                {% if deadlines.eingabe_today %}
+                <span style="background:#fff;color:#dc2626;padding:6px 14px;border-radius:99px;font-weight:900;font-size:14px;animation:pulseGold 1.5s infinite">🔥 HEUTE!</span>
+                {% elif deadlines.eingabe_urgent %}
+                <span style="background:#fbbf24;color:#7c2d12;padding:6px 14px;border-radius:99px;font-weight:900;font-size:14px">⚠ NUR NOCH {{ deadlines.eingabe_in_days }} TAG{% if deadlines.eingabe_in_days != 1 %}E{% endif %}</span>
+                {% else %}
+                <span style="background:rgba(255,255,255,0.1);color:#d4a843;padding:5px 12px;border-radius:99px;font-weight:700;font-size:13px">in {{ deadlines.eingabe_in_days }} Tagen</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Grundseminar -->
+        <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <div style="font-size:22px">🎓</div>
+                <div>
+                    <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">Grundseminar</div>
+                    <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-top:2px">2. Wochenende nach Eingabeschluss</div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+                <div style="font-size:32px;font-weight:900;color:#fff;letter-spacing:-0.8px;line-height:1">{{ deadlines.seminar_weekday }} {{ deadlines.grundseminar_str }}</div>
+                {% if deadlines.seminar_in_days <= 0 %}
+                <span style="background:#fff;color:#0f1c3f;padding:5px 12px;border-radius:99px;font-weight:900;font-size:13px">JETZT</span>
+                {% elif deadlines.seminar_urgent %}
+                <span style="background:#d4a843;color:#0f1c3f;padding:5px 12px;border-radius:99px;font-weight:900;font-size:13px">in {{ deadlines.seminar_in_days }} Tagen</span>
+                {% else %}
+                <span style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:5px 12px;border-radius:99px;font-weight:600;font-size:13px">in {{ deadlines.seminar_in_days }} Tagen</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Zeit-Header: Monat + Halbjahr -->
 {% if period_stats %}
 <div class="card" style="padding:18px 22px;background:var(--surface);border:1px solid var(--border)">

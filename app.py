@@ -870,6 +870,111 @@ def send_bulk_emails(recipients, subject, body_text, body_html=None, sent_by=Non
     return success, fails
 
 
+def _easter_sunday(year):
+    """Berechnet Ostersonntag (Gauß-Algorithmus)."""
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = ((h + l - 7 * m + 114) % 31) + 1
+    return date(year, month, day)
+
+
+def german_holidays(year):
+    """Liefert deutsche bundesweite Feiertage für ein Jahr."""
+    easter = _easter_sunday(year)
+    return {
+        date(year, 1, 1),                          # Neujahr
+        easter - timedelta(days=2),                # Karfreitag
+        easter + timedelta(days=1),                # Ostermontag
+        date(year, 5, 1),                          # Tag der Arbeit
+        easter + timedelta(days=39),               # Christi Himmelfahrt
+        easter + timedelta(days=50),               # Pfingstmontag
+        date(year, 10, 3),                         # Tag der Deutschen Einheit
+        date(year, 12, 25),                        # 1. Weihnachtstag
+        date(year, 12, 26),                        # 2. Weihnachtstag
+    }
+
+
+def get_third_workday(year, month):
+    """Liefert den 3. Werktag (Mo-Fr ohne deutsche Feiertage) des Monats."""
+    holidays = german_holidays(year)
+    count = 0
+    day = 1
+    while day <= 31:
+        try:
+            d = date(year, month, day)
+        except ValueError:
+            break
+        if d.weekday() < 5 and d not in holidays:  # Mo-Fr und kein Feiertag
+            count += 1
+            if count == 3:
+                return d
+        day += 1
+    return None
+
+
+def get_grundseminar_date(eingabeschluss):
+    """Liefert das Grundseminar-Datum: 2. Samstag NACH dem Eingabeschluss."""
+    if not eingabeschluss:
+        return None
+    # 1. Samstag nach Eingabeschluss
+    days_until_sat = (5 - eingabeschluss.weekday()) % 7
+    if days_until_sat == 0:
+        days_until_sat = 7
+    first_sat = eingabeschluss + timedelta(days=days_until_sat)
+    # 2. Samstag = + 7 Tage
+    return first_sat + timedelta(days=7)
+
+
+def get_production_deadlines():
+    """Liefert Eingabeschluss + Grundseminar für aktuellen/nächsten Monat."""
+    today = date.today()
+    # Aktueller Monats-Eingabeschluss
+    cur_eingabe = get_third_workday(today.year, today.month)
+    cur_seminar = get_grundseminar_date(cur_eingabe) if cur_eingabe else None
+
+    # Wenn schon vorbei: nächsten Monat
+    if cur_eingabe and today > cur_seminar:
+        next_year = today.year + 1 if today.month == 12 else today.year
+        next_month = 1 if today.month == 12 else today.month + 1
+        cur_eingabe = get_third_workday(next_year, next_month)
+        cur_seminar = get_grundseminar_date(cur_eingabe) if cur_eingabe else None
+
+    if not cur_eingabe or not cur_seminar:
+        return None
+
+    eingabe_in_days = (cur_eingabe - today).days
+    seminar_in_days = (cur_seminar - today).days
+    monate = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+
+    return {
+        'eingabeschluss': cur_eingabe,
+        'eingabeschluss_str': cur_eingabe.strftime('%d.%m.%Y'),
+        'eingabe_weekday': ['Mo','Di','Mi','Do','Fr','Sa','So'][cur_eingabe.weekday()],
+        'eingabe_in_days': eingabe_in_days,
+        'eingabe_passed': eingabe_in_days < 0,
+        'eingabe_today': eingabe_in_days == 0,
+        'eingabe_urgent': 0 <= eingabe_in_days <= 3,
+        'grundseminar': cur_seminar,
+        'grundseminar_str': cur_seminar.strftime('%d.%m.%Y'),
+        'seminar_weekday': ['Mo','Di','Mi','Do','Fr','Sa','So'][cur_seminar.weekday()],
+        'seminar_in_days': seminar_in_days,
+        'seminar_passed': seminar_in_days < 0,
+        'seminar_urgent': 0 <= seminar_in_days <= 7,
+        'month_label': monate[cur_eingabe.month - 1],
+    }
+
+
 def get_period_stats(scope_user_id=None):
     """Liefert Monats- und Halbjahres-Statistiken für Header."""
     db = get_db()
@@ -3558,6 +3663,8 @@ def dashboard():
         # Monats- + Halbjahres-Daten + Karriere-Kriterien
         period_stats = get_period_stats(scope_user_id=None)
         career_criteria = get_career_criteria_status(current_user.id)
+        # Production Deadlines
+        deadlines = get_production_deadlines()
         # Power-KI-Empfehlungen + Forecast + Anomalien
         ki_recs = get_ki_recommendations(current_user.id, scope_user_id=None)
         forecast = get_forecast(current_user.id)
@@ -3579,7 +3686,7 @@ def dashboard():
             coach_insights=coach_insights, greeting=greeting,
             period_stats=period_stats, career_criteria=career_criteria,
             ki_recs=ki_recs, forecast=forecast, anomalies=anomalies,
-            ai_briefing=ai_briefing
+            ai_briefing=ai_briefing, deadlines=deadlines
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -3661,7 +3768,8 @@ def dashboard():
             vision_text=vision_text, show_vision=show_vision,
             coach_insights=coach_insights, greeting=greeting,
             period_stats=period_stats, career_criteria=career_criteria,
-            ki_recs=ki_recs, forecast=forecast, ai_briefing=ai_briefing
+            ki_recs=ki_recs, forecast=forecast, ai_briefing=ai_briefing,
+            deadlines=deadlines
         )
 
 
