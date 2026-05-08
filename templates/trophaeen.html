@@ -15,8 +15,38 @@
     </div>
 </div>
 
+<!-- ECHTE BELOHNUNGEN (Reward-Tier) -->
+{% set rewards = items | selectattr('tier','equalto','reward') | list %}
+{% if rewards %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface),rgba(220,38,38,0.06));border:1.5px solid #dc2626">
+    <div class="card-title" style="color:#dc2626">
+        🎁 ECHTE BELOHNUNGEN
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">Physische Geschenke vom Admin</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">⚡ Diese Belohnungen bekommst du <strong>real überreicht</strong>, wenn du die Kriterien erreichst!</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+        {% for it in rewards %}
+        <div style="background:{% if it.unlocked %}linear-gradient(135deg,var(--surface),rgba(220,38,38,0.08)){% else %}var(--bg-2){% endif %};border:2px solid {% if it.unlocked %}#dc2626{% else %}var(--border){% endif %};border-radius:16px;padding:22px;text-align:center;position:relative;{% if not it.unlocked %}opacity:0.7{% endif %}">
+            {% if it.unlocked %}
+            <div style="position:absolute;top:10px;right:10px;background:#dc2626;color:#fff;padding:4px 10px;border-radius:99px;font-size:10px;font-weight:800;letter-spacing:0.5px">✓ ERHALTEN</div>
+            {% else %}
+            <div style="position:absolute;top:10px;right:10px;font-size:14px;color:var(--text-soft)">🔒 Locked</div>
+            {% endif %}
+            <div style="font-size:54px;line-height:1;margin-bottom:14px;{% if not it.unlocked %}filter:grayscale(0.6){% endif %}">{{ it.icon }}</div>
+            <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px;letter-spacing:-0.3px">{{ it.name }}</div>
+            <div style="font-size:12px;color:var(--text-muted);line-height:1.5">{{ it.desc }}</div>
+            <div style="margin-top:12px;display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.7px;padding:4px 12px;border-radius:99px;background:#dc262625;color:#dc2626;border:1px solid #dc262640">⚡ Reward</div>
+            {% if it.unlocked and it.unlocked_at %}
+            <div style="font-size:10px;color:var(--text-soft);margin-top:8px">Erreicht: {{ it.unlocked_at[:10] }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Tier-Übersicht -->
-{% set tiers = [('platinum','Platinum','#a78bfa'),('gold','Gold','#d4a843'),('silver','Silber','#94a3b8'),('bronze','Bronze','#cd7f32')] %}
+{% set tiers = [('reward','Belohnung','#dc2626'),('platinum','Platinum','#a78bfa'),('gold','Gold','#d4a843'),('silver','Silber','#94a3b8'),('bronze','Bronze','#cd7f32')] %}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px">
     {% for code, label, color in tiers %}
     {% set tcount = items | selectattr('tier','equalto',code) | list | length %}

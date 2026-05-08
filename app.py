@@ -1252,8 +1252,9 @@ def get_production_deadlines():
     cur_eingabe = get_third_workday(today.year, today.month)
     cur_seminar = get_grundseminar_date(cur_eingabe) if cur_eingabe else None
 
-    # Wenn schon vorbei: nächsten Monat
-    if cur_eingabe and today > cur_seminar:
+    # Wenn Eingabeschluss schon durch: nächsten Monat zeigen
+    # (Produktionsschluss = Stichtag für nächste Eingaben)
+    if cur_eingabe and today > cur_eingabe:
         next_year = today.year + 1 if today.month == 12 else today.year
         next_month = 1 if today.month == 12 else today.month + 1
         cur_eingabe = get_third_workday(next_year, next_month)
@@ -1570,10 +1571,16 @@ ACHIEVEMENTS = [
     {'code': 'login_30',          'icon': '🔥', 'name': '30 Logins',                'desc': '30 Mal eingeloggt — du bist dabei!',                       'tier': 'silver'},
     {'code': 'contracts_10',      'icon': '📊', 'name': '10 Verträge',              'desc': '10 abgeschlossene Verträge',                               'tier': 'silver'},
     {'code': 'contracts_50',      'icon': '📊', 'name': '50 Verträge',              'desc': '50 abgeschlossene Verträge',                               'tier': 'gold'},
+    # === ECHTE BELOHNUNGEN (Reward-Tier) ===
+    {'code': 'reward_ferrari',         'icon': '🏎️', 'name': 'Ferrari-Abzeichen',         'desc': '99 EH erreicht — exklusives Ferrari-Pin als Belohnung',                'tier': 'reward'},
+    {'code': 'reward_montblanc_pen',   'icon': '🖋️', 'name': 'Montblanc-Kugelschreiber', 'desc': 'Stufe 3 (HREP) erreicht — hochwertiger Montblanc-Kuli',               'tier': 'reward'},
+    {'code': 'reward_montblanc_bag',   'icon': '👜', 'name': 'Montblanc-Tasche',         'desc': '666 EH in 2 Monaten produziert — Montblanc-Tasche als Belohnung',     'tier': 'reward'},
+    {'code': 'reward_breitling',       'icon': '⌚', 'name': 'Breitling-Uhr',            'desc': 'Stufe 4 (CREP) erreicht — Breitling-Uhr im Wert von 7.000 €',         'tier': 'reward'},
 ]
 
 ACHIEVEMENT_TIER_COLORS = {
-    'bronze': '#cd7f32', 'silver': '#94a3b8', 'gold': '#d4a843', 'platinum': '#a78bfa'
+    'bronze': '#cd7f32', 'silver': '#94a3b8', 'gold': '#d4a843',
+    'platinum': '#a78bfa', 'reward': '#dc2626'
 }
 
 
@@ -1679,6 +1686,24 @@ def check_achievements_for_user(user_id):
     # Login-Count
     if (user['login_count'] or 0) >= 30:
         maybe_unlock('login_30')
+
+    # === REWARDS / ECHTE BELOHNUNGEN ===
+    # Ferrari-Abzeichen: 99 EH
+    if own_eh >= 99:
+        maybe_unlock('reward_ferrari')
+    # Montblanc-Kuli: Stufe 3 erreicht
+    if level >= 3:
+        maybe_unlock('reward_montblanc_pen')
+    # Breitling-Uhr: Stufe 4 erreicht
+    if level >= 4:
+        maybe_unlock('reward_breitling')
+    # Montblanc-Tasche: 666 EH in den letzten 60 Tagen (2 Monate)
+    eh_60d = db.execute(
+        'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) >= date("now","-60 days")',
+        (user_id,)
+    ).fetchone()['s']
+    if eh_60d >= 666:
+        maybe_unlock('reward_montblanc_bag')
 
     db.close()
     return new_unlocks
