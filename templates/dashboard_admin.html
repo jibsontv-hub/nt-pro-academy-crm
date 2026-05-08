@@ -6,6 +6,34 @@
 {% endblock %}
 
 {% block content %}
+
+<!-- KI-Coach Quick-Card -->
+{% if coach_insights and coach_insights.urgent_calls %}
+<div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);border-color:#0f1c3f;color:#fff">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:14px">
+        <div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;font-weight:700">🧠 KI-Coach · Heute anrufen</div>
+            <div style="font-size:18px;font-weight:800;color:#fff;margin-top:4px">Top {{ coach_insights.urgent_calls[:3]|length }} priorisiert · Team-Score {{ coach_insights.team_score }}/100</div>
+        </div>
+        <a href="/coach" style="color:#d4a843;text-decoration:none;font-size:13px;font-weight:700">Alle ansehen →</a>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+        {% for call in coach_insights.urgent_calls[:3] %}
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div style="font-size:18px">{{ call.icon }}</div>
+            <div style="flex:1;min-width:160px">
+                <div style="font-size:13px;font-weight:700;color:#fff">{{ call.name }}</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.6)">{{ call.reason }}</div>
+            </div>
+            {% if call.phone %}
+            <a href="tel:{{ call.phone }}" style="background:#d4a843;color:#0f1c3f;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">📞 Anrufen</a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Hero: Karriere-Stufe -->
 <div class="card" style="background: linear-gradient(135deg, #fff 0%, #faf6ec 100%); border: 1px solid #e8d59a;">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px">

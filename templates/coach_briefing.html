@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Daily Briefing – NT Pro Academy</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; background: #f7f8fb; color: #1a1f36; margin: 0; padding: 20px; }
+  .wrap { max-width: 680px; margin: 20px auto; background: #fff; border-radius: 14px; box-shadow: 0 4px 24px rgba(15,28,63,0.08); overflow: hidden; }
+  .head { background: linear-gradient(135deg,#0f1c3f,#1a2c5b); color:#fff; padding: 30px 36px; }
+  .head h1 { margin:0; font-size:22px; letter-spacing: -0.4px; }
+  .head .sub { font-size:13px; color:rgba(255,255,255,0.7); margin-top:5px; }
+  .body { padding: 28px 36px; }
+  .score-row { display:flex; gap:14px; margin-bottom:24px; }
+  .stat { flex:1; background:#fafbfc; border:1px solid #e5e8ee; border-radius:10px; padding:14px; text-align:center; }
+  .stat .n { font-size:24px; font-weight:800; color:#0f1c3f; }
+  .stat .l { font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px; }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:0.6px; color:#0f1c3f; border-bottom:1px solid #e5e8ee; padding-bottom:8px; margin:24px 0 14px; }
+  .item { background:#fafbfc; border-left:3px solid #b8902e; padding:12px 14px; border-radius:6px; margin-bottom:8px; font-size:13px; }
+  .item strong { color:#0f1c3f; }
+  .item .muted { color:#6b7280; font-size:11px; margin-top:3px; display:block; }
+  .urgent { border-left-color:#b8311a; }
+  .ok { border-left-color:#10773d; }
+  .warn { border-left-color:#b8590a; }
+  .empty { color:#9ca3af; font-style:italic; padding:16px 0; font-size:13px; }
+  .footer { padding: 22px 36px; background: #fafbfc; border-top:1px solid #e5e8ee; font-size:11px; color:#9ca3af; text-align:center; }
+  .footer a { color:#b8902e; text-decoration:none; font-weight:600; }
+  .print-hint { background:#eaf2fc; padding:12px 18px; font-size:12px; color:#1e5fbf; border-radius:8px; margin-bottom:18px; }
+  @media print { .print-hint, .footer { display: none; } body { background:#fff; } .wrap { box-shadow:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="head">
+        <h1>📋 Dein Daily Briefing</h1>
+        <div class="sub">{{ today }} · NT Pro Academy</div>
+    </div>
+    <div class="body">
+
+        <div class="print-hint">
+            💡 Du kannst dieses Briefing per <strong>Cmd+P</strong> als PDF speichern oder ausdrucken — perfekt fürs morgendliche Lesen beim Kaffee.
+        </div>
+
+        <!-- Team-Score -->
+        <div class="score-row">
+            <div class="stat" style="border-color:{% if insights.team_score >= 70 %}#c9eed7{% elif insights.team_score >= 40 %}#e8d59a{% else %}#f5c8c0{% endif %}">
+                <div class="n" style="color:{% if insights.team_score >= 70 %}#10773d{% elif insights.team_score >= 40 %}#b8902e{% else %}#b8311a{% endif %}">{{ insights.team_score }}</div>
+                <div class="l">Team-Score</div>
+            </div>
+            <div class="stat">
+                <div class="n">{{ insights.contracts_30d }}</div>
+                <div class="l">Verträge (30 Tage)</div>
+            </div>
+            <div class="stat">
+                <div class="n">{{ insights.new_partners_30d }}</div>
+                <div class="l">Neue Partner (30 Tage)</div>
+            </div>
+            <div class="stat">
+                <div class="n">{{ insights.active_logins_7d }}/{{ insights.total_active }}</div>
+                <div class="l">Aktiv (7 Tage)</div>
+            </div>
+        </div>
+
+        <!-- Heutige Wins -->
+        {% if insights.wins_today %}
+        <h2>🎉 Heutige Erfolge</h2>
+        {% for w in insights.wins_today %}
+        <div class="item ok">
+            <strong>{{ w.berater_name }}</strong> hat „{{ w.client_name }}" abgeschlossen
+            <span class="muted">{{ w.produkt }} · {{ "{:,.0f}".format(w.einheiten).replace(",", ".") }} EH · {{ "{:,.0f}".format(w.volumen).replace(",", ".") }} €</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Heute anrufen -->
+        <h2>📞 Heute anrufen</h2>
+        {% if insights.urgent_calls %}
+            {% for c in insights.urgent_calls %}
+            <div class="item {% if c.priority == 'hoch' %}urgent{% elif c.priority == 'mittel' %}warn{% else %}{% endif %}">
+                {{ c.icon }} <strong>{{ c.name }}</strong>{% if c.phone %} · 📞 {{ c.phone }}{% endif %}
+                <span class="muted">{{ c.reason }}</span>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="empty">✨ Aktuell keine dringenden Anrufe nötig — alles im grünen Bereich!</div>
+        {% endif %}
+
+        <!-- Kurz vor Beförderung -->
+        {% if insights.congrats %}
+        <h2>🚀 Kurz vor Beförderung</h2>
+        {% for c in insights.congrats[:5] %}
+        <div class="item">
+            <strong>{{ c.name }}</strong> — {{ c.progress }}% bis {{ c.next_level.short }}
+            <span class="muted">Nur noch {{ c.eh_to_go|int }} EH bis zur nächsten Stufe — perfekter Moment für ein motivierendes Gespräch!</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Hängende Recherchen -->
+        {% if insights.pending_research %}
+        <h2>⏳ Hängende Recherchen</h2>
+        {% for r in insights.pending_research[:5] %}
+        <div class="item warn">
+            <strong>{{ r.client_name }}</strong> · {{ r.produkt }}
+            <span class="muted">Berater: {{ r.berater_name }} · seit {{ r.tage_offen|int }} Tagen offen — bitte nachfragen</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Onboarding hängt -->
+        {% if insights.onboarding_stuck %}
+        <h2>🎓 Onboarding hängt</h2>
+        {% for o in insights.onboarding_stuck[:5] %}
+        <div class="item warn">
+            <strong>{{ o.name }}</strong>
+            <span class="muted">{{ o.tage_dabei|int }} Tage dabei, erst {{ o.ob_done }}/5 Schritte erledigt</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Schweige-Alarm -->
+        {% if insights.silence_alert %}
+        <h2>🔇 Schweige-Alarm</h2>
+        {% for s in insights.silence_alert[:5] %}
+        <div class="item urgent">
+            <strong>{{ s.name }}</strong>
+            <span class="muted">{{ s.silence_days|int }} Tage komplett inaktiv · {{ s.email }}</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+    </div>
+    <div class="footer">
+        🧠 NT Pro Academy KI-Coach · Briefing für {{ user.name }}<br>
+        <a href="/coach">Zur Coach-Übersicht</a> · <a href="/dashboard">Dashboard</a>
+    </div>
+</div>
+</body>
+</html>

@@ -288,6 +288,15 @@
             <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">
                 <span class="nav-icon">▦</span> Dashboard
             </a>
+            <a href="/coach" class="nav-link {% if request.path == '/coach' %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
+                <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">🧠</span> KI-Coach</span>
+                {% if coach_alerts and coach_alerts > 0 %}
+                <span style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ coach_alerts }}</span>
+                {% endif %}
+            </a>
+            <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}">
+                <span class="nav-icon">📋</span> Daily Briefing
+            </a>
             <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}">
                 <span class="nav-icon">✓</span> Tagesaufgaben
             </a>
@@ -334,6 +343,15 @@
             <a href="/admin/aufgaben" class="nav-link {% if '/admin/aufgaben' in request.path %}active{% endif %}">
                 <span class="nav-icon">⚙</span> Aufgaben-Slots
             </a>
+            <a href="/admin/import" class="nav-link {% if '/admin/import' in request.path %}active{% endif %}">
+                <span class="nav-icon">↑</span> Partner-Import (CSV)
+            </a>
+            <a href="/admin/aktivitaet" class="nav-link {% if '/admin/aktivitaet' in request.path %}active{% endif %}">
+                <span class="nav-icon">◷</span> Aktivität
+            </a>
+            <a href="/admin/backup" class="nav-link" download>
+                <span class="nav-icon">↓</span> Backup herunterladen
+            </a>
             {% endif %}
         </nav>
         <div class="sidebar-footer">
@@ -354,7 +372,15 @@
     <div class="main">
         <div class="topbar">
             <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
-            <div class="topbar-actions">{% block topbar_actions %}{% endblock %}</div>
+            <div class="topbar-actions" style="display:flex;align-items:center;gap:10px">
+                {% if coach_alerts and coach_alerts > 0 %}
+                <a href="/coach" title="KI-Coach Alerts" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--text);text-decoration:none;font-size:16px;transition:all 0.15s">
+                    🔔
+                    <span style="position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;border-radius:10px;font-size:9px;font-weight:800;padding:1px 6px;min-width:16px;text-align:center;border:1.5px solid #fff">{{ coach_alerts }}</span>
+                </a>
+                {% endif %}
+                {% block topbar_actions %}{% endblock %}
+            </div>
         </div>
         <div class="content">
             {% with messages = get_flashed_messages(with_categories=true) %}

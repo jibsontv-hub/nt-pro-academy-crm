@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Aktivität – NT Pro Academy{% endblock %}
+{% block page_title %}Aktivitäts-Übersicht{% endblock %}
+
+{% block content %}
+
+<div class="card" style="background:var(--blue-soft);border:1px solid #c9dcf4">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="font-size:20px">📊</span>
+        <div style="font-size:13px;color:var(--text)">
+            <strong>Wer ist aktiv, wer schläft?</strong> Hier siehst du alle Mitglieder sortiert nach
+            <strong>letztem Login</strong>. So erkennst du schnell, wen du anstupsen musst.
+        </div>
+    </div>
+</div>
+
+{% set heute_count = members | selectattr('days_ago', 'equalto', 0) | list | length %}
+{% set woche_count = members | rejectattr('days_ago', 'none') | selectattr('days_ago', 'le', 7) | list | length %}
+{% set monat_count = members | rejectattr('days_ago', 'none') | selectattr('days_ago', 'le', 30) | list | length %}
+{% set inaktiv_count = members | selectattr('days_ago', 'none') | list | length %}
+{% set langzeit_count = members | rejectattr('days_ago', 'none') | selectattr('days_ago', 'gt', 30) | list | length %}
+
+<!-- KPIs -->
+<div class="kpi-grid">
+    <div class="kpi-card green">
+        <div class="kpi-label">🟢 Heute aktiv</div>
+        <div class="kpi-value">{{ heute_count }}</div>
+        <div class="kpi-sub">In den letzten 24 h</div>
+    </div>
+    <div class="kpi-card blue">
+        <div class="kpi-label">🔵 Diese Woche</div>
+        <div class="kpi-value">{{ woche_count }}</div>
+        <div class="kpi-sub">Letzte 7 Tage</div>
+    </div>
+    <div class="kpi-card gold">
+        <div class="kpi-label">🟡 Dieser Monat</div>
+        <div class="kpi-value">{{ monat_count }}</div>
+        <div class="kpi-sub">Letzte 30 Tage</div>
+    </div>
+    <div class="kpi-card orange">
+        <div class="kpi-label">🟠 Lange inaktiv</div>
+        <div class="kpi-value">{{ langzeit_count }}</div>
+        <div class="kpi-sub">> 30 Tage</div>
+    </div>
+    <div class="kpi-card navy">
+        <div class="kpi-label">⚫ Nie eingeloggt</div>
+        <div class="kpi-value">{{ inaktiv_count }}</div>
+        <div class="kpi-sub">Kein Login bisher</div>
+    </div>
+</div>
+
+<!-- Tabelle -->
+<div class="card">
+    <div class="card-title">
+        Alle Mitglieder ({{ members|length }})
+        <input type="text" id="searchInput" placeholder="🔍 Suchen..." onkeyup="filterTable()" style="padding:6px 10px;border:1px solid var(--border-strong);border-radius:6px;font-size:12px;width:180px;text-transform:none;letter-spacing:0">
+    </div>
+    <div class="table-wrap">
+        <table id="mainTable">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Name</th>
+                    <th>Stufe</th>
+                    <th>Upline</th>
+                    <th>Letzter Login</th>
+                    <th>Logins gesamt</th>
+                    <th>EH</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in members %}
+                {% set status_color = 'var(--green)' if m.days_ago == 0 else 'var(--blue)' if m.days_ago is not none and m.days_ago <= 7 else 'var(--gold)' if m.days_ago is not none and m.days_ago <= 30 else 'var(--orange)' if m.days_ago is not none else 'var(--text-soft)' %}
+                {% set status_text = 'Heute' if m.days_ago == 0 else ('Vor ' ~ m.days_ago ~ ' Tagen') if m.days_ago is not none else 'Nie eingeloggt' %}
+                <tr>
+                    <td>
+                        <span style="display:inline-flex;align-items:center;gap:6px">
+                            <span style="width:9px;height:9px;border-radius:50%;background:{{ status_color }};display:inline-block"></span>
+                            <span style="font-size:11px;color:{{ status_color }};font-weight:700">{{ status_text }}</span>
+                        </span>
+                    </td>
+                    <td>
+                        <strong>{{ m.name }}</strong>
+                        <div style="font-size:11px;color:var(--text-soft)">{{ m.email }}</div>
+                    </td>
+                    <td>
+                        <span class="stufe-pill" style="background:{{ m.career.color }}15;color:{{ m.career.color }}">{{ m.career.short }}</span>
+                    </td>
+                    <td>{{ m.upline_name or '–' }}</td>
+                    <td>
+                        {% if m.last_login %}
+                        <span style="font-size:12px">{{ m.last_login[:16] }}</span>
+                        {% else %}
+                        <span style="color:var(--text-soft);font-style:italic">noch nie</span>
+                        {% endif %}
+                    </td>
+                    <td><strong>{{ m.login_count or 0 }}</strong></td>
+                    <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(m.einheiten).replace(",", ".") }}</strong></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align:center;color:var(--text-soft);padding:32px">Noch keine Mitglieder</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function filterTable() {
+    const input = document.getElementById('searchInput').value.toLowerCase();
+    document.querySelectorAll('#mainTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(input) ? '' : 'none';
+    });
+}
+</script>
+{% endblock %}

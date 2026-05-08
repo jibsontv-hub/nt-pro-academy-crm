@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Partner-Import – NT Pro Academy{% endblock %}
+{% block page_title %}Partner-Import (CSV/Excel){% endblock %}
+
+{% block content %}
+<div style="max-width:820px">
+
+<div class="card" style="background:var(--blue-soft);border:1px solid #c9dcf4">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="font-size:20px">ℹ️</span>
+        <div style="font-size:13px;color:var(--text)">
+            <strong>So funktioniert's:</strong> Lade hier eine CSV-Datei hoch mit deinen Partnern.
+            Das System erkennt jeden Partner anhand seiner E-Mail, ordnet ihn unter den Upline (auch per E-Mail), und erzeugt für jeden ein <strong>sicheres Zufalls-Passwort</strong>.
+            Nach dem Import bekommst du eine Liste mit Logins, die du an die Partner verteilen kannst.
+        </div>
+    </div>
+</div>
+
+<!-- Vorlage -->
+<div class="card">
+    <div class="card-title">① Vorlage herunterladen</div>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">
+        Lade die Vorlage als CSV-Datei runter, öffne sie in Excel oder Numbers, fülle deine Partner ein, exportiere wieder als CSV.
+    </p>
+    <a href="/admin/import/template" class="btn btn-primary">📥 Vorlage herunterladen (CSV)</a>
+
+    <div style="margin-top:18px;background:#fafbfc;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;font-family:Menlo,Consolas,monospace;overflow-x:auto;white-space:nowrap">
+        name,email,phone,parent_email,stufe<br>
+        Max Mustermann,max@email.de,+49 170 1234567,najib@ntpro.de,1<br>
+        Anna Schmidt,anna@email.de,+49 170 7654321,najib@ntpro.de,2<br>
+        Tom Weber,tom@email.de,+49 170 1122334,max@email.de,1
+    </div>
+
+    <div style="margin-top:14px;font-size:12px;color:var(--text-muted)">
+        <strong>Spalten-Erklärung:</strong>
+        <ul style="margin:6px 0 0 20px;line-height:1.7">
+            <li><strong>name</strong> — voller Name (Pflicht)</li>
+            <li><strong>email</strong> — E-Mail = Login (Pflicht, eindeutig)</li>
+            <li><strong>phone</strong> — Telefon (optional)</li>
+            <li><strong>parent_email</strong> — E-Mail der Upline (Pflicht; leer = du als Admin bist Upline)</li>
+            <li><strong>stufe</strong> — 1=REP, 2=LREP, 3=HREP, 4=CREP, 5=DREP, 6=GREP (default: 1)</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Upload -->
+<div class="card">
+    <div class="card-title">② CSV-Datei hochladen</div>
+    <form method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>CSV-Datei auswählen</label>
+            <input type="file" name="csv_file" accept=".csv,text/csv" required style="padding:10px">
+        </div>
+        <div style="margin-top:14px;background:var(--gold-soft);border:1px solid #e8d59a;border-radius:8px;padding:12px 14px;font-size:12px;color:#7a5c1a">
+            ⚠️ <strong>Wichtig:</strong> Stelle in Excel/Numbers beim Speichern „CSV (UTF-8)" ein, damit Umlaute (ä/ö/ü) richtig ankommen. Trennzeichen <strong>Komma</strong> oder <strong>Semikolon</strong> wird automatisch erkannt.
+        </div>
+        <div style="margin-top:18px;display:flex;gap:10px">
+            <button type="submit" class="btn btn-primary">🚀 Importieren</button>
+            <a href="/team" class="btn btn-secondary">Abbrechen</a>
+        </div>
+    </form>
+</div>
+
+<!-- Hinweis -->
+<div class="card" style="background:var(--green-soft);border:1px solid #c9eed7">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="font-size:20px">✓</span>
+        <div style="font-size:13px;color:var(--text)">
+            <strong>Was passiert nach dem Klick auf „Importieren":</strong>
+            <ul style="margin:6px 0 0 20px;line-height:1.7">
+                <li>System prüft jede Zeile auf Korrektheit</li>
+                <li>Existierende E-Mails werden <strong>übersprungen</strong> (kein Überschreiben)</li>
+                <li>Für jeden neuen Partner wird ein <strong>Zufalls-Passwort</strong> erzeugt</li>
+                <li>Du bekommst eine Tabelle mit Login-Daten zum Weitergeben</li>
+                <li>Fehlerhafte Zeilen werden separat gelistet — du kannst sie nachträglich anpassen</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+</div>
+{% endblock %}

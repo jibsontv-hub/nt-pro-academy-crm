@@ -37,10 +37,15 @@
                     <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(m.einheiten).replace(",", ".") }}</strong></td>
                     <td class="money">{{ "{:,.0f}".format(m.volumen).replace(",", ".") }} €</td>
                     <td style="white-space:nowrap">
-                        <a href="/team/{{ m.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a>
+                        <a href="/team/{{ m.id }}/edit" class="btn btn-secondary btn-sm" title="Bearbeiten">✎</a>
+                        {% if current_user.role == 'admin' and m.id != current_user.id %}
+                        <form method="POST" action="/admin/team/{{ m.id }}/reset-password" style="display:inline" onsubmit="return confirm('Passwort für {{ m.name }} zurücksetzen? Ein neues Zufallspasswort wird erzeugt und angezeigt.')">
+                            <button type="submit" class="btn btn-secondary btn-sm" title="Passwort zurücksetzen">🔑</button>
+                        </form>
+                        {% endif %}
                         {% if m.id != current_user.id %}
                         <form method="POST" action="/team/{{ m.id }}/deactivate" style="display:inline" onsubmit="return confirm('Mitglied deaktivieren?')">
-                            <button type="submit" class="btn btn-danger btn-sm">×</button>
+                            <button type="submit" class="btn btn-danger btn-sm" title="Deaktivieren">×</button>
                         </form>
                         {% endif %}
                     </td>

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Import-Ergebnis – NT Pro Academy{% endblock %}
+{% block page_title %}Import-Ergebnis{% endblock %}
+
+{% block content %}
+<div style="max-width:980px">
+
+<!-- KPI -->
+<div class="kpi-grid">
+    <div class="kpi-card green">
+        <div class="kpi-label">✓ Erfolgreich angelegt</div>
+        <div class="kpi-value">{{ results.created|length }}</div>
+        <div class="kpi-sub">Neue Partner</div>
+    </div>
+    <div class="kpi-card orange">
+        <div class="kpi-label">⊘ Übersprungen</div>
+        <div class="kpi-value">{{ results.skipped|length }}</div>
+        <div class="kpi-sub">E-Mail existierte bereits</div>
+    </div>
+    <div class="kpi-card navy">
+        <div class="kpi-label">✗ Fehler</div>
+        <div class="kpi-value">{{ results.errors|length }}</div>
+        <div class="kpi-sub">Zeilen mit Problemen</div>
+    </div>
+</div>
+
+{% if results.created %}
+<!-- Erfolg -->
+<div class="card" style="border:1px solid #c9eed7">
+    <div class="card-title" style="color:var(--green)">
+        ✅ {{ results.created|length }} Partner erfolgreich angelegt — Login-Daten:
+    </div>
+
+    <div style="background:var(--gold-soft);border:1px solid #e8d59a;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#7a5c1a">
+        ⚠️ <strong>WICHTIG:</strong> Speichere diese Liste jetzt sofort ab (z.B. via Print-PDF oder Screenshots).
+        Die Passwörter werden nach Klick auf „Zur Team-Liste" <strong>nicht mehr angezeigt</strong>!
+    </div>
+
+    <button onclick="window.print()" class="btn btn-primary" style="margin-bottom:14px">🖨️ Als PDF drucken / speichern</button>
+
+    <div class="table-wrap">
+        <table id="loginsTable">
+            <thead>
+                <tr><th>Name</th><th>E-Mail (Login)</th><th>Passwort</th><th>Stufe</th></tr>
+            </thead>
+            <tbody>
+                {% for u in results.created %}
+                <tr>
+                    <td><strong>{{ u.name }}</strong></td>
+                    <td>{{ u.email }}</td>
+                    <td><code style="background:var(--bg);padding:3px 8px;border-radius:5px;font-family:Menlo,Consolas,monospace;font-weight:700;color:var(--navy)">{{ u.password }}</code></td>
+                    <td>
+                        {% set cl = ({1:'REP',2:'LREP',3:'HREP',4:'CREP',5:'DREP',6:'GREP'}).get(u.stufe, 'REP') %}
+                        <span class="stufe-pill" style="background:var(--gold-soft);color:var(--gold)">{{ cl }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin-top:14px;font-size:12px;color:var(--text-muted)">
+        💡 Sag deinen Partnern: „Beim ersten Login bitte sofort Passwort ändern → Sidebar → Mein Profil & Vision".
+    </div>
+</div>
+{% endif %}
+
+{% if results.skipped %}
+<!-- Übersprungen -->
+<div class="card" style="border:1px solid #f5d4a0">
+    <div class="card-title" style="color:var(--orange)">⊘ Übersprungen ({{ results.skipped|length }})</div>
+    <ul style="margin-left:18px;color:var(--text-muted);font-size:13px;line-height:1.7">
+        {% for s in results.skipped %}
+        <li>{{ s }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if results.errors %}
+<!-- Fehler -->
+<div class="card" style="border:1px solid #f5c8c0">
+    <div class="card-title" style="color:var(--red)">✗ Fehler ({{ results.errors|length }})</div>
+    <ul style="margin-left:18px;color:var(--text);font-size:13px;line-height:1.7">
+        {% for e in results.errors %}
+        <li>{{ e }}</li>
+        {% endfor %}
+    </ul>
+    <div style="margin-top:14px;font-size:12px;color:var(--text-muted)">
+        💡 Korrigiere die Fehler in deiner CSV und lade sie noch einmal hoch — bereits importierte werden übersprungen.
+    </div>
+</div>
+{% endif %}
+
+<div style="display:flex;gap:10px">
+    <a href="/team" class="btn btn-primary">→ Zur Team-Liste</a>
+    <a href="/admin/import" class="btn btn-secondary">↻ Weitere CSV importieren</a>
+</div>
+
+</div>
+
+<style>
+@media print {
+    .sidebar, .topbar, .topbar-actions, .btn { display: none !important; }
+    .main { margin-left: 0 !important; }
+    .content { padding: 12px !important; }
+}
+</style>
+{% endblock %}

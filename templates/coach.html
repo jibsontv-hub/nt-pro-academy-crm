@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}KI-Coach – NT Pro Academy{% endblock %}
+{% block page_title %}🧠 KI-Coach{% endblock %}
+
+{% block content %}
+
+<!-- Hero: Team-Score -->
+<div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);border-color:#0f1c3f;color:#fff">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:24px">
+        <div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;font-weight:700">Team-Score</div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.7);margin-top:4px">Gesundheit deines Vertriebs (KI-Bewertung)</div>
+        </div>
+        <div style="text-align:right">
+            <div style="font-size:48px;font-weight:800;color:{% if insights.team_score >= 70 %}#34d399{% elif insights.team_score >= 40 %}#d4a843{% else %}#f87171{% endif %};line-height:1">
+                {{ insights.team_score }}
+            </div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-top:4px">von 100</div>
+        </div>
+    </div>
+    <div style="margin-top:20px;background:rgba(255,255,255,0.06);border-radius:6px;height:8px;overflow:hidden">
+        <div style="height:100%;width:{{ insights.team_score }}%;background:{% if insights.team_score >= 70 %}#34d399{% elif insights.team_score >= 40 %}#d4a843{% else %}#f87171{% endif %};transition:width 0.6s"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-top:18px;font-size:12px">
+        <div>
+            <div style="color:rgba(255,255,255,0.5)">Aktiv (7 Tage)</div>
+            <div style="font-size:18px;font-weight:700;color:#d4a843">{{ insights.active_logins_7d }} / {{ insights.total_active }}</div>
+        </div>
+        <div>
+            <div style="color:rgba(255,255,255,0.5)">Verträge (30 Tage)</div>
+            <div style="font-size:18px;font-weight:700;color:#d4a843">{{ insights.contracts_30d }}</div>
+        </div>
+        <div>
+            <div style="color:rgba(255,255,255,0.5)">Neue Partner (30 Tage)</div>
+            <div style="font-size:18px;font-weight:700;color:#d4a843">{{ insights.new_partners_30d }}</div>
+        </div>
+        <div>
+            <div style="color:rgba(255,255,255,0.5)">Anrufe heute empfohlen</div>
+            <div style="font-size:18px;font-weight:700;color:#d4a843">{{ insights.urgent_count }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- HEUTE ANRUFEN -->
+<div class="card">
+    <div class="card-title">
+        📞 Heute anrufen — KI-Empfehlungen
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">{{ insights.urgent_calls|length }} priorisierte Kontakte</span>
+    </div>
+    {% if insights.urgent_calls %}
+    <div style="display:flex;flex-direction:column;gap:10px">
+        {% for call in insights.urgent_calls %}
+        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+            <div style="font-size:24px">{{ call.icon }}</div>
+            <div style="flex:1;min-width:180px">
+                <div style="font-size:14px;font-weight:700;color:var(--text)">{{ call.name }}</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">{{ call.reason }}</div>
+            </div>
+            {% if call.phone %}
+            <a href="tel:{{ call.phone }}" class="btn btn-primary btn-sm">📞 Anrufen</a>
+            {% endif %}
+            {% if call.phone %}
+            <a href="https://wa.me/{{ call.phone | replace(' ', '') | replace('+', '') | replace('-', '') }}" target="_blank" class="btn btn-secondary btn-sm">💬 WhatsApp</a>
+            {% endif %}
+            <a href="/team/{{ call.id }}/edit" class="btn btn-secondary btn-sm">Profil</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:32px;color:var(--text-soft)">
+        <div style="font-size:36px;margin-bottom:10px">✨</div>
+        <div style="font-size:15px;color:var(--text);font-weight:600">Alles im grünen Bereich!</div>
+        <div style="font-size:12px;margin-top:4px">Aktuell keine dringenden Anrufe nötig.</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Heutige Wins -->
+{% if insights.wins_today %}
+<div class="card" style="background:linear-gradient(135deg,#fff,#ecfdf3);border-color:#c9eed7">
+    <div class="card-title" style="color:var(--green)">🎉 Heutige Erfolge ({{ insights.wins_today|length }})</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Berater</th><th>Kunde</th><th>Produkt</th><th>EH</th><th>Volumen</th></tr></thead>
+            <tbody>
+                {% for w in insights.wins_today %}
+                <tr>
+                    <td><strong>{{ w.berater_name }}</strong></td>
+                    <td>{{ w.client_name }}</td>
+                    <td>{{ w.produkt }}</td>
+                    <td><strong style="color:var(--gold)" class="money">{{ "{:,.0f}".format(w.einheiten).replace(",", ".") }}</strong></td>
+                    <td class="money">{{ "{:,.0f}".format(w.volumen).replace(",", ".") }} €</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="grid-2">
+
+    <!-- Kurz vor Beförderung -->
+    {% if insights.congrats %}
+    <div class="card" style="border-left:3px solid var(--gold)">
+        <div class="card-title">🚀 Kurz vor Beförderung — JETZT motivieren!</div>
+        {% for c in insights.congrats[:5] %}
+        <div style="padding:12px 0;border-bottom:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                    <strong>{{ c.name }}</strong>
+                    <div style="font-size:11px;color:var(--text-muted)">{{ c.current.short }} → {{ c.next_level.short }} ({{ c.eh_to_go|int }} EH)</div>
+                </div>
+                <div style="font-size:18px;font-weight:800;color:var(--gold)">{{ c.progress }}%</div>
+            </div>
+            <div class="progress-bar" style="margin-top:6px">
+                <div class="progress-fill progress-gold" style="width:{{ c.progress }}%"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Hängende Recherchen -->
+    {% if insights.pending_research %}
+    <div class="card" style="border-left:3px solid var(--orange)">
+        <div class="card-title">⏳ Hängende Recherchen (>14 Tage)</div>
+        {% for r in insights.pending_research[:5] %}
+        <div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <strong>{{ r.client_name }}</strong> · {{ r.produkt }} ({{ r.einheiten|int }} EH)
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                Berater: {{ r.berater_name }} · seit {{ r.tage_offen|int }} Tagen offen
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+
+<div class="grid-2">
+
+    <!-- Onboarding hängt -->
+    {% if insights.onboarding_stuck %}
+    <div class="card" style="border-left:3px solid var(--purple)">
+        <div class="card-title">🎓 Onboarding hängt (>30 Tage)</div>
+        {% for o in insights.onboarding_stuck[:5] %}
+        <div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <strong>{{ o.name }}</strong>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                Erst {{ o.ob_done }}/5 Schritte · seit {{ o.tage_dabei|int }} Tagen dabei
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Schweige-Alarm -->
+    {% if insights.silence_alert %}
+    <div class="card" style="border-left:3px solid var(--red)">
+        <div class="card-title">🔇 Schweige-Alarm</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Partner ohne jede Aktivität (kein Login + keine Verträge in 30 Tagen)</div>
+        {% for s in insights.silence_alert[:5] %}
+        <div style="padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
+            <strong>{{ s.name }}</strong>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                {{ s.silence_days|int }} Tage Funkstille · {{ s.email }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Footer / Hinweis -->
+<div class="card" style="background:var(--blue-soft);border:1px solid #c9dcf4">
+    <div style="display:flex;gap:14px;align-items:flex-start;font-size:13px;color:var(--text)">
+        <span style="font-size:20px">💡</span>
+        <div>
+            <strong>So nutzt du den KI-Coach am besten:</strong>
+            <ul style="margin:6px 0 0 20px;line-height:1.7;color:var(--text-muted)">
+                <li>Schau jeden Morgen kurz hier rein (5 Min Kaffee)</li>
+                <li>Arbeite die <strong>„Heute anrufen"</strong>-Liste ab — sortiert nach Dringlichkeit</li>
+                <li>Bei „Kurz vor Beförderung" → kurzes Motivations-Telefonat</li>
+                <li>Bei „Schweige-Alarm" → Persönlich kontaktieren, vielleicht ist was los</li>
+                <li>Team-Score über 70 = du bist on track 🎯</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

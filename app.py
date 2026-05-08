@@ -1,8 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session, send_file, Response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import hashlib
 import os
+import secrets
+import csv
+import io
 from datetime import date, datetime
 import json
 
@@ -60,7 +64,24 @@ def get_db():
 
 
 def hash_password(pw):
-    return hashlib.sha256(pw.encode()).hexdigest()
+    """Modernes pbkdf2:sha256 Hashing (Industriestandard)."""
+    return generate_password_hash(pw, method='pbkdf2:sha256:260000')
+
+
+def verify_password(stored_hash, attempt):
+    """Verifiziert Passwort. Backwards-kompatibel mit alten SHA256-Hashes."""
+    if not stored_hash:
+        return False
+    if stored_hash.startswith(('pbkdf2:', 'scrypt:')):
+        return check_password_hash(stored_hash, attempt)
+    # Legacy: alter SHA256-Hash
+    return stored_hash == hashlib.sha256(attempt.encode()).hexdigest()
+
+
+def generate_random_password(length=10):
+    """Sicheres Zufallspasswort für CSV-Import & Reset."""
+    alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
 class User(UserMixin):
@@ -95,6 +116,188 @@ def auto_promote_user(user_id):
         db.execute('UPDATE users SET manual_career_level = ? WHERE id = ?', (earned, user_id))
         db.commit()
     db.close()
+
+
+# === KI-COACH: SMART INSIGHTS ===
+def get_smart_insights(scope_user_id=None):
+    """Analysiert Daten und liefert Action-Items für den Admin/Upline.
+    scope_user_id=None = ganzer Vertrieb (Admin), sonst nur Downline dieses Users."""
+    db = get_db()
+
+    if scope_user_id:
+        ids = [scope_user_id] + get_all_descendants(scope_user_id)
+    else:
+        rows = db.execute('SELECT id FROM users WHERE active = 1').fetchall()
+        ids = [r['id'] for r in rows]
+
+    if not ids:
+        db.close()
+        return {'urgent_calls': [], 'congrats': [], 'inactive': [], 'pending_research': [],
+                'onboarding_stuck': [], 'wins_today': [], 'silence_alert': [], 'team_score': 0,
+                'urgent_count': 0, 'total_calls_needed': 0}
+
+    ph = ','.join('?' * len(ids))
+
+    # 1) INAKTIV — lange nicht eingeloggt
+    inactive_rows = db.execute(f'''
+        SELECT u.id, u.name, u.email, u.phone, u.manual_career_level, u.last_login, u.joined_date,
+               COALESCE(SUM(c.einheiten), 0) as eh
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND c.recherche_status = "freigegeben"
+        WHERE u.id IN ({ph}) AND u.active = 1
+          AND (u.last_login IS NULL OR u.last_login < datetime('now', '-7 days'))
+        GROUP BY u.id
+        ORDER BY u.last_login ASC NULLS FIRST
+        LIMIT 10
+    ''', ids).fetchall()
+
+    # 2) KURZ VOR BEFÖRDERUNG — über 80% zur nächsten Stufe
+    eh_rows = db.execute(f'''
+        SELECT u.id, u.name, u.email, u.phone, u.manual_career_level,
+               COALESCE(SUM(c.einheiten), 0) as eh
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND c.recherche_status = "freigegeben"
+        WHERE u.id IN ({ph}) AND u.active = 1
+        GROUP BY u.id
+    ''', ids).fetchall()
+    congrats = []
+    for r in eh_rows:
+        career = next((cl for cl in CAREER_LEVELS if cl['level'] == (r['manual_career_level'] or 1)), CAREER_LEVELS[0])
+        next_level = next((cl for cl in CAREER_LEVELS if cl['level'] == career['level'] + 1), None)
+        if not next_level:
+            continue
+        progress = (r['eh'] / next_level['min_eh'] * 100) if next_level['min_eh'] > 0 else 0
+        if progress >= 80 and progress < 100:
+            congrats.append({
+                'id': r['id'], 'name': r['name'], 'phone': r['phone'], 'email': r['email'],
+                'current': career, 'next_level': next_level,
+                'eh': r['eh'], 'progress': round(progress),
+                'eh_to_go': max(0, next_level['min_eh'] - r['eh'])
+            })
+    congrats.sort(key=lambda x: -x['progress'])
+
+    # 3) HÄNGENDE RECHERCHEN — Verträge ausstehend > 14 Tage
+    pending_research = db.execute(f'''
+        SELECT c.id, c.client_name, c.produkt, c.einheiten, c.created_at,
+               u.name as berater_name, u.phone as berater_phone, u.id as berater_id,
+               julianday('now') - julianday(c.created_at) as tage_offen
+        FROM contracts c
+        JOIN users u ON c.owner_id = u.id
+        WHERE c.recherche_status IN ('ausstehend', '') AND c.einheiten > 0
+          AND c.owner_id IN ({ph})
+          AND julianday('now') - julianday(c.created_at) > 14
+        ORDER BY tage_offen DESC LIMIT 10
+    ''', ids).fetchall()
+
+    # 4) ONBOARDING HÄNGT — > 30 Tage dabei aber <3 Onboarding-Schritte
+    onboarding_stuck = db.execute(f'''
+        SELECT u.id, u.name, u.email, u.phone, u.joined_date,
+               (u.onboarding_endgespraech + u.onboarding_einarbeitung_1 +
+                u.onboarding_einarbeitung_2 + u.onboarding_einarbeitung_3 +
+                u.onboarding_seminar_bezahlt) as ob_done,
+               julianday('now') - julianday(u.joined_date) as tage_dabei
+        FROM users u
+        WHERE u.id IN ({ph}) AND u.active = 1
+          AND julianday('now') - julianday(u.joined_date) > 30
+          AND (u.onboarding_endgespraech + u.onboarding_einarbeitung_1 +
+               u.onboarding_einarbeitung_2 + u.onboarding_einarbeitung_3 +
+               u.onboarding_seminar_bezahlt) < 3
+        ORDER BY tage_dabei DESC LIMIT 10
+    ''', ids).fetchall()
+
+    # 5) HEUTIGE GEWINNE — Verträge heute mit freigegebenem Status
+    today_str = date.today().strftime('%Y-%m-%d')
+    wins_today = db.execute(f'''
+        SELECT c.client_name, c.einheiten, c.volumen, c.produkt, u.name as berater_name
+        FROM contracts c
+        JOIN users u ON c.owner_id = u.id
+        WHERE c.status = "abgeschlossen" AND c.recherche_status = "freigegeben"
+          AND c.owner_id IN ({ph})
+          AND date(c.abschluss_date) = ?
+        ORDER BY c.einheiten DESC
+    ''', ids + [today_str]).fetchall()
+
+    # 6) SCHWEIGEN — Partner > 30 Tage keine Aktivität (kein Vertrag, kein Login)
+    silence = db.execute(f'''
+        SELECT u.id, u.name, u.email, u.phone, u.last_login, u.joined_date,
+               julianday('now') - julianday(COALESCE(u.last_login, u.joined_date)) as silence_days
+        FROM users u
+        WHERE u.id IN ({ph}) AND u.active = 1
+          AND julianday('now') - julianday(COALESCE(u.last_login, u.joined_date)) > 30
+          AND NOT EXISTS (
+              SELECT 1 FROM contracts c WHERE c.owner_id = u.id
+              AND julianday('now') - julianday(c.created_at) <= 30
+          )
+        ORDER BY silence_days DESC LIMIT 10
+    ''', ids).fetchall()
+
+    # 7) URGENT CALLS — Top-Liste zum SOFORT anrufen (priorisiert)
+    urgent_calls = []
+    seen_ids = set()
+    # Priorität 1: Schweigen (höchste Dringlichkeit)
+    for r in silence[:3]:
+        if r['id'] not in seen_ids:
+            urgent_calls.append({
+                'id': r['id'], 'name': r['name'], 'phone': r['phone'], 'email': r['email'],
+                'reason': f"Seit {int(r['silence_days'])} Tagen keine Aktivität",
+                'priority': 'hoch', 'icon': '🔴'
+            })
+            seen_ids.add(r['id'])
+    # Priorität 2: Hängende Recherchen
+    for r in pending_research[:3]:
+        if r['berater_id'] not in seen_ids:
+            urgent_calls.append({
+                'id': r['berater_id'], 'name': r['berater_name'], 'phone': r['berater_phone'], 'email': '',
+                'reason': "Recherche bei „" + str(r['client_name']) + "“ seit " + str(int(r['tage_offen'])) + " Tagen offen",
+                'priority': 'hoch', 'icon': '🟠'
+            })
+            seen_ids.add(r['berater_id'])
+    # Priorität 3: Kurz vor Beförderung — anrufen, motivieren!
+    for c in congrats[:3]:
+        if c['id'] not in seen_ids:
+            urgent_calls.append({
+                'id': c['id'], 'name': c['name'], 'phone': c['phone'], 'email': c['email'],
+                'reason': f"Nur noch {int(c['eh_to_go'])} EH bis {c['next_level']['short']} — JETZT motivieren!",
+                'priority': 'mittel', 'icon': '🟡'
+            })
+            seen_ids.add(c['id'])
+    # Priorität 4: Inaktive
+    for r in inactive_rows[:3]:
+        if r['id'] not in seen_ids:
+            urgent_calls.append({
+                'id': r['id'], 'name': r['name'], 'phone': r['phone'], 'email': r['email'],
+                'reason': "Mehrere Tage nicht im System aktiv",
+                'priority': 'niedrig', 'icon': '🟢'
+            })
+            seen_ids.add(r['id'])
+    urgent_calls = urgent_calls[:8]
+
+    # 8) TEAM-SCORE (0-100): Mix aus Aktivität + Vertragsabschluss + Wachstum
+    total_active = len(ids)
+    active_logins_7d = db.execute(f'SELECT COUNT(*) as c FROM users WHERE id IN ({ph}) AND last_login > datetime("now", "-7 days")', ids).fetchone()['c']
+    contracts_30d = db.execute(f'SELECT COUNT(*) as c FROM contracts WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben" AND abschluss_date > date("now", "-30 days")', ids).fetchone()['c']
+    new_partners_30d = db.execute(f'SELECT COUNT(*) as c FROM users WHERE id IN ({ph}) AND joined_date > date("now", "-30 days")', ids).fetchone()['c']
+    activity_score = min(100, (active_logins_7d / max(1, total_active)) * 100)
+    contract_score = min(100, contracts_30d * 10)
+    growth_score = min(100, new_partners_30d * 20)
+    team_score = int((activity_score * 0.4 + contract_score * 0.3 + growth_score * 0.3))
+
+    db.close()
+    return {
+        'urgent_calls': urgent_calls,
+        'congrats': congrats,
+        'inactive': [dict(r) for r in inactive_rows],
+        'pending_research': [dict(r) for r in pending_research],
+        'onboarding_stuck': [dict(r) for r in onboarding_stuck],
+        'wins_today': [dict(r) for r in wins_today],
+        'silence_alert': [dict(r) for r in silence],
+        'team_score': team_score,
+        'urgent_count': len(urgent_calls),
+        'active_logins_7d': active_logins_7d,
+        'contracts_30d': contracts_30d,
+        'new_partners_30d': new_partners_30d,
+        'total_active': total_active,
+    }
 
 
 def get_career_level_for_user(user_id):
@@ -139,7 +342,7 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_career():
-    """Stellt aktuelle Karriere-Stufe + Pending-Anzahl in allen Templates bereit."""
+    """Stellt aktuelle Karriere-Stufe + Pending-Anzahl + Coach-Anzahl in allen Templates bereit."""
     if current_user.is_authenticated:
         ctx = {'my_career': get_career_level_for_user(current_user.id)}
         if current_user.role == 'admin':
@@ -147,8 +350,197 @@ def inject_career():
             cnt = db.execute('SELECT COUNT(*) as c FROM users WHERE pending_career_level IS NOT NULL AND active = 1').fetchone()['c']
             db.close()
             ctx['pending_count'] = cnt
+        # Coach-Insights für Bell-Badge — nur leichtgewichtig zählen
+        try:
+            scope = None if current_user.role == 'admin' else current_user.id
+            insights = get_smart_insights(scope_user_id=scope)
+            ctx['coach_alerts'] = insights['urgent_count']
+        except Exception:
+            ctx['coach_alerts'] = 0
         return ctx
     return {}
+
+
+# === ADMIN: PASSWORT-RESET ===
+@app.route('/admin/team/<int:uid>/reset-password', methods=['POST'])
+@login_required
+def admin_reset_password(uid):
+    if current_user.role != 'admin':
+        return redirect(url_for('dashboard'))
+    new_pw = generate_random_password()
+    db = get_db()
+    db.execute('UPDATE users SET password = ? WHERE id = ?', (hash_password(new_pw), uid))
+    user = db.execute('SELECT name, email FROM users WHERE id = ?', (uid,)).fetchone()
+    db.commit()
+    db.close()
+    flash(f'Passwort zurückgesetzt für {user["name"]} ({user["email"]}). Neues Passwort: {new_pw}', 'success')
+    return redirect(url_for('team'))
+
+
+# === ADMIN: BACKUP DOWNLOAD ===
+@app.route('/admin/backup')
+@login_required
+def admin_backup():
+    if current_user.role != 'admin':
+        return redirect(url_for('dashboard'))
+    if not os.path.exists(DB_PATH):
+        flash('Datenbank-Datei nicht gefunden!', 'error')
+        return redirect(url_for('dashboard'))
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    return send_file(DB_PATH, as_attachment=True,
+                     download_name=f'vertrieb-backup-{timestamp}.db',
+                     mimetype='application/octet-stream')
+
+
+# === ADMIN: AKTIVITÄT ===
+@app.route('/admin/aktivitaet')
+@login_required
+def admin_aktivitaet():
+    if current_user.role != 'admin':
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('dashboard'))
+    db = get_db()
+    rows = db.execute('''
+        SELECT u.id, u.name, u.email, u.last_login, u.login_count, u.joined_date,
+               u.manual_career_level, p.name as upline_name,
+               COALESCE(SUM(c.einheiten), 0) as einheiten
+        FROM users u
+        LEFT JOIN users p ON u.parent_id = p.id
+        LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND c.recherche_status = "freigegeben"
+        WHERE u.active = 1
+        GROUP BY u.id
+        ORDER BY u.last_login DESC NULLS LAST, u.name
+    ''').fetchall()
+    members = []
+    today_str = date.today().strftime('%Y-%m-%d')
+    for r in rows:
+        d = dict(r)
+        d['career'] = next((c for c in CAREER_LEVELS if c['level'] == r['manual_career_level']), CAREER_LEVELS[0])
+        # Tage seit letztem Login
+        if r['last_login']:
+            try:
+                last_date = datetime.strptime(r['last_login'][:10], '%Y-%m-%d').date()
+                d['days_ago'] = (date.today() - last_date).days
+            except Exception:
+                d['days_ago'] = None
+        else:
+            d['days_ago'] = None
+        members.append(d)
+    db.close()
+    return render_template('admin_aktivitaet.html', members=members)
+
+
+# === ADMIN: CSV-IMPORT ===
+@app.route('/admin/import', methods=['GET', 'POST'])
+@login_required
+def admin_import():
+    if current_user.role != 'admin':
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        file = request.files.get('csv_file')
+        if not file or file.filename == '':
+            flash('Keine Datei ausgewählt', 'error')
+            return redirect(url_for('admin_import'))
+
+        try:
+            content = file.read().decode('utf-8-sig')
+        except UnicodeDecodeError:
+            try:
+                file.seek(0)
+                content = file.read().decode('latin-1')
+            except Exception:
+                flash('Datei konnte nicht gelesen werden (Zeichensatz-Fehler)', 'error')
+                return redirect(url_for('admin_import'))
+
+        # Delimiter automatisch erkennen
+        delimiter = ','
+        first_line = content.split('\n')[0] if content else ''
+        if first_line.count(';') > first_line.count(','):
+            delimiter = ';'
+
+        reader = csv.DictReader(io.StringIO(content), delimiter=delimiter)
+        # Spalten-Namen normalisieren
+        if reader.fieldnames:
+            reader.fieldnames = [f.strip().lower() for f in reader.fieldnames]
+
+        db = get_db()
+        results = {'created': [], 'skipped': [], 'errors': []}
+
+        for row_idx, row in enumerate(reader, start=2):
+            try:
+                name = (row.get('name') or '').strip()
+                email = (row.get('email') or row.get('e-mail') or '').strip().lower()
+                phone = (row.get('phone') or row.get('telefon') or '').strip()
+                parent_email = (row.get('parent_email') or row.get('upline') or row.get('upline_email') or '').strip().lower()
+                stufe_raw = (row.get('stufe') or row.get('manual_career_level') or row.get('career_level') or '1').strip()
+
+                if not name or not email:
+                    results['errors'].append(f'Zeile {row_idx}: Name oder E-Mail leer')
+                    continue
+                if '@' not in email:
+                    results['errors'].append(f'Zeile {row_idx}: Ungültige E-Mail "{email}"')
+                    continue
+
+                existing = db.execute('SELECT id FROM users WHERE email = ?', (email,)).fetchone()
+                if existing:
+                    results['skipped'].append(f'{email} (existiert bereits)')
+                    continue
+
+                # Upline finden
+                if parent_email:
+                    parent = db.execute('SELECT id, level FROM users WHERE email = ?', (parent_email,)).fetchone()
+                    if not parent:
+                        results['errors'].append(f'Zeile {row_idx}: Upline "{parent_email}" nicht gefunden')
+                        continue
+                    parent_id = parent['id']
+                    new_level = parent['level'] + 1
+                else:
+                    # Default: Najib (Admin) als Upline
+                    najib = db.execute('SELECT id, level FROM users WHERE email = ?', ('najib@ntpro.de',)).fetchone()
+                    parent_id = najib['id'] if najib else None
+                    new_level = (najib['level'] + 1) if najib else 1
+
+                try:
+                    stufe = int(stufe_raw)
+                    if stufe < 1 or stufe > 6:
+                        stufe = 1
+                except (ValueError, TypeError):
+                    stufe = 1
+
+                generated_pw = generate_random_password()
+                db.execute('''INSERT INTO users (name, email, password, role, parent_id, level, phone, manual_career_level)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                           (name, email, hash_password(generated_pw), 'partner',
+                            parent_id, new_level, phone, stufe))
+                results['created'].append({'name': name, 'email': email, 'password': generated_pw, 'stufe': stufe})
+            except Exception as e:
+                results['errors'].append(f'Zeile {row_idx}: {str(e)}')
+
+        db.commit()
+        db.close()
+        return render_template('admin_import_result.html', results=results)
+
+    return render_template('admin_import.html')
+
+
+@app.route('/admin/import/template')
+@login_required
+def admin_import_template():
+    if current_user.role != 'admin':
+        return redirect(url_for('dashboard'))
+    template = (
+        'name,email,phone,parent_email,stufe\n'
+        'Max Mustermann,max@email.de,+49 170 1234567,najib@ntpro.de,1\n'
+        'Anna Schmidt,anna@email.de,+49 170 7654321,najib@ntpro.de,2\n'
+        'Tom Weber,tom@email.de,+49 170 1122334,max@email.de,1\n'
+    )
+    return Response(
+        template,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment;filename=partner-import-vorlage.csv'}
+    )
 
 
 # === GENEHMIGUNGEN (Admin) ===
@@ -233,6 +625,8 @@ def init_db():
             onboarding_einarbeitung_3 INTEGER DEFAULT 0,
             onboarding_seminar_bezahlt INTEGER DEFAULT 0,
             vision TEXT DEFAULT '',
+            last_login TEXT,
+            login_count INTEGER DEFAULT 0,
             active INTEGER DEFAULT 1,
             FOREIGN KEY (parent_id) REFERENCES users(id)
         );
@@ -334,13 +728,18 @@ def init_db():
         );
     ''')
 
-    # Migration: Spalte 'vision' für bestehende DBs nachrüsten
+    # Migration: neue Spalten für bestehende DBs nachrüsten
     try:
         cols = db.execute("PRAGMA table_info(users)").fetchall()
         col_names = [c['name'] for c in cols]
-        if 'vision' not in col_names:
-            db.execute("ALTER TABLE users ADD COLUMN vision TEXT DEFAULT ''")
-            db.commit()
+        for new_col, sql_type in [
+            ('vision', "TEXT DEFAULT ''"),
+            ('last_login', "TEXT"),
+            ('login_count', "INTEGER DEFAULT 0"),
+        ]:
+            if new_col not in col_names:
+                db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
+        db.commit()
     except Exception as e:
         print(f"Migration warning: {e}")
 
@@ -563,11 +962,22 @@ def login():
         password = request.form.get('password', '')
         db = get_db()
         row = db.execute('SELECT * FROM users WHERE email = ? AND active = 1', (email,)).fetchone()
-        db.close()
-        if row and row['password'] == hash_password(password):
+        if row and verify_password(row['password'], password):
+            # Last-Login + Counter aktualisieren
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            new_count = (row['login_count'] or 0) + 1
+            db.execute('UPDATE users SET last_login = ?, login_count = ? WHERE id = ?',
+                       (now, new_count, row['id']))
+            # Falls alter SHA256-Hash: Migration zu pbkdf2
+            if not (row['password'] or '').startswith(('pbkdf2:', 'scrypt:')):
+                db.execute('UPDATE users SET password = ? WHERE id = ?',
+                           (hash_password(password), row['id']))
+            db.commit()
+            db.close()
             login_user(User(row))
-            session['show_vision'] = True  # Vision-Modal beim Dashboard anzeigen
+            session['show_vision'] = True
             return redirect(url_for('dashboard'))
+        db.close()
         flash('Falsche E-Mail oder Passwort', 'error')
     return render_template('login.html')
 
@@ -722,6 +1132,8 @@ def dashboard():
         admin_vision = (admin_user['vision'] if admin_user else '') or ''
         admin_show_vision = session.pop('show_vision', False) and admin_vision.strip() != ''
         db.close()
+        # KI-Coach: Top-3 Anrufe für Quick-Card
+        coach_insights = get_smart_insights(scope_user_id=None)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -734,7 +1146,8 @@ def dashboard():
             conversion=conversion, termine_pro_abschluss=TERMINE_PRO_ABSCHLUSS,
             my_commissions=my_commissions, comparison=comparison,
             partner_growth=json.dumps([dict(r) for r in partner_growth]),
-            vision_text=admin_vision, show_vision=admin_show_vision
+            vision_text=admin_vision, show_vision=admin_show_vision,
+            coach_insights=coach_insights
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -797,6 +1210,8 @@ def dashboard():
         show_vision = session.pop('show_vision', False) and vision_text.strip() != ''
 
         db.close()
+        # KI-Coach: Insights für Partner (nur eigene Downline)
+        coach_insights = get_smart_insights(scope_user_id=current_user.id)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -805,7 +1220,8 @@ def dashboard():
             conversion=conversion, termine_pro_abschluss=TERMINE_PRO_ABSCHLUSS,
             my_commissions=my_commissions, global_top=global_top,
             monthly_data=json.dumps([dict(r) for r in monthly_data]),
-            vision_text=vision_text, show_vision=show_vision
+            vision_text=vision_text, show_vision=show_vision,
+            coach_insights=coach_insights
         )
 
 
@@ -1377,6 +1793,26 @@ def provisionen():
         users=user_list, recent=recent,
         total_paid=total_paid, total_own=total_own, total_diff=total_diff,
         all_levels=CAREER_LEVELS)
+
+
+# === KI-COACH ===
+@app.route('/coach')
+@login_required
+def coach():
+    """KI-basierte Empfehlungen für den eingeloggten User."""
+    scope = None if current_user.role == 'admin' else current_user.id
+    insights = get_smart_insights(scope_user_id=scope)
+    return render_template('coach.html', insights=insights)
+
+
+@app.route('/coach/briefing')
+@login_required
+def coach_briefing():
+    """Tägliches Briefing — kompaktes HTML, später als E-Mail versendbar."""
+    scope = None if current_user.role == 'admin' else current_user.id
+    insights = get_smart_insights(scope_user_id=scope)
+    today_str = date.today().strftime('%d.%m.%Y')
+    return render_template('coach_briefing.html', insights=insights, today=today_str, user=current_user)
 
 
 # === STRUKTUR-BAUM ===
