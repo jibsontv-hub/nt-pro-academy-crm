@@ -171,6 +171,54 @@
 </div>
 {% endif %}
 
+<!-- 🧠 KI-Diagnose -->
+{% if diagnosis %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface),rgba(167,139,250,0.05));border:1px solid rgba(167,139,250,0.3)">
+    <div class="card-title">
+        🧠 KI-Coaching-Diagnose
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">datenbasiert · für dein 1-on-1</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px">
+        <div style="background:var(--green-soft);border:1px solid var(--green);border-radius:12px;padding:14px">
+            <div style="font-size:11px;color:var(--green);font-weight:800;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:8px">✓ Stärken</div>
+            {% if diagnosis.staerken %}
+            <ul style="margin-left:18px;font-size:13px;color:var(--text);line-height:1.7">
+                {% for s in diagnosis.staerken %}<li>{{ s }}</li>{% endfor %}
+            </ul>
+            {% else %}
+            <div style="font-size:12px;color:var(--text-muted);font-style:italic">Noch zu wenig Daten für klare Stärken</div>
+            {% endif %}
+        </div>
+        <div style="background:var(--orange-soft);border:1px solid var(--orange);border-radius:12px;padding:14px">
+            <div style="font-size:11px;color:var(--orange);font-weight:800;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:8px">⚠ Schwächen</div>
+            {% if diagnosis.schwaechen %}
+            <ul style="margin-left:18px;font-size:13px;color:var(--text);line-height:1.7">
+                {% for s in diagnosis.schwaechen %}<li>{{ s }}</li>{% endfor %}
+            </ul>
+            {% else %}
+            <div style="font-size:12px;color:var(--text-muted);font-style:italic">Keine kritischen Schwächen</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text-muted);font-weight:800;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">📋 Diagnose</div>
+        <div style="font-size:15px;color:var(--text);line-height:1.6">{{ diagnosis.diagnose }}</div>
+    </div>
+
+    <div style="background:linear-gradient(135deg,var(--gold-soft),rgba(212,168,67,0.05));border:1.5px solid var(--gold);border-radius:12px;padding:18px;margin-bottom:12px">
+        <div style="font-size:11px;color:var(--gold);font-weight:800;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">🎯 Konkreter Fokus</div>
+        <div style="font-size:15px;color:var(--text);line-height:1.6;font-weight:600">{{ diagnosis.fokus }}</div>
+    </div>
+
+    <div style="background:var(--blue-soft);border:1px solid var(--blue);border-radius:12px;padding:18px">
+        <div style="font-size:11px;color:var(--blue);font-weight:800;text-transform:uppercase;letter-spacing:0.7px;margin-bottom:6px">💬 Coaching-Frage fürs Gespräch</div>
+        <div style="font-size:15px;color:var(--text);line-height:1.6;font-style:italic">„{{ diagnosis.frage }}"</div>
+    </div>
+</div>
+{% endif %}
+
 <!-- KI-Konversations-Starter -->
 {% if konv_starter %}
 <div class="card" style="background:linear-gradient(135deg,var(--surface),rgba(167,139,250,0.05));border:1px solid rgba(167,139,250,0.2)">

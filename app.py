@@ -381,10 +381,208 @@ def claude_chat(prompt, system_prompt=None, max_tokens=1024, model='claude-sonne
         return None, f'API-Fehler: {str(e)[:200]}'
 
 
-def ai_generate_weekly_briefing(user_id):
-    """Generiert ein persönliches Wochen-Briefing mit echter KI."""
-    if not is_ai_configured():
+def heuristic_weekly_briefing(user_id):
+    """Generiert ein dynamisches Wochen-Briefing OHNE externe API.
+    Datengetriebene Templates, fühlt sich an wie KI."""
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        db.close()
         return None
+
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    week_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) >= date("now", "-7 days")', (user_id,)).fetchone()['s']
+    prev_week_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) BETWEEN date("now", "-14 days") AND date("now", "-8 days")', (user_id,)).fetchone()['s']
+    week_termine = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date) >= date("now", "-7 days")', (user_id,)).fetchone()['c']
+    week_leads = db.execute('SELECT COUNT(*) as c FROM leads WHERE owner_id=? AND date(created_at) >= date("now", "-7 days")', (user_id,)).fetchone()['c']
+    new_partners = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND date(joined_date) >= date("now", "-7 days") AND active=1', (user_id,)).fetchone()['c']
+    pending = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (user_id,)).fetchone()['c']
+    db.close()
+
+    career = career_for_row(user['manual_career_level'], own_eh)
+    next_lvl = next((c for c in CAREER_LEVELS if c['level'] == career['level'] + 1), None)
+    eh_to_go = max(0, next_lvl['min_eh'] - own_eh) if next_lvl else 0
+    first_name = user['name'].split()[0]
+
+    # === Dynamische Bausteine ===
+    # 1. Begrüßung basierend auf Tageszeit + Wochenfortschritt
+    h = datetime.now().hour
+    weekday = datetime.now().weekday()  # 0 = Mo, 6 = So
+    if weekday == 0 or weekday == 6:
+        opener = f"Hi {first_name}, neue Woche, neue Chancen."
+    elif weekday <= 2:
+        opener = f"Hi {first_name}, du startest stark in die Woche."
+    elif weekday == 3:
+        opener = f"Hi {first_name}, Bergfest — wie läuft's bisher?"
+    else:
+        opener = f"Hi {first_name}, lass uns die Woche stark beenden."
+
+    # 2. Performance-Analyse
+    parts = [opener]
+    if week_eh > 0:
+        delta = week_eh - prev_week_eh
+        if prev_week_eh > 0:
+            pct = int((delta / prev_week_eh) * 100)
+            if pct > 20:
+                parts.append(f"Diese Woche {int(week_eh)} EH — das sind {pct}% mehr als letzte Woche, richtig stark! 🔥")
+            elif pct < -20:
+                parts.append(f"Diese Woche {int(week_eh)} EH — letzte Woche waren's {int(prev_week_eh)}, also {abs(pct)}% weniger. Was ist los?")
+            else:
+                parts.append(f"Diese Woche {int(week_eh)} EH — stabil zur Vorwoche ({int(prev_week_eh)}).")
+        else:
+            parts.append(f"Diese Woche {int(week_eh)} EH — sauber.")
+    elif prev_week_eh > 0:
+        parts.append(f"Diese Woche noch keine EH — letzte Woche waren's {int(prev_week_eh)}. Lass uns das ändern.")
+    else:
+        parts.append("Noch keine neuen EH diese Woche — Zeit für Action.")
+
+    # 3. Aktivitäts-Check
+    activity_msgs = []
+    if week_termine == 0 and weekday >= 2:
+        activity_msgs.append("Achtung: 0 Termine diese Woche — bei 3 Termine = 1 Abschluss kommt da nichts mehr.")
+    elif week_termine >= 5:
+        activity_msgs.append(f"{week_termine} Termine diese Woche — Top-Aktivität.")
+    elif week_termine >= 3:
+        activity_msgs.append(f"{week_termine} Termine — solide, aber mehr geht.")
+    if week_leads >= 5:
+        activity_msgs.append(f"{week_leads} neue Personen in der Namensliste — perfekte Pipeline.")
+    elif week_leads == 0 and weekday >= 3:
+        activity_msgs.append("Keine neuen Namensliste-Einträge diese Woche — pflege deine Pipeline.")
+    if new_partners > 0:
+        activity_msgs.append(f"🎉 {new_partners} neuer{'e' if new_partners > 1 else ''} Partner gewonnen — Strukturaufbau läuft!")
+    if activity_msgs:
+        parts.append(' '.join(activity_msgs))
+
+    # 4. Karriere-Push
+    if next_lvl:
+        if eh_to_go <= 200:
+            parts.append(f"⚡ {next_lvl['short']} ist GREIFBAR — nur noch {int(eh_to_go)} EH. Jetzt Vollgas, das machst du diese Woche!")
+        elif eh_to_go <= 1000:
+            parts.append(f"Auf zu {next_lvl['short']} — noch {int(eh_to_go)} EH. Bei {int(week_eh) if week_eh > 0 else 'Vollgas'} EH/Woche eine Frage von Wochen.")
+        elif eh_to_go <= 5000:
+            parts.append(f"Dein nächstes Ziel: {next_lvl['short']} ({int(eh_to_go)} EH übrig) — Schritt für Schritt.")
+    else:
+        parts.append("Du bist auf der höchsten Stufe — jetzt gilt: Vorbild sein, Team aufbauen.")
+
+    # 5. Pending-Hinweis
+    if pending >= 3:
+        parts.append(f"⏳ Du hast {pending} Verträge mit hängender Recherche — bitte nachfassen, das sind verlorene EH.")
+    elif pending > 0:
+        parts.append(f"Tipp: {pending} Recherche{'n' if pending > 1 else ''} noch offen — kurz nachfragen.")
+
+    # 6. Vision-Reminder
+    if user['vision'] and user['vision'].strip() and weekday in [0, 4]:
+        vision_short = user['vision'][:80] + ('…' if len(user['vision']) > 80 else '')
+        parts.append(f'Erinnere dich: „{vision_short}" — dafür machst du das hier.')
+
+    # 7. Closing
+    if week_eh > prev_week_eh and week_eh > 0:
+        parts.append("Du bist in Form — bleib dran! 💪")
+    elif weekday == 4:
+        parts.append("Noch ein Tag — was schaffst du heute? 🎯")
+    elif weekday == 5 or weekday == 6:
+        parts.append("Plane die nächste Woche — wer wird angerufen?")
+    else:
+        parts.append("Ein Schritt nach dem anderen. Du machst das.")
+
+    return ' '.join(parts)
+
+
+def heuristic_coaching_diagnosis(target_user_id):
+    """Datenbasierte Coaching-Diagnose pro Partner — ohne externe API."""
+    db = get_db()
+    target = db.execute('SELECT * FROM users WHERE id = ?', (target_user_id,)).fetchone()
+    if not target:
+        db.close()
+        return None
+
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (target_user_id,)).fetchone()['s']
+    contracts = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (target_user_id,)).fetchone()['c']
+    termine = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND status="erledigt"', (target_user_id,)).fetchone()['c']
+    pending = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (target_user_id,)).fetchone()['c']
+    leads = db.execute('SELECT COUNT(*) as c FROM leads WHERE owner_id=?', (target_user_id,)).fetchone()['c']
+    last_login_days = db.execute('SELECT CAST(julianday("now") - julianday(COALESCE(last_login, joined_date)) as INTEGER) as d FROM users WHERE id=?', (target_user_id,)).fetchone()['d']
+    db.close()
+
+    avg_t = (termine / contracts) if contracts > 0 else 0
+    career = career_for_row(target['manual_career_level'], own_eh)
+    first_name = target['name'].split()[0]
+
+    # Stärken identifizieren
+    staerken = []
+    if avg_t > 0 and avg_t <= 2.5:
+        staerken.append(f"Termin-Conversion exzellent ({avg_t:.1f} Termine/Abschluss — Top!)")
+    if leads >= 30:
+        staerken.append(f"Sehr volle Namensliste ({leads} Kontakte)")
+    if last_login_days <= 2:
+        staerken.append("hohe Aktivität (täglich im System)")
+    if career['level'] >= 3 and own_eh > 5000:
+        staerken.append("solide EH-Basis")
+
+    # Schwächen identifizieren
+    schwaechen = []
+    if avg_t > 4 and contracts > 1:
+        schwaechen.append(f"schwache Termin-Conversion ({avg_t:.1f}/Abschluss — Ziel ist 3)")
+    if pending >= 3:
+        schwaechen.append(f"{pending} hängende Recherchen")
+    if leads < 10:
+        schwaechen.append(f"dünne Namensliste (nur {leads} Kontakte)")
+    if last_login_days > 7:
+        schwaechen.append(f"seit {last_login_days} Tagen nicht im System")
+    if termine < 5 and contracts == 0:
+        schwaechen.append("noch keine Aktivität in Termin-Pipeline")
+
+    # Diagnose-Text
+    if staerken and schwaechen:
+        diagnose = f"{first_name} hat klare Stärken: {staerken[0]}. Aber: {schwaechen[0]}."
+    elif staerken:
+        diagnose = f"{first_name} läuft gut: {' und '.join(staerken[:2])}. Auf diesem Niveau halten."
+    elif schwaechen:
+        diagnose = f"{first_name} braucht Fokus: {' und '.join(schwaechen[:2])}."
+    else:
+        diagnose = f"{first_name} ist noch in Anlaufphase — Basics aufbauen."
+
+    # Konkrete Aktion
+    if pending >= 3:
+        fokus = f"Diese Woche: alle {pending} hängenden Recherchen durchgehen und auf Stand bringen."
+    elif avg_t > 4 and contracts > 0:
+        fokus = "Vor dem nächsten Termin: 3-Fragen-Vorqualifikation üben (Bedarf, Budget, Entscheidung)."
+    elif leads < 10:
+        fokus = "Diese Woche: 20 Personen aus dem Umfeld in Namensliste eintragen."
+    elif termine == 0:
+        fokus = "Diese Woche mind. 3 Termine vereinbaren — alles andere kommt von dort."
+    elif last_login_days > 7:
+        fokus = "Tägliche 10-Minuten-Routine etablieren: Login, Pipeline pflegen, 1 Anruf."
+    else:
+        fokus = "Klare Wochenziele definieren und im System tracken."
+
+    # Coaching-Frage
+    if avg_t > 4:
+        frage = f"Was glaubst du — was unterscheidet einen Termin der zum Abschluss führt von einem der nicht führt?"
+    elif pending >= 3:
+        frage = f"Was hält dich aktuell davon ab, die hängenden Themen abzuschließen?"
+    elif leads < 10:
+        frage = f"Wer aus deinem Umfeld kann konkret von Ergo Rente Chance profitieren — und warum?"
+    elif career['level'] < 3 and own_eh < 1000:
+        frage = f"Was ist dein realistisches Ziel für die nächsten 30 Tage und was brauchst du dafür?"
+    else:
+        frage = f"Wenn du in 6 Monaten zurückblickst — was muss passiert sein, damit du stolz bist?"
+
+    return {
+        'diagnose': diagnose,
+        'fokus': fokus,
+        'frage': frage,
+        'staerken': staerken[:3],
+        'schwaechen': schwaechen[:3]
+    }
+
+
+def ai_generate_weekly_briefing(user_id):
+    """Generiert ein persönliches Wochen-Briefing.
+    Nutzt Claude API wenn konfiguriert, sonst dynamische Heuristik (Top-Niveau)."""
+    if not is_ai_configured():
+        # Fallback: Heuristisches Briefing (fühlt sich wie KI an)
+        return heuristic_weekly_briefing(user_id)
     cache_key = f'ai:briefing:{user_id}:{date.today().strftime("%Y-W%U")}'
     cached_val = cache_get(cache_key)
     if cached_val:
@@ -2932,7 +3130,7 @@ def dashboard():
         ki_recs = get_ki_recommendations(current_user.id, scope_user_id=None)
         forecast = get_forecast(current_user.id)
         anomalies = detect_anomalies(scope_user_id=None)
-        ai_briefing = ai_generate_weekly_briefing(current_user.id) if is_ai_configured() else None
+        ai_briefing = ai_generate_weekly_briefing(current_user.id)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -3019,7 +3217,7 @@ def dashboard():
         career_criteria = get_career_criteria_status(current_user.id)
         ki_recs = get_ki_recommendations(current_user.id, scope_user_id=current_user.id)
         forecast = get_forecast(current_user.id)
-        ai_briefing = ai_generate_weekly_briefing(current_user.id) if is_ai_configured() else None
+        ai_briefing = ai_generate_weekly_briefing(current_user.id)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -3879,6 +4077,7 @@ def coaching(uid):
     db.close()
     heatmap = get_activity_heatmap(uid, days=180)
     konv_starter = get_konversations_starter(uid)
+    diagnosis = heuristic_coaching_diagnosis(uid)
     return render_template('coaching.html',
         member=dict(member), career=career, next_career=next_career,
         own_eh=own_eh,
@@ -3886,7 +4085,7 @@ def coaching(uid):
                'pending_research': pending_research, 'avg_termine_per_close': avg_termine_per_close,
                'downline_count': downline_count, 'full_team': full_team, 'ob_score': ob_score},
         recent_activity=recent_activity, notes=notes, tipps=tipps,
-        heatmap=heatmap, konv_starter=konv_starter)
+        heatmap=heatmap, konv_starter=konv_starter, diagnosis=diagnosis)
 
 
 # === KI-COACH ===
