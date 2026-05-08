@@ -1246,42 +1246,56 @@ def get_grundseminar_date(eingabeschluss):
 
 
 def get_production_deadlines():
-    """Liefert Eingabeschluss + Grundseminar für aktuellen/nächsten Monat."""
+    """Liefert Eingabeschluss + Grundseminar — TAG-GENAU + UNABHÄNGIG voneinander.
+    - Eingabeschluss: nächster bevorstehender (wenn aktueller Monat vorbei → nächster Monat)
+    - Grundseminar: nächstes bevorstehendes (wenn aktueller Monat vorbei → nächster Monat)
+    Beide werden SEPARAT berechnet, da sie unterschiedliche Daten haben.
+    """
     today = date.today()
-    # Aktueller Monats-Eingabeschluss
-    cur_eingabe = get_third_workday(today.year, today.month)
-    cur_seminar = get_grundseminar_date(cur_eingabe) if cur_eingabe else None
+    monate = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+    weekdays = ['Mo','Di','Mi','Do','Fr','Sa','So']
 
-    # Wenn Eingabeschluss schon durch: nächsten Monat zeigen
-    # (Produktionsschluss = Stichtag für nächste Eingaben)
-    if cur_eingabe and today > cur_eingabe:
-        next_year = today.year + 1 if today.month == 12 else today.year
-        next_month = 1 if today.month == 12 else today.month + 1
-        cur_eingabe = get_third_workday(next_year, next_month)
-        cur_seminar = get_grundseminar_date(cur_eingabe) if cur_eingabe else None
+    # === EINGABESCHLUSS — wenn vorbei: nächster Monat ===
+    eingabe = get_third_workday(today.year, today.month)
+    if not eingabe or today > eingabe:
+        # nächster Monat
+        nm_y = today.year + 1 if today.month == 12 else today.year
+        nm_m = 1 if today.month == 12 else today.month + 1
+        eingabe = get_third_workday(nm_y, nm_m)
 
-    if not cur_eingabe or not cur_seminar:
+    # === GRUNDSEMINAR — wenn vorbei: nächster Monat ===
+    seminar_this_month = get_grundseminar_date(get_third_workday(today.year, today.month))
+    if seminar_this_month and today <= seminar_this_month:
+        seminar = seminar_this_month
+    else:
+        nm_y = today.year + 1 if today.month == 12 else today.year
+        nm_m = 1 if today.month == 12 else today.month + 1
+        seminar = get_grundseminar_date(get_third_workday(nm_y, nm_m))
+
+    if not eingabe or not seminar:
         return None
 
-    eingabe_in_days = (cur_eingabe - today).days
-    seminar_in_days = (cur_seminar - today).days
-    monate = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+    eingabe_in_days = (eingabe - today).days
+    seminar_in_days = (seminar - today).days
 
     return {
-        'eingabeschluss': cur_eingabe,
-        'eingabeschluss_str': cur_eingabe.strftime('%d.%m.%Y'),
-        'eingabe_weekday': ['Mo','Di','Mi','Do','Fr','Sa','So'][cur_eingabe.weekday()],
+        'eingabeschluss': eingabe,
+        'eingabeschluss_str': eingabe.strftime('%d.%m.%Y'),
+        'eingabe_weekday': weekdays[eingabe.weekday()],
         'eingabe_in_days': eingabe_in_days,
         'eingabe_passed': eingabe_in_days < 0,
         'eingabe_today': eingabe_in_days == 0,
         'eingabe_urgent': 0 <= eingabe_in_days <= 3,
-        'grundseminar': cur_seminar,
-        'grundseminar_str': cur_seminar.strftime('%d.%m.%Y'),
-        'seminar_weekday': ['Mo','Di','Mi','Do','Fr','Sa','So'][cur_seminar.weekday()],
+        'eingabe_month_label': monate[eingabe.month - 1],
+        'grundseminar': seminar,
+        'grundseminar_str': seminar.strftime('%d.%m.%Y'),
+        'seminar_weekday': weekdays[seminar.weekday()],
         'seminar_in_days': seminar_in_days,
         'seminar_passed': seminar_in_days < 0,
+        'seminar_today': seminar_in_days == 0,
         'seminar_urgent': 0 <= seminar_in_days <= 7,
-        'month_label': monate[cur_eingabe.month - 1],
+        'seminar_month_label': monate[seminar.month - 1],
+        'month_label': monate[eingabe.month - 1],  # backward-compat
     }
 
 

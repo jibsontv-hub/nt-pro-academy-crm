@@ -569,6 +569,8 @@
             .topbar-actions { gap: 6px; }
             .theme-toggle { width: 34px; height: 34px; }
         }
+        .live-clock { display: flex !important; }
+        @media (max-width: 768px) { .live-clock { display: none !important; } }
     </style>
 </head>
 <body>
@@ -714,6 +716,10 @@
         <div class="topbar">
             <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menü">☰</button>
             <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
+            <div id="liveClock" class="live-clock" style="display:none;flex-direction:column;align-items:flex-end;gap:1px;font-variant-numeric:tabular-nums;line-height:1.1;margin-right:6px">
+                <div id="clockTime" style="font-size:14px;font-weight:800;color:var(--text);letter-spacing:-0.3px"></div>
+                <div id="clockDate" style="font-size:10px;color:var(--text-muted);letter-spacing:0.3px"></div>
+            </div>
             <div class="topbar-actions" style="display:flex;align-items:center;gap:10px">
                 <button onclick="openSearch()" title="Suchen (⌘K)" aria-label="Suchen"
                         style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:var(--bg-2);border:1px solid var(--border);color:var(--text-muted);border-radius:10px;font-size:13px;cursor:pointer;transition:all 0.2s;font-family:inherit;min-width:200px">
@@ -1043,6 +1049,23 @@
     {% endif %}
 
     <script>
+        // Live-Clock in Topbar
+        (function(){
+            const TAGE = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+            const MONATE = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+            function pad(n){return n<10?'0'+n:''+n}
+            function tick() {
+                const d = new Date();
+                const t = document.getElementById('clockTime');
+                const dd = document.getElementById('clockDate');
+                if (!t || !dd) return;
+                t.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+                dd.textContent = TAGE[d.getDay()] + ', ' + d.getDate() + '. ' + MONATE[d.getMonth()] + ' ' + d.getFullYear();
+            }
+            tick();
+            setInterval(tick, 1000);
+        })();
+
         // Sidebar Toggle (Mobile)
         function toggleSidebar() {
             const sb = document.querySelector('.sidebar');
