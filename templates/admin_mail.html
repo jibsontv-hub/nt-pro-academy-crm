@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Mail senden – NT Pro Academy{% endblock %}
+{% block page_title %}📨 Bulk-Mail Sender{% endblock %}
+{% block topbar_actions %}
+<a href="/admin/email-settings" class="btn btn-secondary">⚙ Einstellungen</a>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:880px">
+
+<div class="card" style="background:var(--blue-soft);border:1px solid var(--blue)">
+    <div style="display:flex;gap:14px;align-items:flex-start">
+        <span style="font-size:22px">📨</span>
+        <div style="font-size:13px;color:var(--text)">
+            <strong>So funktioniert's:</strong> Wähle eine Empfänger-Gruppe, schreibe deine Nachricht, klick „Senden".
+            E-Mails werden über deinen SMTP-Server (Brevo) an alle gleichzeitig versendet — automatisch im NT-Pro-Academy-Design.
+        </div>
+    </div>
+</div>
+
+<form method="POST" id="mailForm">
+    <!-- Empfänger -->
+    <div class="card">
+        <div class="card-title">① Empfänger wählen</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+            <label class="target-card" style="cursor:pointer">
+                <input type="radio" name="target" value="all" checked style="display:none">
+                <div class="target-inner">
+                    <div style="font-size:22px">📣</div>
+                    <div style="font-size:14px;font-weight:700;margin-top:6px">Alle Mitglieder</div>
+                    <div style="font-size:12px;color:var(--text-muted)">{{ counts.all }} Empfänger</div>
+                </div>
+            </label>
+            <label class="target-card" style="cursor:pointer">
+                <input type="radio" name="target" value="inactive" style="display:none">
+                <div class="target-inner">
+                    <div style="font-size:22px">⏰</div>
+                    <div style="font-size:14px;font-weight:700;margin-top:6px">Inaktive (>7 Tage)</div>
+                    <div style="font-size:12px;color:var(--text-muted)">{{ counts.inactive }} Empfänger</div>
+                </div>
+            </label>
+            <label class="target-card" style="cursor:pointer">
+                <input type="radio" name="target" value="silent" style="display:none">
+                <div class="target-inner">
+                    <div style="font-size:22px">🔇</div>
+                    <div style="font-size:14px;font-weight:700;margin-top:6px">Schweigend (>30 Tage)</div>
+                    <div style="font-size:12px;color:var(--text-muted)">{{ counts.silent }} Empfänger</div>
+                </div>
+            </label>
+            {% for cl in all_levels %}
+            {% if counts['level_' ~ cl.level] > 0 %}
+            <label class="target-card" style="cursor:pointer">
+                <input type="radio" name="target" value="level_{{ cl.level }}" style="display:none">
+                <div class="target-inner" style="border-left:3px solid {{ cl.color }}">
+                    <div style="font-size:22px">⬡</div>
+                    <div style="font-size:14px;font-weight:700;margin-top:6px">Nur {{ cl.short }}</div>
+                    <div style="font-size:12px;color:var(--text-muted)">{{ counts['level_' ~ cl.level] }} Empfänger</div>
+                </div>
+            </label>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Nachricht -->
+    <div class="card">
+        <div class="card-title">② Nachricht</div>
+        <div class="form-group full">
+            <label>Betreff *</label>
+            <input type="text" name="subject" required placeholder="z.B. Wichtige Info zum Wochenmeeting">
+        </div>
+        <div class="form-group full" style="margin-top:14px">
+            <label>Nachricht *</label>
+            <textarea name="body" rows="10" required placeholder="Hi Team,
+
+was du sagen willst…
+
+Gruß
+Najib"></textarea>
+            <span style="font-size:11px;color:var(--text-soft)">💡 Zeilenumbrüche werden übernommen. Im NT-Pro-Academy-Branding versendet.</span>
+        </div>
+
+        <!-- Templates / Vorlagen -->
+        <div style="margin-top:14px">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.7px;font-weight:700;margin-bottom:8px">📝 Schnelle Vorlagen</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" onclick="useTemplate('motivation')" class="btn btn-secondary btn-sm">⚡ Motivation</button>
+                <button type="button" onclick="useTemplate('reminder')" class="btn btn-secondary btn-sm">⏰ Erinnerung</button>
+                <button type="button" onclick="useTemplate('meeting')" class="btn btn-secondary btn-sm">📅 Meeting</button>
+                <button type="button" onclick="useTemplate('followup')" class="btn btn-secondary btn-sm">🔄 Follow-up</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Senden -->
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
+            <div style="font-size:13px;color:var(--text-muted)">
+                ⚠ Achte darauf, dass du das richtige Empfänger-Segment ausgewählt hast — Mails sind nicht zurückrufbar.
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding:14px 28px;font-size:14px" onclick="return confirm('Wirklich an alle ausgewählten Empfänger senden?')">
+                📨 Jetzt senden
+            </button>
+        </div>
+    </div>
+</form>
+
+</div>
+
+<style>
+.target-card .target-inner {
+    background: var(--surface); border: 2px solid var(--border); border-radius: 14px;
+    padding: 16px 18px; transition: all 0.2s;
+}
+.target-card:hover .target-inner { border-color: var(--gold); transform: translateY(-1px); }
+.target-card input:checked + .target-inner {
+    border-color: var(--gold); background: var(--gold-soft);
+    box-shadow: 0 0 0 4px rgba(184,144,46,0.1);
+}
+</style>
+
+<script>
+const TEMPLATES = {
+    motivation: {
+        subject: '🚀 Lass uns diese Woche durchstarten!',
+        body: 'Hi Team,\n\nwir haben diese Woche eine riesige Chance — wenn jeder von uns 5 Termine macht, sind wir bald an einem Punkt, wo wir uns alle nicht mehr wiedererkennen.\n\nIch glaube an dich. Lass uns das gemeinsam durchziehen!\n\nDein Najib'
+    },
+    reminder: {
+        subject: '⏰ Wöchentliche Erinnerung',
+        body: 'Hi,\n\nkurze Erinnerung: pflege deine Namensliste, vereinbare deine Termine, halte uns up-to-date.\n\nWenn du Fragen hast — ich bin immer erreichbar.\n\nBis bald,\nNajib'
+    },
+    meeting: {
+        subject: '📅 Meeting [Datum] — bitte vormerken',
+        body: 'Hi Team,\n\nwir haben am [Datum] um [Uhrzeit] unser nächstes Meeting bei [Ort/Online].\n\nThemen:\n- Punkt 1\n- Punkt 2\n- Punkt 3\n\nBitte vorbereiten!\n\nGruß\nNajib'
+    },
+    followup: {
+        subject: '🔄 Wie läufts bei dir?',
+        body: 'Hi,\n\nich melde mich kurz — wie läufts gerade? Brauchst du Unterstützung bei was?\n\nMelde dich gern, lass uns kurz telefonieren.\n\nDein Najib'
+    }
+};
+function useTemplate(key) {
+    const t = TEMPLATES[key];
+    if (!t) return;
+    document.querySelector('input[name="subject"]').value = t.subject;
+    document.querySelector('textarea[name="body"]').value = t.body;
+}
+</script>
+{% endblock %}

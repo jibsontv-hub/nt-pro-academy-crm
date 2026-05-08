@@ -7,6 +7,11 @@ import os
 import secrets
 import csv
 import io
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 from datetime import date, datetime, timedelta
 import json
 
@@ -172,6 +177,90 @@ def calculate_age(birthday_str):
         return age
     except (ValueError, TypeError):
         return None
+
+
+# === SETTINGS (Key/Value-Store für SMTP & Co.) ===
+def get_setting(key, default=''):
+    db = get_db()
+    row = db.execute('SELECT value FROM app_settings WHERE key = ?', (key,)).fetchone()
+    db.close()
+    return row['value'] if row else default
+
+
+def set_setting(key, value):
+    db = get_db()
+    db.execute('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', (key, value))
+    db.commit()
+    db.close()
+
+
+def is_smtp_configured():
+    return all([get_setting('smtp_host'), get_setting('smtp_port'),
+                get_setting('smtp_user'), get_setting('smtp_password')])
+
+
+# === E-MAIL VERSAND ===
+def send_email(to, subject, body_text, body_html=None, sent_by=None):
+    """Sendet E-Mail über konfigurierten SMTP. Returns (ok, error_msg)."""
+    smtp_host = get_setting('smtp_host')
+    smtp_port = int(get_setting('smtp_port', '587'))
+    smtp_user = get_setting('smtp_user')
+    smtp_password = get_setting('smtp_password')
+    sender_name = get_setting('smtp_from_name', 'NT Pro Academy')
+    sender_email = get_setting('smtp_from_email', smtp_user)
+
+    if not all([smtp_host, smtp_user, smtp_password]):
+        return False, 'SMTP nicht konfiguriert. Geh zu Einstellungen → E-Mail-Versand.'
+
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = formataddr((sender_name, sender_email))
+    msg['To'] = to
+    msg.attach(MIMEText(body_text, 'plain', 'utf-8'))
+    if body_html:
+        msg.attach(MIMEText(body_html, 'html', 'utf-8'))
+
+    try:
+        if smtp_port == 465:
+            ctx = ssl.create_default_context()
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=ctx, timeout=15) as server:
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(msg)
+
+        # Log success
+        db = get_db()
+        db.execute('INSERT INTO email_log (sent_by, recipient, subject, status) VALUES (?, ?, ?, ?)',
+                   (sent_by, to, subject, 'ok'))
+        db.commit()
+        db.close()
+        return True, None
+
+    except Exception as e:
+        err = str(e)[:300]
+        db = get_db()
+        db.execute('INSERT INTO email_log (sent_by, recipient, subject, status, error) VALUES (?, ?, ?, ?, ?)',
+                   (sent_by, to, subject, 'fail', err))
+        db.commit()
+        db.close()
+        return False, err
+
+
+def send_bulk_emails(recipients, subject, body_text, body_html=None, sent_by=None):
+    """Sendet E-Mail an mehrere Empfänger. Returns (success_count, fail_list)."""
+    success = 0
+    fails = []
+    for r in recipients:
+        ok, err = send_email(r, subject, body_text, body_html, sent_by)
+        if ok:
+            success += 1
+        else:
+            fails.append({'email': r, 'error': err})
+    return success, fails
 
 
 def get_period_stats(scope_user_id=None):
@@ -999,6 +1088,136 @@ def admin_reset_password(uid):
     return redirect(url_for('team'))
 
 
+# === ADMIN: SMTP + E-MAIL ===
+@app.route('/admin/email-settings', methods=['GET', 'POST'])
+@login_required
+def admin_email_settings():
+    if current_user.role != 'admin':
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        # SMTP-Settings speichern
+        for key in ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_from_name', 'smtp_from_email']:
+            if key in request.form:
+                set_setting(key, request.form.get(key, '').strip())
+        # Passwort nur überschreiben wenn nicht leer
+        new_pw = (request.form.get('smtp_password') or '').strip()
+        if new_pw:
+            set_setting('smtp_password', new_pw)
+        flash('SMTP-Einstellungen gespeichert!', 'success')
+        return redirect(url_for('admin_email_settings'))
+
+    settings = {
+        'smtp_host': get_setting('smtp_host'),
+        'smtp_port': get_setting('smtp_port', '587'),
+        'smtp_user': get_setting('smtp_user'),
+        'smtp_from_name': get_setting('smtp_from_name', 'NT Pro Academy'),
+        'smtp_from_email': get_setting('smtp_from_email'),
+        'has_password': bool(get_setting('smtp_password')),
+    }
+
+    db = get_db()
+    log = db.execute('''
+        SELECT el.*, u.name as sent_by_name
+        FROM email_log el
+        LEFT JOIN users u ON el.sent_by = u.id
+        ORDER BY el.sent_at DESC LIMIT 30
+    ''').fetchall()
+    db.close()
+
+    return render_template('admin_email_settings.html', settings=settings, log=log,
+                          configured=is_smtp_configured())
+
+
+@app.route('/admin/email-test', methods=['POST'])
+@login_required
+def admin_email_test():
+    if current_user.role != 'admin':
+        return redirect(url_for('dashboard'))
+    to_email = (request.form.get('to') or '').strip()
+    if not to_email:
+        flash('Bitte E-Mail-Adresse angeben', 'error')
+        return redirect(url_for('admin_email_settings'))
+    ok, err = send_email(to_email,
+                         '✅ Test-E-Mail von NT Pro Academy',
+                         f'Hallo!\n\nDies ist eine Test-E-Mail von deinem Control Hub.\nWenn du das siehst, ist alles richtig konfiguriert! 🎉\n\nGesendet: {datetime.now().strftime("%d.%m.%Y %H:%M")}',
+                         body_html=f'<h2 style="color:#0f1c3f">✅ Test erfolgreich!</h2><p>Dies ist eine Test-E-Mail von deinem <strong>NT Pro Academy Control Hub</strong>.</p><p>Wenn du das siehst, ist alles richtig konfiguriert! 🎉</p><p style="color:#94a3b8;font-size:12px">Gesendet: {datetime.now().strftime("%d.%m.%Y %H:%M")}</p>',
+                         sent_by=current_user.id)
+    if ok:
+        flash(f'✅ Test-E-Mail erfolgreich an {to_email} gesendet!', 'success')
+    else:
+        flash(f'❌ Versand fehlgeschlagen: {err}', 'error')
+    return redirect(url_for('admin_email_settings'))
+
+
+@app.route('/admin/mail', methods=['GET', 'POST'])
+@login_required
+def admin_mail():
+    """Bulk-Mailer für Admin."""
+    if current_user.role != 'admin':
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('dashboard'))
+
+    if not is_smtp_configured():
+        flash('Bitte zuerst SMTP konfigurieren', 'error')
+        return redirect(url_for('admin_email_settings'))
+
+    db = get_db()
+    if request.method == 'POST':
+        target = request.form.get('target', 'all')
+        subject = (request.form.get('subject') or '').strip()
+        body = (request.form.get('body') or '').strip()
+        if not subject or not body:
+            flash('Betreff und Nachricht erforderlich', 'error')
+            db.close()
+            return redirect(url_for('admin_mail'))
+
+        # Empfänger ermitteln
+        if target == 'all':
+            recipients = [r['email'] for r in db.execute('SELECT email FROM users WHERE active = 1').fetchall()]
+        elif target == 'inactive':
+            recipients = [r['email'] for r in db.execute('SELECT email FROM users WHERE active = 1 AND (last_login IS NULL OR last_login < datetime("now", "-7 days"))').fetchall()]
+        elif target == 'silent':
+            recipients = [r['email'] for r in db.execute('SELECT email FROM users WHERE active = 1 AND (last_login IS NULL OR last_login < datetime("now", "-30 days"))').fetchall()]
+        elif target.startswith('level_'):
+            lvl = int(target.split('_')[1])
+            recipients = [r['email'] for r in db.execute('SELECT email FROM users WHERE active = 1 AND manual_career_level = ?', (lvl,)).fetchall()]
+        else:
+            recipients = []
+
+        # HTML-Body bauen
+        html_body = f'''<!DOCTYPE html><html><body style="font-family:Inter,sans-serif;background:#f6f7fb;margin:0;padding:24px">
+<table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;border:1px solid #ebeef4">
+<tr><td style="padding:24px 28px;background:#0f1c3f;border-radius:14px 14px 0 0;color:#fff">
+<div style="font-size:20px;font-weight:800">NT Pro Academy</div>
+<div style="font-size:11px;color:#d4a843;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px">Control Hub</div>
+</td></tr>
+<tr><td style="padding:28px;color:#0f172a;line-height:1.6;font-size:15px">{body.replace(chr(10), '<br>')}</td></tr>
+<tr><td style="padding:18px 28px;background:#fafbfc;color:#94a3b8;font-size:11px;border-top:1px solid #ebeef4;border-radius:0 0 14px 14px">
+Diese Nachricht wurde von {current_user.name} versendet.
+</td></tr></table></body></html>'''
+
+        success, fails = send_bulk_emails(recipients, subject, body, html_body, sent_by=current_user.id)
+        db.close()
+        if fails:
+            flash(f'✅ {success} gesendet, ❌ {len(fails)} fehlgeschlagen', 'info')
+        else:
+            flash(f'✅ {success} E-Mail(s) erfolgreich gesendet!', 'success')
+        return redirect(url_for('admin_mail'))
+
+    # GET: Empfänger-Counts
+    counts = {
+        'all': db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1').fetchone()['c'],
+        'inactive': db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1 AND (last_login IS NULL OR last_login < datetime("now", "-7 days"))').fetchone()['c'],
+        'silent': db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1 AND (last_login IS NULL OR last_login < datetime("now", "-30 days"))').fetchone()['c'],
+    }
+    for cl in CAREER_LEVELS:
+        counts[f'level_{cl["level"]}'] = db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1 AND manual_career_level = ?', (cl['level'],)).fetchone()['c']
+    db.close()
+    return render_template('admin_mail.html', counts=counts, all_levels=CAREER_LEVELS)
+
+
 # === ADMIN: BACKUP DOWNLOAD ===
 @app.route('/admin/backup')
 @login_required
@@ -1403,6 +1622,22 @@ def init_db():
             seen INTEGER DEFAULT 0,
             UNIQUE(user_id, achievement_code),
             FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS email_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            sent_by INTEGER,
+            recipient TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            status TEXT NOT NULL,
+            error TEXT,
+            FOREIGN KEY (sent_by) REFERENCES users(id)
         );
     ''')
 

@@ -604,6 +604,9 @@
             <a href="/admin/import" class="nav-link {% if '/admin/import' in request.path %}active{% endif %}">
                 <span class="nav-icon">↑</span> Partner-Import (CSV)
             </a>
+            <a href="/admin/mail" class="nav-link {% if request.path == '/admin/mail' or '/admin/email' in request.path %}active{% endif %}">
+                <span class="nav-icon">📨</span> E-Mail senden
+            </a>
             <a href="/admin/aktivitaet" class="nav-link {% if '/admin/aktivitaet' in request.path %}active{% endif %}">
                 <span class="nav-icon">◷</span> Aktivität
             </a>

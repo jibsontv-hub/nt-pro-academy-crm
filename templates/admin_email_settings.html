@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}E-Mail-Einstellungen – NT Pro Academy{% endblock %}
+{% block page_title %}📧 E-Mail-Versand konfigurieren{% endblock %}
+{% block topbar_actions %}
+{% if configured %}<a href="/admin/mail" class="btn btn-primary">📨 Mail senden</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+<div style="max-width:780px">
+
+<!-- Status -->
+<div class="card" style="background:{% if configured %}var(--green-soft){% else %}var(--orange-soft){% endif %};border:1px solid {% if configured %}var(--green){% else %}var(--orange){% endif %}">
+    <div style="display:flex;gap:14px;align-items:center">
+        <div style="font-size:28px">{% if configured %}✅{% else %}⚠️{% endif %}</div>
+        <div>
+            <div style="font-size:15px;font-weight:700;color:var(--text)">
+                {% if configured %}E-Mail-Versand ist aktiv{% else %}Noch nicht konfiguriert{% endif %}
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">
+                {% if configured %}Sende jetzt Bulk-Mails oder konfiguriere die Einstellungen unten.{% else %}Folge der Brevo-Anleitung unten — kostenlos, 5 Min Setup, 300 Mails/Tag.{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Brevo-Anleitung -->
+{% if not configured %}
+<div class="card">
+    <div class="card-title">🚀 Schnell-Setup mit Brevo (kostenlos)</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">
+        <strong>Brevo</strong> (ehemals Sendinblue) ist die einfachste Option — 300 E-Mails/Tag kostenlos, kein Kartenpflicht.
+    </p>
+    <ol style="margin-left:20px;font-size:13px;line-height:2;color:var(--text)">
+        <li>Account erstellen: <a href="https://www.brevo.com/free-smtp-server/" target="_blank" style="color:var(--gold);font-weight:600">brevo.com/free-smtp-server</a></li>
+        <li>Bestätige deine E-Mail</li>
+        <li>Im Brevo-Dashboard: <strong>Senders, Domains & Dedicated IPs</strong> → <strong>Senders</strong> → eigene Absende-E-Mail hinzufügen + bestätigen</li>
+        <li>Dann: <strong>SMTP & API</strong> → <strong>SMTP-Tab</strong> → <strong>Generate a new SMTP Key</strong> → kopieren</li>
+        <li>Trage unten ein:
+            <ul style="margin-left:20px;font-size:12px;color:var(--text-muted)">
+                <li><strong>SMTP Host:</strong> <code style="background:var(--bg);padding:2px 6px;border-radius:4px">smtp-relay.brevo.com</code></li>
+                <li><strong>Port:</strong> <code style="background:var(--bg);padding:2px 6px;border-radius:4px">587</code></li>
+                <li><strong>SMTP-User:</strong> deine Brevo-Login-E-Mail</li>
+                <li><strong>Passwort:</strong> der generierte SMTP-Key</li>
+                <li><strong>Absender-Mail:</strong> deine bestätigte Sender-Mail</li>
+            </ul>
+        </li>
+    </ol>
+</div>
+{% endif %}
+
+<!-- SMTP-Einstellungen -->
+<div class="card">
+    <div class="card-title">⚙ SMTP-Einstellungen</div>
+    <form method="POST">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>SMTP-Server (Host)</label>
+                <input type="text" name="smtp_host" value="{{ settings.smtp_host }}" placeholder="smtp-relay.brevo.com" required>
+            </div>
+            <div class="form-group">
+                <label>Port</label>
+                <input type="number" name="smtp_port" value="{{ settings.smtp_port }}" placeholder="587" required>
+                <span style="font-size:11px;color:var(--text-soft)">587 (STARTTLS) oder 465 (SSL)</span>
+            </div>
+            <div class="form-group full">
+                <label>SMTP-Benutzername / Login</label>
+                <input type="text" name="smtp_user" value="{{ settings.smtp_user }}" placeholder="dein-login@brevo.com">
+            </div>
+            <div class="form-group full">
+                <label>SMTP-Passwort / API-Key</label>
+                <input type="password" name="smtp_password" placeholder="{% if settings.has_password %}••••••••• (leer lassen = unverändert){% else %}xkeysib-...{% endif %}">
+                <span style="font-size:11px;color:var(--text-soft)">{% if settings.has_password %}Bereits gesetzt — leer lassen, um zu behalten{% else %}Neue Eingabe nötig{% endif %}</span>
+            </div>
+            <div class="form-group">
+                <label>Absender-Name</label>
+                <input type="text" name="smtp_from_name" value="{{ settings.smtp_from_name }}" placeholder="NT Pro Academy">
+            </div>
+            <div class="form-group">
+                <label>Absender-E-Mail (verifiziert!)</label>
+                <input type="email" name="smtp_from_email" value="{{ settings.smtp_from_email }}" placeholder="info@deinedomain.de">
+            </div>
+        </div>
+        <div style="margin-top:18px">
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+        </div>
+    </form>
+</div>
+
+<!-- Test-Versand -->
+{% if configured %}
+<div class="card">
+    <div class="card-title">🧪 Test-E-Mail senden</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Sende eine Test-Mail um sicherzugehen dass alles klappt.</p>
+    <form method="POST" action="/admin/email-test" style="display:flex;gap:10px;flex-wrap:wrap">
+        <input type="email" name="to" placeholder="test@deine-mail.de" required style="flex:1;min-width:240px">
+        <button type="submit" class="btn btn-primary">Test senden</button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Versand-Log -->
+{% if log %}
+<div class="card">
+    <div class="card-title">📋 Versand-Log (letzte 30)</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Wann</th><th>An</th><th>Betreff</th><th>Status</th><th>Von</th></tr></thead>
+            <tbody>
+                {% for l in log %}
+                <tr>
+                    <td style="font-size:12px;color:var(--text-muted)">{{ l.sent_at[:16] }}</td>
+                    <td><strong>{{ l.recipient }}</strong></td>
+                    <td style="font-size:13px">{{ l.subject }}</td>
+                    <td>
+                        {% if l.status == 'ok' %}
+                        <span class="status-badge status-abgeschlossen">✓ OK</span>
+                        {% else %}
+                        <span class="status-badge status-storniert" title="{{ l.error }}">✗ Fehler</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:12px">{{ l.sent_by_name or '–' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+</div>
+{% endblock %}
