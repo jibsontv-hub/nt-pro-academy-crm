@@ -1199,15 +1199,44 @@
                 sp.style.height = (r.height + 16) + 'px';
             }, 350);
         }
-        function speakTour(step) {
-            if (!_tourVoiceOn || !window.speechSynthesis) return;
-            window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(step.voice || step.text);
-            u.lang = 'de-DE'; u.rate = 1.0;
+        // Audio-Cache für vorgenerierte MP3s (z.B. mit eigener Stimme via ElevenLabs)
+        let _tourAudio = null;
+        function pickBestGermanVoice() {
             const voices = window.speechSynthesis.getVoices();
-            const v = voices.find(x => x.lang === 'de-DE') || voices.find(x => x.lang.startsWith('de'));
-            if (v) u.voice = v;
-            window.speechSynthesis.speak(u);
+            if (!voices.length) return null;
+            // Priorität: Neural/Premium/Enhanced/Online > Standard > nur de
+            const tiers = [
+                v => /de.?DE/i.test(v.lang) && /(neural|premium|enhanced|online|natural)/i.test(v.name),
+                v => /de.?DE/i.test(v.lang) && /(katja|conrad|amala|hedda|helena|anna|petra)/i.test(v.name),
+                v => /de.?DE/i.test(v.lang) && !/(microsoft.*desktop|espeak|festival)/i.test(v.name),
+                v => /de.?DE/i.test(v.lang),
+                v => v.lang && v.lang.startsWith('de'),
+            ];
+            for (const f of tiers) { const m = voices.find(f); if (m) return m; }
+            return null;
+        }
+        function speakTour(step) {
+            if (!_tourVoiceOn) return;
+            // Stop alles was läuft
+            if (_tourAudio) { try { _tourAudio.pause(); _tourAudio = null; } catch(e){} }
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
+            // 1) Versuche vorgenerierte MP3 mit eigener Stimme zu laden
+            const audioFile = '/static/voices/tour_' + (_tourIdx + 1) + '.mp3';
+            const test = new Audio(audioFile);
+            test.oncanplaythrough = () => { _tourAudio = test; test.play().catch(()=>{}); };
+            test.onerror = () => {
+                // 2) Fallback auf Browser-TTS mit bester Stimme
+                if (!window.speechSynthesis) return;
+                const u = new SpeechSynthesisUtterance(step.voice || step.text);
+                u.lang = 'de-DE';
+                u.rate = 0.95;       // bisschen langsamer = natürlicher
+                u.pitch = 1.05;      // leicht heller
+                u.volume = 1.0;
+                const v = pickBestGermanVoice();
+                if (v) u.voice = v;
+                window.speechSynthesis.speak(u);
+            };
+            test.load();
         }
         function nextTour() {
             if (_tourIdx >= TOUR_STEPS.length - 1) { endTour(false); return; }
@@ -1236,6 +1265,16 @@
                 if (active && hashMatch) {
                     _tourIdx = parseInt(hashMatch[1]);
                     setTimeout(() => showTourStep(), 600);
+                    return;
+                }
+                // AUTO-START beim ersten Login (nur Dashboard-Routen)
+                const isDashboard = /^\/(dashboard|leads|kontrakte|team|coaching|stats)?\/?$/.test(window.location.pathname);
+                const tourDone = localStorage.getItem('ntpro-tour-done');
+                if (isDashboard && !tourDone && !active) {
+                    // Erstkontakt: 1.5s warten damit Page geladen ist, dann starten
+                    setTimeout(() => {
+                        if (typeof TOUR_STEPS !== 'undefined' && TOUR_STEPS.length > 0) startTour();
+                    }, 1500);
                 }
             } catch(e){}
         });

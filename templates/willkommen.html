@@ -327,28 +327,58 @@ const stepTexts = {
 let voiceEnabled = true;
 let currentUtterance = null;
 
+let _wAudio = null;
+function pickBestGermanVoice() {
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    const tiers = [
+        v => /de.?DE/i.test(v.lang) && /(neural|premium|enhanced|online|natural)/i.test(v.name),
+        v => /de.?DE/i.test(v.lang) && /(katja|conrad|amala|hedda|helena|anna|petra)/i.test(v.name),
+        v => /de.?DE/i.test(v.lang) && !/(microsoft.*desktop|espeak|festival)/i.test(v.name),
+        v => /de.?DE/i.test(v.lang),
+        v => v.lang && v.lang.startsWith('de'),
+    ];
+    for (const f of tiers) { const m = voices.find(f); if (m) return m; }
+    return null;
+}
 function speakStep(step) {
-    if (!voiceEnabled || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    if (!voiceEnabled) return;
+    if (_wAudio) { try { _wAudio.pause(); _wAudio = null; } catch(e){} }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     const text = stepTexts[step];
     if (!text) return;
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'de-DE'; u.rate = 1.0; u.pitch = 1.0;
-    // Beste deutsche Stimme finden
-    const voices = window.speechSynthesis.getVoices();
-    const deVoice = voices.find(v => v.lang === 'de-DE' && (v.name.includes('Anna') || v.name.includes('Petra') || v.name.includes('Markus')))
-                 || voices.find(v => v.lang.startsWith('de'));
-    if (deVoice) u.voice = deVoice;
-    u.onstart = () => {
+    // 1) Versuche vorgenerierte MP3 mit eigener Stimme
+    const audioFile = '/static/voices/willkommen_' + step + '.mp3';
+    const test = new Audio(audioFile);
+    test.oncanplaythrough = () => {
+        _wAudio = test;
         document.getElementById('voiceIcon').classList.add('speaking');
         document.getElementById('voiceStatus').textContent = 'Spricht…';
+        test.onended = () => {
+            document.getElementById('voiceIcon').classList.remove('speaking');
+            document.getElementById('voiceStatus').textContent = voiceEnabled ? 'Klick um zu wiederholen' : 'Stumm';
+        };
+        test.play().catch(()=>{});
     };
-    u.onend = () => {
-        document.getElementById('voiceIcon').classList.remove('speaking');
-        document.getElementById('voiceStatus').textContent = voiceEnabled ? 'Klick um zu wiederholen' : 'Stumm';
+    test.onerror = () => {
+        // 2) Fallback auf Browser-TTS mit bester Stimme
+        if (!window.speechSynthesis) return;
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'de-DE'; u.rate = 0.95; u.pitch = 1.05; u.volume = 1.0;
+        const v = pickBestGermanVoice();
+        if (v) u.voice = v;
+        u.onstart = () => {
+            document.getElementById('voiceIcon').classList.add('speaking');
+            document.getElementById('voiceStatus').textContent = 'Spricht…';
+        };
+        u.onend = () => {
+            document.getElementById('voiceIcon').classList.remove('speaking');
+            document.getElementById('voiceStatus').textContent = voiceEnabled ? 'Klick um zu wiederholen' : 'Stumm';
+        };
+        currentUtterance = u;
+        window.speechSynthesis.speak(u);
     };
-    currentUtterance = u;
-    window.speechSynthesis.speak(u);
+    test.load();
 }
 
 function toggleVoice() {
