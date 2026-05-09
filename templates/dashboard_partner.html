@@ -127,6 +127,42 @@
 </div>
 {% endif %}
 
+<!-- 🔮 AUTO-FORECAST (nächste 30 Tage, basierend auf Vergangenheit) -->
+{% if forecast_30d and forecast_30d.has_data %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#3b82f6 6%,var(--surface)));border:1px solid color-mix(in srgb,#3b82f6 25%,var(--border))">
+    <div class="card-title" style="color:var(--blue)">🔮 Auto-Prognose · nächste 30 Tage</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px">
+        <div style="text-align:center;padding:14px;background:var(--bg-2);border-radius:14px">
+            <div style="font-size:34px;font-weight:800;color:var(--blue);letter-spacing:-1px;line-height:1">
+                <span class="counter" data-target="{{ forecast_30d.termine_geplant }}">0</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px">📞 Termine</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:var(--bg-2);border-radius:14px">
+            <div style="font-size:34px;font-weight:800;color:var(--green);letter-spacing:-1px;line-height:1">
+                <span class="counter" data-target="{{ forecast_30d.abschluss_count }}">0</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px">✓ Abschlüsse</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:var(--bg-2);border-radius:14px">
+            <div style="font-size:34px;font-weight:800;color:var(--gold);letter-spacing:-1px;line-height:1">
+                <span class="counter" data-target="{{ forecast_30d.eh_forecast }}">0</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px">⚡ EH</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:var(--bg-2);border-radius:14px">
+            <div style="font-size:34px;font-weight:800;color:var(--red);letter-spacing:-1px;line-height:1">
+                <span class="counter" data-target="{{ forecast_30d.termine_cancel_rate }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px">❌ Absage-Quote</div>
+        </div>
+    </div>
+    <div style="margin-top:14px;padding:10px 14px;background:var(--bg-2);border-radius:10px;font-size:12px;color:var(--text-muted);text-align:center">
+        💡 Hochgerechnet aus deinen letzten {{ forecast_30d.lookback_days }} Tagen — wird genauer mit mehr Daten
+    </div>
+</div>
+{% endif %}
+
 <!-- ⏰ Eingabeschluss + Seminar (kompakt) -->
 {% if deadlines %}
 <div class="revo-chips">
@@ -170,24 +206,24 @@
     {% if not is_starter %}
     <div class="revo-chip">
         <div class="revo-chip-l">Team-EH</div>
-        <div class="revo-chip-v">{{ "{:,.0f}".format(stats.einheiten).replace(",", ".") }}</div>
+        <div class="revo-chip-v"><span class="counter" data-target="{{ stats.einheiten }}">0</span></div>
         <div class="revo-chip-d">inkl. Downline</div>
     </div>
     {% endif %}
     <div class="revo-chip">
-        <div class="revo-chip-l">Leads</div>
-        <div class="revo-chip-v">{{ stats.leads }}</div>
+        <div class="revo-chip-l">Kontakte</div>
+        <div class="revo-chip-v"><span class="counter" data-target="{{ stats.leads }}">0</span></div>
         <div class="revo-chip-d">Pipeline</div>
     </div>
     <div class="revo-chip">
         <div class="revo-chip-l">Termine</div>
-        <div class="revo-chip-v">{{ stats.appointments }}</div>
+        <div class="revo-chip-v"><span class="counter" data-target="{{ stats.appointments }}">0</span></div>
         <div class="revo-chip-d">geplant</div>
     </div>
     {% if stats.members > 0 %}
     <div class="revo-chip">
         <div class="revo-chip-l">Partner</div>
-        <div class="revo-chip-v">{{ stats.members }}</div>
+        <div class="revo-chip-v"><span class="counter" data-target="{{ stats.members }}">0</span></div>
         <div class="revo-chip-d">aktiv</div>
     </div>
     {% endif %}

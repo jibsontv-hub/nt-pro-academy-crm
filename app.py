@@ -678,6 +678,21 @@ WENN DER USER FRAGT WER NICHTS GEMACHT HAT:
 - Schlag vor: "Ruf {{Name}} an — frag woran's hakt"
 - Verlinke wenn passend: "Details unter /partner/<id> oder /team/inaktiv"
 
+WENN DER USER NACH WACHSTUM FRAGT (mehr Geschäft, mehr Partner, mehr EH):
+- Schlag konkrete Aktionen vor:
+  → Namensliste ausbauen (Ziel: 100+ Kontakte, sonst keine stabile Pipeline)
+  → 1h Cold-Calling-Block einplanen (Sonntag-Abend reicht für Wochen-Pipeline)
+  → Eigene Struktur ausbauen (Empfehl-Geschäft hebelt EH × 5)
+  → Closing-Script verbessern wenn viele Termine ohne Abschluss
+  → Kontrollgespräche alle 2 Wochen mit jedem direkten Partner
+  → Veranstaltungen besuchen / organisieren (Akquise + Network)
+- Frag nach: "Was lief letzte Woche schlecht?" / "Wo siehst du dich in 6 Monaten?"
+- Wenn der User Vorschläge hat (Veranstaltungen, Tools, Schulungen) — sag ihm:
+  "Trag das in den Vorschlags-Bereich ein → /vorschlag — der Admin sieht's sofort"
+
+PROAKTIV: Wenn EH-Forecast schwach aussieht oder Closing-Quote schlecht ist —
+sag's direkt aus der Kontext-Daten oben.
+
 WICHTIGE TERMINE:
 - Eingabeschluss/Produktionsschluss: {ctx['eingabeschluss']}
 - Grundseminar: {ctx['grundseminar']}
@@ -2977,6 +2992,19 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS partner_suggestions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            kategorie TEXT NOT NULL,
+            titel TEXT NOT NULL,
+            details TEXT,
+            status TEXT DEFAULT 'offen',
+            admin_response TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS activity_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -3094,6 +3122,7 @@ def init_db():
             ('is_co_admin', "INTEGER DEFAULT 0"),
             ('must_change_password', "INTEGER DEFAULT 0"),
             ('language', "TEXT DEFAULT 'de'"),
+            ('initial_eh', "REAL DEFAULT 0"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -3326,11 +3355,80 @@ def get_coach_actions(user_id, max_actions=5):
         actions.append({'icon': '⏰', 'priority': 'critical',
                         'title': f"Eingabeschluss in {deadlines['eingabe_in_days']} Tag{'en' if deadlines['eingabe_in_days'] > 1 else ''}",
                         'detail': 'Alle Verträge eintragen!', 'action_label': 'Verträge', 'action_url': '/vertraege'})
+
+    # 6) Wachstums-Tipps (wenn noch Platz ist)
+    week_termine = db.execute("SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date) >= date('now','-7 days')", (user_id,)).fetchone()['c']
+    week_neue_leads = db.execute("SELECT COUNT(*) as c FROM leads WHERE owner_id=? AND date(created_at) >= date('now','-7 days')", (user_id,)).fetchone()['c']
+    namensliste_size = db.execute("SELECT COUNT(*) as c FROM leads WHERE owner_id=?", (user_id,)).fetchone()['c']
+    direct_count = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (user_id,)).fetchone()['c']
+    week_abschluss = db.execute("SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status='abgeschlossen' AND date(abschluss_date) >= date('now','-7 days')", (user_id,)).fetchone()['c']
+
+    growth_tips = []
+    if namensliste_size < 50:
+        growth_tips.append({'icon': '📒', 'priority': 'medium',
+                            'title': 'Namensliste ausbauen',
+                            'detail': f'Nur {namensliste_size} Kontakte — Ziel: 100+ für stabile Pipeline',
+                            'action_label': '+ Hinzufügen', 'action_url': '/namensliste/neu'})
+    if week_termine < 5:
+        growth_tips.append({'icon': '📞', 'priority': 'medium',
+                            'title': 'Mehr Termine planen',
+                            'detail': f'Diese Woche nur {week_termine} Termine — 3 Termine = 1 Abschluss (Faustregel)',
+                            'action_label': '+ Termin', 'action_url': '/termine/neu'})
+    if week_neue_leads < 3:
+        growth_tips.append({'icon': '🎯', 'priority': 'low',
+                            'title': 'Cold-Calling-Block einplanen',
+                            'detail': f'Nur {week_neue_leads} neue Kontakte diese Woche — 1h Block reicht für 5-10',
+                            'action_label': 'Plan', 'action_url': '/aufgaben'})
+    if direct_count < 3:
+        growth_tips.append({'icon': '🌐', 'priority': 'medium',
+                            'title': 'Eigene Struktur aufbauen',
+                            'detail': 'Empfehl-Geschäft hebelt deine EH × 5 — sprich diese Woche 3 Personen drauf an',
+                            'action_label': '+ Partner', 'action_url': '/team/neu'})
+    if week_abschluss == 0 and week_termine >= 3:
+        growth_tips.append({'icon': '🔍', 'priority': 'high',
+                            'title': 'Termine konvertieren nicht',
+                            'detail': f'{week_termine} Termine, 0 Abschlüsse — schau dir das Closing-Script nochmal an',
+                            'action_label': 'Coach', 'action_url': '/assistent'})
+
+    # Mische Wachstumstipps unter (max 2)
+    actions.extend(growth_tips[:2])
     db.close()
     # Sort by priority + cap
     pri_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
     actions.sort(key=lambda x: pri_order.get(x.get('priority', 'low'), 9))
     return actions[:max_actions]
+
+
+def get_quoten_forecast(user_id, days=30):
+    """Auto-Prognose: was wird der User dieses Monat schaffen — basierend auf Vergangenheit?
+    Returns: dict mit termine/abschluss/eh/abgesagt/abgelehnt — vorhergesagt."""
+    db = get_db()
+    # Vergangene 60 Tage als Basis
+    lookback_days = 60
+    past_termine = db.execute(f"SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date) >= date('now','-{lookback_days} days')", (user_id,)).fetchone()['c']
+    past_termine_done = db.execute(f"SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date) >= date('now','-{lookback_days} days') AND status='erledigt'", (user_id,)).fetchone()['c']
+    past_termine_cancel = db.execute(f"SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date) >= date('now','-{lookback_days} days') AND status='abgesagt'", (user_id,)).fetchone()['c']
+    past_abschluss = db.execute(f"SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status='abgeschlossen' AND date(abschluss_date) >= date('now','-{lookback_days} days')", (user_id,)).fetchone()['c']
+    past_storno = db.execute(f"SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status='storniert' AND date(created_at) >= date('now','-{lookback_days} days')", (user_id,)).fetchone()['c']
+    past_eh_total = db.execute(f"SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status='abgeschlossen' AND recherche_status='freigegeben' AND date(abschluss_date) >= date('now','-{lookback_days} days')", (user_id,)).fetchone()['s']
+    past_recherche_neg = db.execute(f"SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status='negativ' AND date(created_at) >= date('now','-{lookback_days} days')", (user_id,)).fetchone()['c']
+    db.close()
+
+    # Hochrechnen auf Zielzeitraum
+    factor = days / lookback_days
+    return {
+        'termine_geplant': round(past_termine * factor),
+        'termine_erfolgreich': round(past_termine_done * factor),
+        'termine_abgesagt': round(past_termine_cancel * factor),
+        'termine_cancel_rate': round((past_termine_cancel / past_termine * 100) if past_termine else 0, 1),
+        'abschluss_count': round(past_abschluss * factor),
+        'abschluss_storno_rate': round((past_storno / past_abschluss * 100) if past_abschluss else 0, 1),
+        'abschluss_negativ_rate': round((past_recherche_neg / past_abschluss * 100) if past_abschluss else 0, 1),
+        'eh_forecast': round(past_eh_total * factor),
+        'days_target': days,
+        'lookback_days': lookback_days,
+        'has_data': (past_termine + past_abschluss) > 0,
+    }
 
 
 def get_user_activity_today(user_id):
@@ -3400,19 +3498,24 @@ def get_inactive_team_members(user_id, days=1, scope='direct'):
 
 
 def get_user_total_eh(user_id, include_team=False):
-    """EH eines Users (eigene oder mit Team)"""
+    """EH eines Users (eigene oder mit Team) — inkl. initial_eh (Pre-System-Bestand)"""
     db = get_db()
     if include_team:
         ids = [user_id] + get_all_descendants(user_id)
     else:
         ids = [user_id]
     placeholders = ','.join('?' * len(ids))
-    result = db.execute(
+    contract_eh = db.execute(
         f'SELECT COALESCE(SUM(einheiten), 0) as total FROM contracts WHERE owner_id IN ({placeholders}) AND status = "abgeschlossen" AND recherche_status = "freigegeben"',
         ids
-    ).fetchone()
+    ).fetchone()['total']
+    # Initial-EH (was vor System-Start schon produziert wurde) dazurechnen
+    initial = db.execute(
+        f'SELECT COALESCE(SUM(initial_eh), 0) as total FROM users WHERE id IN ({placeholders})',
+        ids
+    ).fetchone()['total']
     db.close()
-    return result['total']
+    return contract_eh + initial
 
 
 def build_tree(user_id, db):
@@ -4510,6 +4613,7 @@ def dashboard():
         ai_briefing = ai_generate_weekly_briefing(current_user.id)
         coach_actions = get_coach_actions(current_user.id, max_actions=5)
         structure_dist = get_structure_distribution(current_user.id, scope='all')
+        forecast_30d = get_quoten_forecast(current_user.id, days=30)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -4528,7 +4632,8 @@ def dashboard():
             period_stats=period_stats, career_criteria=career_criteria,
             ki_recs=ki_recs, forecast=forecast, anomalies=anomalies,
             ai_briefing=ai_briefing, deadlines=deadlines,
-            coach_actions=coach_actions, structure_dist=structure_dist
+            coach_actions=coach_actions, structure_dist=structure_dist,
+            forecast_30d=forecast_30d
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -4609,6 +4714,7 @@ def dashboard():
         deadlines = get_production_deadlines()
         coach_actions = get_coach_actions(current_user.id, max_actions=5)
         structure_dist = get_structure_distribution(current_user.id, scope='all')
+        forecast_30d = get_quoten_forecast(current_user.id, days=30)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -4621,7 +4727,8 @@ def dashboard():
             coach_insights=coach_insights, greeting=greeting,
             period_stats=period_stats, career_criteria=career_criteria,
             ki_recs=ki_recs, forecast=forecast, ai_briefing=ai_briefing,
-            deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist
+            deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist,
+            forecast_30d=forecast_30d
         )
 
 
@@ -4985,13 +5092,17 @@ def team_neu():
             flash('E-Mail bereits vorhanden!', 'error')
         else:
             generated_password = (request.form.get('password') or '').strip() or generate_random_password()
+            try:
+                initial_eh_val = float(request.form.get('initial_eh', 0) or 0)
+            except (ValueError, TypeError):
+                initial_eh_val = 0
             cur = db.execute('''INSERT INTO users (name, email, password, role, parent_id, level, phone,
                           manual_career_level, pending_career_level, pending_by_user_id, pending_at,
-                          must_change_password)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                          must_change_password, initial_eh)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (request.form['name'], email, hash_password(generated_password),
                  'partner', parent_id, new_level, request.form.get('phone', ''),
-                 manual_level, pending_level, pending_by, pending_at, 1))
+                 manual_level, pending_level, pending_by, pending_at, 1, initial_eh_val))
             new_user_id = cur.lastrowid
             db.commit()
             db.close()
@@ -5126,27 +5237,31 @@ def team_edit(uid):
         ob_e2 = 1 if request.form.get('onboarding_einarbeitung_2') else 0
         ob_e3 = 1 if request.form.get('onboarding_einarbeitung_3') else 0
         ob_sb = 1 if request.form.get('onboarding_seminar_bezahlt') else 0
+        try:
+            initial_eh_val = float(request.form.get('initial_eh', 0) or 0)
+        except (ValueError, TypeError):
+            initial_eh_val = member['initial_eh'] or 0
 
         if new_password:
             db.execute('''UPDATE users SET name=?, email=?, phone=?, parent_id=?, level=?, password=?,
                           manual_career_level=?, pending_career_level=?, pending_by_user_id=?, pending_at=?,
                           onboarding_endgespraech=?, onboarding_einarbeitung_1=?, onboarding_einarbeitung_2=?,
-                          onboarding_einarbeitung_3=?, onboarding_seminar_bezahlt=?
+                          onboarding_einarbeitung_3=?, onboarding_seminar_bezahlt=?, initial_eh=?
                           WHERE id=?''',
                 (request.form['name'], request.form['email'], request.form.get('phone', ''),
                  parent_id, new_level, hash_password(new_password),
                  manual_level, pending_level, pending_by, pending_at,
-                 ob_eg, ob_e1, ob_e2, ob_e3, ob_sb, uid))
+                 ob_eg, ob_e1, ob_e2, ob_e3, ob_sb, initial_eh_val, uid))
         else:
             db.execute('''UPDATE users SET name=?, email=?, phone=?, parent_id=?, level=?,
                           manual_career_level=?, pending_career_level=?, pending_by_user_id=?, pending_at=?,
                           onboarding_endgespraech=?, onboarding_einarbeitung_1=?, onboarding_einarbeitung_2=?,
-                          onboarding_einarbeitung_3=?, onboarding_seminar_bezahlt=?
+                          onboarding_einarbeitung_3=?, onboarding_seminar_bezahlt=?, initial_eh=?
                           WHERE id=?''',
                 (request.form['name'], request.form['email'], request.form.get('phone', ''),
                  parent_id, new_level,
                  manual_level, pending_level, pending_by, pending_at,
-                 ob_eg, ob_e1, ob_e2, ob_e3, ob_sb, uid))
+                 ob_eg, ob_e1, ob_e2, ob_e3, ob_sb, initial_eh_val, uid))
         db.commit()
         db.close()
         recalculate_all_commissions()
@@ -5650,6 +5765,73 @@ def struktur():
         trees = [t for t in trees if t]
     db.close()
     return render_template('struktur.html', trees=trees, all_levels=CAREER_LEVELS)
+
+
+@app.route('/vorschlag', methods=['GET', 'POST'])
+@login_required
+def vorschlag():
+    """Partner können Vorschläge an den Admin schicken."""
+    if request.method == 'POST':
+        kategorie = request.form.get('kategorie', 'sonstiges').strip()
+        titel = (request.form.get('titel') or '').strip()
+        details = (request.form.get('details') or '').strip()
+        if not titel or len(titel) > 200:
+            flash('Bitte einen Titel angeben.', 'error')
+            return redirect(url_for('vorschlag'))
+        db = get_db()
+        db.execute('INSERT INTO partner_suggestions (user_id, kategorie, titel, details) VALUES (?, ?, ?, ?)',
+                   (current_user.id, kategorie, titel, details))
+        db.commit()
+        db.close()
+        log_activity(current_user.id, 'vorschlag_neu', f'{current_user.name} hat einen Vorschlag eingereicht: {titel[:60]}',
+                     icon='💡', color='gold')
+        flash('Danke! Dein Vorschlag ist beim Admin angekommen.', 'success')
+        return redirect(url_for('vorschlag'))
+
+    db = get_db()
+    own = db.execute('SELECT * FROM partner_suggestions WHERE user_id=? ORDER BY created_at DESC', (current_user.id,)).fetchall()
+    db.close()
+    return render_template('vorschlag.html', own=own)
+
+
+@app.route('/admin/vorschlaege')
+@login_required
+def admin_vorschlaege():
+    """Admin sieht alle Vorschläge der Partner."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('dashboard'))
+    status = request.args.get('status', 'offen')
+    db = get_db()
+    if status == 'all':
+        rows = db.execute('''SELECT s.*, u.name as user_name FROM partner_suggestions s
+                            JOIN users u ON s.user_id=u.id ORDER BY s.created_at DESC''').fetchall()
+    else:
+        rows = db.execute('''SELECT s.*, u.name as user_name FROM partner_suggestions s
+                            JOIN users u ON s.user_id=u.id WHERE s.status=? ORDER BY s.created_at DESC''', (status,)).fetchall()
+    counts = {
+        'offen': db.execute("SELECT COUNT(*) as c FROM partner_suggestions WHERE status='offen'").fetchone()['c'],
+        'in_arbeit': db.execute("SELECT COUNT(*) as c FROM partner_suggestions WHERE status='in_arbeit'").fetchone()['c'],
+        'erledigt': db.execute("SELECT COUNT(*) as c FROM partner_suggestions WHERE status='erledigt'").fetchone()['c'],
+    }
+    db.close()
+    return render_template('admin_vorschlaege.html', suggestions=rows, status=status, counts=counts)
+
+
+@app.route('/admin/vorschlaege/<int:sid>/respond', methods=['POST'])
+@login_required
+def admin_vorschlag_respond(sid):
+    if not current_user.has_admin_access:
+        return redirect(url_for('dashboard'))
+    new_status = request.form.get('status', 'offen')
+    response = (request.form.get('admin_response') or '').strip()
+    db = get_db()
+    db.execute('UPDATE partner_suggestions SET status=?, admin_response=?, updated_at=datetime("now") WHERE id=?',
+               (new_status, response, sid))
+    db.commit()
+    db.close()
+    flash('Vorschlag aktualisiert.', 'success')
+    return redirect(url_for('admin_vorschlaege'))
 
 
 @app.route('/namensliste/neu', methods=['GET', 'POST'])

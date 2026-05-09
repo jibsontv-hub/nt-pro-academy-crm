@@ -128,6 +128,42 @@
 </div>
 {% endif %}
 
+<!-- 🔮 AUTO-FORECAST (nächste 30 Tage) -->
+{% if forecast_30d and forecast_30d.has_data %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#3b82f6 6%,var(--surface)));border:1px solid color-mix(in srgb,#3b82f6 25%,var(--border))">
+    <div class="card-title" style="color:var(--blue)">🔮 Auto-Prognose · nächste 30 Tage</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px">
+        <div style="text-align:center;padding:14px;background:var(--bg-2);border-radius:14px">
+            <div style="font-size:34px;font-weight:800;color:var(--blue);letter-spacing:-1px;line-height:1">
+                <span class="counter" data-target="{{ forecast_30d.termine_geplant }}">0</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px">📞 Termine</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:var(--bg-2);border-radius:14px">
+            <div style="font-size:34px;font-weight:800;color:var(--green);letter-spacing:-1px;line-height:1">
+                <span class="counter" data-target="{{ forecast_30d.abschluss_count }}">0</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px">✓ Abschlüsse</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:var(--bg-2);border-radius:14px">
+            <div style="font-size:34px;font-weight:800;color:var(--gold);letter-spacing:-1px;line-height:1">
+                <span class="counter" data-target="{{ forecast_30d.eh_forecast }}">0</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px">⚡ EH</div>
+        </div>
+        <div style="text-align:center;padding:14px;background:var(--bg-2);border-radius:14px">
+            <div style="font-size:34px;font-weight:800;color:var(--red);letter-spacing:-1px;line-height:1">
+                <span class="counter" data-target="{{ forecast_30d.termine_cancel_rate }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:0.5px">❌ Absage-Quote</div>
+        </div>
+    </div>
+    <div style="margin-top:14px;padding:10px 14px;background:var(--bg-2);border-radius:10px;font-size:12px;color:var(--text-muted);text-align:center">
+        💡 Hochgerechnet aus den letzten {{ forecast_30d.lookback_days }} Tagen
+    </div>
+</div>
+{% endif %}
+
 <!-- ⏰ Deadlines -->
 {% if deadlines %}
 <div class="revo-chips">

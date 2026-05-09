@@ -1041,6 +1041,7 @@
             <details class="nav-group" data-group="mehr">
                 <summary class="nav-section-toggle">⚙ Mehr</summary>
                 <div class="nav-group-items">
+                    <a href="/vorschlag" class="nav-link {% if request.path == '/vorschlag' %}active{% endif %}"><span class="nav-icon">💡</span> Vorschlag einreichen</a>
                     <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Profil & Vision</a>
                     <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path %}active{% endif %}"><span class="nav-icon">⚙</span> Einstellungen</a>
                 </div>
@@ -1059,6 +1060,9 @@
             </a>
             <a href="/admin/inbox" class="nav-link {% if '/admin/inbox' in request.path %}active{% endif %}">
                 <span class="nav-icon">📬</span> Bewerber-Inbox
+            </a>
+            <a href="/admin/vorschlaege" class="nav-link {% if '/admin/vorschlaege' in request.path %}active{% endif %}">
+                <span class="nav-icon">💡</span> Partner-Vorschläge
             </a>
             <a href="/admin/import" class="nav-link {% if '/admin/import' in request.path %}active{% endif %}">
                 <span class="nav-icon">↑</span> Partner-Import (CSV)
@@ -1581,6 +1585,49 @@
             const m = document.getElementById('langMenu');
             if (m && m.style.display === 'block' && !m.contains(e.target)) m.style.display = 'none';
         });
+        // Animierte Counter (count-up) für Zahlen mit class="counter"
+        (function(){
+            function animateCounter(el) {
+                const target = parseFloat(el.dataset.target || el.textContent.replace(/[^\d.,-]/g,'').replace('.','').replace(',','.')) || 0;
+                const decimals = parseInt(el.dataset.decimals || '0');
+                const duration = parseInt(el.dataset.duration || '1200');
+                const start = performance.now();
+                const fmt = el.dataset.format || 'de'; // 'de' für 1.234, 'plain' für 1234
+                function ease(t) { return 1 - Math.pow(1 - t, 3); } // easeOutCubic
+                function tick(now) {
+                    const elapsed = now - start;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const value = target * ease(progress);
+                    let display;
+                    if (fmt === 'de') {
+                        display = value.toFixed(decimals).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                    } else {
+                        display = value.toFixed(decimals);
+                    }
+                    el.textContent = display;
+                    if (progress < 1) requestAnimationFrame(tick);
+                }
+                requestAnimationFrame(tick);
+            }
+            function startObs() {
+                const els = document.querySelectorAll('.counter:not([data-counted])');
+                if (!els.length) return;
+                const obs = new IntersectionObserver((entries) => {
+                    entries.forEach(e => {
+                        if (e.isIntersecting) {
+                            const el = e.target;
+                            el.dataset.counted = '1';
+                            animateCounter(el);
+                            obs.unobserve(el);
+                        }
+                    });
+                }, { threshold: 0.3 });
+                els.forEach(el => obs.observe(el));
+            }
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startObs);
+            else startObs();
+        })();
+
         // Sidebar-Collapse-Status persistieren
         (function(){
             const groups = document.querySelectorAll('.nav-group');

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Vorschlag einreichen – NT Pro Academy{% endblock %}
+{% block page_title %}💡 Vorschlag einreichen{% endblock %}
+
+{% block content %}
+
+<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#d4a843 6%,var(--surface)));border:1px solid color-mix(in srgb,#d4a843 25%,var(--border));max-width:720px">
+    <div class="card-title" style="color:var(--gold)">💡 Was würde dir helfen?</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px;line-height:1.6">
+        Sag uns was du brauchst — Veranstaltungen, Schulungen, Tools, neue Funktionen oder Material.
+        Dein Admin sieht's sofort und meldet sich zurück.
+    </p>
+
+    <form method="POST">
+        <div class="form-group" style="margin-bottom:14px">
+            <label>Kategorie</label>
+            <select name="kategorie">
+                <option value="veranstaltung">🎤 Veranstaltung / Event</option>
+                <option value="schulung">🎓 Schulung / Webinar</option>
+                <option value="tool">🛠 Tool / Material</option>
+                <option value="feature">⚡ App-Feature / Verbesserung</option>
+                <option value="frage">❓ Frage / Anliegen</option>
+                <option value="sonstiges">💭 Sonstiges</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+            <label>Titel *</label>
+            <input type="text" name="titel" required maxlength="200" placeholder="z.B. „Verkaufstraining für Einwand-Behandlung"">
+        </div>
+        <div class="form-group" style="margin-bottom:18px">
+            <label>Details</label>
+            <textarea name="details" rows="5" placeholder="Beschreib's so konkret wie möglich — was, warum, wann, für wen?"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">📤 Absenden</button>
+    </form>
+</div>
+
+{% if own %}
+<div class="revo-section-h">📋 Meine Vorschläge</div>
+<div class="revo-list">
+    {% for s in own %}
+    <div class="revo-item">
+        <div class="revo-item-ic">
+            {% if s.kategorie == 'veranstaltung' %}🎤
+            {% elif s.kategorie == 'schulung' %}🎓
+            {% elif s.kategorie == 'tool' %}🛠
+            {% elif s.kategorie == 'feature' %}⚡
+            {% elif s.kategorie == 'frage' %}❓
+            {% else %}💭{% endif %}
+        </div>
+        <div style="flex:1;min-width:0">
+            <div class="revo-item-name">{{ s.titel }}</div>
+            <div class="revo-item-sub">{{ s.created_at[:10] }} · {{ s.kategorie }}</div>
+            {% if s.admin_response %}
+            <div style="margin-top:8px;padding:10px 12px;background:var(--bg-2);border-left:3px solid var(--gold);border-radius:8px;font-size:12px;color:var(--text)">
+                <strong style="color:var(--gold)">Admin:</strong> {{ s.admin_response }}
+            </div>
+            {% endif %}
+        </div>
+        {% if s.status == 'offen' %}<span class="revo-pill warn">offen</span>
+        {% elif s.status == 'in_arbeit' %}<span class="revo-pill on">in Arbeit</span>
+        {% elif s.status == 'erledigt' %}<span class="revo-pill on">✓ erledigt</span>
+        {% else %}<span class="revo-pill off">{{ s.status }}</span>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

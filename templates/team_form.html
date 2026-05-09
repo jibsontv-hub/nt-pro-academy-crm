@@ -47,6 +47,16 @@
                 </select>
             </div>
 
+            {% if current_user.role == 'admin' %}
+            <div class="form-group full">
+                <label>📊 Bereits produzierte EH (vor System-Start)</label>
+                <input type="number" name="initial_eh" value="{{ member.initial_eh if member and member.initial_eh else '' }}" placeholder="z.B. 800" step="1" min="0">
+                <span style="font-size:11px;color:var(--text-soft)">
+                    💡 Einmalig setzen — wird zur Karriere-EH dazugerechnet, aber nicht zur Provision/Monatsstatistik. Ideal für Partner die schon vor System-Einführung EH gemacht haben.
+                </span>
+            </div>
+            {% endif %}
+
             <div class="form-group full">
                 <label>⬡ Karriere-Stufe {% if current_user.role != 'admin' %}(Vorschlag — wird vom Admin bestätigt){% endif %}</label>
                 <select name="manual_career_level">

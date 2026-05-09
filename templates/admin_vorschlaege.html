@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Vorschläge – Admin{% endblock %}
+{% block page_title %}💡 Partner-Vorschläge{% endblock %}
+
+{% block content %}
+
+<!-- Filter -->
+<div class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <a href="?status=offen" class="btn btn-sm {% if status == 'offen' %}btn-primary{% else %}btn-secondary{% endif %}">📥 Offen ({{ counts.offen }})</a>
+    <a href="?status=in_arbeit" class="btn btn-sm {% if status == 'in_arbeit' %}btn-primary{% else %}btn-secondary{% endif %}">⚙ In Arbeit ({{ counts.in_arbeit }})</a>
+    <a href="?status=erledigt" class="btn btn-sm {% if status == 'erledigt' %}btn-primary{% else %}btn-secondary{% endif %}">✓ Erledigt ({{ counts.erledigt }})</a>
+    <a href="?status=all" class="btn btn-sm {% if status == 'all' %}btn-primary{% else %}btn-secondary{% endif %}">Alle</a>
+</div>
+
+{% if suggestions %}
+<div style="display:flex;flex-direction:column;gap:12px">
+    {% for s in suggestions %}
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+            <div style="flex:1;min-width:200px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+                    <span style="font-size:22px">
+                        {% if s.kategorie == 'veranstaltung' %}🎤
+                        {% elif s.kategorie == 'schulung' %}🎓
+                        {% elif s.kategorie == 'tool' %}🛠
+                        {% elif s.kategorie == 'feature' %}⚡
+                        {% elif s.kategorie == 'frage' %}❓
+                        {% else %}💭{% endif %}
+                    </span>
+                    <strong style="font-size:16px;color:var(--text)">{{ s.titel }}</strong>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted)">
+                    Von <strong style="color:var(--text)">{{ s.user_name }}</strong> · {{ s.created_at[:16] }} · {{ s.kategorie }}
+                </div>
+                {% if s.details %}
+                <div style="margin-top:10px;padding:12px 14px;background:var(--bg-2);border-radius:10px;font-size:13px;color:var(--text);line-height:1.5;white-space:pre-line">{{ s.details }}</div>
+                {% endif %}
+            </div>
+            {% if s.status == 'offen' %}<span class="revo-pill warn">offen</span>
+            {% elif s.status == 'in_arbeit' %}<span class="revo-pill on">in Arbeit</span>
+            {% elif s.status == 'erledigt' %}<span class="revo-pill on">✓ erledigt</span>
+            {% else %}<span class="revo-pill off">{{ s.status }}</span>{% endif %}
+        </div>
+
+        {% if s.admin_response %}
+        <div style="padding:10px 12px;background:var(--gold-soft);border-left:3px solid var(--gold);border-radius:8px;font-size:13px;color:var(--text);margin-bottom:14px">
+            <strong style="color:var(--gold)">Deine Antwort:</strong> {{ s.admin_response }}
+        </div>
+        {% endif %}
+
+        <details>
+            <summary style="cursor:pointer;font-size:12px;color:var(--gold);font-weight:700">↩ Antworten / Status ändern</summary>
+            <form method="POST" action="/admin/vorschlaege/{{ s.id }}/respond" style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+                <select name="status">
+                    <option value="offen" {% if s.status=='offen' %}selected{% endif %}>📥 Offen</option>
+                    <option value="in_arbeit" {% if s.status=='in_arbeit' %}selected{% endif %}>⚙ In Arbeit</option>
+                    <option value="erledigt" {% if s.status=='erledigt' %}selected{% endif %}>✓ Erledigt</option>
+                    <option value="abgelehnt" {% if s.status=='abgelehnt' %}selected{% endif %}>✗ Abgelehnt</option>
+                </select>
+                <textarea name="admin_response" rows="3" placeholder="Antwort an Partner (optional)">{{ s.admin_response or '' }}</textarea>
+                <button type="submit" class="btn btn-primary" style="align-self:flex-start">Speichern</button>
+            </form>
+        </details>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:48px 20px">
+    <div style="font-size:42px;margin-bottom:12px">📭</div>
+    <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px">Keine Vorschläge in dieser Kategorie</div>
+    <div style="font-size:13px;color:var(--text-muted)">Sobald Partner Vorschläge einreichen, siehst du sie hier.</div>
+</div>
+{% endif %}
+
+{% endblock %}
