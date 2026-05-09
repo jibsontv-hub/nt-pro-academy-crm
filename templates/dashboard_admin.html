@@ -4,6 +4,53 @@
 
 {% block content %}
 
+<!-- ============================================
+     🤖 NTCOACH HERO — animierter Mentor mit To-Do
+     ============================================ -->
+<div class="card" style="background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 50%,#0a132d 100%);color:#fff;border:none;position:relative;overflow:hidden;padding:24px 22px">
+    <div style="position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,67,0.25) 0%,transparent 70%);pointer-events:none"></div>
+    <div style="position:relative;z-index:1;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap">
+        <div class="ntcoach-avatar" style="width:78px;height:78px;flex-shrink:0;position:relative">
+            <div style="position:absolute;inset:0;border-radius:50%;background:linear-gradient(135deg,#d4a843,#f0c970);box-shadow:0 8px 24px rgba(212,168,67,0.4);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:#0f1c3f;letter-spacing:-1px;animation:ntcoachBob 3s ease-in-out infinite">NT</div>
+            <div style="position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(212,168,67,0.3);animation:ntcoachPulse 2s ease-out infinite"></div>
+            <div style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;border-radius:50%;background:#34d399;border:3px solid #0f1c3f;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff">●</div>
+        </div>
+        <div style="flex:1;min-width:200px">
+            <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">🤖 NTcoach · {{ greeting.greeting if greeting else 'Hallo Boss!' }}</div>
+            <div style="font-size:18px;font-weight:800;margin-top:4px;line-height:1.3">
+                {% if coach_actions %}Hier ist was du <span style="color:#d4a843">heute machen</span> solltest:{% else %}Alles im grünen Bereich — keine Alarme!{% endif %}
+            </div>
+        </div>
+    </div>
+    {% if coach_actions %}
+    <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;margin-top:18px">
+        {% for a in coach_actions %}
+        <a href="{{ a.action_url or '#' }}" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:14px;text-decoration:none;color:#fff;transition:all 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+            <div style="font-size:20px;flex-shrink:0">{{ a.icon }}</div>
+            <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:700;color:#fff">{{ a.title }}</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px">{{ a.detail }}</div>
+            </div>
+            <span style="background:{% if a.priority == 'critical' %}#ef4444{% elif a.priority == 'high' %}#d4a843{% else %}rgba(255,255,255,0.15){% endif %};color:{% if a.priority in ['critical','high'] %}#0f1c3f{% else %}#fff{% endif %};padding:5px 12px;border-radius:8px;font-size:11px;font-weight:800;white-space:nowrap">{{ a.action_label or 'Los →' }}</span>
+        </a>
+        {% endfor %}
+    </div>
+    <div style="text-align:center;margin-top:12px">
+        <a href="/assistent" style="color:#d4a843;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.3px">💬 Mit NTcoach chatten →</a>
+    </div>
+    {% endif %}
+</div>
+<style>
+@keyframes ntcoachBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+@keyframes ntcoachPulse {
+    0% { opacity: 0.6; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.2); }
+}
+</style>
+
 <!-- 🎯 HERO — Gesamt-Stats -->
 <div class="revo-hero">
     <div class="revo-hero-label">Gesamt-Struktur · {{ greeting.greeting if greeting else 'Servus, Boss' }}</div>
@@ -134,6 +181,34 @@
 <div class="revo-section-h">🧠 NTcoach · diese Woche</div>
 <div style="background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:14px;padding:16px 18px;font-size:14px;line-height:1.6;color:var(--text)">
     {{ ai_briefing }}
+</div>
+{% endif %}
+
+<!-- 🌐 STRUKTUR-VERTEILUNG -->
+{% if structure_dist and structure_dist | selectattr('count', 'gt', 0) | list | length > 0 %}
+<div class="revo-section-h">🌐 Struktur-Verteilung · {{ structure_dist | sum(attribute='count') }} Partner gesamt</div>
+<div class="card">
+    <div style="display:flex;flex-direction:column;gap:10px">
+        {% for s in structure_dist %}
+        {% if s.count > 0 %}
+        <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:48px;height:48px;border-radius:12px;background:{{ s.color }}22;border:1.5px solid {{ s.color }};color:{{ s.color }};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0">{{ s.short }}</div>
+            <div style="flex:1;min-width:0">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px">
+                    <div>
+                        <strong style="font-size:14px;color:var(--text)">{{ s.name }}</strong>
+                        <span style="font-size:11px;color:var(--text-muted);margin-left:6px">{{ s.count }} Partner · {{ "{:,.0f}".format(s.eh_total).replace(",", ".") }} EH</span>
+                    </div>
+                    <strong style="font-size:14px;color:{{ s.color }}">{{ s.pct }}%</strong>
+                </div>
+                <div style="background:var(--bg-2);border-radius:99px;height:6px;overflow:hidden">
+                    <div style="height:100%;width:{{ s.pct }}%;background:{{ s.color }};border-radius:99px;transition:width 0.6s"></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
 </div>
 {% endif %}
 

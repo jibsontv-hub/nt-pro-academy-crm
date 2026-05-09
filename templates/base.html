@@ -622,10 +622,16 @@
             transform: translateX(2px);
         }
         .nav-link.active {
-            background: linear-gradient(135deg, rgba(184,144,46,0.12) 0%, rgba(212,168,67,0.06) 100%);
-            color: var(--navy); font-weight: 700;
-            box-shadow: inset 3px 0 0 var(--gold);
+            background: linear-gradient(135deg, rgba(212,168,67,0.18) 0%, rgba(212,168,67,0.05) 100%);
+            color: var(--gold) !important; font-weight: 800 !important;
+            box-shadow: inset 4px 0 0 var(--gold);
+            position: relative;
         }
+        .nav-link.active::after {
+            content: '●'; position: absolute; right: 14px; top: 50%;
+            transform: translateY(-50%); color: var(--gold); font-size: 8px;
+        }
+        .nav-link.active .nav-icon { opacity: 1 !important; transform: scale(1.1); }
         .nav-icon { font-size: 14px; width: 18px; text-align: center; opacity: 0.85; }
         /* Collapse-Gruppen */
         .nav-group { margin-top: 6px; }
@@ -1162,6 +1168,7 @@
                     <span style="flex:1;text-align:left">Suchen…</span>
                     <kbd style="font-family:inherit;font-size:10px;padding:2px 6px;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text-soft)">⌘K</kbd>
                 </button>
+                <button onclick="if(typeof startTour==='function')startTour()" title="App-Tour starten" aria-label="Tour starten" style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:15px;font-weight:800;transition:all 0.15s;font-family:inherit">?</button>
                 <button class="theme-toggle" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Theme wechseln">
                     <span class="icon-moon">🌙</span>
                     <span class="icon-sun">☀️</span>
@@ -1682,11 +1689,15 @@
         function highlightElement(selector) {
             const sp = document.getElementById('tourSpotlight');
             if (!selector) { sp.style.display = 'none'; return; }
+            // Wenn das Element in einer geschlossenen Nav-Gruppe ist → öffnen
             const el = document.querySelector(selector);
             if (!el) { sp.style.display = 'none'; return; }
+            const grp = el.closest('details.nav-group');
+            if (grp && !grp.open) grp.setAttribute('open', '');
             try { el.scrollIntoView({behavior:'smooth', block:'center'}); } catch(e){}
             setTimeout(() => {
                 const r = el.getBoundingClientRect();
+                if (r.width === 0 || r.height === 0) { sp.style.display = 'none'; return; }
                 sp.style.display = 'block';
                 sp.style.top = (r.top - 8) + 'px';
                 sp.style.left = (r.left - 8) + 'px';
@@ -1753,31 +1764,20 @@
             if (!_tourVoiceOn) window.speechSynthesis && window.speechSynthesis.cancel();
             else { const step = TOUR_STEPS[_tourIdx]; if (step) speakTour(step); }
         }
-        // Bei Page-Load: prüfen ob Tour aktiv
+        // Bei Page-Load: NUR resume wenn Tour explizit aktiv
+        // (Auto-Start wurde entfernt — Tour startet jetzt nur manuell via Button)
         window.addEventListener('load', () => {
             try {
-                // Start via URL-Parameter ?tour=start
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('tour') === 'start') {
                     setTimeout(() => startTour(), 700);
                     return;
                 }
-                // Resume Tour wenn aktiv + Hash matched
                 const active = localStorage.getItem('ntpro-tour-active');
                 const hashMatch = window.location.hash.match(/tour=(\d+)/);
                 if (active && hashMatch) {
                     _tourIdx = parseInt(hashMatch[1]);
                     setTimeout(() => showTourStep(), 600);
-                    return;
-                }
-                // AUTO-START beim ersten Login (nur Dashboard-Routen)
-                const isDashboard = /^\/(dashboard|leads|kontrakte|team|coaching|stats)?\/?$/.test(window.location.pathname);
-                const tourDone = localStorage.getItem('ntpro-tour-done');
-                if (isDashboard && !tourDone && !active) {
-                    // Erstkontakt: 1.5s warten damit Page geladen ist, dann starten
-                    setTimeout(() => {
-                        if (typeof TOUR_STEPS !== 'undefined' && TOUR_STEPS.length > 0) startTour();
-                    }, 1500);
                 }
             } catch(e){}
         });

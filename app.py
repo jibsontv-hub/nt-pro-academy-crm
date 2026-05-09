@@ -3231,6 +3231,98 @@ def get_commissions_for_user(user_id, only_own=False):
     }
 
 
+def get_structure_distribution(user_id, scope='all'):
+    """Wie verteilt sich mein Team über die Karriere-Stufen?
+    Returns: list of {short, name, color, count, pct, eh_total}"""
+    if scope == 'direct':
+        ids = [r['id'] for r in get_db().execute('SELECT id FROM users WHERE parent_id=? AND active=1', (user_id,)).fetchall()]
+    else:
+        ids = get_all_descendants(user_id)
+    if not ids:
+        return []
+    db = get_db()
+    placeholders = ','.join('?' * len(ids))
+    rows = db.execute(f'''
+        SELECT u.id, u.manual_career_level,
+               COALESCE(SUM(c.einheiten), 0) as eh
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id=u.id AND c.status="abgeschlossen" AND c.recherche_status="freigegeben"
+        WHERE u.id IN ({placeholders}) AND u.active=1
+        GROUP BY u.id
+    ''', ids).fetchall()
+    db.close()
+    # Stufe pro User berechnen
+    counts = {l['short']: {'short': l['short'], 'name': l['name'], 'color': l['color'], 'level': l['level'], 'count': 0, 'eh_total': 0.0} for l in CAREER_LEVELS}
+    for r in rows:
+        career = career_for_row(r['manual_career_level'], r['eh'])
+        counts[career['short']]['count'] += 1
+        counts[career['short']]['eh_total'] += float(r['eh'] or 0)
+    total = sum(c['count'] for c in counts.values())
+    result = []
+    for short in ['GREP', 'DREP', 'CREP', 'HREP', 'LREP', 'REP']:
+        c = counts[short]
+        c['pct'] = round((c['count'] / total * 100), 1) if total > 0 else 0
+        result.append(c)
+    return result
+
+
+def get_coach_actions(user_id, max_actions=5):
+    """Was soll ich JETZT tun? Konsolidierte Action-Liste für die Dashboard-Coach-Karte.
+    Mischt: KI-Recs, inaktive Partner, hängende Recherchen, Geburtstage, anstehende Termine.
+    Returns: list of {icon, title, detail, action_label, action_url, priority}"""
+    actions = []
+    db = get_db()
+    today = date.today().isoformat()
+    # 1) Hängende Recherchen
+    pending_r = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (user_id,)).fetchone()['c']
+    if pending_r >= 3:
+        actions.append({'icon': '⏳', 'priority': 'high', 'title': f'{pending_r} Verträge hängen in Recherche',
+                        'detail': 'Schnell nachfassen — sonst zählen die EH nicht', 'action_label': 'Verträge', 'action_url': '/vertraege'})
+    # 2) Inaktive direkte Partner
+    inact = get_inactive_team_members(user_id, days=2, scope='direct')
+    for u in inact[:2]:
+        actions.append({'icon': '📞', 'priority': 'high' if u['days_inactive'] >= 5 else 'medium',
+                        'title': f"{u['name']} anrufen",
+                        'detail': f"{u['days_inactive']}T inaktiv — frag wo's hakt",
+                        'action_label': 'Heute →', 'action_url': f"/partner/{u['id']}"})
+    # 3) Heutige Termine
+    today_term = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date)=? AND status="geplant"', (user_id, today)).fetchone()['c']
+    if today_term > 0:
+        actions.append({'icon': '◷', 'priority': 'high', 'title': f'{today_term} Termin{"e" if today_term > 1 else ""} heute',
+                        'detail': 'Vorbereiten + bestätigen', 'action_label': 'Termine', 'action_url': '/termine'})
+    # 4) Geburtstage diese Woche
+    try:
+        birthday_rows = db.execute('''
+            SELECT name, phone, birthday FROM users WHERE active=1 AND birthday IS NOT NULL
+            UNION ALL SELECT name, phone, birthday FROM leads WHERE birthday IS NOT NULL
+        ''').fetchall()
+        for b in birthday_rows:
+            try:
+                d = days_until_birthday(b['birthday'])
+                if d is not None and d <= 3:
+                    actions.append({'icon': '🎂', 'priority': 'medium',
+                                    'title': f"{b['name']} hat {'heute' if d==0 else f'in {d}T'} Geburtstag",
+                                    'detail': 'Anrufen oder Nachricht schicken',
+                                    'action_label': 'Anrufen' if b['phone'] else 'Ok',
+                                    'action_url': f"tel:{b['phone']}" if b['phone'] else '#'})
+                    if len([a for a in actions if a['icon'] == '🎂']) >= 2: break
+            except Exception:
+                continue
+    except Exception:
+        pass
+    # 5) Eingabeschluss Reminder
+    deadlines = get_production_deadlines()
+    if deadlines and deadlines.get('eingabe_in_days') is not None and 0 < deadlines['eingabe_in_days'] <= 3:
+        actions.append({'icon': '⏰', 'priority': 'critical',
+                        'title': f"Eingabeschluss in {deadlines['eingabe_in_days']} Tag{'en' if deadlines['eingabe_in_days'] > 1 else ''}",
+                        'detail': 'Alle Verträge eintragen!', 'action_label': 'Verträge', 'action_url': '/vertraege'})
+    db.close()
+    # Sort by priority + cap
+    pri_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+    actions.sort(key=lambda x: pri_order.get(x.get('priority', 'low'), 9))
+    return actions[:max_actions]
+
+
 def get_user_activity_today(user_id):
     """Was hat ein User HEUTE getan? Returns dict mit Counts und last_active_at."""
     db = get_db()
@@ -4406,6 +4498,8 @@ def dashboard():
         forecast = get_forecast(current_user.id)
         anomalies = detect_anomalies(scope_user_id=None)
         ai_briefing = ai_generate_weekly_briefing(current_user.id)
+        coach_actions = get_coach_actions(current_user.id, max_actions=5)
+        structure_dist = get_structure_distribution(current_user.id, scope='all')
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -4423,7 +4517,8 @@ def dashboard():
             coach_insights=coach_insights, greeting=greeting,
             period_stats=period_stats, career_criteria=career_criteria,
             ki_recs=ki_recs, forecast=forecast, anomalies=anomalies,
-            ai_briefing=ai_briefing, deadlines=deadlines
+            ai_briefing=ai_briefing, deadlines=deadlines,
+            coach_actions=coach_actions, structure_dist=structure_dist
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -4502,6 +4597,8 @@ def dashboard():
         forecast = get_forecast(current_user.id)
         ai_briefing = ai_generate_weekly_briefing(current_user.id)
         deadlines = get_production_deadlines()
+        coach_actions = get_coach_actions(current_user.id, max_actions=5)
+        structure_dist = get_structure_distribution(current_user.id, scope='all')
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -4514,7 +4611,7 @@ def dashboard():
             coach_insights=coach_insights, greeting=greeting,
             period_stats=period_stats, career_criteria=career_criteria,
             ki_recs=ki_recs, forecast=forecast, ai_briefing=ai_briefing,
-            deadlines=deadlines
+            deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist
         )
 
 
