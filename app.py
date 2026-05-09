@@ -3098,6 +3098,16 @@ def init_db():
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
 
+        # contracts: kunde_birthday + lead_id für Koppelung mit Namensliste
+        contract_cols = db.execute("PRAGMA table_info(contracts)").fetchall()
+        contract_col_names = [c['name'] for c in contract_cols]
+        for new_col, sql_type in [
+            ('kunde_birthday', "TEXT"),
+            ('lead_id', "INTEGER"),
+        ]:
+            if new_col not in contract_col_names:
+                db.execute(f"ALTER TABLE contracts ADD COLUMN {new_col} {sql_type}")
+
         # leads
         lead_cols = db.execute("PRAGMA table_info(leads)").fetchall()
         lead_col_names = [c['name'] for c in lead_cols]
@@ -4703,11 +4713,14 @@ def vertrag_neu():
     if request.method == 'POST':
         volumen = float(request.form.get('volumen', 0) or 0)
         einheiten = volumen * EH_FAKTOR
+        lead_id_raw = request.form.get('lead_id', '').strip()
+        lead_id = int(lead_id_raw) if lead_id_raw and lead_id_raw.isdigit() else None
         db = get_db()
         cur = db.execute('''INSERT INTO contracts
                 (owner_id, client_name, produkt, volumen, einheiten, provision, status, abschluss_date, notizen,
-                 recherche_done, telefonat_done, unterlagen_done, nachweise_done, unterschrieben, freizeichnung_done, recherche_status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                 recherche_done, telefonat_done, unterlagen_done, nachweise_done, unterschrieben, freizeichnung_done,
+                 recherche_status, kunde_birthday, lead_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (current_user.id, request.form['client_name'], request.form['produkt'],
              volumen, einheiten, float(request.form.get('provision', 0) or 0),
              request.form.get('status', 'offen'), request.form.get('abschluss_date', ''),
@@ -4718,8 +4731,20 @@ def vertrag_neu():
              1 if request.form.get('nachweise_done') else 0,
              1 if request.form.get('unterschrieben') else 0,
              1 if request.form.get('freizeichnung_done') else 0,
-             request.form.get('recherche_status', 'ausstehend')))
+             request.form.get('recherche_status', 'ausstehend'),
+             request.form.get('kunde_birthday', '').strip() or None,
+             lead_id))
         new_id = cur.lastrowid
+        # Falls Lead gekoppelt: Lead auf "abgeschlossen" setzen
+        if lead_id and request.form.get('status') == 'abgeschlossen':
+            db.execute('UPDATE leads SET status="abgeschlossen" WHERE id=? AND owner_id=?', (lead_id, current_user.id))
+        # Falls neuer Kunde mit Birthday eingegeben → auch in Namensliste anlegen wenn nicht vorhanden
+        if not lead_id and request.form.get('kunde_birthday', '').strip():
+            existing = db.execute('SELECT id FROM leads WHERE owner_id=? AND LOWER(name)=LOWER(?)',
+                                  (current_user.id, request.form['client_name'])).fetchone()
+            if not existing:
+                db.execute('INSERT INTO leads (owner_id, name, birthday, status, source) VALUES (?, ?, ?, "abgeschlossen", "vertrag")',
+                           (current_user.id, request.form['client_name'], request.form.get('kunde_birthday', '').strip()))
         db.commit()
         db.close()
         auto_promote_user(current_user.id)
@@ -4735,7 +4760,14 @@ def vertrag_neu():
                 icon='📄', color='gold')
         flash(f'Vertrag angelegt! ({einheiten:.0f} EH)', 'success')
         return redirect(url_for('vertraege'))
-    return render_template('vertrag_form.html', vertrag=None, eh_faktor=EH_FAKTOR)
+    # GET: Lead-Liste für Selector mit birthday/phone
+    db = get_db()
+    leads_for_select = db.execute(
+        'SELECT id, name, birthday, phone, produkt FROM leads WHERE owner_id=? ORDER BY name',
+        (current_user.id,)).fetchall()
+    db.close()
+    return render_template('vertrag_form.html', vertrag=None, eh_faktor=EH_FAKTOR,
+                           leads_for_select=leads_for_select)
 
 
 @app.route('/vertraege/<int:vid>/edit', methods=['GET', 'POST'])
@@ -4750,8 +4782,11 @@ def vertrag_edit(vid):
         volumen = float(request.form.get('volumen', 0) or 0)
         einheiten = volumen * EH_FAKTOR
         owner_id = vertrag['owner_id']
+        lead_id_raw = request.form.get('lead_id', '').strip()
+        lead_id = int(lead_id_raw) if lead_id_raw and lead_id_raw.isdigit() else None
         db.execute('''UPDATE contracts SET client_name=?, produkt=?, volumen=?, einheiten=?, provision=?, status=?, abschluss_date=?, notizen=?,
-                      recherche_done=?, telefonat_done=?, unterlagen_done=?, nachweise_done=?, unterschrieben=?, freizeichnung_done=?, recherche_status=?
+                      recherche_done=?, telefonat_done=?, unterlagen_done=?, nachweise_done=?, unterschrieben=?, freizeichnung_done=?,
+                      recherche_status=?, kunde_birthday=?, lead_id=?
                       WHERE id=?''',
             (request.form['client_name'], request.form['produkt'], volumen, einheiten,
              float(request.form.get('provision', 0) or 0), request.form.get('status', 'offen'),
@@ -4762,7 +4797,9 @@ def vertrag_edit(vid):
              1 if request.form.get('nachweise_done') else 0,
              1 if request.form.get('unterschrieben') else 0,
              1 if request.form.get('freizeichnung_done') else 0,
-             request.form.get('recherche_status', 'ausstehend'), vid))
+             request.form.get('recherche_status', 'ausstehend'),
+             request.form.get('kunde_birthday', '').strip() or None,
+             lead_id, vid))
         db.commit()
         db.close()
         auto_promote_user(owner_id)
@@ -4770,8 +4807,12 @@ def vertrag_edit(vid):
         cache_invalidate('ctx:')
         flash(f'Vertrag aktualisiert! ({einheiten:.0f} EH)', 'success')
         return redirect(url_for('vertraege'))
+    leads_for_select = db.execute(
+        'SELECT id, name, birthday, phone, produkt FROM leads WHERE owner_id=? ORDER BY name',
+        (vertrag['owner_id'],)).fetchall()
     db.close()
-    return render_template('vertrag_form.html', vertrag=vertrag, eh_faktor=EH_FAKTOR)
+    return render_template('vertrag_form.html', vertrag=vertrag, eh_faktor=EH_FAKTOR,
+                           leads_for_select=leads_for_select)
 
 
 @app.route('/vertraege/<int:vid>/delete', methods=['POST'])
@@ -5609,6 +5650,13 @@ def struktur():
         trees = [t for t in trees if t]
     db.close()
     return render_template('struktur.html', trees=trees, all_levels=CAREER_LEVELS)
+
+
+@app.route('/namensliste/neu', methods=['GET', 'POST'])
+@login_required
+def namensliste_neu():
+    """Wrapper: leitet auf /leads/neu — gleicher Backend, aber URL gehört zur Namensliste."""
+    return lead_neu()
 
 
 @app.route('/namensliste')

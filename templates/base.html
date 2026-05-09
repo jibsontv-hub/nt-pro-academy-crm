@@ -423,17 +423,32 @@
             font-weight: 800 !important;
         }
 
-        /* Page-Container Padding optimieren auf Mobile (Revolut hat schmale Seitenränder) */
+        /* Page-Container Padding auf Mobile — luftiger, premium */
         @media (max-width: 768px) {
-            .content { padding: 14px 14px 90px !important; }
-            .card { padding: 18px !important; border-radius: 16px !important; }
-            .kpi-card { padding: 14px 16px !important; }
-            .kpi-value { font-size: 26px !important; }
-            .topbar { padding: 12px 14px !important; }
-            .topbar-title { font-size: 18px !important; }
-            /* Tabellen: dünner padding für Mobile */
-            th { padding: 8px 10px !important; }
-            td { padding: 10px !important; font-size: 13px !important; }
+            .content { padding: 20px 18px 32px !important; }
+            .card { padding: 22px !important; border-radius: 18px !important; margin-bottom: 16px !important; }
+            .kpi-card { padding: 18px 20px !important; }
+            .kpi-value { font-size: 28px !important; }
+            .topbar { padding: 14px 18px !important; }
+            .topbar-title { font-size: 19px !important; }
+            /* Tabellen: lesbar bleiben */
+            th { padding: 10px 12px !important; }
+            td { padding: 12px !important; font-size: 13px !important; }
+            /* Hero-Karten brauchen mehr Atem */
+            .revo-hero { padding: 28px 22px !important; border-radius: 22px !important; margin-bottom: 18px !important; }
+            .revo-hero-value { font-size: 42px !important; }
+            /* Section-Headers haben mehr Atem */
+            .revo-section-h { margin: 28px 0 12px !important; }
+            /* Quick-Bar nicht so eng */
+            .revo-quick-bar { gap: 12px !important; margin: 18px 0 22px !important; }
+            .revo-q { padding: 18px 8px !important; border-radius: 18px !important; }
+            /* List-Items mehr Höhe */
+            .revo-item { padding: 16px 0 !important; gap: 16px !important; }
+            /* Forms — nicht so gedrückt */
+            .form-grid { grid-template-columns: 1fr !important; gap: 14px !important; }
+            input, select, textarea { padding: 16px 18px !important; font-size: 16px !important; }
+            label { font-size: 13px !important; margin-bottom: 8px !important; }
+            .btn { padding: 14px 22px !important; font-size: 14px !important; }
         }
 
         /* Grids: konsistente Spacing */
@@ -983,10 +998,9 @@
                 <summary class="nav-section-toggle">📋 Tagesgeschäft</summary>
                 <div class="nav-group-items">
                     <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Tagesaufgaben</a>
-                    <a href="/leads" class="nav-link {% if request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Leads</a>
+                    <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path or request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
                     <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
                     <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Termine</a>
-                    <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path %}active{% endif %}"><span class="nav-icon">◇</span> Namensliste</a>
                 </div>
             </details>
 
@@ -1632,7 +1646,7 @@
         const TOUR_STEPS = [
             {url:'/dashboard', selector:'.topbar-title', icon:'1', title:'Dashboard', text:'Dies ist dein Cockpit. Hier siehst du alles auf einen Blick: Karriere-Stufe, Provisionen, KI-Coach und mehr.', voice:'Willkommen in deinem Cockpit. Hier siehst du alles auf einen Blick.'},
             {url:'/dashboard', selector:'a[href="/coach"]', icon:'2', title:'KI-Coach', text:'Der KI-Coach gibt dir tägliche Empfehlungen, sagt dir wen du anrufen sollst und analysiert dein Team.', voice:'Der KI-Coach ist dein digitaler Mentor. Tägliche Empfehlungen direkt für dich.'},
-            {url:'/dashboard', selector:'a[href="/namensliste"]', icon:'3', title:'Namensliste', text:'Hier pflegst du deine Kontakte. Familie, Freunde, Kollegen — schreib alle auf. Aus der Namensliste werden Termine, aus Terminen Verträge.', voice:'Die Namensliste ist dein wichtigstes Werkzeug. Schreibe alle Kontakte auf.'},
+            {url:'/dashboard', selector:'a[href="/namensliste"]', icon:'3', title:'Namensliste', text:'Hier pflegst du alle deine Kontakte mit Geburtstag und Telefon. Aus der Namensliste werden Termine, aus Terminen Verträge — und Geburtstage erinnern dich automatisch wer einen Anruf braucht.', voice:'Die Namensliste ist dein wichtigstes Werkzeug. Schreibe alle Kontakte auf.'},
             {url:'/dashboard', selector:'a[href="/vertraege"]', icon:'4', title:'Verträge', text:'Hier legst du Verträge an. Das System rechnet automatisch die Einheiten und Provisionen. Vergiss nicht den Recherche-Status auf freigegeben zu setzen!', voice:'Bei Verträgen rechnet das System automatisch alles für dich.'},
             {url:'/dashboard', selector:'a[href="/trophaeen"]', icon:'5', title:'Trophäen', text:'27 Achievements warten auf dich. Erste Person, erster Vertrag, 1000 EH, Beförderungen — sammle sie alle!', voice:'Sammle Trophäen für deine Erfolge. Es gibt 27 verschiedene.'},
             {url:'/dashboard', selector:'a[href="/profil"]', icon:'6', title:'Mein Profil & Vision', text:'Hier setzt du dein WARUM. Dein persönliches Ziel, das dich antreibt. Es erscheint jeden Login als Erinnerung.', voice:'Setze dein persönliches Warum. Es motiviert dich jeden Tag.'},

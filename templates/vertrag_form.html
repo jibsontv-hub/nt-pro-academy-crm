@@ -11,14 +11,43 @@
 
     <form method="POST">
         <!-- Kunde -->
-        <div style="margin-bottom:24px">
+        <div style="margin-bottom:28px">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:14px">▸ Kundendaten</div>
+
+            <!-- 🔗 Namensliste-Selector -->
+            {% if leads_for_select %}
+            <div class="form-group" style="margin-bottom:16px">
+                <label>📒 Aus Namensliste wählen <span style="color:var(--text-soft);font-weight:400;text-transform:none;letter-spacing:0">(optional — füllt Name + Geburtstag automatisch)</span></label>
+                <select id="leadSelect" name="lead_id" onchange="fillFromLead()">
+                    <option value="">— Neuer Kunde / Manuell eingeben —</option>
+                    {% for l in leads_for_select %}
+                    <option value="{{ l.id }}"
+                            data-name="{{ l.name }}"
+                            data-birthday="{{ l.birthday or '' }}"
+                            data-phone="{{ l.phone or '' }}"
+                            data-produkt="{{ l.produkt or '' }}"
+                            {% if vertrag and vertrag.lead_id == l.id %}selected{% endif %}>
+                        {{ l.name }}{% if l.birthday %} · 🎂 {{ l.birthday }}{% endif %}{% if l.phone %} · 📞 {{ l.phone }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% else %}
+            <div style="background:var(--bg-2);border:1px dashed var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text-muted)">
+                💡 Tipp: Lege Kontakte erst in der <a href="/namensliste" style="color:var(--gold);font-weight:700">Namensliste</a> an, dann kannst du sie hier 1-Klick auswählen.
+            </div>
+            {% endif %}
+
             <div class="form-grid">
                 <div class="form-group">
                     <label>Kundenname *</label>
-                    <input type="text" name="client_name" value="{{ vertrag.client_name if vertrag else '' }}" required placeholder="Vor- und Nachname">
+                    <input type="text" id="clientNameInput" name="client_name" value="{{ vertrag.client_name if vertrag else '' }}" required placeholder="Vor- und Nachname">
                 </div>
                 <div class="form-group">
+                    <label>🎂 Geburtsdatum</label>
+                    <input type="date" id="birthdayInput" name="kunde_birthday" value="{{ vertrag.kunde_birthday if vertrag and vertrag.kunde_birthday else '' }}" placeholder="TT.MM.JJJJ">
+                </div>
+                <div class="form-group" style="grid-column:1/-1">
                     <label>Produkt *</label>
                     <select name="produkt" required>
                         <option value="Ergo Rente Chance (ETF & Fonds)" {% if not vertrag or vertrag.produkt == 'Ergo Rente Chance (ETF & Fonds)' %}selected{% endif %}>★ Ergo Rente Chance (ETF & Fonds) — Hauptprodukt</option>
@@ -139,6 +168,26 @@ const EH_FAKTOR = {{ eh_faktor }};
 function updateEH() {
     const vol = parseFloat(document.getElementById('volumenInput').value || 0);
     document.getElementById('ehDisplay').value = (vol * EH_FAKTOR).toFixed(0);
+}
+function fillFromLead() {
+    const sel = document.getElementById('leadSelect');
+    if (!sel) return;
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) return;
+    const name = opt.dataset.name || '';
+    const birthday = opt.dataset.birthday || '';
+    const produkt = opt.dataset.produkt || '';
+    const ni = document.getElementById('clientNameInput');
+    const bi = document.getElementById('birthdayInput');
+    if (ni && name) ni.value = name;
+    if (bi && birthday) {
+        // Format YYYY-MM-DD oder DD.MM.YYYY → ISO
+        if (/^\d{4}-\d{2}-\d{2}/.test(birthday)) bi.value = birthday.substring(0,10);
+        else if (/^\d{2}\.\d{2}\.\d{4}/.test(birthday)) {
+            const p = birthday.split('.');
+            bi.value = `${p[2]}-${p[1]}-${p[0]}`;
+        }
+    }
 }
 </script>
 {% endblock %}

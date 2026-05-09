@@ -147,9 +147,9 @@
 
 <!-- ⚡ Quick-Actions -->
 <div class="revo-quick-bar">
-    <a href="/leads/neu" class="revo-q">
+    <a href="/namensliste/neu" class="revo-q">
         <div class="revo-q-i">+</div>
-        <div class="revo-q-l">Lead</div>
+        <div class="revo-q-l">Kontakt</div>
     </a>
     <a href="/termine/neu" class="revo-q">
         <div class="revo-q-i">📅</div>
@@ -217,10 +217,10 @@
         </div>
         <span class="revo-item-arrow">→</span>
     </a>
-    <a href="/leads/neu" class="revo-item">
+    <a href="/namensliste/neu" class="revo-item">
         <div class="revo-item-ic gold">2</div>
         <div>
-            <div class="revo-item-name">Erster Lead eintragen</div>
+            <div class="revo-item-name">Ersten Kontakt eintragen</div>
             <div class="revo-item-sub">Wer könnte dein erster Kunde werden?</div>
         </div>
         <span class="revo-item-arrow">→</span>
@@ -330,11 +330,11 @@
 <div class="revo-section-h">⚡ Aktuell</div>
 <div class="revo-list">
     {% for l in my_leads[:3] %}
-    <a href="/leads" class="revo-item">
+    <a href="/namensliste" class="revo-item">
         <div class="revo-item-ic">◎</div>
         <div>
             <div class="revo-item-name">{{ l.name }}</div>
-            <div class="revo-item-sub">{{ l.produkt or 'Lead' }} · {{ l.status }}</div>
+            <div class="revo-item-sub">{{ l.produkt or 'Kontakt' }} · {{ l.status }}</div>
         </div>
         <span class="revo-item-arrow">→</span>
     </a>
