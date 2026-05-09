@@ -1,669 +1,257 @@
 {% extends "base.html" %}
 {% block title %}Dashboard – NT Pro Academy{% endblock %}
 {% block page_title %}Mein Dashboard{% endblock %}
-{% block topbar_actions %}
-<a href="/leads/neu" class="btn btn-secondary btn-sm">+ Lead</a>
-<a href="/vertraege/neu" class="btn btn-secondary btn-sm">+ Vertrag</a>
-<a href="/termine/neu" class="btn btn-primary btn-sm">+ Termin</a>
-{% endblock %}
 
 {% block content %}
 
 {% set is_starter = own_eh < 100 %}
-{% set has_my_data = my_leads or my_appointments or direct_team %}
-{% set has_monthly_data = monthly_data and monthly_data != '[]' and 'einheiten' in (monthly_data or '') %}
 
-<!-- ⏰ DEADLINES -->
+<!-- ============================================
+     🎯 HERO — die "Balance" Karte
+     ============================================ -->
+<div class="revo-hero">
+    <div class="revo-hero-label">
+        {% if greeting and greeting.greeting %}{{ greeting.greeting }}{% else %}Willkommen zurück{% endif %}
+    </div>
+    <div class="revo-hero-value">
+        {{ "{:,.0f}".format(own_eh).replace(",", ".") }}<span class="unit">EH</span>
+    </div>
+    <div class="revo-hero-sub">
+        {% if next_level %}
+        Noch <span class="pos">{{ "{:,.0f}".format(eh_to_next).replace(",", ".") }} EH</span> bis {{ next_level.short }}
+        {% else %}
+        <span class="pos">★ Höchste Stufe erreicht!</span>
+        {% endif %}
+        · {{ career.short }} ({{ "%.2f"|format(career.commission) }} €/EH)
+    </div>
+    {% if next_level %}
+    <div style="background:var(--bg-2);height:8px;border-radius:99px;overflow:hidden;margin-top:18px">
+        <div style="height:100%;width:{{ progress_pct }}%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:99px;transition:width 0.6s"></div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ⏰ Eingabeschluss + Seminar (kompakt) -->
 {% if deadlines %}
-<div class="card" style="background:{% if deadlines.eingabe_urgent %}linear-gradient(135deg,#7c2d12 0%,#9a3412 100%){% elif deadlines.eingabe_today %}linear-gradient(135deg,#dc2626,#7c2d12){% else %}linear-gradient(135deg,#0f1c3f,#1a2c5b){% endif %};color:#fff;border:none">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:center">
-        <div style="border-right:1px solid rgba(255,255,255,0.1);padding-right:20px">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-                <div style="font-size:22px">⏰</div>
-                <div>
-                    <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">Eingabeschluss {{ deadlines.eingabe_month_label }}</div>
-                    <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-top:2px">3. Werktag · Produktionsschluss</div>
-                </div>
-            </div>
-            <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-                <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.7px;line-height:1">{{ deadlines.eingabe_weekday }} {{ deadlines.eingabeschluss_str }}</div>
-                {% if deadlines.eingabe_today %}
-                <span style="background:#fff;color:#dc2626;padding:5px 12px;border-radius:99px;font-weight:900;font-size:13px">🔥 HEUTE!</span>
-                {% elif deadlines.eingabe_urgent %}
-                <span style="background:#fbbf24;color:#7c2d12;padding:5px 12px;border-radius:99px;font-weight:900;font-size:13px">⚠ {{ deadlines.eingabe_in_days }} TAG{% if deadlines.eingabe_in_days != 1 %}E{% endif %}</span>
-                {% else %}
-                <span style="background:rgba(255,255,255,0.1);color:#d4a843;padding:4px 11px;border-radius:99px;font-weight:700;font-size:12px">in {{ deadlines.eingabe_in_days }} Tagen</span>
-                {% endif %}
-            </div>
+<div class="revo-chips">
+    <div class="revo-chip" {% if deadlines.eingabe_today %}style="border-color:var(--red);background:var(--red-soft)"{% elif deadlines.eingabe_urgent %}style="border-color:var(--orange);background:var(--orange-soft)"{% endif %}>
+        <div class="revo-chip-l">⏰ Eingabeschluss</div>
+        <div class="revo-chip-v">{{ deadlines.eingabeschluss_str }}</div>
+        <div class="revo-chip-d {% if deadlines.eingabe_today or deadlines.eingabe_urgent %}neg{% endif %}">
+            {% if deadlines.eingabe_today %}🔥 HEUTE!{% elif deadlines.eingabe_urgent %}⚠ in {{ deadlines.eingabe_in_days }} Tagen{% else %}in {{ deadlines.eingabe_in_days }} Tagen{% endif %}
         </div>
-        <div>
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-                <div style="font-size:22px">🎓</div>
-                <div>
-                    <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">Grundseminar {{ deadlines.seminar_month_label }}</div>
-                    <div style="font-size:13px;color:rgba(255,255,255,0.5);margin-top:2px">2. Wochenende nach Eingabeschluss</div>
-                </div>
-            </div>
-            <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-                <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.7px;line-height:1">{{ deadlines.seminar_weekday }} {{ deadlines.grundseminar_str }}</div>
-                {% if deadlines.seminar_urgent %}
-                <span style="background:#d4a843;color:#0f1c3f;padding:4px 11px;border-radius:99px;font-weight:900;font-size:12px">in {{ deadlines.seminar_in_days }} Tagen</span>
-                {% else %}
-                <span style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:4px 11px;border-radius:99px;font-weight:600;font-size:12px">in {{ deadlines.seminar_in_days }} Tagen</span>
-                {% endif %}
-            </div>
-        </div>
+    </div>
+    <div class="revo-chip">
+        <div class="revo-chip-l">🎓 Grundseminar</div>
+        <div class="revo-chip-v">{{ deadlines.grundseminar_str }}</div>
+        <div class="revo-chip-d">in {{ deadlines.seminar_in_days }} Tagen</div>
     </div>
 </div>
 {% endif %}
 
-<!-- Zeit-Header: Monat + Halbjahr -->
-{% if period_stats %}
-<div class="card" style="padding:18px 22px">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px">
-        <div style="border-right:1px solid var(--border);padding-right:18px">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-                <div>
-                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">📅 Aktueller Monat</div>
-                    <div style="font-size:20px;font-weight:800;color:var(--text);letter-spacing:-0.4px;margin-top:2px">{{ period_stats.monat_label }} {{ period_stats.monat_year }}</div>
-                </div>
-                <div style="font-size:13px;color:var(--text-muted);font-weight:600">Tag {{ period_stats.monat_days_passed }}/{{ period_stats.monat_days_total }}</div>
-            </div>
-            <div style="background:var(--bg);border-radius:8px;height:6px;overflow:hidden;margin-bottom:10px">
-                <div style="height:100%;width:{{ period_stats.monat_pct }}%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:8px"></div>
-            </div>
-            <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px">
-                <div><span style="color:var(--text-muted)">EH:</span> <strong style="color:var(--gold)">{{ "{:,.0f}".format(period_stats.monat_eh).replace(",", ".") }}</strong></div>
-                <div><span style="color:var(--text-muted)">Verträge:</span> <strong style="color:var(--text)">{{ period_stats.monat_vtr }}</strong></div>
-                <div><span style="color:var(--text-muted)">Neue Partner:</span> <strong style="color:var(--text)">{{ period_stats.monat_partner }}</strong></div>
-            </div>
-        </div>
-        <div>
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
-                <div>
-                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">⏳ Laufendes Halbjahr</div>
-                    <div style="font-size:20px;font-weight:800;color:var(--text);letter-spacing:-0.4px;margin-top:2px">{{ period_stats.h_name }}</div>
-                </div>
-                <div style="font-size:13px;color:var(--text-muted);font-weight:600">noch {{ period_stats.h_remaining }} Tage</div>
-            </div>
-            <div style="background:var(--bg);border-radius:8px;height:6px;overflow:hidden;margin-bottom:10px">
-                <div style="height:100%;width:{{ period_stats.h_pct }}%;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:8px"></div>
-            </div>
-            <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px">
-                <div><span style="color:var(--text-muted)">EH:</span> <strong style="color:var(--gold)">{{ "{:,.0f}".format(period_stats.h_eh).replace(",", ".") }}</strong></div>
-                <div><span style="color:var(--text-muted)">Verträge:</span> <strong style="color:var(--text)">{{ period_stats.h_vtr }}</strong></div>
-                <div><span style="color:var(--text-muted)">Neue Partner:</span> <strong style="color:var(--text)">{{ period_stats.h_partner }}</strong></div>
-            </div>
-        </div>
+<!-- ⚡ Quick-Actions -->
+<div class="revo-quick-bar">
+    <a href="/leads/neu" class="revo-q">
+        <div class="revo-q-i">+</div>
+        <div class="revo-q-l">Lead</div>
+    </a>
+    <a href="/termine/neu" class="revo-q">
+        <div class="revo-q-i">📅</div>
+        <div class="revo-q-l">Termin</div>
+    </a>
+    <a href="/vertraege/neu" class="revo-q">
+        <div class="revo-q-i">€</div>
+        <div class="revo-q-l">Vertrag</div>
+    </a>
+    <a href="/assistent" class="revo-q">
+        <div class="revo-q-i">🤖</div>
+        <div class="revo-q-l">NTcoach</div>
+    </a>
+</div>
+
+<!-- 📊 KPI-Chips -->
+<div class="revo-chips">
+    {% if not is_starter %}
+    <div class="revo-chip">
+        <div class="revo-chip-l">Team-EH</div>
+        <div class="revo-chip-v">{{ "{:,.0f}".format(stats.einheiten).replace(",", ".") }}</div>
+        <div class="revo-chip-d">inkl. Downline</div>
+    </div>
+    {% endif %}
+    <div class="revo-chip">
+        <div class="revo-chip-l">Leads</div>
+        <div class="revo-chip-v">{{ stats.leads }}</div>
+        <div class="revo-chip-d">Pipeline</div>
+    </div>
+    <div class="revo-chip">
+        <div class="revo-chip-l">Termine</div>
+        <div class="revo-chip-v">{{ stats.appointments }}</div>
+        <div class="revo-chip-d">geplant</div>
+    </div>
+    {% if stats.members > 0 %}
+    <div class="revo-chip">
+        <div class="revo-chip-l">Partner</div>
+        <div class="revo-chip-v">{{ stats.members }}</div>
+        <div class="revo-chip-d">aktiv</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 💰 Provision-Karte (außer Starter) -->
+{% if not is_starter and my_commissions and my_commissions.total > 0 %}
+<div class="revo-hero" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);border:none;color:#fff;margin-top:8px">
+    <div class="revo-hero-label" style="color:rgba(255,255,255,0.6)">💰 Provision · aktuell</div>
+    <div class="revo-hero-value" style="color:#d4a843">{{ "{:,.2f}".format(my_commissions.total).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
+    <div class="revo-hero-sub" style="color:rgba(255,255,255,0.7)">
+        {{ "{:,.2f}".format(my_commissions.own).replace(",", "X").replace(".", ",").replace("X", ".") }} € eigen
+        · {{ "{:,.2f}".format(my_commissions.differenz).replace(",", "X").replace(".", ",").replace("X", ".") }} € aus Downline
     </div>
 </div>
 {% endif %}
 
-<!-- Hero: Personalisierte Begrüßung -->
-{% if greeting %}
-<div class="card" style="background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 50%,#0a132d 100%);color:#fff;border:none;position:relative;overflow:hidden">
-    <div style="position:absolute;right:-80px;top:-80px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,67,0.2) 0%,transparent 70%)"></div>
-    <div style="position:relative;z-index:1">
-        <div style="font-size:30px;font-weight:900;color:#fff;letter-spacing:-0.7px;line-height:1.1">
-            {{ greeting.greeting }}
-            <span style="background:linear-gradient(135deg,#d4a843,#fff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">⚡</span>
-        </div>
-        <div style="font-size:15px;color:rgba(255,255,255,0.85);margin-top:8px;font-weight:500">{{ greeting.sub }}</div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Geburtstage Card -->
-{% if coach_insights and coach_insights.upcoming_birthdays %}
-<div class="card" style="background:linear-gradient(135deg,#fff,#fef3e7);border:1px solid #f5d4a0">
-    <div class="card-title" style="color:#b8590a">🎂 Geburtstage diese Woche</div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-        {% for b in coach_insights.upcoming_birthdays[:5] %}
-        <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-            <div style="font-size:22px">{{ '🎉' if b.days_until == 0 else '🎂' }}</div>
-            <div style="flex:1;min-width:160px">
-                <div style="font-size:14px;font-weight:700">
-                    {{ b.name }}
-                    {% if b.type == 'kunde' %}<span style="font-size:10px;background:var(--blue-soft);color:var(--blue);padding:2px 7px;border-radius:8px;margin-left:4px;font-weight:600">KUNDE</span>
-                    {% else %}<span style="font-size:10px;background:var(--gold-soft);color:var(--gold);padding:2px 7px;border-radius:8px;margin-left:4px;font-weight:600">PARTNER</span>{% endif %}
-                </div>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
-                    {% if b.days_until == 0 %}<strong style="color:var(--orange)">HEUTE!</strong>
-                    {% elif b.days_until == 1 %}<strong>Morgen</strong>
-                    {% else %}In {{ b.days_until }} Tagen{% endif %}
-                    {% if b.age is not none %} · wird {{ b.age + (1 if b.days_until > 0 else 0) }} Jahre{% endif %}
-                </div>
-            </div>
-            {% if b.phone %}
-            <a href="tel:{{ b.phone }}" class="btn btn-gold btn-sm">📞</a>
-            <a href="https://wa.me/{{ b.phone | replace(' ','') | replace('+','') | replace('-','') }}" target="_blank" class="btn btn-secondary btn-sm">💬</a>
-            {% endif %}
-        </div>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
-
+<!-- 🌱 STARTER-Onboarding (für REP < 100 EH) -->
 {% if is_starter %}
-<!-- 🌱 STARTER-Onboarding (nur für REP < 100 EH) -->
-<div class="card" style="background:linear-gradient(135deg,#fff,#fef3e7);border:1px solid #f5d4a0">
-    <div style="display:flex;align-items:flex-start;gap:14px">
-        <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">🌱</div>
-        <div style="flex:1">
-            <div style="font-size:12px;color:#b8590a;text-transform:uppercase;letter-spacing:1.2px;font-weight:800;margin-bottom:4px">Deine ersten Schritte</div>
-            <div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:14px">3 Dinge zum Starten</div>
-            <div style="display:flex;flex-direction:column;gap:10px">
-                <a href="/namensliste" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text);transition:all 0.15s" onmouseover="this.style.transform='translateX(4px)'" onmouseout="this.style.transform=''">
-                    <div style="width:32px;height:32px;border-radius:8px;background:#fef3e7;color:#b8590a;display:flex;align-items:center;justify-content:center;font-weight:800">1</div>
-                    <div style="flex:1">
-                        <div style="font-weight:700;font-size:14px">Namensliste anlegen</div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Brainstorming: 100 Personen die du kennst</div>
-                    </div>
-                    <span style="color:var(--gold);font-size:18px">→</span>
-                </a>
-                <a href="/leads/neu" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text);transition:all 0.15s" onmouseover="this.style.transform='translateX(4px)'" onmouseout="this.style.transform=''">
-                    <div style="width:32px;height:32px;border-radius:8px;background:#fef3e7;color:#b8590a;display:flex;align-items:center;justify-content:center;font-weight:800">2</div>
-                    <div style="flex:1">
-                        <div style="font-weight:700;font-size:14px">Erster Lead eintragen</div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Wer könnte als erstes dein Kunde werden?</div>
-                    </div>
-                    <span style="color:var(--gold);font-size:18px">→</span>
-                </a>
-                <a href="/termine/neu" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--text);transition:all 0.15s" onmouseover="this.style.transform='translateX(4px)'" onmouseout="this.style.transform=''">
-                    <div style="width:32px;height:32px;border-radius:8px;background:#fef3e7;color:#b8590a;display:flex;align-items:center;justify-content:center;font-weight:800">3</div>
-                    <div style="flex:1">
-                        <div style="font-weight:700;font-size:14px">Ersten Termin planen</div>
-                        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Telefonat oder Treffen — einfach machen</div>
-                    </div>
-                    <span style="color:var(--gold);font-size:18px">→</span>
-                </a>
-            </div>
-            <div style="background:var(--bg-2);border-radius:10px;padding:12px 14px;margin-top:14px;font-size:12px;color:var(--text-muted);line-height:1.5">
-                💡 <strong>Tipp:</strong> Frag deine Upline wenn du nicht weiterkommst. Sie war auch mal wo du jetzt bist.
-                <a href="/assistent" style="color:var(--gold);font-weight:600;text-decoration:none"> NTcoach fragen →</a>
-            </div>
+<div class="revo-section-h">🌱 Deine ersten 3 Schritte</div>
+<div class="revo-list">
+    <a href="/namensliste" class="revo-item">
+        <div class="revo-item-ic gold">1</div>
+        <div>
+            <div class="revo-item-name">Namensliste anlegen</div>
+            <div class="revo-item-sub">100 Personen die du kennst</div>
         </div>
-    </div>
+        <span class="revo-item-arrow">→</span>
+    </a>
+    <a href="/leads/neu" class="revo-item">
+        <div class="revo-item-ic gold">2</div>
+        <div>
+            <div class="revo-item-name">Erster Lead eintragen</div>
+            <div class="revo-item-sub">Wer könnte dein erster Kunde werden?</div>
+        </div>
+        <span class="revo-item-arrow">→</span>
+    </a>
+    <a href="/termine/neu" class="revo-item">
+        <div class="revo-item-ic gold">3</div>
+        <div>
+            <div class="revo-item-name">Ersten Termin planen</div>
+            <div class="revo-item-sub">Telefonat oder Treffen — einfach machen</div>
+        </div>
+        <span class="revo-item-arrow">→</span>
+    </a>
 </div>
 {% endif %}
 
-<!-- 🧠 Smart-Coach Briefing (nur ab 100 EH sinnvoll) -->
+<!-- 🧠 KI-Briefing (kompakt) -->
 {% if ai_briefing and not is_starter %}
-<div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(167,139,250,0.08) 100%);border:1px solid rgba(167,139,250,0.3)">
-    <div style="display:flex;align-items:flex-start;gap:14px">
-        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#a78bfa,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🧠</div>
-        <div style="flex:1">
-            <div style="font-size:11px;color:var(--purple);text-transform:uppercase;letter-spacing:1px;font-weight:800;margin-bottom:6px">KI-Coach · Dein Wochen-Briefing</div>
-            <div style="font-size:15px;line-height:1.6;color:var(--text)">{{ ai_briefing }}</div>
-        </div>
-    </div>
+<div class="revo-section-h">🧠 NTcoach · diese Woche</div>
+<div style="background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:14px;padding:16px 18px;font-size:14px;line-height:1.6;color:var(--text)">
+    {{ ai_briefing }}
 </div>
 {% endif %}
 
-<!-- 🔮 Forecast (nur wenn Daten vorhanden) -->
-{% if forecast and not forecast.reached and forecast.weeks and not is_starter %}
-<div class="card" style="background:linear-gradient(135deg,var(--surface),rgba(96,165,250,0.05));border:1px solid rgba(96,165,250,0.3)">
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-        <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🔮</div>
-        <div style="flex:1;min-width:240px">
-            <div style="font-size:11px;color:var(--blue);text-transform:uppercase;letter-spacing:1px;font-weight:800">Dein Karriere-Forecast</div>
-            <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:3px">{{ forecast.message }}</div>
-        </div>
-        <div style="text-align:right">
-            <div style="font-size:28px;font-weight:900;color:var(--gold);line-height:1">{{ forecast.weeks }}</div>
-            <div style="font-size:11px;color:var(--text-muted)">Wochen</div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- 🧠 KI Power-Empfehlungen (nur wenn vorhanden + nicht Starter) -->
+<!-- 🔔 KI-Empfehlungen (Top 3) -->
 {% if ki_recs and not is_starter %}
-<div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(212,168,67,0.05) 100%);border:1px solid rgba(212,168,67,0.2)">
-    <div class="card-title">
-        🧠 KI-Coach · Was du JETZT tun solltest
-        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">{{ ki_recs|length }} Empfehlungen</span>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-        {% for r in ki_recs %}
-        {% set prio_color = ({'critical':'var(--red)','high':'var(--orange)','medium':'var(--gold)','low':'var(--blue)'}).get(r.priority, 'var(--text-muted)') %}
-        <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid {{ prio_color }};border-radius:10px;flex-wrap:wrap">
-            <div style="font-size:22px">{{ r.icon }}</div>
-            <div style="flex:1;min-width:200px">
-                <div style="font-size:14px;font-weight:700;color:var(--text)">{{ r.title }}</div>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">{{ r.detail }}</div>
-            </div>
-            {% if r.action_url %}
-            <a href="{{ r.action_url }}" class="btn btn-primary btn-sm">{{ r.action_label }}</a>
-            {% endif %}
+<div class="revo-section-h">🎯 Was du jetzt tun solltest <a href="/coach">Mehr →</a></div>
+<div class="revo-list">
+    {% for r in ki_recs[:3] %}
+    <a href="{{ r.action_url or '#' }}" class="revo-item">
+        <div class="revo-item-ic {% if r.priority == 'critical' %}red{% elif r.priority == 'high' %}gold{% endif %}">{{ r.icon }}</div>
+        <div style="flex:1;min-width:0">
+            <div class="revo-item-name">{{ r.title }}</div>
+            <div class="revo-item-sub">{{ r.detail }}</div>
         </div>
-        {% endfor %}
-    </div>
+        {% if r.action_label %}<span class="revo-pill on">{{ r.action_label }}</span>{% endif %}
+    </a>
+    {% endfor %}
 </div>
 {% endif %}
 
-<!-- KI-Coach Quick-Card -->
-{% if coach_insights and coach_insights.urgent_calls %}
-<div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);border-color:#0f1c3f;color:#fff">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:14px">
+<!-- 🏆 Top Performer (Top 3) -->
+<div class="revo-section-h">🏆 Top Performer <a href="/ranking">Alle →</a></div>
+<div class="revo-list">
+    {% for p in global_top[:3] %}
+    <div class="revo-item" {% if p.is_me %}style="background:var(--gold-soft);border-radius:12px;padding:14px 12px"{% endif %}>
+        <div class="revo-item-ic {% if loop.index == 1 %}gold{% endif %}">
+            {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% endif %}
+        </div>
         <div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;font-weight:700">🧠 KI-Coach · Heute anrufen</div>
-            <div style="font-size:18px;font-weight:800;color:#fff;margin-top:4px">Top {{ coach_insights.urgent_calls[:3]|length }} priorisiert</div>
+            <div class="revo-item-name">{{ p.name }}{% if p.is_me %} <span class="revo-pill on" style="margin-left:6px">DU</span>{% endif %}</div>
+            <div class="revo-item-sub">{{ p.career.short }} · {{ p.vertraege }} Verträge</div>
         </div>
-        <a href="/coach" style="color:#d4a843;text-decoration:none;font-size:13px;font-weight:700">Alle ansehen →</a>
+        <div class="revo-item-amt">{{ "{:,.0f}".format(p.einheiten).replace(",", ".") }} EH</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-        {% for call in coach_insights.urgent_calls[:3] %}
-        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-            <div style="font-size:18px">{{ call.icon }}</div>
-            <div style="flex:1;min-width:160px">
-                <div style="font-size:13px;font-weight:700;color:#fff">{{ call.name }}</div>
-                <div style="font-size:11px;color:rgba(255,255,255,0.6)">{{ call.reason }}</div>
-            </div>
-            {% if call.phone %}
-            <a href="tel:{{ call.phone }}" style="background:#d4a843;color:#0f1c3f;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">📞 Anrufen</a>
-            {% endif %}
+    {% endfor %}
+</div>
+
+<!-- 👥 Mein Team — mit Aktivitäts-Status -->
+{% if direct_team %}
+<div class="revo-section-h">👥 Mein direktes Team <a href="/team">Alle →</a></div>
+<div class="revo-list">
+    {% for m in direct_team[:5] %}
+    <a href="/partner/{{ m.id }}" class="revo-item">
+        <div class="revo-item-ic">{{ m.name[:2]|upper }}</div>
+        <div style="flex:1;min-width:0">
+            <div class="revo-item-name">{{ m.name }}</div>
+            <div class="revo-item-sub">{{ m.career.short }} · {{ "{:,.0f}".format(m.einheiten).replace(",", ".") }} EH · {{ m.vertraege }} Verträge</div>
         </div>
-        {% endfor %}
-    </div>
+        {% if m.active_today %}<span class="revo-pill on">aktiv</span>
+        {% elif m.last_active_days is not none and m.last_active_days <= 3 %}<span class="revo-pill warn">{{ m.last_active_days }}T</span>
+        {% else %}<span class="revo-pill off">⚠ inaktiv</span>{% endif %}
+    </a>
+    {% endfor %}
 </div>
 {% endif %}
 
-<!-- Karriere-Stufe Hero -->
-<div class="card" style="background: linear-gradient(135deg, #fff 0%, #faf6ec 100%); border: 1px solid #e8d59a;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px">
+<!-- 📅 Letzte Leads / Termine (Tab-artig kompakt) -->
+{% if my_leads or my_appointments %}
+<div class="revo-section-h">⚡ Aktuell</div>
+<div class="revo-list">
+    {% for l in my_leads[:3] %}
+    <a href="/leads" class="revo-item">
+        <div class="revo-item-ic">◎</div>
         <div>
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600;margin-bottom:8px">Meine Karriere-Stufe</div>
-            <div style="display:flex;align-items:center;gap:14px">
-                <div style="width:56px;height:56px;border-radius:12px;background:{{ career.color }}15;border:1.5px solid {{ career.color }};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:{{ career.color }}">
-                    {{ career.short }}
-                </div>
-                <div>
-                    <div style="font-size:20px;font-weight:800;color:var(--text);letter-spacing:-0.4px">{{ career.name }}</div>
-                    <div style="font-size:12px;color:var(--text-muted)">Stufe {{ career.level }} von 6 · {{ "%.2f"|format(career.commission) }} €/EH</div>
-                </div>
-            </div>
+            <div class="revo-item-name">{{ l.name }}</div>
+            <div class="revo-item-sub">{{ l.produkt or 'Lead' }} · {{ l.status }}</div>
         </div>
-        <div style="flex:1;min-width:280px;max-width:500px">
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
-                <span style="color:var(--text-muted)">
-                    <strong style="color:var(--gold);font-size:16px" class="money">{{ "{:,.0f}".format(own_eh).replace(",", ".") }}</strong> EH eigen
-                </span>
-                {% if next_level %}
-                <span style="color:var(--text-soft)">→ {{ next_level.short }} bei {{ "{:,.0f}".format(next_level.min_eh).replace(",", ".") }}</span>
-                {% else %}
-                <span style="color:var(--green);font-weight:700">★ Höchste Stufe!</span>
-                {% endif %}
-            </div>
-            <div class="progress-bar" style="height:10px">
-                <div class="progress-fill progress-gold" style="width:{{ progress_pct }}%"></div>
-            </div>
-            {% if next_level %}
-            <div style="font-size:11px;color:var(--text-soft);margin-top:6px">
-                Noch <strong style="color:var(--gold)" class="money">{{ "{:,.0f}".format(eh_to_next).replace(",", ".") }} EH</strong> bis Stufe {{ next_level.level }}
-            </div>
-            {% endif %}
+        <span class="revo-item-arrow">→</span>
+    </a>
+    {% endfor %}
+    {% for t in my_appointments[:3] %}
+    <a href="/termine" class="revo-item">
+        <div class="revo-item-ic">◷</div>
+        <div>
+            <div class="revo-item-name">{{ t.title }}</div>
+            <div class="revo-item-sub">{{ t.termin_date }} · {{ t.typ or 'Termin' }}</div>
         </div>
-    </div>
+        <span class="revo-item-arrow">→</span>
+    </a>
+    {% endfor %}
 </div>
+{% endif %}
 
-<!-- Karriere-Kriterien für nächste Stufe (collapsible) -->
+<!-- 🎯 Karriere-Kriterien (collapse, für die die's wissen wollen) -->
 {% if career_criteria and career_criteria.next_level %}
-<details class="card" {% if not is_starter %}open{% endif %} style="padding:0">
-    <summary style="cursor:pointer;list-style:none;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <div class="card-title" style="margin:0;border:0;padding:0">
-            🎯 Auf dem Weg zu {{ career_criteria.next_level.short }} — {{ career_criteria.next_level.name }}
-            <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">
-                {{ career_criteria.completed_count }}/{{ career_criteria.total_count }} Kriterien
-            </span>
-        </div>
-        <span style="font-size:11px;color:var(--text-muted)">▾ Details</span>
+<div class="revo-section-h">🎯 Auf dem Weg zu {{ career_criteria.next_level.short }}</div>
+<details style="background:var(--surface);border:1px solid var(--border);border-radius:14px">
+    <summary style="cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:13px;color:var(--text-muted)">{{ career_criteria.completed_count }}/{{ career_criteria.total_count }} Kriterien erfüllt</div>
+        <span style="font-size:11px;color:var(--text-soft)">▾ Details</span>
     </summary>
-    <div style="padding:0 22px 22px">
-
-    <!-- Total-Übersicht -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px">
-        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center">
-            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Gesamt-EH</div>
-            <div style="font-size:20px;font-weight:800;color:var(--gold);margin-top:2px" class="money">{{ "{:,.0f}".format(career_criteria.total_eh).replace(",", ".") }}</div>
-        </div>
-        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center">
-            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Eigen (Restbereich)</div>
-            <div style="font-size:20px;font-weight:800;color:var(--text);margin-top:2px" class="money">{{ "{:,.0f}".format(career_criteria.own_eh).replace(",", ".") }}</div>
-        </div>
-        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center">
-            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Team-EH</div>
-            <div style="font-size:20px;font-weight:800;color:var(--text);margin-top:2px" class="money">{{ "{:,.0f}".format(career_criteria.team_eh).replace(",", ".") }}</div>
-        </div>
-        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center">
-            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Anzahl Stränge</div>
-            <div style="font-size:20px;font-weight:800;color:var(--text);margin-top:2px">{{ career_criteria.straenge|length }}</div>
-        </div>
-    </div>
-
-    <!-- Pflicht-Kriterien -->
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+    <div style="padding:0 18px 18px;display:flex;flex-direction:column;gap:8px">
         {% for c in career_criteria.criteria %}
-        <div style="background:var(--bg-2);border:1.5px solid {% if c.done %}var(--green){% else %}var(--border){% endif %};border-radius:14px;padding:16px 18px">
-            <div style="display:flex;align-items:flex-start;gap:12px">
-                <div style="font-size:22px;line-height:1">{{ c.icon }}</div>
-                <div style="flex:1;min-width:0">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-                        <div>
-                            <div style="font-size:14px;font-weight:700;color:var(--text)">{{ c.label }}</div>
-                            {% if c.hint %}<div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ c.hint }}</div>{% endif %}
-                        </div>
-                        {% if c.done %}
-                        <span style="background:var(--green);color:#fff;padding:4px 10px;border-radius:14px;font-size:11px;font-weight:800">✓ Erfüllt</span>
-                        {% else %}
-                        <span style="background:var(--gold-soft);color:var(--gold);padding:4px 10px;border-radius:14px;font-size:11px;font-weight:700">In Arbeit</span>
-                        {% endif %}
-                    </div>
-                    <div style="margin-top:10px">
-                        <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px">
-                            <strong style="color:{% if c.done %}var(--green){% else %}var(--gold){% endif %}">{{ c.current_label }}</strong>
-                            <span style="color:var(--text-muted);font-size:12px">{{ c.target_label }}</span>
-                        </div>
-                        <div style="background:var(--border);border-radius:8px;height:6px;overflow:hidden;margin-top:6px">
-                            <div style="height:100%;width:{{ c.pct }}%;background:{% if c.done %}var(--green){% else %}linear-gradient(90deg,var(--gold),var(--gold-light)){% endif %};border-radius:8px;transition:width 0.6s"></div>
-                        </div>
-                        {% if c.detail %}<div style="font-size:11px;color:var(--text-muted);margin-top:6px;font-style:italic">{{ c.detail }}</div>{% endif %}
-                    </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border)">
+            <div style="font-size:18px">{{ c.icon }}</div>
+            <div style="flex:1">
+                <div style="font-size:13px;font-weight:600">{{ c.label }}</div>
+                <div style="background:var(--bg-2);height:5px;border-radius:99px;overflow:hidden;margin-top:6px">
+                    <div style="height:100%;width:{{ c.pct }}%;background:{% if c.done %}var(--green){% else %}linear-gradient(90deg,var(--gold),var(--gold-light)){% endif %};border-radius:99px"></div>
                 </div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px">{{ c.current_label }} <span style="color:var(--text-soft)">/ {{ c.target_label }}</span></div>
             </div>
+            {% if c.done %}<span class="revo-pill on">✓</span>{% endif %}
         </div>
         {% endfor %}
-    </div>
-
-    <!-- Stränge -->
-    {% if career_criteria.straenge %}
-    <div style="background:var(--bg);border-radius:12px;padding:16px 18px;margin-bottom:14px">
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.7px;font-weight:700;margin-bottom:12px">⬡ Meine Stränge</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-            {% for s in career_criteria.straenge %}
-            {% set s_pct = ((s.eh / career_criteria.total_eh * 100) if career_criteria.total_eh > 0 else 0) %}
-            <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
-                <div style="flex:1;min-width:0">
-                    <div style="display:flex;justify-content:space-between;font-size:13px">
-                        <strong style="color:var(--text)">{{ s.name }}</strong>
-                        <span><strong style="color:var(--gold)" class="money">{{ "{:,.0f}".format(s.eh).replace(",", ".") }}</strong> <span style="color:var(--text-muted);font-size:11px">EH ({{ "%.0f"|format(s_pct) }}%)</span></span>
-                    </div>
-                    <div style="background:var(--border);border-radius:6px;height:4px;overflow:hidden;margin-top:5px">
-                        <div style="height:100%;width:{{ s_pct }}%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:6px"></div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    {% if career_criteria.bonus %}
-    <div style="background:var(--bg);border-radius:10px;padding:14px 18px">
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.7px;font-weight:700;margin-bottom:10px">📊 Zusatz-Kennzahlen</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
-            {% for b in career_criteria.bonus %}
-            <div style="display:flex;align-items:center;gap:8px;font-size:13px">
-                <span style="font-size:16px">{{ b.icon }}</span>
-                <span style="color:var(--text-muted)">{{ b.label }}:</span>
-                <strong style="color:var(--text)">{{ "{:,.0f}".format(b.current).replace(",", ".") }}{% if b.unit %} {{ b.unit }}{% endif %}</strong>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
     </div>
 </details>
 {% endif %}
 
-<!-- Provisionen 3-Karten (nicht für Starter — alle 0 = Frust) -->
-{% if not is_starter %}
-<div class="grid-3">
-    <div class="card" style="border-left:3px solid var(--gold)">
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Eigen-Provision</div>
-        <div style="font-size:22px;font-weight:800;color:var(--text);margin:6px 0" class="money">{{ "{:,.2f}".format(my_commissions.own).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
-        <div style="font-size:11px;color:var(--text-soft)">Aus eigenen Verträgen</div>
-    </div>
-    <div class="card" style="border-left:3px solid var(--blue)">
-        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Differenz aus Downline</div>
-        <div style="font-size:22px;font-weight:800;color:var(--text);margin:6px 0" class="money">{{ "{:,.2f}".format(my_commissions.differenz).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
-        <div style="font-size:11px;color:var(--text-soft)">Aus Verträgen meiner Partner</div>
-    </div>
-    <div class="card" style="background: linear-gradient(135deg, #0f1c3f 0%, #1a2c5b 100%); border-color:#0f1c3f">
-        <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Gesamt-Provision</div>
-        <div style="font-size:24px;font-weight:800;color:#d4a843;margin:6px 0" class="money">{{ "{:,.2f}".format(my_commissions.total).replace(",", "X").replace(".", ",").replace("X", ".") }} €</div>
-        <div style="font-size:11px;color:rgba(255,255,255,0.5)">Eigen + Differenz</div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Conversion (nur ab erstem Termin) -->
-{% if conversion.termine > 0 or conversion.abschluss > 0 %}
-<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
-        <div style="display:flex;align-items:center;gap:14px">
-            <div style="width:42px;height:42px;background:var(--blue-soft);color:var(--blue);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800">📈</div>
-            <div>
-                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Konversions-Rate</div>
-                <div style="font-size:18px;font-weight:700;color:var(--text);margin-top:2px">
-                    {% if conversion.abschluss > 0 %}
-                        Ø <span style="color:var(--blue)">{{ "%.1f"|format(conversion.rate) }}</span> Termine pro Abschluss
-                    {% else %}
-                        <span style="color:var(--text-soft)">Noch keine Abschlüsse</span>
-                    {% endif %}
-                </div>
-                <div style="font-size:11px;color:var(--text-soft);margin-top:3px">
-                    {{ conversion.termine }} erledigte Termine · {{ conversion.abschluss }} Abschlüsse · Ziel: {{ termine_pro_abschluss }} Termine = 1 Abschluss
-                </div>
-            </div>
-        </div>
-        <a href="/termine/neu" class="btn btn-primary">+ Termin anlegen</a>
-    </div>
-</div>
-{% endif %}
-
-<!-- KPIs (kompakt; für Starter mit allen 0en weg) -->
-{% if not is_starter or stats.leads or stats.appointments or stats.members %}
-<div class="kpi-grid">
-    {% if not is_starter %}
-    <div class="kpi-card gold">
-        <div class="kpi-label">Team-Einheiten</div>
-        <div class="kpi-value money">{{ "{:,.0f}".format(stats.einheiten).replace(",", ".") }}</div>
-        <div class="kpi-sub">EH inkl. Downline</div>
-    </div>
-    <div class="kpi-card green">
-        <div class="kpi-label">Verträge</div>
-        <div class="kpi-value">{{ stats.contracts }}</div>
-        <div class="kpi-sub">Team gesamt</div>
-    </div>
-    {% endif %}
-    <div class="kpi-card blue">
-        <div class="kpi-label">Leads</div>
-        <div class="kpi-value">{{ stats.leads }}</div>
-        <div class="kpi-sub">Pipeline</div>
-    </div>
-    {% if stats.members > 0 %}
-    <div class="kpi-card purple">
-        <div class="kpi-label">Teammitglieder</div>
-        <div class="kpi-value">{{ stats.members }}</div>
-        <div class="kpi-sub">Aktiv</div>
-    </div>
-    {% endif %}
-    <div class="kpi-card orange">
-        <div class="kpi-label">Termine</div>
-        <div class="kpi-value">{{ stats.appointments }}</div>
-        <div class="kpi-sub">Geplant</div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Monatsentwicklung (nur wenn Daten da) -->
-{% if not is_starter %}
-<div class="card">
-    <div class="card-title">
-        📈 Monatsentwicklung (mein Team)
-        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">Letzte 6 Monate</span>
-    </div>
-    <div class="chart-container" style="height:240px"><canvas id="monthlyPartnerChart"></canvas></div>
-</div>
-{% endif %}
-
-<!-- Top Performer (nur Top 3 + Link zu /ranking) -->
-<div class="card">
-    <div class="card-title">
-        🏆 Top Performer
-        <a href="/ranking" style="font-size:11px;color:var(--gold);text-decoration:none;text-transform:none;letter-spacing:0;font-weight:600">Alle ansehen →</a>
-    </div>
-    <div class="table-wrap">
-        <table>
-            <thead><tr><th style="width:50px">#</th><th>Name</th><th>Stufe</th><th>Verträge</th><th>EH</th></tr></thead>
-            <tbody>
-                {% for p in global_top[:3] %}
-                <tr {% if p.is_me %}style="background:var(--gold-soft)"{% endif %}>
-                    <td>
-                        {% if loop.index == 1 %}<span style="font-size:18px">🥇</span>
-                        {% elif loop.index == 2 %}<span style="font-size:18px">🥈</span>
-                        {% elif loop.index == 3 %}<span style="font-size:18px">🥉</span>
-                        {% else %}<strong>{{ loop.index }}</strong>{% endif %}
-                    </td>
-                    <td>
-                        <strong>{{ p.name }}</strong>
-                        {% if p.is_me %}<span style="font-size:10px;background:var(--gold);color:#fff;padding:2px 7px;border-radius:8px;margin-left:6px;font-weight:700">DU</span>{% endif %}
-                    </td>
-                    <td>
-                        <span class="stufe-pill" style="background:{{ p.career.color }}15;color:{{ p.career.color }}">{{ p.career.short }}</span>
-                    </td>
-                    <td>{{ p.vertraege }}</td>
-                    <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(p.einheiten).replace(",", ".") }}</strong></td>
-                </tr>
-                {% else %}
-                <tr><td colspan="5" style="text-align:center;color:var(--text-soft);padding:24px">Noch keine Daten</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- Listen — nur zeigen wenn Daten vorhanden -->
-{% if my_leads or my_appointments %}
-<div class="grid-2">
-    {% if my_leads %}
-    <div class="card">
-        <div class="card-title">Letzte Leads <a href="/leads" style="font-size:11px;color:var(--gold);text-decoration:none;text-transform:none;letter-spacing:0">Alle →</a></div>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>Name</th><th>Produkt</th><th>Status</th></tr></thead>
-                <tbody>
-                    {% for l in my_leads %}
-                    <tr>
-                        <td><strong>{{ l.name }}</strong></td>
-                        <td>{{ l.produkt or '–' }}</td>
-                        <td><span class="status-badge status-{{ l.status }}">{{ l.status }}</span></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-    {% if my_appointments %}
-    <div class="card">
-        <div class="card-title">Nächste Termine <a href="/termine" style="font-size:11px;color:var(--gold);text-decoration:none;text-transform:none;letter-spacing:0">Alle →</a></div>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>Titel</th><th>Datum</th><th>Typ</th></tr></thead>
-                <tbody>
-                    {% for t in my_appointments %}
-                    <tr>
-                        <td><strong>{{ t.title }}</strong></td>
-                        <td>{{ t.termin_date }}</td>
-                        <td><span class="status-badge status-geplant">{{ t.typ }}</span></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-</div>
-{% endif %}
-
-<!-- Direktes Team — nur wenn vorhanden, mit Aktivitäts-Indikator -->
-{% if direct_team %}
-<div class="card">
-    <div class="card-title">
-        👥 Mein direktes Team
-        <a href="/team/neu" style="font-size:11px;color:var(--gold);text-decoration:none;text-transform:none;letter-spacing:0;font-weight:600">+ Partner hinzufügen</a>
-    </div>
-    <div class="table-wrap">
-        <table>
-            <thead><tr><th>Name</th><th>Stufe</th><th>EH</th><th>Verträge</th><th>Heute aktiv?</th><th></th></tr></thead>
-            <tbody>
-                {% for m in direct_team %}
-                <tr>
-                    <td><strong>{{ m.name }}</strong></td>
-                    <td>
-                        <span class="stufe-pill" style="background:{{ m.career.color }}15;color:{{ m.career.color }}">{{ m.career.short }}</span>
-                    </td>
-                    <td><strong class="money">{{ "{:,.0f}".format(m.einheiten).replace(",", ".") }}</strong></td>
-                    <td>{{ m.vertraege }}</td>
-                    <td>
-                        {% if m.active_today %}<span style="color:var(--green);font-weight:700">● Aktiv</span>
-                        {% elif m.last_active_days is not none and m.last_active_days <= 3 %}<span style="color:var(--gold);font-size:11px">vor {{ m.last_active_days }}T</span>
-                        {% else %}<span style="color:var(--red);font-size:11px">⚠ inaktiv</span>{% endif %}
-                    </td>
-                    <td><a href="/partner/{{ m.id }}" class="btn btn-secondary btn-sm">Heute →</a></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
-{% endblock %}
-
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-const _chartEl = document.getElementById('monthlyPartnerChart');
-if (_chartEl) {
-const monthlyData = {{ monthly_data | safe }};
-const labels = monthlyData.map(d => d.monat);
-const eh = monthlyData.map(d => d.einheiten);
-const vtr = monthlyData.map(d => d.anzahl);
-
-new Chart(_chartEl.getContext('2d'), {
-    type: 'bar',
-    data: {
-        labels: labels.length ? labels : ['Keine Daten'],
-        datasets: [{
-            label: 'Einheiten',
-            data: eh.length ? eh : [0],
-            backgroundColor: '#b8902e',
-            borderRadius: 6,
-            yAxisID: 'y'
-        }, {
-            label: 'Verträge',
-            data: vtr.length ? vtr : [0],
-            type: 'line',
-            borderColor: '#0f1c3f',
-            backgroundColor: 'transparent',
-            borderWidth: 2.5,
-            pointRadius: 4,
-            pointBackgroundColor: '#0f1c3f',
-            yAxisID: 'y1'
-        }]
-    },
-    options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'top', labels: { color: '#1a1f36', font: { size: 12 } } } },
-        scales: {
-            y: { beginAtZero: true, ticks: { color: '#6b7280' }, grid: { color: '#e5e8ee' }, title: { display: true, text: 'EH', color: '#6b7280' } },
-            y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: '#6b7280', stepSize: 1 }, title: { display: true, text: 'Verträge', color: '#6b7280' } },
-            x: { ticks: { color: '#6b7280' }, grid: { display: false } }
-        }
-    }
-});
-}
-</script>
 {% endblock %}

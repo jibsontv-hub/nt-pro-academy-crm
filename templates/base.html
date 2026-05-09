@@ -21,7 +21,7 @@
       // Dark Mode VOR DOM-Render setzen → kein Flash
       (function(){
           try {
-              var t = localStorage.getItem('ntpro-theme') || 'light';
+              var t = localStorage.getItem('ntpro-theme') || 'dark';
               document.documentElement.setAttribute('data-theme', t);
           } catch(e){}
       })();
@@ -93,6 +93,160 @@
         /* Smooth Transitions zwischen Modes */
         body, .card, .sidebar, .topbar, .kpi-card, table, input, select, textarea, .btn, .nav-link {
             transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        /* ===========================================================
+           🟪 REVOLUT-STYLE COMPONENTS (Phase 1)
+           =========================================================== */
+
+        /* Hero "Balance" Card — die große Zahl die alles erschlägt */
+        .revo-hero {
+            background: linear-gradient(135deg, var(--bg-2), var(--surface));
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 32px 28px;
+            position: relative; overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .revo-hero::before {
+            content: ''; position: absolute; top: -40%; right: -20%;
+            width: 280px; height: 280px;
+            background: radial-gradient(circle, rgba(212,168,67,0.18) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .revo-hero > * { position: relative; z-index: 1; }
+        .revo-hero-label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+        .revo-hero-value { font-size: 56px; font-weight: 800; letter-spacing: -2px; line-height: 1.1; margin: 8px 0 4px; color: var(--text); }
+        .revo-hero-value .unit { font-size: 22px; color: var(--text-muted); font-weight: 600; letter-spacing: -0.5px; margin-left: 6px; }
+        .revo-hero-sub { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+        .revo-hero-sub .pos { color: var(--green); font-weight: 700; }
+        .revo-hero-sub .neg { color: var(--red); font-weight: 700; }
+        @media (max-width: 600px) {
+            .revo-hero { padding: 24px 20px; border-radius: 20px; }
+            .revo-hero-value { font-size: 44px; letter-spacing: -1.5px; }
+        }
+
+        /* Chip-Reihe (Eigen-EH, Team-EH etc) */
+        .revo-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .revo-chip {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 18px; padding: 16px 18px;
+        }
+        .revo-chip-l { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.3px; }
+        .revo-chip-v { font-size: 24px; font-weight: 700; letter-spacing: -0.6px; color: var(--text); margin-top: 4px; }
+        .revo-chip-d { font-size: 11px; color: var(--green); font-weight: 700; margin-top: 2px; }
+        .revo-chip-d.neg { color: var(--red); }
+
+        /* Quick-Action-Bar (4 Tiles mit Round-Icon) */
+        .revo-quick-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0 24px; }
+        .revo-q {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: 14px 8px; text-align: center;
+            cursor: pointer; transition: all 0.2s; text-decoration: none; color: var(--text);
+        }
+        .revo-q:hover { background: var(--bg-2); transform: translateY(-2px); }
+        .revo-q-i {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            color: #0f1c3f; margin: 0 auto 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 17px; font-weight: 800;
+        }
+        .revo-q-l { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+        @media (max-width: 360px) { .revo-quick-bar { grid-template-columns: repeat(2, 1fr); } }
+
+        /* Listen-Item Style (Top Performer, Team-Liste, Recent Activity etc.) */
+        .revo-list { display: flex; flex-direction: column; }
+        .revo-item {
+            display: flex; align-items: center; gap: 14px;
+            padding: 14px 0; border-bottom: 1px solid var(--border);
+            text-decoration: none; color: var(--text);
+            transition: all 0.15s;
+        }
+        .revo-item:last-child { border-bottom: none; }
+        .revo-item:hover { background: var(--bg-2); padding-left: 8px; padding-right: 8px; border-radius: 12px; }
+        .revo-item-ic {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: var(--bg-2); border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: 700; color: var(--text-muted);
+            flex-shrink: 0;
+        }
+        .revo-item-ic.gold { background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: #0f1c3f; border-color: transparent; }
+        .revo-item-ic.green { background: var(--green); color: #fff; border-color: transparent; }
+        .revo-item-ic.red { background: var(--red); color: #fff; border-color: transparent; }
+        .revo-item-name { font-weight: 600; font-size: 14px; color: var(--text); }
+        .revo-item-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        .revo-item-amt { margin-left: auto; font-weight: 700; color: var(--gold); font-size: 14px; white-space: nowrap; }
+        .revo-item-arrow { color: var(--text-soft); font-size: 14px; margin-left: 6px; }
+
+        /* Status-Pill */
+        .revo-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+        .revo-pill.on { background: var(--green-soft); color: var(--green); }
+        .revo-pill.off { background: var(--red-soft); color: var(--red); }
+        .revo-pill.warn { background: var(--orange-soft); color: var(--orange); }
+
+        /* Section-Header (für Listen) */
+        .revo-section-h {
+            display: flex; align-items: center; justify-content: space-between;
+            font-size: 13px; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.6px;
+            margin: 24px 0 8px;
+        }
+        .revo-section-h a { font-size: 12px; color: var(--gold); text-decoration: none; text-transform: none; letter-spacing: 0; font-weight: 600; }
+
+        /* Floating-Action-Button (FAB) — Mobile Primary CTA */
+        .revo-fab {
+            position: fixed; bottom: 92px; right: 20px;
+            width: 60px; height: 60px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            color: #0f1c3f; font-size: 28px; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 30px rgba(212,168,67,0.4);
+            cursor: pointer; z-index: 9000; border: none;
+            font-family: inherit; transition: all 0.2s; text-decoration: none;
+        }
+        .revo-fab:hover { transform: scale(1.05); box-shadow: 0 14px 40px rgba(212,168,67,0.5); }
+        .revo-fab-menu {
+            position: fixed; bottom: 168px; right: 22px; z-index: 9001;
+            display: none; flex-direction: column; gap: 8px;
+            animation: fabUp 0.2s cubic-bezier(0.16,1,0.3,1);
+        }
+        .revo-fab-menu.open { display: flex; }
+        @keyframes fabUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .revo-fab-item {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--surface); border: 1px solid var(--border);
+            color: var(--text); padding: 11px 16px; border-radius: 14px;
+            font-size: 13px; font-weight: 600; text-decoration: none;
+            box-shadow: var(--shadow-md); white-space: nowrap;
+        }
+        .revo-fab-item:hover { background: var(--bg-2); }
+        @media (min-width: 1100px) { .revo-fab, .revo-fab-menu { display: none !important; } }
+
+        /* Bottom-Nav für Mobile */
+        .revo-botnav {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: rgba(15,24,41,0.92); backdrop-filter: blur(16px);
+            border-top: 1px solid var(--border);
+            display: flex; padding: 6px 4px 8px; padding-bottom: max(8px, env(safe-area-inset-bottom));
+            justify-content: space-around;
+            z-index: 8000;
+        }
+        [data-theme="light"] .revo-botnav { background: rgba(255,255,255,0.92); }
+        .revo-bn {
+            flex: 1; padding: 8px 4px; text-align: center;
+            font-size: 18px; color: var(--text-muted); text-decoration: none;
+            border-radius: 8px; transition: all 0.15s;
+        }
+        .revo-bn .lab { display: block; font-size: 9.5px; font-weight: 700; margin-top: 2px; letter-spacing: 0.2px; }
+        .revo-bn.active { color: var(--gold); }
+        .revo-bn.active .lab { color: var(--gold); }
+        @media (min-width: 1100px) { .revo-botnav { display: none; } }
+        @media (max-width: 1099px) {
+            .content { padding-bottom: 90px !important; }
+            .sidebar { display: none !important; }
+            .main { margin-left: 0 !important; }
         }
 
         /* === DARK-MODE CATCH-ALLS für hardcodierte Inline-Styles === */
@@ -1437,5 +1591,33 @@
     {% endif %}
 
     {% block scripts %}{% endblock %}
+
+    <!-- 📱 MOBILE BOTTOM-NAV (nur < 1100px) -->
+    {% if current_user.is_authenticated %}
+    <nav class="revo-botnav">
+        <a href="/dashboard" class="revo-bn {% if request.path == '/dashboard' %}active{% endif %}">▦<span class="lab">Home</span></a>
+        <a href="/leads" class="revo-bn {% if request.path.startswith('/leads') %}active{% endif %}">◎<span class="lab">Leads</span></a>
+        <a href="/termine" class="revo-bn {% if '/termine' in request.path %}active{% endif %}">◷<span class="lab">Termine</span></a>
+        <a href="/team" class="revo-bn {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}">👥<span class="lab">Team</span></a>
+        <a href="/assistent" class="revo-bn {% if '/assistent' in request.path %}active{% endif %}">🤖<span class="lab">NTcoach</span></a>
+    </nav>
+
+    <!-- ⚡ FAB (Quick-Add) -->
+    <div class="revo-fab-menu" id="fabMenu">
+        <a href="/leads/neu" class="revo-fab-item">◎ Neuer Lead</a>
+        <a href="/termine/neu" class="revo-fab-item">◷ Neuer Termin</a>
+        <a href="/vertraege/neu" class="revo-fab-item">◻ Neuer Vertrag</a>
+    </div>
+    <button class="revo-fab" onclick="document.getElementById('fabMenu').classList.toggle('open')" aria-label="Schnell-Aktion">+</button>
+    <script>
+        // FAB schließen bei Klick außerhalb
+        document.addEventListener('click', (e) => {
+            const fm = document.getElementById('fabMenu');
+            const btn = document.querySelector('.revo-fab');
+            if (!fm) return;
+            if (!fm.contains(e.target) && e.target !== btn) fm.classList.remove('open');
+        });
+    </script>
+    {% endif %}
 </body>
 </html>
