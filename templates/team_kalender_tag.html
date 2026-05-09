@@ -244,7 +244,11 @@ function renderEvents() {
         if (e.attendees && e.attendees.length) {
             attHtml = '<span class="event-attendees">';
             e.attendees.slice(0, 4).forEach(a => {
-                attHtml += `<span class="att-dot" style="background:${a.color}" title="${a.name}">${a.name[0]}</span>`;
+                if (a.photo) {
+                    attHtml += `<span class="att-dot" style="background:url(${a.photo}) center/cover;" title="${a.name}"></span>`;
+                } else {
+                    attHtml += `<span class="att-dot" style="background:${a.color}" title="${a.name}">${a.name[0]}</span>`;
+                }
             });
             if (e.attendees.length > 4) attHtml += `<span class="att-dot" style="background:#94a3b8">+${e.attendees.length - 4}</span>`;
             attHtml += '</span>';

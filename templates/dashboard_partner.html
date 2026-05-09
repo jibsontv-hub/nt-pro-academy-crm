@@ -15,7 +15,7 @@
         <!-- Animierte Avatar-Figur (echtes Foto + lebendige Animation) -->
         <div class="ntcoach-avatar" style="width:84px;height:84px;flex-shrink:0;position:relative;animation:ntcoachSway 6s ease-in-out infinite">
             <div style="position:absolute;inset:0;border-radius:50%;overflow:hidden;box-shadow:0 8px 24px rgba(212,168,67,0.5),0 0 0 3px #d4a843;animation:ntcoachBreathe 4s ease-in-out infinite">
-                <img src="/static/icons/coach-avatar-200.jpg?v=1" alt="NTcoach" style="width:100%;height:100%;object-fit:cover;display:block">
+                <img src="{{ user_photo if user_photo else '/static/icons/coach-avatar-200.jpg?v=1' }}" alt="NTcoach" style="width:100%;height:100%;object-fit:cover;display:block">
                 <!-- Augen-Blinzel-Overlay (sehr subtil, dunkler Streifen kurz) -->
                 <div style="position:absolute;left:0;right:0;top:38%;height:8%;background:linear-gradient(180deg,transparent,rgba(50,30,15,0.55),transparent);opacity:0;animation:ntcoachBlink 5.7s ease-in-out infinite;pointer-events:none"></div>
                 <!-- Schein-Highlight (wandert für lebendigen Eindruck) -->
@@ -372,7 +372,13 @@
 <div class="revo-list">
     {% for m in direct_team[:5] %}
     <a href="/partner/{{ m.id }}" class="revo-item">
+        {% if m.photo_path %}
+        <div class="revo-item-ic" style="overflow:hidden;padding:0">
+            <img src="{{ m.photo_path }}" alt="{{ m.name }}" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        {% else %}
         <div class="revo-item-ic">{{ m.name[:2]|upper }}</div>
+        {% endif %}
         <div style="flex:1;min-width:0">
             <div class="revo-item-name">{{ m.name }}</div>
             <div class="revo-item-sub">{{ m.career.short }} · {{ "{:,.0f}".format(m.einheiten).replace(",", ".") }} EH · {{ m.vertraege }} Verträge</div>

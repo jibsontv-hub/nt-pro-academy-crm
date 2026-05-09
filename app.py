@@ -2261,14 +2261,16 @@ def inject_career():
             except Exception:
                 ctx['inactive_alert'] = []
             cache_set(cache_key, ctx, ttl=60)
-        # Sprachpräferenz aus DB (für Tour-Voice + Datei-Auswahl)
+        # Sprachpräferenz + Foto aus DB
         try:
             db = get_db()
-            row = db.execute('SELECT language FROM users WHERE id=?', (current_user.id,)).fetchone()
+            row = db.execute('SELECT language, photo_path FROM users WHERE id=?', (current_user.id,)).fetchone()
             db.close()
             ctx['user_lang'] = (row['language'] if row and row['language'] else 'de')
+            ctx['user_photo'] = (row['photo_path'] if row and row['photo_path'] else None)
         except Exception:
             ctx['user_lang'] = 'de'
+            ctx['user_photo'] = None
         return ctx
     return {'user_lang': 'de'}
 
@@ -3142,6 +3144,7 @@ def init_db():
             ('language', "TEXT DEFAULT 'de'"),
             ('initial_eh', "REAL DEFAULT 0"),
             ('catchup_done', "INTEGER DEFAULT 0"),
+            ('photo_path', "TEXT"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -3394,9 +3397,42 @@ def get_coach_actions(user_id, max_actions=5):
     direct_count = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (user_id,)).fetchone()['c']
     week_abschluss = db.execute("SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status='abgeschlossen' AND date(abschluss_date) >= date('now','-7 days')", (user_id,)).fetchone()['c']
 
+    # Karriere-Stufe ermitteln für Starter-spezifische Tipps
+    user_row = db.execute('SELECT manual_career_level, parent_id FROM users WHERE id=?', (user_id,)).fetchone()
+    is_starter = user_row and (user_row['manual_career_level'] or 1) <= 1
+    upline_id = user_row['parent_id'] if user_row else None
+
     growth_tips = []
+    # STARTER-ROUTINE (höhere Priorität für Stufe 1)
+    if is_starter:
+        # 1) Tägliche 5 Anrufe aus Namensliste
+        called_today = db.execute(
+            "SELECT COUNT(*) as c FROM leads WHERE owner_id=? AND date(kontaktiert_at)=date('now')",
+            (user_id,)).fetchone()['c']
+        if called_today < 5 and namensliste_size > 0:
+            growth_tips.append({'icon': '☎', 'priority': 'high',
+                                'title': f'5 Anrufe heute (du hast {called_today})',
+                                'detail': 'Stufe 1 = jeden Tag 5 Personen aus der Namensliste anrufen',
+                                'action_label': 'Liste öffnen', 'action_url': '/namensliste'})
+        # 2) Upline kontaktieren wenn 3+ Tage kein Login mit Upline-Aktivität
+        if upline_id:
+            up_row = db.execute('SELECT name FROM users WHERE id=?', (upline_id,)).fetchone()
+            up_name = up_row['name'] if up_row else 'deine Upline'
+            growth_tips.append({'icon': '⬢', 'priority': 'high',
+                                'title': f'{up_name} anrufen',
+                                'detail': 'Tagesplanung + offene Fragen mit deiner Upline durchgehen',
+                                'action_label': 'Upline', 'action_url': f'/partner/{upline_id}'})
+        # 3) Mindestens 1 Termin heute
+        today_term_planned = db.execute("SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date)=date('now')",
+                                         (user_id,)).fetchone()['c']
+        if today_term_planned == 0:
+            growth_tips.append({'icon': '◷', 'priority': 'high',
+                                'title': 'Mindestens 1 Termin heute',
+                                'detail': 'Auch wenn klein — jeder Tag ohne Termin = verlorener Tag',
+                                'action_label': '+ Termin', 'action_url': '/termine/neu'})
+
     if namensliste_size < 50:
-        growth_tips.append({'icon': '📒', 'priority': 'medium',
+        growth_tips.append({'icon': '◎', 'priority': 'medium',
                             'title': 'Namensliste ausbauen',
                             'detail': f'Nur {namensliste_size} Kontakte — Ziel: 100+ für stabile Pipeline',
                             'action_label': '+ Hinzufügen', 'action_url': '/namensliste/neu'})
@@ -3473,9 +3509,10 @@ def get_team_calendar_data(root_user_id, year, month):
     db = get_db()
     ids = [root_user_id] + get_all_descendants(root_user_id)
     placeholders = ','.join('?' * len(ids))
-    members = db.execute(f'SELECT id, name FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
+    members = db.execute(f'SELECT id, name, photo_path FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
     color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}
-    members_list = [{'id': m['id'], 'name': m['name'], 'color': color_map[m['id']]} for m in members]
+    photo_map = {m['id']: m['photo_path'] for m in members}
+    members_list = [{'id': m['id'], 'name': m['name'], 'color': color_map[m['id']], 'photo': photo_map.get(m['id'])} for m in members]
 
     # Termine im Monat (etwas grosszügig für Wochen-Übergreifende Anzeige)
     start_date = f"{year:04d}-{month:02d}-01"
@@ -5884,6 +5921,72 @@ def struktur():
     return render_template('struktur.html', trees=trees, all_levels=CAREER_LEVELS)
 
 
+@app.route('/profil/photo', methods=['POST'])
+@login_required
+def profil_photo_upload():
+    """Profil-Foto hochladen (max 4 MB, wird quadratisch gecroppt + als JPEG gespeichert)."""
+    if 'photo' not in request.files:
+        flash('Kein Foto ausgewählt', 'error')
+        return redirect(url_for('profil'))
+    f = request.files['photo']
+    if not f or not f.filename:
+        flash('Kein Foto ausgewählt', 'error')
+        return redirect(url_for('profil'))
+    # Größen-Check (max 4 MB)
+    f.seek(0, 2)
+    size = f.tell()
+    f.seek(0)
+    if size > 4 * 1024 * 1024:
+        flash('Datei zu groß (max 4 MB)', 'error')
+        return redirect(url_for('profil'))
+    try:
+        from PIL import Image
+        img = Image.open(f.stream)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        # Quadratisch croppen (zentriert, leicht nach oben für Kopf)
+        w, h = img.size
+        side = min(w, h)
+        left = (w - side) // 2
+        top = max(0, (h - side) // 2 - int(side * 0.05))
+        img = img.crop((left, top, left + side, top + side))
+        # In 2 Größen speichern
+        out_dir = os.path.join(app.root_path, 'static', 'avatars')
+        os.makedirs(out_dir, exist_ok=True)
+        fname = f'user-{current_user.id}.jpg'
+        img.resize((400, 400), Image.LANCZOS).save(os.path.join(out_dir, fname), 'JPEG', quality=88, optimize=True)
+        img.resize((96, 96), Image.LANCZOS).save(os.path.join(out_dir, f'user-{current_user.id}-96.jpg'), 'JPEG', quality=88, optimize=True)
+        rel = f'/static/avatars/{fname}'
+        db = get_db()
+        db.execute('UPDATE users SET photo_path=? WHERE id=?', (rel, current_user.id))
+        db.commit()
+        db.close()
+        cache_invalidate('ctx:')
+        flash('Foto hochgeladen!', 'success')
+    except ImportError:
+        flash('Foto-Modul nicht installiert (PIL fehlt)', 'error')
+    except Exception as e:
+        flash(f'Foto-Fehler: {str(e)[:100]}', 'error')
+    return redirect(url_for('profil'))
+
+
+@app.route('/profil/photo/delete', methods=['POST'])
+@login_required
+def profil_photo_delete():
+    db = get_db()
+    db.execute('UPDATE users SET photo_path=NULL WHERE id=?', (current_user.id,))
+    db.commit()
+    db.close()
+    # Datei löschen (best effort)
+    for s in ['', '-96']:
+        p = os.path.join(app.root_path, 'static', 'avatars', f'user-{current_user.id}{s}.jpg')
+        try: os.remove(p)
+        except Exception: pass
+    cache_invalidate('ctx:')
+    flash('Foto gelöscht', 'success')
+    return redirect(url_for('profil'))
+
+
 @app.route('/onboarding/catchup', methods=['GET', 'POST'])
 @login_required
 def onboarding_catchup():
@@ -6044,9 +6147,10 @@ def team_kalender_tag(datestr):
     db = get_db()
     ids = [root['id']] + get_all_descendants(root['id'])
     placeholders = ','.join('?' * len(ids))
-    members = db.execute(f'SELECT id, name FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
+    members = db.execute(f'SELECT id, name, photo_path FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
     color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}
-    members_list = [{'id': m['id'], 'name': m['name'], 'color': color_map[m['id']]} for m in members]
+    photo_map = {m['id']: m['photo_path'] for m in members}
+    members_list = [{'id': m['id'], 'name': m['name'], 'color': color_map[m['id']], 'photo': photo_map.get(m['id'])} for m in members]
 
     appts = db.execute(f'''SELECT a.*, u.name as owner_name FROM appointments a
                             JOIN users u ON a.owner_id=u.id
