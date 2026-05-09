@@ -11,9 +11,11 @@
     <div style="position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,67,0.25) 0%,transparent 70%);pointer-events:none"></div>
     <div style="position:relative;z-index:1;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap">
         <div class="ntcoach-avatar" style="width:78px;height:78px;flex-shrink:0;position:relative">
-            <div style="position:absolute;inset:0;border-radius:50%;background:linear-gradient(135deg,#d4a843,#f0c970);box-shadow:0 8px 24px rgba(212,168,67,0.4);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:#0f1c3f;letter-spacing:-1px;animation:ntcoachBob 3s ease-in-out infinite">NT</div>
-            <div style="position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(212,168,67,0.3);animation:ntcoachPulse 2s ease-out infinite"></div>
-            <div style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;border-radius:50%;background:#34d399;border:3px solid #0f1c3f;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff">●</div>
+            <div style="position:absolute;inset:0;border-radius:50%;overflow:hidden;box-shadow:0 8px 24px rgba(212,168,67,0.45),0 0 0 3px #d4a843;animation:ntcoachBob 3s ease-in-out infinite">
+                <img src="/static/icons/coach-avatar-200.jpg?v=1" alt="NTcoach" style="width:100%;height:100%;object-fit:cover;display:block">
+            </div>
+            <div style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(212,168,67,0.4);animation:ntcoachPulse 2s ease-out infinite;pointer-events:none"></div>
+            <div style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;border-radius:50%;background:#34d399;border:3px solid #0f1c3f;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;z-index:2">●</div>
         </div>
         <div style="flex:1;min-width:200px">
             <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">🤖 NTcoach · {{ greeting.greeting if greeting else 'Hallo Boss!' }}</div>
