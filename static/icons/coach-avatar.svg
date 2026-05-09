@@ -87,25 +87,36 @@
   <ellipse cx="100" cy="92" rx="32" ry="38" fill="url(#skin)"/>
   <ellipse cx="100" cy="92" rx="32" ry="38" fill="url(#skinShade)"/>
 
-  <!-- 💇 VOLLE HAARE — Quiff-Style mit Volumen oben -->
-  <!-- Hauptmasse Haare -->
-  <path d="M 64 88
-           C 60 65, 70 45, 100 42
-           C 130 45, 140 65, 136 88
-           L 134 78
-           C 132 65, 125 58, 100 56
-           C 75 58, 68 65, 66 78 Z" fill="url(#hairGrad)"/>
-  <!-- Quiff-Höhe oben (Volumen) -->
-  <path d="M 78 50 C 90 38, 110 38, 122 50 L 122 60 C 115 50, 100 48, 92 52 C 84 50, 80 55, 78 60 Z" fill="url(#hairGrad)"/>
-  <!-- Welle / Pony nach rechts gekämmt -->
-  <path d="M 88 56 Q 100 50, 118 60 Q 110 70, 100 68 Q 92 70, 88 56 Z" fill="#0a0604" opacity="0.5"/>
-  <!-- Seite links: Fade nach unten -->
-  <path d="M 64 80 Q 66 95, 72 100 L 72 90 Q 66 88, 64 80 Z" fill="url(#hairGrad)"/>
-  <!-- Seite rechts: Fade -->
-  <path d="M 136 80 Q 134 95, 128 100 L 128 90 Q 134 88, 136 80 Z" fill="url(#hairGrad)"/>
-  <!-- Strähnen-Highlights -->
-  <path d="M 84 48 Q 92 42, 100 44" stroke="#5a3a26" stroke-width="0.8" fill="none" opacity="0.4"/>
-  <path d="M 100 44 Q 110 42, 118 50" stroke="#5a3a26" stroke-width="0.8" fill="none" opacity="0.4"/>
+  <!-- ✂ BUZZ CUT — sehr kurze Haare, eng am Kopf -->
+  <!-- Haar-Schicht: folgt der Kopfform, nur ~3px dick oben -->
+  <path d="M 70 60
+           C 70 55, 130 55, 130 60
+           C 132 75, 132 82, 130 86
+           L 128 80
+           C 126 72, 120 70, 100 68
+           C 80 70, 74 72, 72 80
+           L 70 86
+           C 68 82, 68 75, 70 60 Z" fill="url(#hairGrad)"/>
+  <!-- Subtile Hairline (Stirn-Kontur) -->
+  <path d="M 75 75 Q 100 68, 125 75" stroke="#0a0604" stroke-width="0.6" fill="none" opacity="0.4"/>
+  <!-- Textur-Punkte (Buzz-Cut-Stippling für Realismus) -->
+  <g fill="#0a0604" opacity="0.6">
+    <circle cx="78" cy="68" r="0.5"/>
+    <circle cx="84" cy="63" r="0.5"/>
+    <circle cx="92" cy="60" r="0.5"/>
+    <circle cx="100" cy="59" r="0.5"/>
+    <circle cx="108" cy="60" r="0.5"/>
+    <circle cx="116" cy="63" r="0.5"/>
+    <circle cx="122" cy="68" r="0.5"/>
+    <circle cx="80" cy="74" r="0.4"/>
+    <circle cx="120" cy="74" r="0.4"/>
+    <circle cx="88" cy="66" r="0.4"/>
+    <circle cx="112" cy="66" r="0.4"/>
+    <circle cx="96" cy="63" r="0.4"/>
+    <circle cx="104" cy="63" r="0.4"/>
+  </g>
+  <!-- Subtile Schattenlinie wo Haar trifft auf Stirn (Hairline) -->
+  <path d="M 72 78 Q 100 72, 128 78" stroke="#0a0604" stroke-width="0.4" fill="none" opacity="0.3"/>
 
   <!-- BART -->
   <path d="M 72 100 C 72 124, 80 138, 100 142 C 120 138, 128 124, 128 100 C 124 110, 116 116, 100 118 C 84 116, 76 110, 72 100 Z" fill="url(#beard)"/>
