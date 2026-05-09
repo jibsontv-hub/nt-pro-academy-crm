@@ -2999,6 +2999,18 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            user_agent TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_used TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS placeholder_structures (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             owner_id INTEGER NOT NULL,
@@ -3846,22 +3858,145 @@ def apple_touch_icon():
                                'apple-touch-icon.png', mimetype='image/png')
 
 
+# === PUSH NOTIFICATIONS (Web Push API + VAPID) ===
+VAPID_PUBLIC = 'BN0i_1u9X1MaVVqO74v5hXbKK8PyHV7QJtjzvuZpSqQV7PZw69Mg1wKWDGckR_XeTEUvbd4zSZfZCR36H47qMac'
+VAPID_PRIVATE = 'xIzBWGWIy96l7zdFSPlJyEKnoOtBTa3zVnGhT1ADp1o'
+VAPID_CONTACT = 'mailto:najib@ntpro.de'
+
+
+def send_push_to_user(user_id, title, body, url='/dashboard', urgent=False, tag=None):
+    """Sendet eine Push-Notification an alle registrierten Geräte des Users.
+    Returns: (sent_count, failed_count)"""
+    try:
+        from pywebpush import webpush, WebPushException
+    except ImportError:
+        return (0, 0)
+    db = get_db()
+    subs = db.execute('SELECT * FROM push_subscriptions WHERE user_id=?', (user_id,)).fetchall()
+    db.close()
+    sent, failed = 0, 0
+    payload = json.dumps({
+        'title': title, 'body': body, 'url': url, 'urgent': urgent,
+        'tag': tag or f'user-{user_id}',
+        'icon': '/static/icons/icon-192.png',
+        'badge': '/static/icons/favicon-32.png',
+    })
+    for sub in subs:
+        try:
+            webpush(
+                subscription_info={
+                    'endpoint': sub['endpoint'],
+                    'keys': {'p256dh': sub['p256dh'], 'auth': sub['auth']},
+                },
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE,
+                vapid_claims={'sub': VAPID_CONTACT},
+            )
+            sent += 1
+        except WebPushException as e:
+            failed += 1
+            # 410 Gone = Subscription invalid → remove from DB
+            if e.response and e.response.status_code in (404, 410):
+                try:
+                    db = get_db()
+                    db.execute('DELETE FROM push_subscriptions WHERE id=?', (sub['id'],))
+                    db.commit()
+                    db.close()
+                except Exception:
+                    pass
+        except Exception:
+            failed += 1
+    return (sent, failed)
+
+
+@app.route('/sw.js')
+def service_worker():
+    """Service Worker MUSS unter root-scope ausgeliefert werden, nicht unter /static/."""
+    from flask import send_from_directory as _sfd
+    resp = _sfd(os.path.join(app.root_path, 'static'), 'sw.js', mimetype='application/javascript')
+    resp.headers['Service-Worker-Allowed'] = '/'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
+@app.route('/api/push/vapid-key')
+def push_vapid_key():
+    return jsonify({'key': VAPID_PUBLIC})
+
+
+@app.route('/api/push/subscribe', methods=['POST'])
+@login_required
+def push_subscribe():
+    data = request.get_json(silent=True) or {}
+    endpoint = data.get('endpoint')
+    keys = data.get('keys', {})
+    p256dh = keys.get('p256dh')
+    auth = keys.get('auth')
+    if not (endpoint and p256dh and auth):
+        return jsonify({'ok': False, 'error': 'invalid'}), 400
+    db = get_db()
+    db.execute('''INSERT OR REPLACE INTO push_subscriptions
+                  (user_id, endpoint, p256dh, auth, user_agent, created_at, last_used)
+                  VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM push_subscriptions WHERE endpoint=?), datetime('now')), datetime('now'))''',
+               (current_user.id, endpoint, p256dh, auth, request.headers.get('User-Agent', '')[:200], endpoint))
+    db.commit()
+    db.close()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/push/unsubscribe', methods=['POST'])
+@login_required
+def push_unsubscribe():
+    data = request.get_json(silent=True) or {}
+    endpoint = data.get('endpoint')
+    if endpoint:
+        db = get_db()
+        db.execute('DELETE FROM push_subscriptions WHERE user_id=? AND endpoint=?',
+                   (current_user.id, endpoint))
+        db.commit()
+        db.close()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/push/test', methods=['POST'])
+@login_required
+def push_test():
+    """Test-Notification an den User selbst."""
+    sent, failed = send_push_to_user(
+        current_user.id,
+        title='🚀 NTcoach Test',
+        body='Push-Notifications funktionieren! Ab jetzt erfährst du alles wichtige direkt.',
+        url='/dashboard',
+    )
+    return jsonify({'ok': True, 'sent': sent, 'failed': failed})
+
+
 @app.route('/manifest.json')
 def web_app_manifest():
     """PWA Manifest — Android Home-Screen + Browser-Hint 'App installieren'."""
     return jsonify({
-        'name': 'NT Pro Academy Control Hub',
+        'name': 'NT Pro Academy',
         'short_name': 'NT Pro',
-        'description': 'Strukturvertrieb-Cockpit für Karriere, Provisionen & Coaching',
+        'description': 'Strukturvertrieb-Cockpit · Karriere, Provisionen & Coaching',
         'start_url': '/dashboard',
+        'scope': '/',
         'display': 'standalone',
+        'display_override': ['standalone', 'minimal-ui'],
         'orientation': 'portrait',
         'theme_color': '#0f1c3f',
         'background_color': '#0a0e1a',
+        'lang': 'de',
+        'dir': 'ltr',
+        'categories': ['business', 'productivity', 'finance'],
         'icons': [
-            {'src': '/static/icons/icon-192.png', 'sizes': '192x192', 'type': 'image/png'},
-            {'src': '/static/icons/icon-512.png', 'sizes': '512x512', 'type': 'image/png'},
+            {'src': '/static/icons/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any maskable'},
+            {'src': '/static/icons/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any maskable'},
             {'src': '/static/icons/apple-touch-icon.png', 'sizes': '180x180', 'type': 'image/png'},
+        ],
+        'shortcuts': [
+            {'name': 'Dashboard', 'url': '/dashboard', 'icons': [{'src': '/static/icons/icon-192.png', 'sizes': '192x192'}]},
+            {'name': 'NTcoach', 'url': '/assistent', 'icons': [{'src': '/static/icons/icon-192.png', 'sizes': '192x192'}]},
+            {'name': 'Tagesaufgaben', 'url': '/aufgaben', 'icons': [{'src': '/static/icons/icon-192.png', 'sizes': '192x192'}]},
         ],
     })
 
@@ -5007,6 +5142,16 @@ def vertrag_neu():
             log_activity(current_user.id, 'vertrag_abgeschlossen',
                 f'{current_user.name} hat Vertrag „{request.form["client_name"]}" abgeschlossen ({einheiten:.0f} EH)',
                 icon='🎉', color='green')
+            # Push an Upline (falls vorhanden)
+            try:
+                u_row = get_db().execute('SELECT parent_id FROM users WHERE id=?', (current_user.id,)).fetchone()
+                if u_row and u_row['parent_id']:
+                    send_push_to_user(u_row['parent_id'],
+                        title=f'🎉 {current_user.name} hat abgeschlossen!',
+                        body=f'{request.form["client_name"]} · {int(einheiten)} EH',
+                        url='/team', tag='abschluss')
+            except Exception:
+                pass
         else:
             log_activity(current_user.id, 'vertrag_neu',
                 f'{current_user.name} hat neuen Vertrag „{request.form["client_name"]}" angelegt ({einheiten:.0f} EH)',
@@ -6378,6 +6523,16 @@ def vorschlag():
         db.close()
         log_activity(current_user.id, 'vorschlag_neu', f'{current_user.name} hat einen Vorschlag eingereicht: {titel[:60]}',
                      icon='💡', color='gold')
+        # Push an alle Admins
+        try:
+            admin_rows = get_db().execute("SELECT id FROM users WHERE role='admin' OR is_co_admin=1").fetchall()
+            for a in admin_rows:
+                send_push_to_user(a['id'],
+                    title=f'💡 Neuer Vorschlag von {current_user.name}',
+                    body=f'{titel[:80]} · Kategorie: {kategorie}',
+                    url='/admin/vorschlaege', tag='vorschlag')
+        except Exception:
+            pass
         flash('Danke! Dein Vorschlag ist beim Admin angekommen.', 'success')
         return redirect(url_for('vorschlag'))
 

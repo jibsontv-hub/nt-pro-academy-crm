@@ -1860,6 +1860,105 @@
 
     {% block scripts %}{% endblock %}
 
+    {% if current_user.is_authenticated %}
+    <!-- 🚀 PWA: Service Worker + Install-Prompt + Push -->
+    <div id="ntproInstallBanner" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:11000;background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border-radius:18px;padding:14px 18px;box-shadow:0 12px 40px rgba(0,0,0,0.4);max-width:520px;width:calc(100% - 28px);border:1px solid rgba(212,168,67,0.4)">
+        <div style="display:flex;align-items:center;gap:14px">
+            <div style="font-size:28px">📲</div>
+            <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:800">App installieren</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px">NT Pro auf dem Home-Screen — schneller Zugriff + Push-Notifications</div>
+            </div>
+            <button onclick="ntproInstall()" style="background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border:none;padding:9px 16px;border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap">Installieren</button>
+            <button onclick="ntproDismissInstall()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:20px;cursor:pointer;padding:0 4px">×</button>
+        </div>
+    </div>
+    <script>
+        // === Service Worker Registration ===
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(reg => { console.log('[NTpro] SW registered'); })
+                    .catch(err => console.warn('[NTpro] SW failed', err));
+            });
+        }
+
+        // === Install-Prompt ===
+        let _ntproInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            _ntproInstallPrompt = e;
+            try {
+                if (localStorage.getItem('ntpro-install-dismissed') === '1') return;
+                if (matchMedia('(display-mode: standalone)').matches) return; // schon installiert
+                setTimeout(() => {
+                    const b = document.getElementById('ntproInstallBanner');
+                    if (b) b.style.display = 'block';
+                }, 3000);
+            } catch (e) {}
+        });
+        window.ntproInstall = async function() {
+            if (!_ntproInstallPrompt) return;
+            const result = await _ntproInstallPrompt.prompt();
+            _ntproInstallPrompt = null;
+            document.getElementById('ntproInstallBanner').style.display = 'none';
+            if (result.outcome === 'accepted') {
+                try { localStorage.setItem('ntpro-installed', '1'); } catch(e){}
+                // Nach Installation: Push-Permission anfragen
+                setTimeout(() => ntproRequestPush(), 1500);
+            }
+        };
+        window.ntproDismissInstall = function() {
+            try { localStorage.setItem('ntpro-install-dismissed', '1'); } catch(e){}
+            document.getElementById('ntproInstallBanner').style.display = 'none';
+        };
+
+        // === Push-Notifications ===
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const raw = window.atob(base64);
+            const out = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; ++i) out[i] = raw.charCodeAt(i);
+            return out;
+        }
+        window.ntproRequestPush = async function() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                alert('Dein Browser unterstützt keine Push-Notifications.');
+                return;
+            }
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') {
+                alert('Push-Notifications wurden blockiert. Du kannst sie in den Browser-Einstellungen wieder aktivieren.');
+                return;
+            }
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                const keyResp = await fetch('/api/push/vapid-key');
+                const { key } = await keyResp.json();
+                let sub = await reg.pushManager.getSubscription();
+                if (!sub) {
+                    sub = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(key),
+                    });
+                }
+                await fetch('/api/push/subscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(sub.toJSON()),
+                });
+                // Test-Push direkt schicken
+                await fetch('/api/push/test', { method: 'POST' });
+                alert('✅ Push-Notifications aktiviert! Du müsstest gleich eine Test-Nachricht bekommen.');
+            } catch (e) {
+                console.error(e);
+                alert('Fehler beim Aktivieren: ' + (e.message || e));
+            }
+        };
+    </script>
+    {% endif %}
+
     <!-- 📱 MOBILE BOTTOM-NAV (nur < 1100px) -->
     {% if current_user.is_authenticated %}
     <nav class="revo-botnav">
