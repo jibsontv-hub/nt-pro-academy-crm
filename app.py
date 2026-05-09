@@ -2966,6 +2966,17 @@ def init_db():
             FOREIGN KEY (task_id) REFERENCES daily_tasks(id)
         );
 
+        CREATE TABLE IF NOT EXISTS personal_todos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            done INTEGER DEFAULT 0,
+            done_at TEXT,
+            datum TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS activity_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -5047,10 +5058,51 @@ def aufgaben():
         GROUP BY ut.datum ORDER BY ut.datum DESC
     ''', (current_user.id,)).fetchall()
 
+    # Eigene Todos für heute
+    personal = db.execute('SELECT * FROM personal_todos WHERE user_id=? AND datum=? ORDER BY done, id',
+                          (current_user.id, today)).fetchall()
     db.close()
     return render_template('aufgaben.html',
         tasks=tasks, user_status=user_status, today=today, career=user_career,
-        history=history)
+        history=history, personal_todos=personal)
+
+
+@app.route('/aufgaben/eigene/neu', methods=['POST'])
+@login_required
+def personal_todo_create():
+    title = (request.form.get('title') or '').strip()
+    if not title or len(title) > 200:
+        return redirect(url_for('aufgaben'))
+    db = get_db()
+    db.execute('INSERT INTO personal_todos (user_id, title, datum) VALUES (?, ?, ?)',
+               (current_user.id, title, date.today().strftime('%Y-%m-%d')))
+    db.commit()
+    db.close()
+    return redirect(url_for('aufgaben'))
+
+
+@app.route('/aufgaben/eigene/<int:tid>/toggle', methods=['POST'])
+@login_required
+def personal_todo_toggle(tid):
+    db = get_db()
+    row = db.execute('SELECT * FROM personal_todos WHERE id=? AND user_id=?', (tid, current_user.id)).fetchone()
+    if row:
+        new_done = 0 if row['done'] else 1
+        db.execute('UPDATE personal_todos SET done=?, done_at=CASE WHEN ?=1 THEN datetime("now") ELSE NULL END WHERE id=?',
+                   (new_done, new_done, tid))
+        db.commit()
+    db.close()
+    return redirect(url_for('aufgaben'))
+
+
+@app.route('/aufgaben/eigene/<int:tid>/delete', methods=['POST'])
+@login_required
+def personal_todo_delete(tid):
+    db = get_db()
+    db.execute('DELETE FROM personal_todos WHERE id=? AND user_id=?', (tid, current_user.id))
+    db.commit()
+    db.close()
+    return redirect(url_for('aufgaben'))
 
 
 @app.route('/aufgaben/toggle', methods=['POST'])

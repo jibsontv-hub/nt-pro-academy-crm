@@ -33,6 +33,35 @@
     {% endif %}
 </div>
 
+<!-- ✏️ Eigene Todos -->
+<div class="card">
+    <div class="card-title">✏️ Meine eigenen Todos</div>
+    <form method="POST" action="/aufgaben/eigene/neu" style="display:flex;gap:8px;margin-bottom:14px">
+        <input type="text" name="title" placeholder="Was willst du heute schaffen?" required maxlength="200" style="flex:1">
+        <button type="submit" class="btn btn-primary">+ Hinzufügen</button>
+    </form>
+    {% if personal_todos %}
+    <div style="display:flex;flex-direction:column;gap:8px">
+        {% for p in personal_todos %}
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:{% if p.done %}var(--green-soft){% else %}var(--bg-2){% endif %};border:1px solid {% if p.done %}var(--green){% else %}var(--border){% endif %};border-radius:12px">
+            <form method="POST" action="/aufgaben/eigene/{{ p.id }}/toggle" style="margin:0">
+                <button type="submit" style="all:unset;cursor:pointer;width:24px;height:24px;border-radius:6px;border:1.5px solid {% if p.done %}var(--green){% else %}var(--border-strong){% endif %};background:{% if p.done %}var(--green){% else %}transparent{% endif %};display:flex;align-items:center;justify-content:center">
+                    {% if p.done %}<span style="color:#fff;font-size:14px;font-weight:800">✓</span>{% endif %}
+                </button>
+            </form>
+            <div style="flex:1;font-size:14px;font-weight:600;color:var(--text);{% if p.done %}text-decoration:line-through;opacity:0.6{% endif %}">{{ p.title }}</div>
+            {% if p.done and p.done_at %}<div style="font-size:11px;color:var(--green);font-weight:700">{{ p.done_at[11:16] }}</div>{% endif %}
+            <form method="POST" action="/aufgaben/eigene/{{ p.id }}/delete" style="margin:0" onsubmit="return confirm('Wirklich löschen?')">
+                <button type="submit" style="all:unset;cursor:pointer;color:var(--text-soft);font-size:18px;padding:0 4px" title="Löschen">×</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:18px;color:var(--text-soft);font-size:13px">Noch keine eigenen Todos für heute. Schreib oben rein was ansteht.</div>
+    {% endif %}
+</div>
+
 <!-- Aufgabenliste -->
 <div class="card">
     <div class="card-title">Aufgaben heute ({{ today }})</div>

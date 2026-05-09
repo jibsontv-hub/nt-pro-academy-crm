@@ -99,14 +99,29 @@
            🟪 REVOLUT-STYLE COMPONENTS (Phase 1)
            =========================================================== */
 
-        /* Hero "Balance" Card — die große Zahl die alles erschlägt */
+        /* Hero "Balance" Card — Gold-getönt, premium */
         .revo-hero {
-            background: linear-gradient(135deg, var(--bg-2), var(--surface));
-            border: 1px solid var(--border);
+            background: linear-gradient(135deg, color-mix(in srgb, #d4a843 6%, var(--surface)), var(--surface));
+            border: 1px solid color-mix(in srgb, #d4a843 30%, var(--border));
             border-radius: 24px;
             padding: 32px 28px;
             position: relative; overflow: hidden;
             margin-bottom: 16px;
+        }
+        .revo-hero.navy {
+            background: linear-gradient(135deg, #0f1c3f, #1a2c5b) !important;
+            border: none !important; color: #fff;
+        }
+        .revo-hero.navy .revo-hero-label { color: rgba(255,255,255,0.6) !important; }
+        .revo-hero.navy .revo-hero-value { color: #d4a843 !important; }
+        .revo-hero.navy .revo-hero-sub { color: rgba(255,255,255,0.7) !important; }
+        .revo-hero.red {
+            background: linear-gradient(135deg, color-mix(in srgb, #ef4444 8%, var(--surface)), var(--surface));
+            border-color: color-mix(in srgb, #ef4444 30%, var(--border));
+        }
+        .revo-hero.green {
+            background: linear-gradient(135deg, color-mix(in srgb, #10b981 8%, var(--surface)), var(--surface));
+            border-color: color-mix(in srgb, #10b981 30%, var(--border));
         }
         .revo-hero::before {
             content: ''; position: absolute; top: -40%; right: -20%;
@@ -136,6 +151,13 @@
         .revo-chip-v { font-size: 24px; font-weight: 700; letter-spacing: -0.6px; color: var(--text); margin-top: 4px; }
         .revo-chip-d { font-size: 11px; color: var(--green); font-weight: 700; margin-top: 2px; }
         .revo-chip-d.neg { color: var(--red); }
+        /* Farbige Chips Varianten */
+        .revo-chip.gold { border-color: color-mix(in srgb, #d4a843 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #d4a843 6%, var(--surface))); }
+        .revo-chip.blue { border-color: color-mix(in srgb, #3b82f6 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #3b82f6 6%, var(--surface))); }
+        .revo-chip.green { border-color: color-mix(in srgb, #10b981 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #10b981 6%, var(--surface))); }
+        .revo-chip.purple { border-color: color-mix(in srgb, #a855f7 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #a855f7 6%, var(--surface))); }
+        .revo-chip.orange { border-color: color-mix(in srgb, #f59e0b 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #f59e0b 6%, var(--surface))); }
+        .revo-chip.red { border-color: color-mix(in srgb, #ef4444 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #ef4444 6%, var(--surface))); }
 
         /* Quick-Action-Bar (4 Tiles mit Round-Icon) */
         .revo-quick-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0 24px; }
@@ -242,11 +264,11 @@
         .revo-bn .lab { display: block; font-size: 9.5px; font-weight: 700; margin-top: 2px; letter-spacing: 0.2px; }
         .revo-bn.active { color: var(--gold); }
         .revo-bn.active .lab { color: var(--gold); }
-        @media (min-width: 1100px) { .revo-botnav { display: none; } }
+        /* Bottom-Nav komplett aus — User will Sidebar via Hamburger */
+        .revo-botnav { display: none !important; }
+        .revo-fab, .revo-fab-menu { display: none !important; }
         @media (max-width: 1099px) {
-            .content { padding-bottom: 90px !important; }
-            .sidebar { display: none !important; }
-            .main { margin-left: 0 !important; }
+            .content { padding-bottom: 24px !important; }
         }
 
         /* ===========================================================
@@ -269,14 +291,27 @@
             border: none !important;
         }
 
-        /* KPI-Cards: weniger schreierisch, mehr Banking-Vibe */
+        /* KPI-Cards: rund + farbige Akzent-Bar (Banking + Persönlichkeit) */
         .kpi-card {
             border-radius: 18px !important;
-            padding: 18px 20px !important;
+            padding: 18px 20px 18px 22px !important;
             border: 1px solid var(--border) !important;
             box-shadow: none !important;
+            position: relative !important;
+            overflow: hidden;
         }
-        .kpi-card::before { display: none !important; }
+        .kpi-card::before {
+            content: ''; position: absolute; left: 0; top: 16px; bottom: 16px;
+            width: 4px; background: var(--accent, var(--gold));
+            border-radius: 0 4px 4px 0; display: block !important;
+        }
+        .kpi-card.gold { --accent: #d4a843; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #d4a843 8%, var(--surface))) !important; }
+        .kpi-card.blue { --accent: #3b82f6; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #3b82f6 8%, var(--surface))) !important; }
+        .kpi-card.green { --accent: #10b981; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #10b981 8%, var(--surface))) !important; }
+        .kpi-card.purple { --accent: #a855f7; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #a855f7 8%, var(--surface))) !important; }
+        .kpi-card.orange { --accent: #f59e0b; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #f59e0b 8%, var(--surface))) !important; }
+        .kpi-card.navy { --accent: #0f1c3f; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #0f1c3f 8%, var(--surface))) !important; }
+        .kpi-card.red { --accent: #ef4444; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #ef4444 8%, var(--surface))) !important; }
         .kpi-label {
             font-size: 11px; color: var(--text-muted) !important;
             text-transform: none !important; letter-spacing: 0.2px !important;
