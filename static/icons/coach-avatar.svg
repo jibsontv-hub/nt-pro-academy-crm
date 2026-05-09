@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Hintergrund: weiches Navy mit warmem Glow -->
+    <!-- Hintergrund -->
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1e3a6e"/>
       <stop offset="100%" stop-color="#0a1530"/>
@@ -11,7 +11,7 @@
       <stop offset="60%" stop-color="#d4a843" stop-opacity="0"/>
     </radialGradient>
 
-    <!-- Haut mit weichem Volumen -->
+    <!-- Haut -->
     <radialGradient id="skin" cx="40%" cy="35%" r="80%">
       <stop offset="0%" stop-color="#7a533a"/>
       <stop offset="60%" stop-color="#5a3a26"/>
@@ -22,7 +22,7 @@
       <stop offset="100%" stop-color="#000" stop-opacity="0.18"/>
     </linearGradient>
 
-    <!-- Anzug: nobles Beige mit Glanz -->
+    <!-- Anzug -->
     <linearGradient id="suit" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#e8c997"/>
       <stop offset="50%" stop-color="#c4a571"/>
@@ -33,16 +33,30 @@
       <stop offset="100%" stop-color="#1f1408"/>
     </linearGradient>
 
-    <!-- Bart mit subtiler Struktur -->
+    <!-- Bart + Haare -->
+    <radialGradient id="hairGrad" cx="50%" cy="20%" r="80%">
+      <stop offset="0%" stop-color="#3a2818"/>
+      <stop offset="100%" stop-color="#1a0f08"/>
+    </radialGradient>
     <radialGradient id="beard" cx="50%" cy="40%" r="70%">
       <stop offset="0%" stop-color="#2a1810"/>
       <stop offset="100%" stop-color="#1a0f08"/>
     </radialGradient>
 
-    <!-- Hair gradient -->
-    <linearGradient id="hair" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#2a1810"/>
-      <stop offset="100%" stop-color="#1a0f08"/>
+    <!-- Silberne Brillen-Fassung (Cartier-Look) -->
+    <linearGradient id="silver" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f4f5f7"/>
+      <stop offset="50%" stop-color="#c8ccd1"/>
+      <stop offset="100%" stop-color="#8b8f96"/>
+    </linearGradient>
+    <linearGradient id="silverShine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Glas leicht getönt -->
+    <linearGradient id="glass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a2c5b" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#0f1c3f" stop-opacity="0.08"/>
     </linearGradient>
   </defs>
 
@@ -50,28 +64,18 @@
   <circle cx="100" cy="100" r="100" fill="url(#bg)"/>
   <circle cx="100" cy="100" r="100" fill="url(#warmGlow)"/>
 
-  <!-- SUIT BODY (clipped to circle) -->
+  <!-- SUIT -->
   <g clip-path="circle(100px at 100px 100px)">
-    <!-- Shoulders + Body -->
     <path d="M 5 215 C 5 165, 35 152, 65 144 L 75 142 L 100 168 L 125 142 L 135 144 C 165 152, 195 165, 195 215 Z" fill="url(#suit)"/>
-
-    <!-- Linke Lapel (Revers) -->
     <path d="M 75 142 L 100 168 L 92 215 L 60 215 L 65 175 Z" fill="url(#lapel)"/>
-    <!-- Rechte Lapel -->
     <path d="M 125 142 L 100 168 L 108 215 L 140 215 L 135 175 Z" fill="url(#lapel)"/>
-
-    <!-- Hemd-Kragen (V-Form) -->
     <path d="M 88 145 L 100 175 L 112 145 L 108 142 L 100 152 L 92 142 Z" fill="#fafafa"/>
     <path d="M 92 142 L 100 152 L 108 142 L 105 145 L 100 158 L 95 145 Z" fill="#e8e8ec"/>
-
-    <!-- Krawatte (gold-braun) -->
+    <!-- Krawatte -->
     <path d="M 96 152 L 104 152 L 108 215 L 92 215 Z" fill="#5d3818"/>
     <path d="M 96 152 L 104 152 L 104 162 L 96 162 Z" fill="#7a4f25"/>
     <path d="M 96 162 L 104 162 L 105 168 L 95 168 Z" fill="#3a2410"/>
-    <!-- Krawatten-Glanz -->
     <path d="M 98 165 L 102 165 L 104 215 L 100 215 Z" fill="#8b6a3a" opacity="0.4"/>
-
-    <!-- Pocket Square (Einstecktuch) -->
     <path d="M 138 165 L 152 165 L 152 175 L 138 175 Z" fill="#5d3818" opacity="0.6"/>
   </g>
 
@@ -79,56 +83,80 @@
   <ellipse cx="100" cy="142" rx="20" ry="13" fill="url(#skin)"/>
   <ellipse cx="100" cy="142" rx="20" ry="13" fill="url(#skinShade)"/>
 
-  <!-- KOPF (egg-shape, leicht oval) -->
+  <!-- KOPF -->
   <ellipse cx="100" cy="92" rx="32" ry="38" fill="url(#skin)"/>
-  <!-- Schatten-Seite rechts (für Tiefe) -->
   <ellipse cx="100" cy="92" rx="32" ry="38" fill="url(#skinShade)"/>
 
-  <!-- HAARE (moderner High-Fade) -->
-  <path d="M 68 76 C 68 52, 132 52, 132 76 L 130 88 C 128 78, 72 78, 70 88 Z" fill="url(#hair)"/>
-  <!-- Kurze Stirn-Konturen -->
-  <path d="M 72 86 Q 78 82, 88 82" stroke="#0a0604" stroke-width="0.6" fill="none" opacity="0.6"/>
-  <path d="M 112 82 Q 122 82, 128 86" stroke="#0a0604" stroke-width="0.6" fill="none" opacity="0.6"/>
+  <!-- 💇 VOLLE HAARE — Quiff-Style mit Volumen oben -->
+  <!-- Hauptmasse Haare -->
+  <path d="M 64 88
+           C 60 65, 70 45, 100 42
+           C 130 45, 140 65, 136 88
+           L 134 78
+           C 132 65, 125 58, 100 56
+           C 75 58, 68 65, 66 78 Z" fill="url(#hairGrad)"/>
+  <!-- Quiff-Höhe oben (Volumen) -->
+  <path d="M 78 50 C 90 38, 110 38, 122 50 L 122 60 C 115 50, 100 48, 92 52 C 84 50, 80 55, 78 60 Z" fill="url(#hairGrad)"/>
+  <!-- Welle / Pony nach rechts gekämmt -->
+  <path d="M 88 56 Q 100 50, 118 60 Q 110 70, 100 68 Q 92 70, 88 56 Z" fill="#0a0604" opacity="0.5"/>
+  <!-- Seite links: Fade nach unten -->
+  <path d="M 64 80 Q 66 95, 72 100 L 72 90 Q 66 88, 64 80 Z" fill="url(#hairGrad)"/>
+  <!-- Seite rechts: Fade -->
+  <path d="M 136 80 Q 134 95, 128 100 L 128 90 Q 134 88, 136 80 Z" fill="url(#hairGrad)"/>
+  <!-- Strähnen-Highlights -->
+  <path d="M 84 48 Q 92 42, 100 44" stroke="#5a3a26" stroke-width="0.8" fill="none" opacity="0.4"/>
+  <path d="M 100 44 Q 110 42, 118 50" stroke="#5a3a26" stroke-width="0.8" fill="none" opacity="0.4"/>
 
-  <!-- BART (definierter Form, voller) -->
+  <!-- BART -->
   <path d="M 72 100 C 72 124, 80 138, 100 142 C 120 138, 128 124, 128 100 C 124 110, 116 116, 100 118 C 84 116, 76 110, 72 100 Z" fill="url(#beard)"/>
-  <!-- Bart-Kanten betonen -->
   <path d="M 72 100 Q 78 122, 90 138" stroke="#0a0604" stroke-width="0.5" fill="none" opacity="0.5"/>
   <path d="M 128 100 Q 122 122, 110 138" stroke="#0a0604" stroke-width="0.5" fill="none" opacity="0.5"/>
-
-  <!-- Mustache -->
   <path d="M 86 99 Q 92 95, 100 96 Q 108 95, 114 99 L 113 102 Q 100 100, 87 102 Z" fill="url(#beard)"/>
 
-  <!-- AUGENBRAUEN (markant, moderner Schwung) -->
+  <!-- AUGENBRAUEN (jetzt teilweise unter Brille) -->
   <path d="M 78 78 Q 86 73, 95 78" stroke="#0a0604" stroke-width="3" fill="none" stroke-linecap="round"/>
   <path d="M 105 78 Q 114 73, 122 78" stroke="#0a0604" stroke-width="3" fill="none" stroke-linecap="round"/>
 
-  <!-- AUGEN — Almond-shape, mehr Charakter -->
-  <path d="M 80 87 Q 86 84, 92 87 Q 86 92, 80 87 Z" fill="white"/>
-  <path d="M 108 87 Q 114 84, 120 87 Q 114 92, 108 87 Z" fill="white"/>
-  <!-- Iris -->
-  <circle cx="86" cy="88" r="2.6" fill="#3a1f10"/>
-  <circle cx="114" cy="88" r="2.6" fill="#3a1f10"/>
-  <!-- Pupille -->
-  <circle cx="86" cy="88" r="1.4" fill="#0a0604"/>
-  <circle cx="114" cy="88" r="1.4" fill="#0a0604"/>
-  <!-- Augen-Glanz (Catchlight) -->
-  <circle cx="84.5" cy="87" r="0.9" fill="white"/>
-  <circle cx="112.5" cy="87" r="0.9" fill="white"/>
+  <!-- 🕶 CARTIER-BRILLE (rechteckig, silber) -->
+  <!-- Linkes Glas (Hintergrund) -->
+  <rect x="73" y="83" width="22" height="14" rx="2" fill="url(#glass)"/>
+  <!-- Rechtes Glas -->
+  <rect x="105" y="83" width="22" height="14" rx="2" fill="url(#glass)"/>
 
-  <!-- NASE (subtiler Schatten + Lichtkante) -->
-  <path d="M 100 92 Q 99 100, 100 106 L 104 105 Q 103 100, 102 95 Z" fill="#3a2515" opacity="0.4"/>
-  <path d="M 100 95 L 100 104" stroke="#fff" stroke-width="0.8" opacity="0.15"/>
+  <!-- AUGEN (durch die Brille sichtbar) -->
+  <path d="M 80 89 Q 86 86, 92 89 Q 86 93, 80 89 Z" fill="white"/>
+  <path d="M 108 89 Q 114 86, 120 89 Q 114 93, 108 89 Z" fill="white"/>
+  <circle cx="86" cy="90" r="2.4" fill="#3a1f10"/>
+  <circle cx="114" cy="90" r="2.4" fill="#3a1f10"/>
+  <circle cx="86" cy="90" r="1.3" fill="#0a0604"/>
+  <circle cx="114" cy="90" r="1.3" fill="#0a0604"/>
+  <circle cx="84.7" cy="89" r="0.8" fill="white"/>
+  <circle cx="112.7" cy="89" r="0.8" fill="white"/>
 
-  <!-- LIPPEN (mit Lächeln) -->
+  <!-- Brille — Fassung außen (silbern) -->
+  <rect x="73" y="83" width="22" height="14" rx="2" fill="none" stroke="url(#silver)" stroke-width="1.6"/>
+  <rect x="105" y="83" width="22" height="14" rx="2" fill="none" stroke="url(#silver)" stroke-width="1.6"/>
+  <!-- Steg (Bridge) -->
+  <path d="M 95 88 L 105 88" stroke="url(#silver)" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- Bügel-Anschlüsse außen -->
+  <path d="M 73 88 L 68 87" stroke="url(#silver)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M 127 88 L 132 87" stroke="url(#silver)" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- Glanz-Reflexion auf Glas (oben links) -->
+  <rect x="75" y="84" width="6" height="3" rx="1" fill="url(#silverShine)"/>
+  <rect x="107" y="84" width="6" height="3" rx="1" fill="url(#silverShine)"/>
+  <!-- Cartier-Schraube (kleines Gold-Detail an Bügel) -->
+  <circle cx="71" cy="87" r="0.9" fill="#d4a843"/>
+  <circle cx="129" cy="87" r="0.9" fill="#d4a843"/>
+
+  <!-- NASE -->
+  <path d="M 100 95 Q 99 102, 100 107 L 103 107 Q 102 102, 102 98 Z" fill="#3a2515" opacity="0.4"/>
+  <path d="M 100 99 L 100 105" stroke="#fff" stroke-width="0.6" opacity="0.15"/>
+
+  <!-- LIPPEN mit Lächeln -->
   <path d="M 92 110 Q 100 113, 108 110" stroke="#5a3a26" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-  <!-- Untere Lippen-Highlight -->
   <path d="M 94 112 Q 100 114, 106 112" stroke="#7a4f30" stroke-width="0.8" fill="none" opacity="0.5"/>
 
-  <!-- Wangen-Highlights für Lebendigkeit -->
+  <!-- Highlights -->
   <ellipse cx="78" cy="98" rx="6" ry="4" fill="#fff" opacity="0.05"/>
   <ellipse cx="122" cy="98" rx="6" ry="4" fill="#fff" opacity="0.05"/>
-
-  <!-- Stirn-Highlight -->
-  <ellipse cx="100" cy="78" rx="20" ry="6" fill="#fff" opacity="0.08"/>
 </svg>
