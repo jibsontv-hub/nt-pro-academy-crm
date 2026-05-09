@@ -1916,6 +1916,42 @@
             document.getElementById('ntproInstallBanner').style.display = 'none';
         };
 
+        // === Auto-Push-Prompt (1× pro User, dann nie wieder bis zurückgesetzt) ===
+        window.addEventListener('load', () => {
+            try {
+                if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+                if (Notification.permission !== 'default') return; // schon erlaubt oder geblockt
+                if (localStorage.getItem('ntpro-push-prompted') === '1') return;
+                if (window.location.pathname !== '/dashboard') return;
+                // 4 Sek warten damit Page settled, dann Banner
+                setTimeout(() => {
+                    const banner = document.createElement('div');
+                    banner.id = 'pushAutoBanner';
+                    banner.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:11500;max-width:520px;width:calc(100% - 28px);background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,0.4);border:1px solid rgba(212,168,67,0.4);animation:slideDownBanner 0.4s cubic-bezier(0.16,1,0.3,1)';
+                    banner.innerHTML = `
+                        <div style="display:flex;align-items:flex-start;gap:14px">
+                            <div style="font-size:28px;flex-shrink:0">🔔</div>
+                            <div style="flex:1;min-width:0">
+                                <div style="font-size:14px;font-weight:800;margin-bottom:4px">Push-Notifications aktivieren?</div>
+                                <div style="font-size:12px;color:rgba(255,255,255,0.8);line-height:1.5">Bekomme sofort Bescheid: 🎂 Geburtstage, ⚠ inaktive Partner, ⏰ Eingabeschluss, 🎉 Abschlüsse.</div>
+                                <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+                                    <button onclick="ntproRequestPush();ntproDismissAutoPush()" style="background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border:none;padding:9px 16px;border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit">Ja, aktivieren</button>
+                                    <button onclick="ntproDismissAutoPush()" style="background:rgba(255,255,255,0.1);color:#fff;border:1px solid rgba(255,255,255,0.2);padding:9px 14px;border-radius:10px;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit">Später</button>
+                                </div>
+                            </div>
+                            <button onclick="ntproDismissAutoPush()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:20px;cursor:pointer;padding:0 4px">×</button>
+                        </div>
+                    `;
+                    document.body.appendChild(banner);
+                }, 4000);
+            } catch(e) {}
+        });
+        window.ntproDismissAutoPush = function() {
+            try { localStorage.setItem('ntpro-push-prompted', '1'); } catch(e){}
+            const b = document.getElementById('pushAutoBanner');
+            if (b) { b.style.opacity = '0'; setTimeout(() => b.remove(), 250); }
+        };
+
         // === Push-Notifications ===
         function urlBase64ToUint8Array(base64String) {
             const padding = '='.repeat((4 - base64String.length % 4) % 4);

@@ -335,31 +335,71 @@
 </div>
 
 <!-- 👥 Mein Team — mit Aktivitäts-Status -->
-<!-- 🌐 STRUKTUR-VERTEILUNG (alle Stufen meiner Downline) -->
-{% if structure_dist and structure_dist | selectattr('count', 'gt', 0) | list | length > 0 %}
-<div class="revo-section-h">🌐 Meine Struktur · {{ structure_dist | sum(attribute='count') }} Partner</div>
-<div class="card">
+<!-- 🌐 STRANG-STATUS — Bin ich auf Kurs für die nächste Stufe? -->
+{% if strang_status and strang_status.next_level and strang_status.needed_strands > 0 %}
+<div class="revo-section-h">⬢ Stränge · auf Kurs für {{ strang_status.next_level.short }}?</div>
+<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#d4a843 5%,var(--surface)));border:1px solid color-mix(in srgb,#d4a843 25%,var(--border))">
+    <!-- Hero-Status -->
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px">
+        <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;flex-shrink:0">
+            {{ strang_status.qualified_count }}/{{ strang_status.needed_strands }}
+        </div>
+        <div style="flex:1;min-width:200px">
+            <div style="font-size:18px;font-weight:800;color:var(--text);letter-spacing:-0.3px">
+                {% if strang_status.missing_count == 0 %}
+                ★ Strang-Anforderung erfüllt!
+                {% elif strang_status.missing_count == 1 %}
+                Du brauchst noch <span style="color:var(--gold)">1 weiteren qualifizierten Strang</span>
+                {% else %}
+                Du brauchst noch <span style="color:var(--gold)">{{ strang_status.missing_count }} qualifizierte Stränge</span>
+                {% endif %}
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px;line-height:1.5">
+                Für {{ strang_status.next_level.name }} ({{ strang_status.next_level.short }}) brauchst du <strong>{{ strang_status.needed_strands }} Stränge mit je {{ "{:,.0f}".format(strang_status.min_per_strang).replace(",", ".") }} EH</strong>.
+                {% if strang_status.total_strands < strang_status.needed_strands %}
+                <br>
+                <span style="color:var(--orange);font-weight:700">Du hast erst {{ strang_status.total_strands }} Strang{% if strang_status.total_strands != 1 %}/Stränge{% endif %} — neue Partner werben!</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if strang_status.total_strands < strang_status.needed_strands %}
+        <a href="/team/neu" class="btn btn-primary">+ Partner werben</a>
+        {% endif %}
+    </div>
+
+    <!-- Liste aller Stränge -->
+    {% if strang_status.all_straenge %}
     <div style="display:flex;flex-direction:column;gap:10px">
-        {% for s in structure_dist %}
-        {% if s.count > 0 %}
-        <div style="display:flex;align-items:center;gap:14px">
-            <div style="width:48px;height:48px;border-radius:12px;background:{{ s.color }}22;border:1.5px solid {{ s.color }};color:{{ s.color }};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0">{{ s.short }}</div>
+        {% for s in strang_status.all_straenge %}
+        <a href="/partner/{{ s.id }}/profil" style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--bg-2);border:1px solid {% if s.status == 'qualified' %}#34d399{% else %}var(--border){% endif %};border-radius:12px;text-decoration:none;color:var(--text);transition:all 0.15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='var(--bg-2)'">
+            <div style="width:40px;height:40px;border-radius:50%;background:{% if s.status == 'qualified' %}var(--green){% else %}var(--bg){% endif %};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">
+                {% if s.status == 'qualified' %}✓{% else %}{{ loop.index }}{% endif %}
+            </div>
             <div style="flex:1;min-width:0">
                 <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px">
                     <div>
-                        <strong style="font-size:14px;color:var(--text)">{{ s.name }}</strong>
-                        <span style="font-size:11px;color:var(--text-muted);margin-left:6px">{{ s.count }} Partner · {{ "{:,.0f}".format(s.eh_total).replace(",", ".") }} EH</span>
+                        <strong style="font-size:14px">{{ s.name }}</strong>
+                        {% if s.status == 'qualified' %}
+                        <span style="font-size:10px;background:var(--green-soft);color:var(--green);padding:2px 8px;border-radius:99px;margin-left:6px;font-weight:800">QUALIFIZIERT</span>
+                        {% else %}
+                        <span style="font-size:11px;color:var(--text-muted);margin-left:4px">noch {{ "{:,.0f}".format(s.eh_to_qualify).replace(",", ".") }} EH</span>
+                        {% endif %}
                     </div>
-                    <strong style="font-size:14px;color:{{ s.color }}">{{ s.pct }}%</strong>
+                    <strong style="font-size:14px;color:{% if s.status == 'qualified' %}var(--green){% else %}var(--gold){% endif %}">{{ "{:,.0f}".format(s.eh).replace(",", ".") }} EH</strong>
                 </div>
-                <div style="background:var(--bg-2);border-radius:99px;height:6px;overflow:hidden">
-                    <div style="height:100%;width:{{ s.pct }}%;background:{{ s.color }};border-radius:99px;transition:width 0.6s"></div>
+                <div style="background:var(--bg);border-radius:99px;height:6px;overflow:hidden">
+                    <div style="height:100%;width:{{ s.pct if s.pct < 100 else 100 }}%;background:{% if s.status == 'qualified' %}var(--green){% else %}linear-gradient(90deg,var(--gold),var(--gold-light)){% endif %};border-radius:99px;transition:width 0.6s"></div>
                 </div>
             </div>
-        </div>
-        {% endif %}
+        </a>
         {% endfor %}
     </div>
+    {% else %}
+    <div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;background:var(--bg-2);border-radius:12px">
+        Du hast noch keine direkten Partner.<br>
+        <a href="/team/neu" style="color:var(--gold);font-weight:700;text-decoration:none">+ Erste Person werben →</a>
+    </div>
+    {% endif %}
 </div>
 {% endif %}
 

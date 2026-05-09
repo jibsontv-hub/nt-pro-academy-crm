@@ -3325,6 +3325,64 @@ def get_commissions_for_user(user_id, only_own=False):
     }
 
 
+def get_strang_status(user_id):
+    """Strang-Status für Dashboard: bin ich auf Kurs für die nächste Stufe?
+    Returns: dict mit straenge, qualifizierte, benötigt, next_level."""
+    db = get_db()
+    user = db.execute('SELECT manual_career_level FROM users WHERE id=? AND active=1', (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return None
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    own_eh += db.execute('SELECT COALESCE(initial_eh,0) as s FROM users WHERE id=?', (user_id,)).fetchone()['s']
+    current_career = career_for_row(user['manual_career_level'], own_eh)
+    next_lvl = next((c for c in CAREER_LEVELS if c['level'] == current_career['level'] + 1), None)
+    straenge = get_straenge_for_user(user_id, db=db)
+
+    # Strang-Anforderung der nächsten Stufe finden
+    needed_strands = 0
+    min_per_strang = 0
+    if next_lvl and 'rules' in next_lvl:
+        for rule in next_lvl['rules']:
+            if rule.get('type') == 'qualified_straenge':
+                needed_strands = rule.get('min_count', 0)
+                min_per_strang = rule.get('min_per_strang', 0)
+                break
+
+    # Welche meiner aktuellen Stränge sind schon qualifiziert?
+    qualified = []
+    in_progress = []
+    for s in straenge:
+        if min_per_strang > 0 and s['eh'] >= min_per_strang:
+            s['status'] = 'qualified'
+            s['pct'] = 100
+            qualified.append(s)
+        elif min_per_strang > 0:
+            s['status'] = 'progress'
+            s['pct'] = round(s['eh'] / min_per_strang * 100, 1)
+            s['eh_to_qualify'] = max(0, min_per_strang - s['eh'])
+            in_progress.append(s)
+        else:
+            s['status'] = 'na'
+            s['pct'] = 100
+            qualified.append(s)
+
+    missing_strands = max(0, needed_strands - len(qualified))
+    db.close()
+    return {
+        'next_level': next_lvl,
+        'current_level': current_career,
+        'needed_strands': needed_strands,
+        'min_per_strang': min_per_strang,
+        'qualified_count': len(qualified),
+        'missing_count': missing_strands,
+        'total_strands': len(straenge),
+        'qualified': qualified,
+        'in_progress': in_progress,
+        'all_straenge': straenge,
+    }
+
+
 def get_structure_distribution(user_id, scope='all'):
     """Wie verteilt sich mein Team über die Karriere-Stufen?
     Returns: list of {short, name, color, count, pct, eh_total}"""
@@ -5096,6 +5154,7 @@ def dashboard():
         coach_actions = get_coach_actions(current_user.id, max_actions=5)
         structure_dist = get_structure_distribution(current_user.id, scope='all')
         forecast_30d = get_quoten_forecast(current_user.id, days=30)
+        strang_status = get_strang_status(current_user.id)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -5115,7 +5174,7 @@ def dashboard():
             ki_recs=ki_recs, forecast=forecast, anomalies=anomalies,
             ai_briefing=ai_briefing, deadlines=deadlines,
             coach_actions=coach_actions, structure_dist=structure_dist,
-            forecast_30d=forecast_30d
+            forecast_30d=forecast_30d, strang_status=strang_status
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -5197,6 +5256,7 @@ def dashboard():
         coach_actions = get_coach_actions(current_user.id, max_actions=5)
         structure_dist = get_structure_distribution(current_user.id, scope='all')
         forecast_30d = get_quoten_forecast(current_user.id, days=30)
+        strang_status = get_strang_status(current_user.id)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -5210,7 +5270,7 @@ def dashboard():
             period_stats=period_stats, career_criteria=career_criteria,
             ki_recs=ki_recs, forecast=forecast, ai_briefing=ai_briefing,
             deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist,
-            forecast_30d=forecast_30d
+            forecast_30d=forecast_30d, strang_status=strang_status
         )
 
 
