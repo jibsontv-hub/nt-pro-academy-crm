@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Design-Mockups – NT Pro Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', sans-serif; background: #f4f5f7; color: #111; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+/* ==== TAB-NAV ==== */
+.topnav { position: sticky; top: 0; z-index: 100; background: #fff; border-bottom: 1px solid #e5e7eb; padding: 14px 24px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.topnav h1 { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; margin-right: 24px; }
+.tab { padding: 8px 16px; background: #f3f4f6; color: #6b7280; border: 1px solid transparent; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 13px; transition: all 0.15s; font-family: inherit; }
+.tab:hover { color: #111; background: #e5e7eb; }
+.tab.active { background: #0f1c3f; color: #d4a843; border-color: #0f1c3f; }
+.note { margin-left: auto; font-size: 11px; color: #9ca3af; }
+
+.scene { display: none; padding: 32px 24px; min-height: 100vh; }
+.scene.active { display: block; }
+
+/* ============================================== */
+/* OPTION 1: LINEAR / NOTION                       */
+/* ============================================== */
+.s1 { background: #fafafa; color: #111; }
+.s1 .grid { display: grid; grid-template-columns: 240px 1fr; gap: 0; max-width: 1200px; margin: 0 auto; min-height: 600px; background: #fff; border: 1px solid #ebeef2; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.s1 .sidebar { background: #fafafa; border-right: 1px solid #ebeef2; padding: 18px 12px; }
+.s1 .brand { font-size: 14px; font-weight: 800; letter-spacing: -0.3px; padding: 4px 10px 18px; }
+.s1 .nav-grp { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; margin: 16px 10px 6px; }
+.s1 .nav-i { padding: 7px 10px; font-size: 13px; color: #475569; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+.s1 .nav-i:hover { background: #f1f5f9; }
+.s1 .nav-i.act { background: #f1f5f9; color: #111; font-weight: 600; }
+.s1 .nav-i .dot { width: 6px; height: 6px; border-radius: 50%; background: #d4a843; }
+.s1 .main { padding: 32px 36px; }
+.s1 .pt { font-size: 11px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.s1 .h { font-size: 28px; font-weight: 700; letter-spacing: -0.7px; margin: 6px 0 28px; }
+.s1 .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-bottom: 32px; }
+.s1 .kpi { padding: 0; }
+.s1 .kpi-l { font-size: 12px; color: #6b7280; font-weight: 500; }
+.s1 .kpi-v { font-size: 28px; font-weight: 700; color: #111; letter-spacing: -0.5px; margin: 4px 0; font-family: 'JetBrains Mono', monospace; }
+.s1 .kpi-d { font-size: 11px; color: #10b981; font-weight: 600; }
+.s1 .sec-h { font-size: 14px; font-weight: 700; margin: 0 0 14px; }
+.s1 table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.s1 th { text-align: left; padding: 8px 0; font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; border-bottom: 1px solid #ebeef2; }
+.s1 td { padding: 12px 0; border-bottom: 1px solid #f3f4f6; }
+.s1 td .pill { background: #f1f5f9; color: #111; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.s1 .accent { color: #d4a843; font-weight: 700; }
+
+/* ============================================== */
+/* OPTION 2: PREMIUM BANKING (Revolut/N26)         */
+/* ============================================== */
+.s2 { background: #0a0a0f; color: #fff; min-height: 100vh; }
+.s2 .wrap { max-width: 460px; margin: 0 auto; padding: 24px 18px 100px; position: relative; }
+.s2 .top { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+.s2 .av { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #d4a843, #b8902e); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #0a0a0f; font-size: 14px; }
+.s2 .top-name { font-size: 13px; opacity: 0.6; }
+.s2 .top-greet { font-size: 18px; font-weight: 700; }
+.s2 .balance { background: linear-gradient(135deg, #1e1e2a, #2a2a3a); border-radius: 24px; padding: 28px 24px; margin-bottom: 16px; position: relative; overflow: hidden; }
+.s2 .balance::before { content: ''; position: absolute; top: -40%; right: -20%; width: 250px; height: 250px; background: radial-gradient(circle, rgba(212,168,67,0.3) 0%, transparent 70%); }
+.s2 .balance-l { font-size: 12px; opacity: 0.6; font-weight: 500; position: relative; }
+.s2 .balance-v { font-size: 48px; font-weight: 800; letter-spacing: -2px; line-height: 1.1; margin: 6px 0 4px; position: relative; }
+.s2 .balance-s { font-size: 13px; opacity: 0.7; font-weight: 500; position: relative; }
+.s2 .stripe { display: flex; gap: 8px; margin-bottom: 16px; }
+.s2 .chip { flex: 1; background: #1e1e2a; border-radius: 18px; padding: 16px 14px; border: 1px solid #2a2a3a; }
+.s2 .chip-l { font-size: 11px; opacity: 0.6; font-weight: 500; margin-bottom: 4px; }
+.s2 .chip-v { font-size: 22px; font-weight: 700; letter-spacing: -0.6px; }
+.s2 .chip-d { font-size: 10px; color: #34d399; font-weight: 700; margin-top: 2px; }
+.s2 .quick-bar { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin: 16px 0 24px; }
+.s2 .q { background: #1e1e2a; border-radius: 16px; padding: 14px 8px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.s2 .q:hover { background: #2a2a3a; transform: translateY(-2px); }
+.s2 .q-i { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #d4a843, #b8902e); margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #0a0a0f; font-weight: 800; }
+.s2 .q-l { font-size: 10px; opacity: 0.7; font-weight: 600; }
+.s2 .list-h { font-size: 13px; font-weight: 700; opacity: 0.7; margin: 14px 0 10px; }
+.s2 .row-i { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid #1e1e2a; }
+.s2 .row-i .ic { width: 40px; height: 40px; border-radius: 50%; background: #1e1e2a; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.s2 .row-name { font-weight: 600; font-size: 14px; }
+.s2 .row-sub { font-size: 11px; opacity: 0.6; margin-top: 2px; }
+.s2 .row-amt { margin-left: auto; font-weight: 700; color: #d4a843; font-size: 14px; }
+.s2 .botnav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10,10,15,0.9); backdrop-filter: blur(16px); border-top: 1px solid #1e1e2a; display: flex; padding: 8px 12px; justify-content: space-around; z-index: 50; }
+.s2 .bn { padding: 8px 14px; opacity: 0.5; font-size: 18px; cursor: pointer; }
+.s2 .bn.act { opacity: 1; color: #d4a843; }
+.s2 .fab { position: fixed; bottom: 80px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, #d4a843, #f0c970); color: #0a0a0f; font-size: 26px; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(212,168,67,0.4); cursor: pointer; }
+
+/* ============================================== */
+/* OPTION 3: STRIPE / BLOOMBERG (Pro-Tool)         */
+/* ============================================== */
+.s3 { background: #f6f7f9; color: #0a0c10; }
+.s3 .grid { display: grid; grid-template-columns: 200px 1fr 280px; gap: 0; min-height: 600px; max-width: 1400px; margin: 0 auto; background: #fff; border: 1px solid #e0e3e8; border-radius: 6px; overflow: hidden; }
+.s3 .sb { background: #f8f9fb; border-right: 1px solid #e0e3e8; padding: 12px 8px; font-size: 12px; }
+.s3 .sb-grp { padding: 10px 10px 4px; font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 800; }
+.s3 .sb-i { padding: 6px 10px; color: #374151; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; }
+.s3 .sb-i:hover { background: #eff1f5; }
+.s3 .sb-i.act { background: #0a0c10; color: #fff; }
+.s3 .sb-i .badge { background: #fee2e2; color: #991b1b; padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 800; }
+.s3 .main { padding: 16px 18px; overflow-x: auto; }
+.s3 .topbar { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #e0e3e8; margin-bottom: 14px; }
+.s3 .crumb { font-size: 12px; color: #6b7280; }
+.s3 .crumb strong { color: #0a0c10; }
+.s3 .search { margin-left: auto; padding: 6px 12px; background: #f3f4f6; border: 1px solid #e0e3e8; border-radius: 4px; font-size: 12px; color: #6b7280; min-width: 200px; font-family: inherit; }
+.s3 .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: #e0e3e8; border: 1px solid #e0e3e8; border-radius: 4px; margin-bottom: 14px; }
+.s3 .k { background: #fff; padding: 14px; }
+.s3 .k-l { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+.s3 .k-v { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #0a0c10; margin-top: 2px; }
+.s3 .k-d { font-size: 11px; color: #16a34a; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+.s3 .k-d.neg { color: #dc2626; }
+.s3 .spark { height: 24px; margin-top: 6px; }
+.s3 .table-wrap { background: #fff; border: 1px solid #e0e3e8; border-radius: 4px; }
+.s3 .th-bar { display: flex; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e0e3e8; }
+.s3 .th-t { font-size: 13px; font-weight: 700; }
+.s3 .th-f { margin-left: auto; display: flex; gap: 6px; }
+.s3 .th-f button { font-size: 11px; padding: 4px 10px; background: #f3f4f6; border: 1px solid #e0e3e8; border-radius: 3px; font-family: inherit; cursor: pointer; }
+.s3 table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+.s3 th { text-align: left; padding: 6px 14px; background: #fafbfc; font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; border-bottom: 1px solid #e0e3e8; font-family: 'Inter', sans-serif; }
+.s3 td { padding: 8px 14px; border-bottom: 1px solid #f3f4f6; }
+.s3 td.num { text-align: right; }
+.s3 td .pill { background: #ecfdf5; color: #047857; padding: 1px 7px; border-radius: 3px; font-size: 10px; font-weight: 700; font-family: 'Inter', sans-serif; }
+.s3 td .pill.warn { background: #fef3c7; color: #92400e; }
+.s3 .right { background: #fafbfc; border-left: 1px solid #e0e3e8; padding: 14px; font-size: 12px; }
+.s3 .right h3 { font-size: 11px; text-transform: uppercase; color: #6b7280; letter-spacing: 0.6px; margin-bottom: 8px; font-weight: 800; }
+.s3 .alert { background: #fef2f2; border: 1px solid #fecaca; border-left: 3px solid #dc2626; border-radius: 3px; padding: 10px 12px; font-size: 12px; margin-bottom: 8px; }
+.s3 .alert b { color: #991b1b; }
+
+/* ============================================== */
+/* OPTION 4: EHRGEIZ-LITE (Apple Style)            */
+/* ============================================== */
+.s4 { background: #fafafa; color: #1d1d1f; min-height: 100vh; }
+.s4 .grid { display: grid; grid-template-columns: 220px 1fr; gap: 0; max-width: 1300px; margin: 0 auto; min-height: 600px; }
+.s4 .sb { padding: 28px 16px; }
+.s4 .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 36px; padding: 0 8px; }
+.s4 .brand-i { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #0f1c3f, #1a2c5b); color: #d4a843; font-weight: 900; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.s4 .brand-n { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; }
+.s4 .brand-s { font-size: 10px; color: #86868b; letter-spacing: 0.5px; text-transform: uppercase; font-weight: 600; }
+.s4 .nav-i { padding: 9px 12px; font-size: 14px; color: #1d1d1f; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; margin-bottom: 1px; font-weight: 500; }
+.s4 .nav-i:hover { background: rgba(0,0,0,0.04); }
+.s4 .nav-i.act { background: #0f1c3f; color: #fff; }
+.s4 .nav-i .ic { width: 18px; opacity: 0.65; }
+.s4 .nav-grp { font-size: 11px; color: #86868b; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 700; margin: 20px 12px 8px; }
+.s4 .main { padding: 56px 64px; max-width: 1000px; }
+.s4 .greet { font-size: 13px; color: #86868b; font-weight: 500; }
+.s4 .name { font-size: 44px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.05; margin: 4px 0 8px; }
+.s4 .name .gold { background: linear-gradient(135deg, #d4a843, #f0c970); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.s4 .sub { font-size: 17px; color: #6e6e73; line-height: 1.5; margin-bottom: 48px; max-width: 540px; }
+.s4 .hero-num { font-size: 80px; font-weight: 800; letter-spacing: -3px; line-height: 1; color: #1d1d1f; }
+.s4 .hero-num .unit { font-size: 24px; color: #86868b; font-weight: 600; letter-spacing: -0.5px; margin-left: 8px; }
+.s4 .hero-cap { font-size: 13px; color: #86868b; font-weight: 500; margin-top: 6px; }
+.s4 .progress { background: #e5e5ea; height: 6px; border-radius: 99px; overflow: hidden; margin: 24px 0 12px; }
+.s4 .progress-fill { height: 100%; background: linear-gradient(90deg, #d4a843, #f0c970); border-radius: 99px; }
+.s4 .next { font-size: 12px; color: #6e6e73; }
+.s4 .next b { color: #1d1d1f; }
+.s4 .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; margin-top: 56px; }
+.s4 .stat { padding: 0; }
+.s4 .stat-l { font-size: 12px; color: #86868b; font-weight: 600; }
+.s4 .stat-v { font-size: 32px; font-weight: 700; letter-spacing: -0.7px; margin: 4px 0; }
+.s4 .stat-d { font-size: 11px; color: #34c759; font-weight: 600; }
+.s4 hr { border: none; border-top: 1px solid #d2d2d7; margin: 56px 0; }
+.s4 .sec-h { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 24px; }
+.s4 .partner { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid #f0f0f0; }
+.s4 .partner:last-child { border-bottom: none; }
+.s4 .pt-av { width: 36px; height: 36px; border-radius: 50%; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #6e6e73; font-size: 13px; }
+.s4 .pt-name { font-weight: 600; font-size: 14px; }
+.s4 .pt-sub { font-size: 12px; color: #86868b; }
+.s4 .pt-eh { margin-left: auto; font-weight: 700; color: #d4a843; }
+.s4 .pt-act { font-size: 11px; padding: 3px 9px; border-radius: 99px; font-weight: 700; }
+.s4 .pt-act.on { background: #ecfdf5; color: #047857; }
+.s4 .pt-act.off { background: #fef2f2; color: #b91c1c; }
+.s4 .cta { margin-top: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 12px 22px; background: #0f1c3f; color: #fff; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="topnav">
+    <h1>🎨 Design-Mockups · NT Pro Academy</h1>
+    <button class="tab active" data-scene="s1">1 · Linear / Notion</button>
+    <button class="tab" data-scene="s2">2 · Banking (Revolut)</button>
+    <button class="tab" data-scene="s3">3 · Stripe / Bloomberg</button>
+    <button class="tab" data-scene="s4">4 · Apple-Style ⭐</button>
+    <span class="note">Klick auf einen Tab — alle zeigen DEN GLEICHEN Inhalt</span>
+</div>
+
+<!-- ===== OPTION 1: LINEAR ===== -->
+<div class="scene s1 active" id="s1">
+    <div class="grid">
+        <div class="sidebar">
+            <div class="brand">NT Pro Academy</div>
+            <div class="nav-i act"><span class="dot"></span>Dashboard</div>
+            <div class="nav-i">Aufgaben</div>
+            <div class="nav-i">Leads</div>
+            <div class="nav-grp">Mein Team</div>
+            <div class="nav-i">Team-Liste</div>
+            <div class="nav-i">Wer ist inaktiv?</div>
+            <div class="nav-grp">Karriere</div>
+            <div class="nav-i">Provisionen</div>
+            <div class="nav-i">Trophäen</div>
+        </div>
+        <div class="main">
+            <div class="pt">Dashboard</div>
+            <div class="h">Guten Abend, Najib</div>
+
+            <div class="row">
+                <div class="kpi">
+                    <div class="kpi-l">Eigene EH</div>
+                    <div class="kpi-v">442</div>
+                    <div class="kpi-d">+12 diese Woche</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-l">Team-EH</div>
+                    <div class="kpi-v">2.847</div>
+                    <div class="kpi-d">+184</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-l">Direkte Partner</div>
+                    <div class="kpi-v">12</div>
+                    <div class="kpi-d">2 inaktiv</div>
+                </div>
+                <div class="kpi">
+                    <div class="kpi-l">Provision</div>
+                    <div class="kpi-v">3.847 €</div>
+                    <div class="kpi-d">Aktueller Monat</div>
+                </div>
+            </div>
+
+            <div class="sec-h">Top Performer</div>
+            <table>
+                <thead><tr><th>#</th><th>Name</th><th>Stufe</th><th>EH</th></tr></thead>
+                <tbody>
+                    <tr><td>1</td><td>Anna Müller</td><td><span class="pill">HREP</span></td><td class="accent">812</td></tr>
+                    <tr><td>2</td><td>Max Schmidt</td><td><span class="pill">LREP</span></td><td class="accent">644</td></tr>
+                    <tr><td>3</td><td>Najib Tchatikpi</td><td><span class="pill">CREP</span></td><td class="accent">442</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ===== OPTION 2: BANKING ===== -->
+<div class="scene s2" id="s2">
+    <div class="wrap">
+        <div class="top">
+            <div class="av">NT</div>
+            <div>
+                <div class="top-name">Guten Abend</div>
+                <div class="top-greet">Najib</div>
+            </div>
+        </div>
+
+        <div class="balance">
+            <div class="balance-l">Provision · Mai 2026</div>
+            <div class="balance-v">3.847 €</div>
+            <div class="balance-s">+12% gegen Vormonat</div>
+        </div>
+
+        <div class="stripe">
+            <div class="chip">
+                <div class="chip-l">Eigen-EH</div>
+                <div class="chip-v">442</div>
+                <div class="chip-d">+12 ↑</div>
+            </div>
+            <div class="chip">
+                <div class="chip-l">Team-EH</div>
+                <div class="chip-v">2.847</div>
+                <div class="chip-d">+184 ↑</div>
+            </div>
+        </div>
+
+        <div class="quick-bar">
+            <div class="q"><div class="q-i">+</div><div class="q-l">Lead</div></div>
+            <div class="q"><div class="q-i">📅</div><div class="q-l">Termin</div></div>
+            <div class="q"><div class="q-i">€</div><div class="q-l">Vertrag</div></div>
+            <div class="q"><div class="q-i">🤖</div><div class="q-l">NTcoach</div></div>
+        </div>
+
+        <div class="list-h">TOP PERFORMER</div>
+        <div class="row-i">
+            <div class="ic">🥇</div>
+            <div><div class="row-name">Anna Müller</div><div class="row-sub">HREP · 12 Verträge</div></div>
+            <div class="row-amt">812 EH</div>
+        </div>
+        <div class="row-i">
+            <div class="ic">🥈</div>
+            <div><div class="row-name">Max Schmidt</div><div class="row-sub">LREP · 8 Verträge</div></div>
+            <div class="row-amt">644 EH</div>
+        </div>
+        <div class="row-i">
+            <div class="ic">🥉</div>
+            <div><div class="row-name">Najib (Du)</div><div class="row-sub">CREP · 6 Verträge</div></div>
+            <div class="row-amt">442 EH</div>
+        </div>
+    </div>
+    <div class="fab">+</div>
+    <div class="botnav">
+        <div class="bn act">▦</div>
+        <div class="bn">◎</div>
+        <div class="bn">◷</div>
+        <div class="bn">👥</div>
+        <div class="bn">⚙</div>
+    </div>
+</div>
+
+<!-- ===== OPTION 3: STRIPE / BLOOMBERG ===== -->
+<div class="scene s3" id="s3">
+    <div class="grid">
+        <div class="sb">
+            <div class="sb-grp">Übersicht</div>
+            <div class="sb-i act">Dashboard</div>
+            <div class="sb-i">KI-Coach <span class="badge">3</span></div>
+            <div class="sb-grp">Tagesgeschäft</div>
+            <div class="sb-i">Aufgaben</div>
+            <div class="sb-i">Leads <span style="color:#9ca3af">42</span></div>
+            <div class="sb-i">Verträge <span style="color:#9ca3af">18</span></div>
+            <div class="sb-i">Termine <span style="color:#9ca3af">7</span></div>
+            <div class="sb-grp">Mein Team</div>
+            <div class="sb-i">Team-Liste</div>
+            <div class="sb-i">Inaktiv <span class="badge">2</span></div>
+            <div class="sb-i">Struktur</div>
+        </div>
+        <div class="main">
+            <div class="topbar">
+                <div class="crumb"><strong>Dashboard</strong> / Übersicht</div>
+                <input class="search" placeholder="Suchen ⌘K">
+            </div>
+            <div class="kpis">
+                <div class="k"><div class="k-l">Eigene EH</div><div class="k-v">442</div><div class="k-d">+12 ▲</div></div>
+                <div class="k"><div class="k-l">Team-EH</div><div class="k-v">2.847</div><div class="k-d">+184 ▲</div></div>
+                <div class="k"><div class="k-l">Verträge</div><div class="k-v">18</div><div class="k-d">+3 ▲</div></div>
+                <div class="k"><div class="k-l">Provision</div><div class="k-v">3.847</div><div class="k-d">+12% ▲</div></div>
+                <div class="k"><div class="k-l">Termine</div><div class="k-v">7</div><div class="k-d neg">-2 ▼</div></div>
+            </div>
+            <div class="table-wrap">
+                <div class="th-bar">
+                    <div class="th-t">Top Performer · KW 19</div>
+                    <div class="th-f">
+                        <button>Filter</button>
+                        <button>Export CSV</button>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>Rang</th><th>Name</th><th>Stufe</th><th class="num">Verträge</th><th class="num">EH</th><th class="num">Δ Vorwoche</th></tr></thead>
+                    <tbody>
+                        <tr><td>1</td><td>Anna Müller</td><td><span class="pill">HREP</span></td><td class="num">12</td><td class="num">812</td><td class="num">+24</td></tr>
+                        <tr><td>2</td><td>Max Schmidt</td><td><span class="pill">LREP</span></td><td class="num">8</td><td class="num">644</td><td class="num">+18</td></tr>
+                        <tr><td>3</td><td>Najib (Du)</td><td><span class="pill warn">CREP</span></td><td class="num">6</td><td class="num">442</td><td class="num">+12</td></tr>
+                        <tr><td>4</td><td>Tom Weber</td><td><span class="pill">REP</span></td><td class="num">4</td><td class="num">288</td><td class="num">+8</td></tr>
+                        <tr><td>5</td><td>Lisa Klein</td><td><span class="pill">REP</span></td><td class="num">3</td><td class="num">156</td><td class="num">+4</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="right">
+            <h3>⚠ Warnungen</h3>
+            <div class="alert"><b>2 Partner inaktiv</b><br>Tom W. (4T), Lisa K. (5T)</div>
+            <div class="alert" style="background:#fffbeb;border-color:#fde68a;border-left-color:#f59e0b"><b>Eingabeschluss</b><br>Mi 04.06 — in 4 Tagen</div>
+            <h3 style="margin-top:18px">📊 Heute</h3>
+            <div style="font-size:11px;color:#6b7280;line-height:1.6">3 Leads angelegt<br>2 Termine geplant<br>1 Vertrag eingetragen</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== OPTION 4: APPLE-STYLE (Empfehlung) ===== -->
+<div class="scene s4" id="s4">
+    <div class="grid">
+        <div class="sb">
+            <div class="brand">
+                <div class="brand-i">NT</div>
+                <div>
+                    <div class="brand-n">NT Pro</div>
+                    <div class="brand-s">Control Hub</div>
+                </div>
+            </div>
+            <div class="nav-i act"><span class="ic">▦</span> Dashboard</div>
+            <div class="nav-i"><span class="ic">🧠</span> KI-Coach</div>
+            <div class="nav-grp">Tagesgeschäft</div>
+            <div class="nav-i"><span class="ic">✓</span> Aufgaben</div>
+            <div class="nav-i"><span class="ic">◎</span> Leads</div>
+            <div class="nav-i"><span class="ic">◻</span> Verträge</div>
+            <div class="nav-i"><span class="ic">◷</span> Termine</div>
+            <div class="nav-grp">Mein Team</div>
+            <div class="nav-i"><span class="ic">◈</span> Team</div>
+            <div class="nav-i"><span class="ic">⚠</span> Inaktiv</div>
+        </div>
+        <div class="main">
+            <div class="greet">Donnerstag, 15. Mai</div>
+            <div class="name">Servus, <span class="gold">Najib</span></div>
+            <div class="sub">Diese Woche +12 EH. Du brauchst noch 158 EH bis zur nächsten Stufe — 4 Termine sollten reichen.</div>
+
+            <div class="hero-num">442<span class="unit">EH</span></div>
+            <div class="hero-cap">Eigene Einheiten · CREP</div>
+
+            <div class="progress"><div class="progress-fill" style="width:75%"></div></div>
+            <div class="next">Noch <b>158 EH</b> bis DREP · ~3 Wochen bei aktuellem Tempo</div>
+
+            <div class="row">
+                <div class="stat">
+                    <div class="stat-l">Team-EH</div>
+                    <div class="stat-v">2.847</div>
+                    <div class="stat-d">+184 diese Woche</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-l">Direkte Partner</div>
+                    <div class="stat-v">12</div>
+                    <div class="stat-d">10 aktiv heute</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-l">Provision Mai</div>
+                    <div class="stat-v">3.847 €</div>
+                    <div class="stat-d">+12% vs April</div>
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="sec-h">Top Performer · diese Woche</div>
+            <div class="partner">
+                <div class="pt-av">AM</div>
+                <div>
+                    <div class="pt-name">Anna Müller</div>
+                    <div class="pt-sub">HREP · 12 Verträge</div>
+                </div>
+                <div class="pt-eh">812 EH</div>
+                <div class="pt-act on">aktiv</div>
+            </div>
+            <div class="partner">
+                <div class="pt-av">MS</div>
+                <div>
+                    <div class="pt-name">Max Schmidt</div>
+                    <div class="pt-sub">LREP · 8 Verträge</div>
+                </div>
+                <div class="pt-eh">644 EH</div>
+                <div class="pt-act on">aktiv</div>
+            </div>
+            <div class="partner">
+                <div class="pt-av">TW</div>
+                <div>
+                    <div class="pt-name">Tom Weber</div>
+                    <div class="pt-sub">REP · 4 Verträge</div>
+                </div>
+                <div class="pt-eh">288 EH</div>
+                <div class="pt-act off">5T inaktiv</div>
+            </div>
+
+            <div class="cta">+ Lead anlegen</div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.scene').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById(b.dataset.scene).classList.add('active');
+}));
+</script>
+</body>
+</html>

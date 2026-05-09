@@ -2291,6 +2291,12 @@ def admin_audit():
 
 
 # === DATENSCHUTZ ===
+@app.route('/mockups')
+def design_mockups():
+    """Design-Vorschau-Seite — 4 Stilrichtungen zur Auswahl."""
+    return render_template('mockups.html')
+
+
 @app.route('/datenschutz')
 def datenschutz():
     """Öffentliche Datenschutz-Seite."""
