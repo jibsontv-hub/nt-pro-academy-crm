@@ -249,6 +249,165 @@
             .main { margin-left: 0 !important; }
         }
 
+        /* ===========================================================
+           🟪 REVOLUT GLOBAL SWEEP — alle existierenden Komponenten
+           bekommen den Revolut-Vibe ohne Templates anzufassen
+           =========================================================== */
+
+        /* Cards: größerer Radius, sanftere Borders, mehr Atem */
+        .card {
+            border-radius: 18px !important;
+            padding: 22px !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: none !important;
+        }
+        .card:hover { transform: none !important; }
+        .card-title {
+            font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px;
+            color: var(--text-muted); font-weight: 700;
+            margin-bottom: 14px;
+            border: none !important;
+        }
+
+        /* KPI-Cards: weniger schreierisch, mehr Banking-Vibe */
+        .kpi-card {
+            border-radius: 18px !important;
+            padding: 18px 20px !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: none !important;
+        }
+        .kpi-card::before { display: none !important; }
+        .kpi-label {
+            font-size: 11px; color: var(--text-muted) !important;
+            text-transform: none !important; letter-spacing: 0.2px !important;
+            font-weight: 600 !important;
+        }
+        .kpi-value {
+            font-size: 32px !important; font-weight: 800 !important;
+            letter-spacing: -1px !important; line-height: 1 !important;
+            margin: 6px 0 4px !important;
+        }
+        .kpi-sub { font-size: 11px; color: var(--text-soft); }
+
+        /* Buttons: rund + premium */
+        .btn {
+            border-radius: 12px !important;
+            padding: 11px 18px !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.1px;
+        }
+        .btn-sm { padding: 8px 14px !important; border-radius: 10px !important; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%) !important;
+            color: #0f1c3f !important;
+            border: none !important;
+            box-shadow: 0 4px 14px rgba(212,168,67,0.25) !important;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(212,168,67,0.35) !important;
+        }
+        .btn-secondary {
+            background: var(--bg-2) !important;
+            border: 1px solid var(--border) !important;
+            color: var(--text) !important;
+        }
+        .btn-secondary:hover { background: var(--surface) !important; border-color: var(--border-strong) !important; }
+        .btn-gold {
+            background: linear-gradient(135deg, var(--gold), var(--gold-light)) !important;
+            color: #0f1c3f !important; border: none !important;
+        }
+
+        /* Inputs/Forms: large, friendly, banking-app feel */
+        input, select, textarea {
+            border-radius: 12px !important;
+            padding: 14px 16px !important;
+            font-size: 15px !important;
+            border: 1px solid var(--border) !important;
+            background: var(--bg-2) !important;
+            box-shadow: none !important;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--gold) !important;
+            background: var(--surface) !important;
+            box-shadow: 0 0 0 4px rgba(212,168,67,0.15) !important;
+        }
+        label {
+            font-size: 12px !important;
+            text-transform: none !important;
+            letter-spacing: 0.1px !important;
+            color: var(--text-muted) !important;
+            font-weight: 600 !important;
+            margin-bottom: 6px !important;
+        }
+
+        /* Tables: cleaner, weniger Borders, mehr Air */
+        table { border-collapse: separate !important; border-spacing: 0 !important; }
+        th {
+            font-size: 10px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.7px !important;
+            color: var(--text-soft) !important;
+            font-weight: 700 !important;
+            padding: 10px 14px !important;
+            border-bottom: 1px solid var(--border) !important;
+        }
+        td {
+            padding: 14px !important;
+            border-bottom: 1px solid var(--border) !important;
+            font-size: 14px !important;
+        }
+        tr:last-child td { border-bottom: none !important; }
+        tr:hover td { background: var(--bg-2) !important; }
+
+        /* Status-Badges: Pill-Stil */
+        .status-badge, .stufe-pill {
+            border-radius: 99px !important;
+            padding: 4px 12px !important;
+            font-size: 11px !important;
+            font-weight: 700 !important;
+        }
+
+        /* Filter-Buttons (z.B. Lead-Filter) */
+        .filter-btn {
+            border-radius: 99px !important;
+            padding: 8px 14px !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+        }
+
+        /* Topbar: cleaner */
+        .topbar {
+            border-bottom: 1px solid var(--border) !important;
+            background: color-mix(in srgb, var(--surface) 92%, transparent) !important;
+            backdrop-filter: blur(20px);
+        }
+        .topbar-title {
+            font-size: 22px !important;
+            letter-spacing: -0.6px !important;
+            font-weight: 800 !important;
+        }
+
+        /* Page-Container Padding optimieren auf Mobile (Revolut hat schmale Seitenränder) */
+        @media (max-width: 768px) {
+            .content { padding: 14px 14px 90px !important; }
+            .card { padding: 18px !important; border-radius: 16px !important; }
+            .kpi-card { padding: 14px 16px !important; }
+            .kpi-value { font-size: 26px !important; }
+            .topbar { padding: 12px 14px !important; }
+            .topbar-title { font-size: 18px !important; }
+            /* Tabellen: dünner padding für Mobile */
+            th { padding: 8px 10px !important; }
+            td { padding: 10px !important; font-size: 13px !important; }
+        }
+
+        /* Grids: konsistente Spacing */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr !important; gap: 12px !important; }
+        }
+
         /* === DARK-MODE CATCH-ALLS für hardcodierte Inline-Styles === */
         [data-theme="dark"] [style*="background:#fff"]:not([style*="rgba"]):not([style*="rgb("]),
         [data-theme="dark"] [style*="background: #fff"]:not([style*="rgba"]):not([style*="rgb("]),
