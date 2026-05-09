@@ -5250,12 +5250,23 @@ def team_neu():
                  'partner', parent_id, new_level, request.form.get('phone', ''),
                  manual_level, pending_level, pending_by, pending_at, 1, initial_eh_val))
             new_user_id = cur.lastrowid
+            # Auto-Recruiting-Tracking: gibt's einen offenen RK-Lead mit gleichem Namen oder gleicher E-Mail?
+            recruited_lead = db.execute('''
+                SELECT id FROM leads
+                WHERE owner_id=? AND liste_typ='rk'
+                  AND status NOT IN ('gewonnen','abgeschlossen','verloren')
+                  AND (LOWER(name)=LOWER(?) OR (email IS NOT NULL AND LOWER(email)=LOWER(?)))
+                LIMIT 1
+            ''', (current_user.id, request.form['name'], email)).fetchone()
+            if recruited_lead:
+                db.execute('UPDATE leads SET status=?, kontaktiert_at=COALESCE(kontaktiert_at, datetime("now")), updated_at=datetime("now") WHERE id=?',
+                           ('gewonnen', recruited_lead['id']))
             db.commit()
             db.close()
             stufe_short = next((cl['short'] for cl in CAREER_LEVELS if cl['level'] == manual_level), 'REP')
             log_activity(new_user_id, 'partner_neu',
                 f'{request.form["name"]} ist neuer Geschäftspartner ({stufe_short})',
-                icon='👥', color='green')
+                icon='●', color='green')
 
             # Welcome-E-Mail
             mail_status = ''
@@ -5273,6 +5284,76 @@ def team_neu():
             return redirect(url_for('team'))
     db.close()
     return render_template('team_form.html', member=None, possible_parents=possible_parents, all_levels=CAREER_LEVELS)
+
+
+@app.route('/partner/<int:uid>/profil')
+@login_required
+def partner_profil(uid):
+    """Vollständiges LinkedIn-Style Profil eines Partners."""
+    db = get_db()
+    target = db.execute('SELECT * FROM users WHERE id=? AND active=1', (uid,)).fetchone()
+    if not target:
+        db.close()
+        return redirect(url_for('team'))
+    descendants = get_all_descendants(current_user.id)
+    if not (current_user.has_admin_access or uid == current_user.id or uid in descendants):
+        db.close()
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('team'))
+    # Career
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (uid,)).fetchone()['s']
+    own_eh += target['initial_eh'] or 0
+    target_career = career_for_row(target['manual_career_level'], own_eh)
+    # Total stats
+    contracts_total = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (uid,)).fetchone()['c']
+    volumen_total = db.execute('SELECT COALESCE(SUM(volumen),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (uid,)).fetchone()['s']
+    provision_total = db.execute('SELECT COALESCE(SUM(amount),0) as s FROM commissions WHERE earner_id=?', (uid,)).fetchone()['s']
+    leads_total = db.execute('SELECT COUNT(*) as c FROM leads WHERE owner_id=?', (uid,)).fetchone()['c']
+    appts_done = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND status="erledigt"', (uid,)).fetchone()['c']
+    appts_planned = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND status="geplant"', (uid,)).fetchone()['c']
+    direct_partners = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (uid,)).fetchone()['c']
+    team_size = len(get_all_descendants(uid))
+    # Trophies
+    trophy_rows = db.execute('SELECT * FROM user_achievements WHERE user_id=? ORDER BY unlocked_at DESC', (uid,)).fetchall()
+    trophy_count = len(trophy_rows)
+    trophies = []
+    for t in trophy_rows[:10]:
+        trophies.append({'code': t['code'], 'unlocked_at': t['unlocked_at']})
+    # Last contracts
+    last_contracts = db.execute('SELECT * FROM contracts WHERE owner_id=? ORDER BY created_at DESC LIMIT 5', (uid,)).fetchall()
+    # Last appointments
+    last_appts = db.execute('SELECT * FROM appointments WHERE owner_id=? ORDER BY termin_date DESC LIMIT 5', (uid,)).fetchall()
+    # Direct downline
+    direct_dl = db.execute('SELECT * FROM users WHERE parent_id=? AND active=1 ORDER BY name', (uid,)).fetchall()
+    direct_dl_with_career = []
+    for d in direct_dl:
+        d_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (d['id'],)).fetchone()['s']
+        d_eh += d['initial_eh'] or 0
+        direct_dl_with_career.append({**dict(d), 'career': career_for_row(d['manual_career_level'], d_eh), 'eh': d_eh})
+    # Activity heatmap (90 Tage)
+    heatmap = db.execute('''
+        SELECT date(created_at) as d, COUNT(*) as c FROM activity_log
+        WHERE user_id=? AND date(created_at) >= date('now','-90 days')
+        GROUP BY d ORDER BY d
+    ''', (uid,)).fetchall()
+    heatmap_dict = {r['d']: r['c'] for r in heatmap}
+    # Upline
+    upline = None
+    if target['parent_id']:
+        upline = db.execute('SELECT id, name, photo_path FROM users WHERE id=?', (target['parent_id'],)).fetchone()
+        if upline: upline = dict(upline)
+    db.close()
+    return render_template('partner_profil.html',
+        target=target, target_career=target_career, own_eh=own_eh,
+        contracts_total=contracts_total, volumen_total=volumen_total, provision_total=provision_total,
+        leads_total=leads_total, appts_done=appts_done, appts_planned=appts_planned,
+        direct_partners=direct_partners, team_size=team_size,
+        trophy_count=trophy_count, trophies=trophies,
+        last_contracts=last_contracts, last_appts=last_appts,
+        direct_dl=direct_dl_with_career,
+        heatmap_dict=heatmap_dict, upline=upline,
+        today_iso=date.today().isoformat()
+    )
 
 
 @app.route('/partner/<int:uid>')

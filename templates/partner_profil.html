@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}{{ target.name }} – Profil{% endblock %}
+{% block page_title %}● {{ target.name }}{% endblock %}
+{% block topbar_actions %}
+<a href="/partner/{{ target.id }}" class="btn btn-secondary btn-sm">▤ Was war heute?</a>
+<a href="/team-kalender?root={{ target.id }}" class="btn btn-secondary btn-sm">▦ Sub-Kalender</a>
+{% if current_user.has_admin_access or target.id == current_user.id %}
+<a href="/team/{{ target.id }}/edit" class="btn btn-primary btn-sm">✎ Bearbeiten</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<style>
+.profile-cover {
+    height: 140px; border-radius: 18px 18px 0 0;
+    background: linear-gradient(135deg,#0f1c3f,#1a2c5b 60%,#2a3458);
+    position: relative; overflow: hidden;
+}
+.profile-cover::before {
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(ellipse 60% 80% at 30% 20%, rgba(212,168,67,0.3) 0%, transparent 70%);
+}
+.profile-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; overflow: hidden; margin-bottom: 16px; }
+.profile-body { padding: 0 26px 26px; position: relative; margin-top: -56px; }
+.profile-avatar {
+    width: 112px; height: 112px; border-radius: 50%; overflow: hidden;
+    border: 5px solid var(--surface); background: var(--bg-2);
+    position: relative; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+.profile-avatar img { width:100%; height:100%; object-fit:cover; }
+.profile-name { font-size: 26px; font-weight: 800; letter-spacing: -0.6px; margin-top: 12px; }
+.profile-sub { font-size: 14px; color: var(--text-muted); margin-top: 2px; }
+.profile-meta { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--text-muted); }
+.profile-meta span strong { color: var(--text); }
+
+.section-h { font-size: 14px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin: 28px 0 12px; display: flex; align-items: center; justify-content: space-between; }
+.section-h a { font-size: 12px; font-weight: 700; color: var(--gold); text-decoration: none; text-transform: none; letter-spacing: 0; }
+
+.heatmap { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; margin: 8px 0; }
+.heatmap-cell { aspect-ratio: 1; border-radius: 3px; background: var(--bg-2); border: 1px solid var(--border); }
+
+.profile-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+@media (max-width: 768px) { .profile-grid { grid-template-columns: 1fr; } }
+</style>
+
+<!-- HEADER CARD -->
+<div class="profile-card">
+    <div class="profile-cover"></div>
+    <div class="profile-body">
+        <div style="display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap">
+            <div class="profile-avatar">
+                {% if target.photo_path %}
+                <img src="{{ target.photo_path }}" alt="{{ target.name }}">
+                {% else %}
+                <span style="font-size:36px;font-weight:900;color:var(--text-muted);letter-spacing:-1px">{{ target.name[:2]|upper }}</span>
+                {% endif %}
+            </div>
+            <div style="flex:1;min-width:200px;padding-bottom:8px">
+                <div class="profile-name">{{ target.name }}</div>
+                <div class="profile-sub">
+                    <span style="background:{{ target_career.color }}22;color:{{ target_career.color }};padding:3px 10px;border-radius:99px;font-weight:800;font-size:12px;border:1px solid {{ target_career.color }}50">
+                        {{ target_career.short }} · {{ target_career.name }}
+                    </span>
+                </div>
+                <div class="profile-meta">
+                    {% if target.email %}<span>✉ <strong>{{ target.email }}</strong></span>{% endif %}
+                    {% if target.phone %}<span>☎ <a href="tel:{{ target.phone }}" style="color:var(--gold);text-decoration:none">{{ target.phone }}</a></span>{% endif %}
+                    {% if target.birthday %}<span>🎂 {{ target.birthday }}</span>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if target.vision %}
+        <div style="background:var(--bg-2);border-left:3px solid var(--gold);border-radius:10px;padding:14px 18px;margin-top:18px;font-size:14px;color:var(--text);line-height:1.6;font-style:italic">
+            ★ <strong style="color:var(--gold)">Vision:</strong> „{{ target.vision }}"
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- KPIs -->
+<div class="kpi-grid">
+    <div class="kpi-card gold">
+        <div class="kpi-label">Gesamt-EH</div>
+        <div class="kpi-value"><span class="counter" data-target="{{ own_eh|int }}">0</span></div>
+        <div class="kpi-sub">{% if target.initial_eh %}{{ target.initial_eh|int }} initial{% else %}aus Verträgen{% endif %}</div>
+    </div>
+    <div class="kpi-card green">
+        <div class="kpi-label">Verträge</div>
+        <div class="kpi-value"><span class="counter" data-target="{{ contracts_total }}">0</span></div>
+        <div class="kpi-sub">{{ "{:,.0f}".format(volumen_total).replace(",", ".") }} € Volumen</div>
+    </div>
+    <div class="kpi-card purple">
+        <div class="kpi-label">Provision</div>
+        <div class="kpi-value"><span class="counter" data-target="{{ provision_total|int }}">0</span><span style="font-size:18px;color:var(--text-muted)"> €</span></div>
+        <div class="kpi-sub">Total verdient</div>
+    </div>
+    <div class="kpi-card blue">
+        <div class="kpi-label">Termine</div>
+        <div class="kpi-value"><span class="counter" data-target="{{ appts_done }}">0</span></div>
+        <div class="kpi-sub">{{ appts_planned }} geplant · {{ leads_total }} Kontakte</div>
+    </div>
+    {% if direct_partners > 0 %}
+    <div class="kpi-card orange">
+        <div class="kpi-label">Team</div>
+        <div class="kpi-value"><span class="counter" data-target="{{ direct_partners }}">0</span></div>
+        <div class="kpi-sub">{{ team_size }} gesamt</div>
+    </div>
+    {% endif %}
+    {% if trophy_count > 0 %}
+    <div class="kpi-card navy">
+        <div class="kpi-label">Trophäen</div>
+        <div class="kpi-value"><span class="counter" data-target="{{ trophy_count }}">0</span></div>
+        <div class="kpi-sub">Achievements</div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="profile-grid">
+    <!-- LEFT: Activity + Lists -->
+    <div>
+        <!-- Activity Heatmap -->
+        <div class="section-h">≡ Aktivität · letzte 90 Tage</div>
+        <div class="card">
+            <div class="heatmap" id="heatmapGrid"></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-soft);margin-top:8px">
+                <span>vor 90 Tagen</span>
+                <span style="display:inline-flex;align-items:center;gap:4px">
+                    weniger
+                    <span style="width:10px;height:10px;background:var(--bg-2);border-radius:2px"></span>
+                    <span style="width:10px;height:10px;background:color-mix(in srgb,#d4a843 30%,var(--bg-2));border-radius:2px"></span>
+                    <span style="width:10px;height:10px;background:color-mix(in srgb,#d4a843 60%,var(--bg-2));border-radius:2px"></span>
+                    <span style="width:10px;height:10px;background:#d4a843;border-radius:2px"></span>
+                    mehr
+                </span>
+                <span>heute</span>
+            </div>
+        </div>
+
+        <!-- Letzte Verträge -->
+        {% if last_contracts %}
+        <div class="section-h">▦ Letzte Verträge <a href="/vertraege">Alle →</a></div>
+        <div class="card" style="padding:0">
+            {% for c in last_contracts %}
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border)">
+                <div style="width:40px;height:40px;border-radius:10px;background:{% if c.status == 'abgeschlossen' %}var(--green-soft);color:var(--green){% elif c.status == 'storniert' %}var(--red-soft);color:var(--red){% else %}var(--gold-soft);color:var(--gold){% endif %};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0">
+                    {% if c.status == 'abgeschlossen' %}✓{% elif c.status == 'storniert' %}×{% else %}…{% endif %}
+                </div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-weight:700;font-size:14px">{{ c.client_name }}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">{{ c.produkt }} · {{ c.created_at[:10] }}</div>
+                </div>
+                <div style="font-weight:800;color:var(--gold)">{{ "{:,.0f}".format(c.einheiten or 0).replace(",", ".") }} EH</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Letzte Termine -->
+        {% if last_appts %}
+        <div class="section-h">▣ Letzte Termine <a href="/termine">Alle →</a></div>
+        <div class="card" style="padding:0">
+            {% for a in last_appts %}
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border)">
+                <div style="width:40px;height:40px;border-radius:10px;background:var(--blue-soft);color:var(--blue);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">▣</div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-weight:700;font-size:14px">{{ a.title }}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">{{ a.termin_date }}{% if a.termin_time %} · {{ a.termin_time[:5] }}{% endif %} · {{ a.typ }}</div>
+                </div>
+                <span class="status-badge status-{{ a.status }}">{{ a.status }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- RIGHT: Sidebar -->
+    <div>
+        <!-- Upline -->
+        {% if upline %}
+        <div class="section-h">⬢ Upline</div>
+        <a href="/partner/{{ upline.id }}/profil" class="card" style="display:flex;align-items:center;gap:12px;padding:14px;text-decoration:none;color:var(--text)">
+            <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--bg-2);display:flex;align-items:center;justify-content:center;border:2px solid var(--gold)">
+                {% if upline.photo_path %}
+                <img src="{{ upline.photo_path }}" style="width:100%;height:100%;object-fit:cover">
+                {% else %}
+                <span style="font-weight:800;font-size:13px">{{ upline.name[:2]|upper }}</span>
+                {% endif %}
+            </div>
+            <div style="flex:1">
+                <div style="font-weight:700;font-size:14px">{{ upline.name }}</div>
+                <div style="font-size:11px;color:var(--text-muted)">Upline-Mentor</div>
+            </div>
+            <span style="color:var(--gold)">→</span>
+        </a>
+        {% endif %}
+
+        <!-- Direct Downline -->
+        {% if direct_dl %}
+        <div class="section-h">◈ Direktes Team ({{ direct_dl|length }})</div>
+        <div class="card" style="padding:8px">
+            {% for d in direct_dl[:8] %}
+            <a href="/partner/{{ d.id }}/profil" style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;text-decoration:none;color:var(--text);transition:background 0.15s" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background='transparent'">
+                <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--bg-2);display:flex;align-items:center;justify-content:center;border:2px solid {{ d.career.color }}">
+                    {% if d.photo_path %}<img src="{{ d.photo_path }}" style="width:100%;height:100%;object-fit:cover">
+                    {% else %}<span style="font-weight:800;font-size:11px">{{ d.name[:2]|upper }}</span>{% endif %}
+                </div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-weight:700;font-size:13px">{{ d.name }}</div>
+                    <div style="font-size:10px;color:var(--text-muted)">{{ d.career.short }} · {{ "{:,.0f}".format(d.eh).replace(",", ".") }} EH</div>
+                </div>
+            </a>
+            {% endfor %}
+            {% if direct_dl|length > 8 %}
+            <div style="text-align:center;padding:10px;font-size:12px;color:var(--text-muted)">+{{ direct_dl|length - 8 }} weitere</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Trophies -->
+        {% if trophies %}
+        <div class="section-h">★ Trophäen ({{ trophy_count }})</div>
+        <div class="card" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:8px">
+            {% for t in trophies %}
+            <div style="aspect-ratio:1;border-radius:10px;background:linear-gradient(135deg,var(--gold-soft),var(--bg-2));border:1px solid color-mix(in srgb,var(--gold) 30%,var(--border));display:flex;align-items:center;justify-content:center;font-size:22px" title="{{ t.code }} ({{ t.unlocked_at[:10] if t.unlocked_at else '' }})">
+                ★
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Activity-Heatmap rendern
+(function(){
+    const heatData = {{ heatmap_dict | tojson }};
+    const grid = document.getElementById('heatmapGrid');
+    const today = new Date('{{ today_iso }}');
+    const days = 91;
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const iso = d.toISOString().slice(0, 10);
+        const cnt = heatData[iso] || 0;
+        const cell = document.createElement('div');
+        cell.className = 'heatmap-cell';
+        cell.title = `${iso}: ${cnt} Aktion${cnt !== 1 ? 'en' : ''}`;
+        let intensity = 0;
+        if (cnt > 0 && cnt <= 2) intensity = 0.3;
+        else if (cnt > 2 && cnt <= 5) intensity = 0.6;
+        else if (cnt > 5) intensity = 1;
+        if (intensity > 0) {
+            cell.style.background = `color-mix(in srgb, #d4a843 ${intensity * 100}%, var(--bg-2))`;
+            cell.style.borderColor = 'transparent';
+        }
+        grid.appendChild(cell);
+    }
+})();
+</script>
+
+{% endblock %}
