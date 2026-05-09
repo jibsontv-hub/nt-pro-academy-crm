@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Dein Stand – NT Pro Academy{% endblock %}
+{% block page_title %}📊 Wo stehst du gerade?{% endblock %}
+
+{% block content %}
+
+<style>
+    .ob-hero { background: linear-gradient(135deg,#0f1c3f,#1a2c5b); color: #fff; border: none; padding: 28px 24px; border-radius: 22px; margin-bottom: 18px; position: relative; overflow: hidden; }
+    .ob-hero::before { content: ''; position: absolute; right: -60px; top: -60px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle, rgba(212,168,67,0.25) 0%, transparent 70%); pointer-events: none; }
+    .ob-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; position: relative; z-index: 1; }
+
+    .struct-block {
+        background: var(--bg-2); border: 1px solid var(--border);
+        border-radius: 14px; padding: 16px 18px; margin-bottom: 12px;
+    }
+    .struct-block.filled { border-color: color-mix(in srgb, var(--gold) 40%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--gold) 5%, var(--surface))); }
+    .struct-num {
+        width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+        background: linear-gradient(135deg, var(--gold), var(--gold-light));
+        color: #0f1c3f; display: flex; align-items: center; justify-content: center;
+        font-weight: 900; font-size: 14px;
+    }
+    .struct-grid { display: grid; grid-template-columns: 1fr 120px 100px; gap: 10px; align-items: end; margin-top: 10px; }
+    @media (max-width: 600px) { .struct-grid { grid-template-columns: 1fr; } }
+
+    .step-h {
+        font-size: 16px; font-weight: 800; color: var(--text);
+        margin: 24px 0 12px; display: flex; align-items: center; gap: 10px;
+    }
+    .step-num {
+        width: 26px; height: 26px; border-radius: 50%;
+        background: var(--gold); color: #0f1c3f;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 900; font-size: 13px;
+    }
+</style>
+
+<form method="POST" style="max-width:780px">
+    <!-- HERO mit NTcoach -->
+    <div class="ob-hero">
+        <div class="ob-row">
+            <!-- Animierter Avatar -->
+            <div style="width:78px;height:78px;flex-shrink:0;position:relative;animation:ntcoachSway 6s ease-in-out infinite">
+                <div style="position:absolute;inset:0;border-radius:50%;overflow:hidden;box-shadow:0 8px 24px rgba(212,168,67,0.5),0 0 0 3px #d4a843;animation:ntcoachBreathe 4s ease-in-out infinite">
+                    <img src="/static/icons/coach-avatar-200.jpg?v=1" alt="NTcoach" style="width:100%;height:100%;object-fit:cover">
+                    <div style="position:absolute;left:0;right:0;top:38%;height:8%;background:linear-gradient(180deg,transparent,rgba(50,30,15,0.55),transparent);opacity:0;animation:ntcoachBlink 5.7s ease-in-out infinite"></div>
+                </div>
+                <div style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(212,168,67,0.4);animation:ntcoachPulse 2.4s ease-out infinite;pointer-events:none"></div>
+            </div>
+            <div style="flex:1;min-width:200px">
+                <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">🤖 NTcoach · Servus {{ current_user.name.split(' ')[0] }}!</div>
+                <div style="font-size:20px;font-weight:800;margin-top:4px;line-height:1.3">
+                    Trag mir kurz deinen <span style="color:#d4a843">aktuellen Stand</span> ein
+                </div>
+                <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:6px;line-height:1.6">
+                    Damit deine Karriere-Stufe sofort stimmt — auch was du <strong>vor System-Start</strong> schon gemacht hast.
+                    Nicht heute? Klick einfach „Später" — dauert nur 2 Min.
+                </div>
+            </div>
+        </div>
+    </div>
+    <style>
+    @keyframes ntcoachSway { 0%,100% { transform: rotate(-1.5deg); } 50% { transform: rotate(1.5deg); } }
+    @keyframes ntcoachBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+    @keyframes ntcoachBlink { 0%,92%,96%,100% { opacity: 0; } 93%,95% { opacity: 1; } }
+    @keyframes ntcoachPulse { 0% { opacity: 0.7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.35); } }
+    </style>
+
+    <!-- STEP 1: Eigene EH -->
+    <div class="step-h">
+        <span class="step-num">1</span>
+        Deine eigenen Einheiten (alles bis heute zusammen)
+    </div>
+    <div class="card">
+        <div class="form-group">
+            <label>Aktueller Einheitenstand</label>
+            <input type="number" name="current_eh" value="{{ current_eh if current_eh else '' }}" min="0" step="1" placeholder="z.B. 850" autofocus>
+            <span style="font-size:12px;color:var(--text-muted);margin-top:6px;display:block">
+                💡 <strong>Schätze ehrlich</strong> was du seit Jahresbeginn gemacht hast — nur die Einheiten ohne Team. Alles weitere rechnet das System dann automatisch.
+            </span>
+        </div>
+    </div>
+
+    <!-- STEP 2: Strukturen -->
+    <div class="step-h">
+        <span class="step-num">2</span>
+        Deine direkten Strukturen (auch wenn noch nicht im System)
+    </div>
+    <div class="card">
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.6">
+            Trag bis zu 6 deiner direkten Sub-Strukturen ein — nur Name + ungefähre EH reicht.
+            Du kannst die Personen <strong>später dazuhängen</strong> wenn sie sich anmelden.
+        </div>
+
+        {% for i in range(1, 7) %}
+        {% set existing = existing_structs[i-1] if existing_structs and existing_structs|length >= i else None %}
+        <div class="struct-block {% if existing %}filled{% endif %}" id="struct-block-{{ i }}">
+            <div style="display:flex;align-items:center;gap:12px">
+                <div class="struct-num">{{ i }}</div>
+                <div style="flex:1">
+                    <div class="form-group" style="margin:0">
+                        <input type="text" name="struct_name_{{ i }}" maxlength="80"
+                               value="{{ existing.name if existing else '' }}"
+                               placeholder="Struktur {{ i }} — z.B. „Anna Müller-Linie" oder „Frankfurt-Team"">
+                    </div>
+                </div>
+            </div>
+            <div class="struct-grid">
+                <div class="form-group" style="margin:0">
+                    <label>Notiz (optional)</label>
+                    <input type="text" name="struct_notes_{{ i }}" maxlength="120"
+                           value="{{ existing.notes or '' if existing else '' }}"
+                           placeholder="z.B. „kommt nächsten Monat dazu"">
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label>Geschätzte EH</label>
+                    <input type="number" name="struct_eh_{{ i }}" min="0" step="1"
+                           value="{{ existing.est_eh if existing and existing.est_eh else '' }}"
+                           placeholder="0">
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label>Anzahl Partner</label>
+                    <input type="number" name="struct_partner_count_{{ i }}" min="0" step="1"
+                           value="{{ existing.partner_count if existing and existing.partner_count else '' }}"
+                           placeholder="0">
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ACTIONS -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
+        <button type="submit" name="action" value="save" class="btn btn-primary">💾 Speichern & weiter</button>
+        <button type="submit" name="action" value="skip" class="btn btn-secondary"
+                onclick="return confirm('Wirklich überspringen? Du kannst es jederzeit später unter „Stand & Strukturen" eintragen.')">
+            Später machen
+        </button>
+        <a href="/dashboard" style="color:var(--text-muted);font-size:12px;align-self:center;text-decoration:none;margin-left:auto">
+            ← Direkt zum Dashboard
+        </a>
+    </div>
+</form>
+
+{% endblock %}

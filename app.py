@@ -2997,6 +2997,19 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS placeholder_structures (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            est_eh REAL DEFAULT 0,
+            partner_count INTEGER DEFAULT 0,
+            notes TEXT,
+            linked_user_id INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (owner_id) REFERENCES users(id),
+            FOREIGN KEY (linked_user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS partner_suggestions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -3128,6 +3141,7 @@ def init_db():
             ('must_change_password', "INTEGER DEFAULT 0"),
             ('language', "TEXT DEFAULT 'de'"),
             ('initial_eh', "REAL DEFAULT 0"),
+            ('catchup_done', "INTEGER DEFAULT 0"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -4561,6 +4575,9 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # Catch-Up-Check: erstmaliger Login → Wizard zeigen
+    if needs_catchup(current_user.id):
+        return redirect(url_for('onboarding_catchup'))
     db = get_db()
     own_eh = get_user_total_eh(current_user.id, include_team=False)
     team_eh = get_user_total_eh(current_user.id, include_team=True)
@@ -5848,6 +5865,80 @@ def struktur():
         trees = [t for t in trees if t]
     db.close()
     return render_template('struktur.html', trees=trees, all_levels=CAREER_LEVELS)
+
+
+@app.route('/onboarding/catchup', methods=['GET', 'POST'])
+@login_required
+def onboarding_catchup():
+    """Catch-Up-Wizard: aktueller Einheitenstand + Platzhalter-Strukturen.
+    Wird beim ersten Login allen Partnern gezeigt die catchup_done=0 haben."""
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id=?', (current_user.id,)).fetchone()
+    if request.method == 'POST':
+        # Action: skip oder save
+        action = request.form.get('action', 'save')
+        if action == 'save':
+            try:
+                eh = float(request.form.get('current_eh', 0) or 0)
+            except (ValueError, TypeError):
+                eh = 0
+            # Initial-EH setzen (überschreibt vorhandenen Wert)
+            db.execute('UPDATE users SET initial_eh=?, catchup_done=1 WHERE id=?', (eh, current_user.id))
+            # Alte Platzhalter-Strukturen löschen
+            db.execute('DELETE FROM placeholder_structures WHERE owner_id=? AND linked_user_id IS NULL',
+                       (current_user.id,))
+            # Bis zu 6 Strukturen einlesen
+            for i in range(1, 7):
+                name = (request.form.get(f'struct_name_{i}') or '').strip()
+                if not name:
+                    continue
+                try:
+                    est_eh = float(request.form.get(f'struct_eh_{i}', 0) or 0)
+                except (ValueError, TypeError):
+                    est_eh = 0
+                try:
+                    p_cnt = int(request.form.get(f'struct_partner_count_{i}', 0) or 0)
+                except (ValueError, TypeError):
+                    p_cnt = 0
+                notes = (request.form.get(f'struct_notes_{i}') or '').strip()
+                db.execute('''INSERT INTO placeholder_structures
+                              (owner_id, name, est_eh, partner_count, notes)
+                              VALUES (?, ?, ?, ?, ?)''',
+                           (current_user.id, name, est_eh, p_cnt, notes or None))
+            db.commit()
+            recalculate_all_commissions()
+            cache_invalidate('ctx:')
+            log_activity(current_user.id, 'catchup_done',
+                f'{current_user.name} hat seinen Stand eingetragen ({eh:.0f} EH + Strukturen)',
+                icon='📊', color='gold')
+            flash(f'Top — {eh:.0f} EH gespeichert. Du kannst jederzeit unter Einstellungen anpassen.', 'success')
+        else:
+            # Skip — markiere done damit nicht mehr nervt, aber speichere nichts
+            db.execute('UPDATE users SET catchup_done=1 WHERE id=?', (current_user.id,))
+            db.commit()
+            flash('Ok — kannst du jederzeit später unter "Mein Profil" eintragen.', 'info')
+        db.close()
+        return redirect(url_for('dashboard'))
+
+    # GET — Wizard zeigen
+    existing_structs = db.execute('SELECT * FROM placeholder_structures WHERE owner_id=? AND linked_user_id IS NULL ORDER BY id',
+                                  (current_user.id,)).fetchall()
+    db.close()
+    return render_template('onboarding_catchup.html',
+                           current_eh=user['initial_eh'] or 0,
+                           existing_structs=existing_structs)
+
+
+def needs_catchup(user_id):
+    """User braucht Catch-Up wenn catchup_done=0 und mind. 7 Tage seit Account-Anlage."""
+    db = get_db()
+    row = db.execute('SELECT catchup_done, role, created_at FROM users WHERE id=?', (user_id,)).fetchone()
+    db.close()
+    if not row or row['catchup_done']:
+        return False
+    if row['role'] == 'admin':
+        return False  # Admin überspringt
+    return True
 
 
 @app.route('/team-kalender')
