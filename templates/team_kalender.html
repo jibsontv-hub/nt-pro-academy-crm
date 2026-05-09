@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Team-Kalender – NT Pro Academy{% endblock %}
+{% block page_title %}📅 Team-Kalender{% endblock %}
+
+{% block content %}
+
+<style>
+    .cal-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .cal-month { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); }
+    .cal-nav { display: flex; gap: 8px; align-items: center; }
+    .cal-nav .btn-sm { padding: 8px 12px !important; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .cal-dow { text-align: center; font-size: 10px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.7px; padding: 6px 0; }
+    .cal-day {
+        aspect-ratio: 1; min-height: 84px; padding: 6px; border-radius: 10px;
+        background: var(--bg-2); border: 1px solid var(--border);
+        cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden;
+        display: flex; flex-direction: column;
+    }
+    .cal-day:hover { background: var(--surface); border-color: var(--gold); transform: translateY(-1px); }
+    .cal-day.empty { background: transparent; border: 1px dashed var(--border); cursor: default; opacity: 0.4; }
+    .cal-day.today { border: 2px solid var(--gold); background: color-mix(in srgb, var(--gold) 10%, var(--surface)); }
+    .cal-day.weekend { background: color-mix(in srgb, var(--text-muted) 5%, var(--bg-2)); }
+    .cal-daynum { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .cal-day.today .cal-daynum { color: var(--gold); font-weight: 900; }
+    .cal-events { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow: hidden; }
+    .cal-event {
+        font-size: 10px; padding: 2px 5px; border-radius: 4px;
+        background: var(--accent, var(--gold)); color: #0f1c3f;
+        font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        line-height: 1.3;
+    }
+    .cal-more { font-size: 10px; color: var(--text-muted); font-weight: 700; padding: 1px 4px; }
+
+    .cal-legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding-top: 14px; border-top: 1px solid var(--border); }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--bg-2); border-radius: 99px; font-size: 11px; font-weight: 700; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Modal */
+    .cal-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+    .cal-modal.open { display: flex; }
+    .cal-modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 24px; max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto; }
+    .cal-modal-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .cal-modal-title { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; }
+    .cal-day-events { margin: 14px 0; display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
+    .cal-day-event {
+        display: flex; gap: 10px; padding: 10px 12px; background: var(--bg-2);
+        border-left: 3px solid var(--accent, var(--gold)); border-radius: 8px;
+    }
+    .cal-day-event .who { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+    .cal-day-event .what { font-size: 13px; font-weight: 700; color: var(--text); }
+    .cal-day-event .when { font-size: 11px; color: var(--text-soft); }
+
+    @media (max-width: 768px) {
+        .cal-day { min-height: 64px; padding: 4px; }
+        .cal-daynum { font-size: 12px; }
+        .cal-event { font-size: 9px; padding: 1px 4px; }
+        .cal-month { font-size: 18px; }
+    }
+</style>
+
+<div class="cal-wrap">
+    <div class="cal-head">
+        <div>
+            <div class="cal-month">{{ monat_label }} {{ year }}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+                Team-Wurzel: <strong style="color:var(--gold)">{{ root.name }} ({{ root.short }})</strong> · {{ members | length }} Mitglieder
+            </div>
+        </div>
+        <div class="cal-nav">
+            <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-secondary btn-sm">← Vorheriger</a>
+            <a href="/team-kalender" class="btn btn-secondary btn-sm">Heute</a>
+            <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-secondary btn-sm">Nächster →</a>
+        </div>
+    </div>
+
+    <!-- Wochentags-Header -->
+    <div class="cal-grid" style="margin-bottom:6px">
+        {% for dow in ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] %}
+        <div class="cal-dow">{{ dow }}</div>
+        {% endfor %}
+    </div>
+
+    <!-- Tage-Grid -->
+    <div class="cal-grid" id="calGrid">
+        <!-- wird via JS gefüllt -->
+    </div>
+
+    <!-- Legende mit Partner-Farben -->
+    {% if members %}
+    <div class="cal-legend">
+        {% for m in members %}
+        <span class="legend-item">
+            <span class="legend-dot" style="background:{{ m.color }}"></span>
+            {{ m.name }}{% if m.id == current_user.id %} <span style="color:var(--gold)">(du)</span>{% endif %}
+        </span>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Tag-Detail-Modal -->
+<div class="cal-modal" id="dayModal" onclick="if(event.target===this)closeModal()">
+    <div class="cal-modal-card">
+        <div class="cal-modal-h">
+            <div class="cal-modal-title" id="modalTitle">—</div>
+            <button onclick="closeModal()" style="background:none;border:none;color:var(--text-muted);font-size:24px;cursor:pointer;padding:0 6px">×</button>
+        </div>
+
+        <div class="cal-day-events" id="modalEvents"></div>
+
+        <!-- Quick-Add -->
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <div style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:10px">+ Neuer Termin an diesem Tag</div>
+            <form method="POST" action="/team-kalender/quick-add">
+                <input type="hidden" name="termin_date" id="modalDate">
+                <div class="form-group" style="margin-bottom:10px">
+                    <label>Titel *</label>
+                    <input type="text" name="title" required maxlength="140" placeholder="z.B. Kundengespräch Müller">
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                    <div class="form-group">
+                        <label>Uhrzeit</label>
+                        <input type="time" name="termin_time">
+                    </div>
+                    <div class="form-group">
+                        <label>Typ</label>
+                        <select name="typ">
+                            <option value="kundentermin">👥 Kundentermin</option>
+                            <option value="erstgespraech">🆕 Erstgespräch</option>
+                            <option value="abschluss">✓ Abschluss</option>
+                            <option value="recruiting">🎯 Recruiting</option>
+                            <option value="schulung">🎓 Schulung</option>
+                            <option value="seminar">📚 Seminar</option>
+                            <option value="sonstiges">💼 Sonstiges</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:14px">
+                    <label>Kunde / Person (optional)</label>
+                    <input type="text" name="client_name" placeholder="Name des Kunden">
+                </div>
+                <button type="submit" class="btn btn-primary">📅 Eintragen</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+const APPTS = {{ appointments | tojson }};
+const YEAR = {{ year }};
+const MONTH = {{ month }};
+const TODAY = '{{ today_iso }}';
+const MONTHS = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+function buildCalendar() {
+    const grid = document.getElementById('calGrid');
+    grid.innerHTML = '';
+    const first = new Date(YEAR, MONTH - 1, 1);
+    let firstDow = first.getDay(); // 0=So, 1=Mo, ...
+    if (firstDow === 0) firstDow = 7; // Sonntag = 7
+    const lastDay = new Date(YEAR, MONTH, 0).getDate();
+
+    // Termine pro Tag gruppieren
+    const eventsByDay = {};
+    APPTS.forEach(a => {
+        const d = (a.termin_date || '').substring(0, 10);
+        if (!eventsByDay[d]) eventsByDay[d] = [];
+        eventsByDay[d].push(a);
+    });
+
+    // Leere Zellen vor Monatsanfang
+    for (let i = 1; i < firstDow; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'cal-day empty';
+        grid.appendChild(empty);
+    }
+
+    // Tage
+    for (let day = 1; day <= lastDay; day++) {
+        const iso = `${YEAR}-${String(MONTH).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dt = new Date(YEAR, MONTH - 1, day);
+        const isWeekend = (dt.getDay() === 0 || dt.getDay() === 6);
+        const isToday = (iso === TODAY);
+        const events = eventsByDay[iso] || [];
+
+        const cell = document.createElement('div');
+        cell.className = 'cal-day' + (isToday ? ' today' : '') + (isWeekend ? ' weekend' : '');
+        cell.dataset.date = iso;
+        cell.onclick = () => openDay(iso, events);
+
+        const num = document.createElement('div');
+        num.className = 'cal-daynum';
+        num.textContent = day;
+        cell.appendChild(num);
+
+        const evtBox = document.createElement('div');
+        evtBox.className = 'cal-events';
+        const visible = events.slice(0, 3);
+        visible.forEach(e => {
+            const el = document.createElement('div');
+            el.className = 'cal-event';
+            el.style.background = e.color;
+            const t = e.termin_time ? e.termin_time.substring(0, 5) + ' ' : '';
+            el.textContent = t + (e.title || '–');
+            el.title = `${e.owner_name}: ${e.title}${t ? ' um ' + t : ''}`;
+            evtBox.appendChild(el);
+        });
+        if (events.length > 3) {
+            const more = document.createElement('div');
+            more.className = 'cal-more';
+            more.textContent = `+${events.length - 3} mehr`;
+            evtBox.appendChild(more);
+        }
+        cell.appendChild(evtBox);
+        grid.appendChild(cell);
+    }
+}
+
+function openDay(iso, events) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    const dowName = ['So','Mo','Di','Mi','Do','Fr','Sa'][dt.getDay()];
+    document.getElementById('modalTitle').textContent =
+        `${dowName} · ${d}. ${MONTHS[m]} ${y}`;
+    document.getElementById('modalDate').value = iso;
+
+    const list = document.getElementById('modalEvents');
+    list.innerHTML = '';
+    if (events.length === 0) {
+        list.innerHTML = '<div style="text-align:center;color:var(--text-soft);padding:14px;font-size:13px">Noch keine Termine an diesem Tag</div>';
+    } else {
+        events.forEach(e => {
+            const div = document.createElement('div');
+            div.className = 'cal-day-event';
+            div.style.setProperty('--accent', e.color);
+            div.innerHTML = `
+                <div style="flex:1;min-width:0">
+                    <div class="who">${e.owner_name}</div>
+                    <div class="what">${e.title || '–'}</div>
+                    <div class="when">
+                        ${e.termin_time ? '⏰ ' + e.termin_time.substring(0,5) + ' · ' : ''}
+                        ${e.typ || ''}${e.client_name ? ' · ' + e.client_name : ''}
+                    </div>
+                </div>
+                <a href="/termine" style="align-self:center;color:var(--gold);text-decoration:none;font-size:12px;font-weight:700;padding:4px 8px">→</a>
+            `;
+            list.appendChild(div);
+        });
+    }
+    document.getElementById('dayModal').classList.add('open');
+}
+function closeModal() { document.getElementById('dayModal').classList.remove('open'); }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+buildCalendar();
+</script>
+
+{% endblock %}

@@ -2246,6 +2246,11 @@ def inject_career():
                     alerts = 0
                 cache_set(ai_key, alerts, ttl=300)
             ctx['coach_alerts'] = alerts
+            # Team-Kalender verfügbar? (ab HREP+ in der Kette)
+            try:
+                ctx['team_calendar_available'] = bool(get_team_calendar_root(current_user.id))
+            except Exception:
+                ctx['team_calendar_available'] = False
             # Inactive-Alert: 3+ Tage stille direkte Partner (für Führungskräfte)
             try:
                 inact = get_inactive_team_members(current_user.id, days=3, scope='direct')
@@ -3397,6 +3402,76 @@ def get_coach_actions(user_id, max_actions=5):
     pri_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
     actions.sort(key=lambda x: pri_order.get(x.get('priority', 'low'), 9))
     return actions[:max_actions]
+
+
+def get_team_calendar_root(user_id):
+    """Findet den HREP+ (Stufe 3+) Wurzel-User für den Team-Kalender.
+    Eigener Account wenn selbst >= HREP, sonst der nächste HREP-Vorfahre.
+    Returns: dict {id, name, level, short} oder None."""
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id=? AND active=1', (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return None
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    own_career = career_for_row(user['manual_career_level'], own_eh)
+    if own_career['level'] >= 3:
+        db.close()
+        return {'id': user_id, 'name': user['name'], 'level': own_career['level'], 'short': own_career['short']}
+    # Hangle dich nach oben
+    current_id = user['parent_id']
+    while current_id:
+        parent = db.execute('SELECT * FROM users WHERE id=? AND active=1', (current_id,)).fetchone()
+        if not parent:
+            break
+        peh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (current_id,)).fetchone()['s']
+        pcareer = career_for_row(parent['manual_career_level'], peh)
+        if pcareer['level'] >= 3:
+            db.close()
+            return {'id': current_id, 'name': parent['name'], 'level': pcareer['level'], 'short': pcareer['short']}
+        current_id = parent['parent_id']
+    db.close()
+    return None
+
+
+# Color-Palette für Partner im Kalender (12 distincte Farben, hochwertig)
+_CALENDAR_COLORS = [
+    '#d4a843', '#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444',
+    '#06b6d4', '#ec4899', '#84cc16', '#6366f1', '#14b8a6', '#f97316'
+]
+
+
+def get_team_calendar_data(root_user_id, year, month):
+    """Alle Termine im Team (root + alle Downlines) für gegebenen Monat.
+    Returns: dict {appointments, members_with_colors}"""
+    db = get_db()
+    ids = [root_user_id] + get_all_descendants(root_user_id)
+    placeholders = ','.join('?' * len(ids))
+    members = db.execute(f'SELECT id, name FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
+    color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}
+    members_list = [{'id': m['id'], 'name': m['name'], 'color': color_map[m['id']]} for m in members]
+
+    # Termine im Monat (etwas grosszügig für Wochen-Übergreifende Anzeige)
+    start_date = f"{year:04d}-{month:02d}-01"
+    if month == 12:
+        end_date = f"{year + 1:04d}-01-01"
+    else:
+        end_date = f"{year:04d}-{month + 1:02d}-01"
+    appts = db.execute(f'''
+        SELECT a.*, u.name as owner_name
+        FROM appointments a
+        JOIN users u ON a.owner_id = u.id
+        WHERE a.owner_id IN ({placeholders})
+          AND date(a.termin_date) >= date(?) AND date(a.termin_date) < date(?)
+        ORDER BY a.termin_date, a.termin_time
+    ''', ids + [start_date, end_date]).fetchall()
+    appts_list = []
+    for a in appts:
+        d = dict(a)
+        d['color'] = color_map.get(a['owner_id'], '#94a3b8')
+        appts_list.append(d)
+    db.close()
+    return {'appointments': appts_list, 'members': members_list}
 
 
 def get_quoten_forecast(user_id, days=30):
@@ -5765,6 +5840,66 @@ def struktur():
         trees = [t for t in trees if t]
     db.close()
     return render_template('struktur.html', trees=trees, all_levels=CAREER_LEVELS)
+
+
+@app.route('/team-kalender')
+@login_required
+def team_kalender():
+    """Team-Kalender ab HREP+ — alle Termine der Struktur sichtbar."""
+    root = get_team_calendar_root(current_user.id)
+    if not root:
+        flash('Team-Kalender ist ab HREP-Stufe verfügbar — du oder ein Upline-Partner muss HREP oder höher sein.', 'info')
+        return redirect(url_for('dashboard'))
+    today = date.today()
+    try:
+        year = int(request.args.get('year', today.year))
+        month = int(request.args.get('month', today.month))
+    except (ValueError, TypeError):
+        year, month = today.year, today.month
+    if month < 1: month, year = 12, year - 1
+    if month > 12: month, year = 1, year + 1
+    data = get_team_calendar_data(root['id'], year, month)
+    # Navigation
+    prev_month, prev_year = (12, year - 1) if month == 1 else (month - 1, year)
+    next_month, next_year = (1, year + 1) if month == 12 else (month + 1, year)
+    monat_namen = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+    return render_template('team_kalender.html',
+        root=root, year=year, month=month, monat_label=monat_namen[month],
+        appointments=data['appointments'], members=data['members'],
+        prev_year=prev_year, prev_month=prev_month,
+        next_year=next_year, next_month=next_month,
+        today_iso=today.isoformat()
+    )
+
+
+@app.route('/team-kalender/quick-add', methods=['POST'])
+@login_required
+def team_kalender_quick_add():
+    """Quick-Add Termin direkt aus dem Kalender-Slot."""
+    title = (request.form.get('title') or '').strip()
+    termin_date = (request.form.get('termin_date') or '').strip()
+    termin_time = (request.form.get('termin_time') or '').strip()
+    typ = (request.form.get('typ') or 'kundentermin').strip()
+    client_name = (request.form.get('client_name') or '').strip()
+    if not title or not termin_date:
+        flash('Titel und Datum sind Pflicht.', 'error')
+        return redirect(url_for('team_kalender'))
+    db = get_db()
+    db.execute('''INSERT INTO appointments (owner_id, title, client_name, termin_date, termin_time, typ, status)
+                  VALUES (?, ?, ?, ?, ?, ?, 'geplant')''',
+               (current_user.id, title, client_name or None, termin_date, termin_time or None, typ))
+    db.commit()
+    db.close()
+    log_activity(current_user.id, 'termin_neu', f'{current_user.name} hat Termin „{title}" angelegt',
+                 icon='📅', color='blue')
+    flash(f'Termin „{title}" am {termin_date} angelegt.', 'success')
+    # Zurück zur Kalender-Ansicht im richtigen Monat
+    try:
+        d = datetime.strptime(termin_date, '%Y-%m-%d').date()
+        return redirect(url_for('team_kalender', year=d.year, month=d.month))
+    except Exception:
+        return redirect(url_for('team_kalender'))
 
 
 @app.route('/vorschlag', methods=['GET', 'POST'])
