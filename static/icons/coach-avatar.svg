@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Hintergrund: tieferes Navy -->
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#1a2a4a"/>
       <stop offset="100%" stop-color="#08101f"/>
@@ -11,7 +10,6 @@
       <stop offset="60%" stop-color="#d4a843" stop-opacity="0"/>
     </radialGradient>
 
-    <!-- Haut: warm-braun, gleichmäßig -->
     <radialGradient id="skin" cx="40%" cy="35%" r="80%">
       <stop offset="0%" stop-color="#7c5638"/>
       <stop offset="60%" stop-color="#5a3d28"/>
@@ -22,7 +20,6 @@
       <stop offset="100%" stop-color="#000" stop-opacity="0.2"/>
     </linearGradient>
 
-    <!-- Grauer Business-Anzug -->
     <linearGradient id="suit" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#5a6068"/>
       <stop offset="50%" stop-color="#3e434a"/>
@@ -33,7 +30,6 @@
       <stop offset="100%" stop-color="#161a20"/>
     </linearGradient>
 
-    <!-- Rote Power-Krawatte -->
     <linearGradient id="tie" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#dc2626"/>
       <stop offset="50%" stop-color="#b91c1c"/>
@@ -44,19 +40,6 @@
       <stop offset="100%" stop-color="#991b1b"/>
     </linearGradient>
 
-    <!-- Kurze schwarze Haare -->
-    <radialGradient id="hairGrad" cx="50%" cy="20%" r="80%">
-      <stop offset="0%" stop-color="#1a1208"/>
-      <stop offset="100%" stop-color="#0a0604"/>
-    </radialGradient>
-
-    <!-- Bart sehr kurz / Stoppeln -->
-    <radialGradient id="beard" cx="50%" cy="40%" r="70%">
-      <stop offset="0%" stop-color="#2a1810"/>
-      <stop offset="100%" stop-color="#1a0f08"/>
-    </radialGradient>
-
-    <!-- Silberne Cartier-Fassung -->
     <linearGradient id="silver" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#f4f5f7"/>
       <stop offset="50%" stop-color="#c8ccd1"/>
@@ -67,8 +50,8 @@
       <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
     </linearGradient>
     <linearGradient id="glass" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1a2c5b" stop-opacity="0.2"/>
-      <stop offset="100%" stop-color="#0f1c3f" stop-opacity="0.08"/>
+      <stop offset="0%" stop-color="#1a2c5b" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#0f1c3f" stop-opacity="0.06"/>
     </linearGradient>
   </defs>
 
@@ -76,122 +59,133 @@
   <circle cx="100" cy="100" r="100" fill="url(#bg)"/>
   <circle cx="100" cy="100" r="100" fill="url(#warmGlow)"/>
 
-  <!-- SUIT -->
+  <!-- SCHULTERN + KÖRPER (proportional, deutlich sichtbar) -->
   <g clip-path="circle(100px at 100px 100px)">
-    <path d="M 5 215 C 5 165, 35 152, 65 144 L 75 142 L 100 168 L 125 142 L 135 144 C 165 152, 195 165, 195 215 Z" fill="url(#suit)"/>
-    <!-- Lapels: dunkler Grau -->
-    <path d="M 75 142 L 100 168 L 92 215 L 60 215 L 65 175 Z" fill="url(#lapel)"/>
-    <path d="M 125 142 L 100 168 L 108 215 L 140 215 L 135 175 Z" fill="url(#lapel)"/>
-    <!-- Hemd-Kragen weiß -->
-    <path d="M 88 145 L 100 175 L 112 145 L 108 142 L 100 152 L 92 142 Z" fill="#fafafa"/>
-    <path d="M 92 142 L 100 152 L 108 142 L 105 145 L 100 158 L 95 145 Z" fill="#e8e8ec"/>
+    <!-- Schultern als normale Linie (nicht überdimensioniert) -->
+    <path d="M -10 220
+             Q 30 165, 70 152
+             L 80 148
+             L 100 165
+             L 120 148
+             L 130 152
+             Q 170 165, 210 220 Z" fill="url(#suit)"/>
+
+    <!-- Linke Lapel (Revers) -->
+    <path d="M 80 148 L 100 165 L 95 220 L 65 220 L 70 175 Z" fill="url(#lapel)"/>
+    <!-- Rechte Lapel -->
+    <path d="M 120 148 L 100 165 L 105 220 L 135 220 L 130 175 Z" fill="url(#lapel)"/>
+
+    <!-- Hemd-Kragen V-Form (weiß) -->
+    <path d="M 91 150 L 100 168 L 109 150 L 105 148 L 100 156 L 95 148 Z" fill="#fafafa"/>
 
     <!-- ROTE KRAWATTE -->
-    <path d="M 96 152 L 104 152 L 110 215 L 90 215 Z" fill="url(#tie)"/>
+    <path d="M 96 156 L 104 156 L 109 220 L 91 220 Z" fill="url(#tie)"/>
     <!-- Krawatten-Knoten -->
-    <path d="M 96 152 L 104 152 L 105 165 L 95 165 Z" fill="url(#tieKnot)"/>
-    <!-- Knoten-Schattenlinie -->
-    <path d="M 95 165 L 105 165 L 106 170 L 94 170 Z" fill="#7f1d1d"/>
-    <!-- Krawatten-Glanz/Streifen -->
-    <path d="M 99 168 L 102 168 L 105 215 L 100 215 Z" fill="#ef4444" opacity="0.4"/>
-    <!-- Subtile diagonale Linie für Stoff-Eindruck -->
-    <path d="M 92 180 L 108 200" stroke="#7f1d1d" stroke-width="0.6" opacity="0.4"/>
-    <path d="M 92 195 L 108 215" stroke="#7f1d1d" stroke-width="0.6" opacity="0.4"/>
-
-    <!-- Pocket Square (weiß, klassisch) -->
-    <path d="M 138 165 L 154 165 L 154 175 L 138 175 Z" fill="#fafafa" opacity="0.95"/>
-    <path d="M 142 165 L 144 175 M 146 165 L 148 175 M 150 165 L 152 175" stroke="#e0e0e4" stroke-width="0.4"/>
+    <path d="M 96 156 L 104 156 L 105 168 L 95 168 Z" fill="url(#tieKnot)"/>
+    <path d="M 95 168 L 105 168 L 106 172 L 94 172 Z" fill="#7f1d1d"/>
+    <!-- Krawatten-Glanzlinie -->
+    <path d="M 99 172 L 102 172 L 105 220 L 100 220 Z" fill="#ef4444" opacity="0.4"/>
   </g>
 
-  <!-- HALS (schmaler) -->
-  <ellipse cx="100" cy="142" rx="18" ry="12" fill="url(#skin)"/>
-  <ellipse cx="100" cy="142" rx="18" ry="12" fill="url(#skinShade)"/>
+  <!-- HALS (proportional, schmal aber sichtbar) -->
+  <path d="M 88 142 L 88 152 Q 100 158, 112 152 L 112 142 Z" fill="url(#skin)"/>
+  <path d="M 88 142 L 88 152 Q 100 158, 112 152 L 112 142 Z" fill="url(#skinShade)"/>
+  <!-- Halsschatten unter Kinn -->
+  <ellipse cx="100" cy="142" rx="14" ry="3" fill="#000" opacity="0.25"/>
 
-  <!-- KOPF (Obama-Style: schmaler/oval, etwas länger) -->
-  <ellipse cx="100" cy="92" rx="29" ry="40" fill="url(#skin)"/>
-  <ellipse cx="100" cy="92" rx="29" ry="40" fill="url(#skinShade)"/>
+  <!-- KOPF — normal-rundlich (rx=30, ry=34, NICHT eierförmig) -->
+  <ellipse cx="100" cy="92" rx="30" ry="34" fill="url(#skin)"/>
+  <ellipse cx="100" cy="92" rx="30" ry="34" fill="url(#skinShade)"/>
+  <!-- Kinn-Andeutung (kleiner Bogen unten für 3D-Eindruck) -->
+  <path d="M 86 118 Q 100 128, 114 118" stroke="#000" stroke-width="0.4" fill="none" opacity="0.2"/>
 
-  <!-- OHREN (klein, knapp angedeutet) -->
-  <ellipse cx="71" cy="95" rx="3" ry="6" fill="url(#skin)"/>
-  <ellipse cx="129" cy="95" rx="3" ry="6" fill="url(#skin)"/>
-  <ellipse cx="71" cy="95" rx="3" ry="6" fill="url(#skinShade)"/>
-  <ellipse cx="129" cy="95" rx="3" ry="6" fill="url(#skinShade)"/>
-  <!-- Ohr-Innenform -->
-  <path d="M 71 92 Q 70 95, 71 98" stroke="#3d2818" stroke-width="0.6" fill="none" opacity="0.6"/>
-  <path d="M 129 92 Q 130 95, 129 98" stroke="#3d2818" stroke-width="0.6" fill="none" opacity="0.6"/>
+  <!-- OHREN (klein, dezent) -->
+  <ellipse cx="71" cy="94" rx="3.5" ry="6" fill="url(#skin)"/>
+  <ellipse cx="129" cy="94" rx="3.5" ry="6" fill="url(#skin)"/>
+  <ellipse cx="71" cy="94" rx="3.5" ry="6" fill="url(#skinShade)"/>
+  <ellipse cx="129" cy="94" rx="3.5" ry="6" fill="url(#skinShade)"/>
+  <path d="M 71 91 Q 70 94, 71 97" stroke="#3d2818" stroke-width="0.5" fill="none" opacity="0.6"/>
+  <path d="M 129 91 Q 130 94, 129 97" stroke="#3d2818" stroke-width="0.5" fill="none" opacity="0.6"/>
 
-  <!-- BUZZ CUT — sehr kurz, schwarz, eng am Kopf -->
-  <path d="M 73 60
-           C 73 56, 127 56, 127 60
-           C 129 75, 129 82, 127 86
-           L 125 80
-           C 123 72, 117 70, 100 68
-           C 83 70, 77 72, 75 80
-           L 73 86
-           C 71 82, 71 75, 73 60 Z" fill="url(#hairGrad)"/>
-  <!-- Hairline-Kontur subtil -->
-  <path d="M 78 75 Q 100 70, 122 75" stroke="#0a0604" stroke-width="0.5" fill="none" opacity="0.5"/>
-  <!-- Stoppeln-Textur -->
+  <!-- BUZZ CUT — sehr kurz, folgt sauber der oberen Kopfform -->
+  <path d="M 70 80
+           Q 72 65, 100 62
+           Q 128 65, 130 80
+           Q 128 73, 100 71
+           Q 72 73, 70 80 Z" fill="#0a0604"/>
+  <!-- Stoppel-Textur (subtile Punkte) -->
   <g fill="#0a0604" opacity="0.55">
-    <circle cx="80" cy="68" r="0.5"/>
-    <circle cx="86" cy="63" r="0.5"/>
-    <circle cx="92" cy="60" r="0.5"/>
-    <circle cx="100" cy="59" r="0.5"/>
-    <circle cx="108" cy="60" r="0.5"/>
-    <circle cx="114" cy="63" r="0.5"/>
-    <circle cx="120" cy="68" r="0.5"/>
-    <circle cx="82" cy="74" r="0.4"/>
-    <circle cx="118" cy="74" r="0.4"/>
-    <circle cx="88" cy="66" r="0.4"/>
-    <circle cx="112" cy="66" r="0.4"/>
-    <circle cx="96" cy="63" r="0.4"/>
-    <circle cx="104" cy="63" r="0.4"/>
+    <circle cx="78" cy="74" r="0.5"/>
+    <circle cx="84" cy="69" r="0.5"/>
+    <circle cx="90" cy="66" r="0.5"/>
+    <circle cx="96" cy="64" r="0.5"/>
+    <circle cx="100" cy="63" r="0.5"/>
+    <circle cx="104" cy="64" r="0.5"/>
+    <circle cx="110" cy="66" r="0.5"/>
+    <circle cx="116" cy="69" r="0.5"/>
+    <circle cx="122" cy="74" r="0.5"/>
+    <circle cx="86" cy="76" r="0.4"/>
+    <circle cx="114" cy="76" r="0.4"/>
+    <circle cx="92" cy="71" r="0.4"/>
+    <circle cx="108" cy="71" r="0.4"/>
   </g>
 
-  <!-- STOPPEL-BART (Obama-Style: clean, sehr kurz) -->
-  <path d="M 78 105 C 78 122, 86 135, 100 138 C 114 135, 122 122, 122 105 C 118 112, 110 116, 100 117 C 90 116, 82 112, 78 105 Z" fill="url(#beard)" opacity="0.4"/>
-  <!-- Schnurrbart sehr kurz -->
-  <path d="M 88 100 Q 94 97, 100 98 Q 106 97, 112 100 L 111 102 Q 100 100, 89 102 Z" fill="url(#beard)" opacity="0.5"/>
-
-  <!-- AUGENBRAUEN (definiert, leicht über Brille) -->
-  <path d="M 80 78 Q 86 73, 95 78" stroke="#0a0604" stroke-width="2.8" fill="none" stroke-linecap="round"/>
-  <path d="M 105 78 Q 114 73, 120 78" stroke="#0a0604" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  <!-- AUGENBRAUEN -->
+  <path d="M 80 80 Q 86 76, 95 80" stroke="#0a0604" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  <path d="M 105 80 Q 114 76, 120 80" stroke="#0a0604" stroke-width="2.6" fill="none" stroke-linecap="round"/>
 
   <!-- CARTIER-BRILLE (silber, rechteckig) -->
-  <rect x="74" y="83" width="22" height="14" rx="2" fill="url(#glass)"/>
-  <rect x="104" y="83" width="22" height="14" rx="2" fill="url(#glass)"/>
+  <rect x="74" y="84" width="22" height="14" rx="2" fill="url(#glass)"/>
+  <rect x="104" y="84" width="22" height="14" rx="2" fill="url(#glass)"/>
 
   <!-- AUGEN -->
-  <path d="M 81 89 Q 87 86, 93 89 Q 87 93, 81 89 Z" fill="white"/>
-  <path d="M 107 89 Q 113 86, 119 89 Q 113 93, 107 89 Z" fill="white"/>
-  <circle cx="87" cy="90" r="2.4" fill="#3a1f10"/>
-  <circle cx="113" cy="90" r="2.4" fill="#3a1f10"/>
-  <circle cx="87" cy="90" r="1.3" fill="#0a0604"/>
-  <circle cx="113" cy="90" r="1.3" fill="#0a0604"/>
-  <circle cx="85.7" cy="89" r="0.8" fill="white"/>
-  <circle cx="111.7" cy="89" r="0.8" fill="white"/>
+  <path d="M 81 90 Q 87 87, 93 90 Q 87 94, 81 90 Z" fill="white"/>
+  <path d="M 107 90 Q 113 87, 119 90 Q 113 94, 107 90 Z" fill="white"/>
+  <circle cx="87" cy="91" r="2.4" fill="#3a1f10"/>
+  <circle cx="113" cy="91" r="2.4" fill="#3a1f10"/>
+  <circle cx="87" cy="91" r="1.3" fill="#0a0604"/>
+  <circle cx="113" cy="91" r="1.3" fill="#0a0604"/>
+  <circle cx="85.7" cy="90" r="0.8" fill="white"/>
+  <circle cx="111.7" cy="90" r="0.8" fill="white"/>
 
   <!-- Brillen-Fassung -->
-  <rect x="74" y="83" width="22" height="14" rx="2" fill="none" stroke="url(#silver)" stroke-width="1.6"/>
-  <rect x="104" y="83" width="22" height="14" rx="2" fill="none" stroke="url(#silver)" stroke-width="1.6"/>
-  <path d="M 96 88 L 104 88" stroke="url(#silver)" stroke-width="1.6" stroke-linecap="round"/>
-  <path d="M 74 88 L 69 87" stroke="url(#silver)" stroke-width="1.6" stroke-linecap="round"/>
-  <path d="M 126 88 L 131 87" stroke="url(#silver)" stroke-width="1.6" stroke-linecap="round"/>
-  <rect x="76" y="84" width="6" height="3" rx="1" fill="url(#silverShine)"/>
-  <rect x="106" y="84" width="6" height="3" rx="1" fill="url(#silverShine)"/>
-  <circle cx="72" cy="87" r="0.9" fill="#d4a843"/>
-  <circle cx="128" cy="87" r="0.9" fill="#d4a843"/>
+  <rect x="74" y="84" width="22" height="14" rx="2" fill="none" stroke="url(#silver)" stroke-width="1.6"/>
+  <rect x="104" y="84" width="22" height="14" rx="2" fill="none" stroke="url(#silver)" stroke-width="1.6"/>
+  <path d="M 96 89 L 104 89" stroke="url(#silver)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M 74 89 L 69 88" stroke="url(#silver)" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M 126 89 L 131 88" stroke="url(#silver)" stroke-width="1.6" stroke-linecap="round"/>
+  <rect x="76" y="85" width="6" height="3" rx="1" fill="url(#silverShine)"/>
+  <rect x="106" y="85" width="6" height="3" rx="1" fill="url(#silverShine)"/>
+  <circle cx="72" cy="88" r="0.9" fill="#d4a843"/>
+  <circle cx="128" cy="88" r="0.9" fill="#d4a843"/>
 
-  <!-- NASE (schmal, lang — Obama-typisch) -->
-  <path d="M 100 95 Q 99 104, 100 109 L 103 109 Q 102 104, 102 98 Z" fill="#3a2515" opacity="0.45"/>
-  <path d="M 100 99 L 100 107" stroke="#fff" stroke-width="0.6" opacity="0.18"/>
+  <!-- 👃 NASE — deutlich sichtbar mit Brücke + Nasenflügel + Nasenlöchern -->
+  <!-- Nasenrücken (heller Highlight) -->
+  <path d="M 100 96 L 100 108" stroke="#a37f5a" stroke-width="1.4" stroke-linecap="round" opacity="0.8"/>
+  <!-- Linke Nasenseite (Schatten) -->
+  <path d="M 99 99 Q 96 105, 96 110" stroke="#2a1810" stroke-width="0.8" fill="none" opacity="0.6"/>
+  <!-- Rechte Nasenseite (heller Schatten) -->
+  <path d="M 101 99 Q 104 105, 104 110" stroke="#2a1810" stroke-width="0.8" fill="none" opacity="0.6"/>
+  <!-- Nasenspitze (kleines Oval) -->
+  <ellipse cx="100" cy="111" rx="3.5" ry="2.5" fill="#5a3d28" opacity="0.7"/>
+  <!-- Nasenlöcher -->
+  <ellipse cx="98" cy="112" rx="0.9" ry="0.6" fill="#0a0604" opacity="0.7"/>
+  <ellipse cx="102" cy="112" rx="0.9" ry="0.6" fill="#0a0604" opacity="0.7"/>
+  <!-- Nasenflügel-Schatten unten -->
+  <path d="M 96 113 Q 100 115, 104 113" stroke="#2a1810" stroke-width="0.6" fill="none" opacity="0.5"/>
 
-  <!-- LIPPEN mit Lächeln -->
-  <path d="M 91 113 Q 100 117, 109 113" stroke="#5a3a26" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-  <path d="M 93 115 Q 100 117, 107 115" stroke="#7a4f30" stroke-width="0.8" fill="none" opacity="0.5"/>
+  <!-- KURZER STOPPEL-BART (deutlich aber nicht zu voll) -->
+  <path d="M 80 117 Q 80 130, 88 138 Q 100 142, 112 138 Q 120 130, 120 117 Q 116 122, 100 124 Q 84 122, 80 117 Z" fill="#1a0f08" opacity="0.55"/>
+  <!-- Schnurrbart kurz -->
+  <path d="M 90 117 Q 95 115, 100 116 Q 105 115, 110 117 L 109 119 Q 100 117, 91 119 Z" fill="#1a0f08" opacity="0.55"/>
 
-  <!-- Highlights für Tiefe -->
-  <ellipse cx="78" cy="98" rx="6" ry="4" fill="#fff" opacity="0.04"/>
-  <ellipse cx="122" cy="98" rx="6" ry="4" fill="#fff" opacity="0.04"/>
-  <ellipse cx="100" cy="78" rx="20" ry="6" fill="#fff" opacity="0.06"/>
+  <!-- LIPPEN mit selbstbewusstem Lächeln -->
+  <path d="M 91 122 Q 100 126, 109 122" stroke="#5a3a26" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M 93 124 Q 100 126, 107 124" stroke="#7a4f30" stroke-width="0.8" fill="none" opacity="0.6"/>
+
+  <!-- Wangen-Highlights für Tiefe -->
+  <ellipse cx="78" cy="100" rx="6" ry="5" fill="#fff" opacity="0.04"/>
+  <ellipse cx="122" cy="100" rx="6" ry="5" fill="#fff" opacity="0.04"/>
+  <!-- Stirn-Highlight -->
+  <ellipse cx="100" cy="79" rx="20" ry="5" fill="#fff" opacity="0.07"/>
 </svg>
