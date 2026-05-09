@@ -14,12 +14,10 @@
     <div style="position:relative;z-index:1;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap">
         <!-- Animierte Avatar-Figur (echtes Foto + lebendige Animation) -->
         <div class="ntcoach-avatar" style="width:84px;height:84px;flex-shrink:0;position:relative;animation:ntcoachSway 6s ease-in-out infinite">
-            <div style="position:absolute;inset:0;border-radius:50%;overflow:hidden;box-shadow:0 8px 24px rgba(212,168,67,0.5),0 0 0 3px #d4a843;animation:ntcoachBreathe 4s ease-in-out infinite">
-                <img src="{{ user_photo if user_photo else '/static/icons/coach-avatar-200.jpg?v=1' }}" alt="NTcoach" style="width:100%;height:100%;object-fit:cover;display:block">
-                <!-- Augen-Blinzel-Overlay (sehr subtil, dunkler Streifen kurz) -->
-                <div style="position:absolute;left:0;right:0;top:38%;height:8%;background:linear-gradient(180deg,transparent,rgba(50,30,15,0.55),transparent);opacity:0;animation:ntcoachBlink 5.7s ease-in-out infinite;pointer-events:none"></div>
-                <!-- Schein-Highlight (wandert für lebendigen Eindruck) -->
-                <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,0.18) 0%,transparent 35%);pointer-events:none"></div>
+            <div style="position:absolute;inset:0;border-radius:50%;overflow:hidden;box-shadow:0 8px 24px rgba(212,168,67,0.5),0 0 0 3px #d4a843;animation:ntcoachBreathe 4s ease-in-out infinite;background:#0f1c3f">
+                <img src="/static/icons/coach-avatar.svg?v=2" alt="NTcoach" style="width:100%;height:100%;object-fit:cover;display:block">
+                <!-- Augen-Blinzel-Overlay (subtiler dunkler Streifen) -->
+                <div style="position:absolute;left:18%;right:18%;top:42%;height:6%;background:#1a0f08;opacity:0;animation:ntcoachBlink 5.7s ease-in-out infinite;pointer-events:none;border-radius:99px"></div>
             </div>
             <div style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(212,168,67,0.4);animation:ntcoachPulse 2.4s ease-out infinite;pointer-events:none"></div>
             <div style="position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(212,168,67,0.2);animation:ntcoachPulse 2.4s ease-out infinite 1.2s;pointer-events:none"></div>

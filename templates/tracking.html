@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Tracking & Quoten – NT Pro Academy{% endblock %}
+{% block page_title %}▥ Tracking & Quoten{% endblock %}
+
+{% block content %}
+
+<style>
+.scope-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.scope-tabs a {
+    padding: 10px 16px; border-radius: 99px; text-decoration: none;
+    background: var(--bg-2); color: var(--text-muted); font-weight: 700; font-size: 13px;
+    border: 1px solid var(--border);
+}
+.scope-tabs a.active { background: var(--gold); color: #0f1c3f; border-color: var(--gold); }
+
+.funnel-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; padding: 22px; margin-bottom: 14px;
+}
+.funnel-stages { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.funnel-stage {
+    display: flex; align-items: center; gap: 14px; padding: 14px 18px;
+    border-radius: 12px; background: var(--bg-2); border: 1px solid var(--border);
+}
+.funnel-bar {
+    height: 28px; border-radius: 8px; background: var(--bg);
+    flex: 1; position: relative; overflow: hidden;
+}
+.funnel-fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent, #d4a843), color-mix(in srgb, var(--accent, #d4a843) 70%, white));
+    border-radius: 8px; transition: width 0.6s ease;
+    display: flex; align-items: center; padding: 0 12px;
+    color: #0f1c3f; font-weight: 800; font-size: 13px; min-width: 40px;
+}
+.funnel-label { font-size: 13px; font-weight: 700; color: var(--text); min-width: 130px; }
+.funnel-pct { font-size: 12px; color: var(--text-muted); font-weight: 700; min-width: 60px; text-align: right; }
+</style>
+
+<div class="scope-tabs">
+    <a href="?scope=me" class="{% if scope == 'me' %}active{% endif %}">▷ Nur ich</a>
+    <a href="?scope=team" class="{% if scope == 'team' %}active{% endif %}">◈ Mit Downline</a>
+</div>
+
+<!-- VERTRIEB FUNNEL -->
+<div class="funnel-card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#10b981 5%,var(--surface)));border-color:color-mix(in srgb,#10b981 25%,var(--border))">
+    <div class="card-title" style="color:var(--green)">▷ Vertriebs-Funnel · letzte 30 Tage: {{ vk.new_30d }} neu, {{ vk.won_30d }} gewonnen</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:18px">
+        <div class="kpi-card green">
+            <div class="kpi-label">Gesamt</div>
+            <div class="kpi-value"><span class="counter" data-target="{{ vk.total }}">0</span></div>
+            <div class="kpi-sub">Vertriebs-Kontakte</div>
+        </div>
+        <div class="kpi-card blue">
+            <div class="kpi-label">Kontakt-Quote</div>
+            <div class="kpi-value"><span class="counter" data-target="{{ vk.contact_pct }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span></div>
+            <div class="kpi-sub">{{ vk.contacted }} angerufen</div>
+        </div>
+        <div class="kpi-card purple">
+            <div class="kpi-label">Angebot-Quote</div>
+            <div class="kpi-value"><span class="counter" data-target="{{ vk.angebot_pct }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span></div>
+            <div class="kpi-sub">{{ vk.angebot }} mit Angebot</div>
+        </div>
+        <div class="kpi-card gold">
+            <div class="kpi-label">Abschluss-Quote</div>
+            <div class="kpi-value"><span class="counter" data-target="{{ vk.overall_pct }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span></div>
+            <div class="kpi-sub">{{ vk.won }} gewonnen</div>
+        </div>
+    </div>
+
+    <div class="funnel-stages">
+        {% set max_total = vk.total or 1 %}
+        <div class="funnel-stage">
+            <div class="funnel-label">○ Neu / In Liste</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#3b82f6;width:100%">{{ vk.total }}</div></div>
+            <div class="funnel-pct">100%</div>
+        </div>
+        <div class="funnel-stage">
+            <div class="funnel-label">▶ Kontaktiert</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#a855f7;width:{{ vk.contacted / max_total * 100 }}%">{{ vk.contacted }}</div></div>
+            <div class="funnel-pct">{{ vk.contact_pct }}%</div>
+        </div>
+        <div class="funnel-stage">
+            <div class="funnel-label">≡ Angebot/Termin</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#f59e0b;width:{{ vk.angebot / max_total * 100 }}%">{{ vk.angebot }}</div></div>
+            <div class="funnel-pct">{{ (vk.angebot / max_total * 100) | round(1) }}%</div>
+        </div>
+        <div class="funnel-stage">
+            <div class="funnel-label">✓ Gewonnen</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#10b981;width:{{ vk.won / max_total * 100 }}%">{{ vk.won }}</div></div>
+            <div class="funnel-pct">{{ vk.overall_pct }}%</div>
+        </div>
+        <div class="funnel-stage">
+            <div class="funnel-label">× Verloren</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#ef4444;width:{{ vk.lost / max_total * 100 }}%">{{ vk.lost }}</div></div>
+            <div class="funnel-pct">{{ (vk.lost / max_total * 100) | round(1) }}%</div>
+        </div>
+    </div>
+
+    <div style="margin-top:16px;padding:12px 14px;background:var(--bg-2);border-radius:10px;font-size:12px;color:var(--text-muted)">
+        ▸ <strong>Termine→Abschluss</strong> (60 Tage): {{ term_done_60 }} erledigte Termine ÷ {{ contracts_won_60 }} Abschlüsse =
+        <strong style="color:var(--gold)">{{ termin_quote }} Termine pro Abschluss</strong>
+    </div>
+</div>
+
+<!-- RECRUITING FUNNEL -->
+<div class="funnel-card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#a855f7 5%,var(--surface)));border-color:color-mix(in srgb,#a855f7 25%,var(--border))">
+    <div class="card-title" style="color:var(--purple)">◇ Recruiting-Funnel · {{ direct_total }} direkte Partner gesamt</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:18px">
+        <div class="kpi-card purple">
+            <div class="kpi-label">RK-Liste</div>
+            <div class="kpi-value"><span class="counter" data-target="{{ rk.total }}">0</span></div>
+            <div class="kpi-sub">Recruiting-Kontakte</div>
+        </div>
+        <div class="kpi-card blue">
+            <div class="kpi-label">Angesprochen</div>
+            <div class="kpi-value"><span class="counter" data-target="{{ rk.contact_pct }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span></div>
+            <div class="kpi-sub">{{ rk.contacted }} kontaktiert</div>
+        </div>
+        <div class="kpi-card orange">
+            <div class="kpi-label">Vorstellung</div>
+            <div class="kpi-value"><span class="counter" data-target="{{ rk.angebot_pct }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span></div>
+            <div class="kpi-sub">{{ rk.angebot }} im Prozess</div>
+        </div>
+        <div class="kpi-card gold">
+            <div class="kpi-label">Recruiting-Quote</div>
+            <div class="kpi-value"><span class="counter" data-target="{{ rk.overall_pct }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span></div>
+            <div class="kpi-sub">{{ rk.won }} eingestellt</div>
+        </div>
+    </div>
+
+    <div class="funnel-stages">
+        {% set max_total_rk = rk.total or 1 %}
+        <div class="funnel-stage">
+            <div class="funnel-label">○ In RK-Liste</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#3b82f6;width:100%">{{ rk.total }}</div></div>
+            <div class="funnel-pct">100%</div>
+        </div>
+        <div class="funnel-stage">
+            <div class="funnel-label">▶ Angesprochen</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#a855f7;width:{{ rk.contacted / max_total_rk * 100 }}%">{{ rk.contacted }}</div></div>
+            <div class="funnel-pct">{{ rk.contact_pct }}%</div>
+        </div>
+        <div class="funnel-stage">
+            <div class="funnel-label">◇ Vorstellung läuft</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#f59e0b;width:{{ rk.angebot / max_total_rk * 100 }}%">{{ rk.angebot }}</div></div>
+            <div class="funnel-pct">{{ (rk.angebot / max_total_rk * 100) | round(1) }}%</div>
+        </div>
+        <div class="funnel-stage">
+            <div class="funnel-label">✓ Eingestellt</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#10b981;width:{{ rk.won / max_total_rk * 100 }}%">{{ rk.won }}</div></div>
+            <div class="funnel-pct">{{ rk.overall_pct }}%</div>
+        </div>
+        <div class="funnel-stage">
+            <div class="funnel-label">× Abgesagt</div>
+            <div class="funnel-bar"><div class="funnel-fill" style="--accent:#ef4444;width:{{ rk.lost / max_total_rk * 100 }}%">{{ rk.lost }}</div></div>
+            <div class="funnel-pct">{{ (rk.lost / max_total_rk * 100) | round(1) }}%</div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

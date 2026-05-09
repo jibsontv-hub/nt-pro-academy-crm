@@ -3467,9 +3467,13 @@ def get_coach_actions(user_id, max_actions=5):
 
 
 def get_team_calendar_root(user_id):
-    """Findet den HREP+ (Stufe 3+) Wurzel-User für den Team-Kalender.
-    Eigener Account wenn selbst >= HREP, sonst der nächste HREP-Vorfahre.
-    Returns: dict {id, name, level, short} oder None."""
+    """Wurzel ist IMMER der User selbst — er sieht nur sich + seine eigene Downline.
+    Verfügbar wenn:
+    - User ist HREP+ (Stufe 3+), ODER
+    - User hat selber Downline (auch ein REP der schon Partner geworben hat).
+    Sonst None (kein Team-Kalender).
+    Returns: dict {id, name, level, short} oder None.
+    Geschwister-Strukturen werden NICHT angezeigt — jeder hat seine private Bubble."""
     db = get_db()
     user = db.execute('SELECT * FROM users WHERE id=? AND active=1', (user_id,)).fetchone()
     if not user:
@@ -3477,22 +3481,10 @@ def get_team_calendar_root(user_id):
         return None
     own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
     own_career = career_for_row(user['manual_career_level'], own_eh)
-    if own_career['level'] >= 3:
-        db.close()
-        return {'id': user_id, 'name': user['name'], 'level': own_career['level'], 'short': own_career['short']}
-    # Hangle dich nach oben
-    current_id = user['parent_id']
-    while current_id:
-        parent = db.execute('SELECT * FROM users WHERE id=? AND active=1', (current_id,)).fetchone()
-        if not parent:
-            break
-        peh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (current_id,)).fetchone()['s']
-        pcareer = career_for_row(parent['manual_career_level'], peh)
-        if pcareer['level'] >= 3:
-            db.close()
-            return {'id': current_id, 'name': parent['name'], 'level': pcareer['level'], 'short': pcareer['short']}
-        current_id = parent['parent_id']
+    has_downline = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (user_id,)).fetchone()['c'] > 0
     db.close()
+    if own_career['level'] >= 3 or has_downline:
+        return {'id': user_id, 'name': user['name'], 'level': own_career['level'], 'short': own_career['short']}
     return None
 
 
@@ -6063,6 +6055,62 @@ def needs_catchup(user_id):
     if row['role'] == 'admin':
         return False
     return True
+
+
+@app.route('/tracking')
+@login_required
+def tracking():
+    """Funnel-Tracking für Vertrieb (VK) und Recruiting (RK)."""
+    db = get_db()
+    scope = request.args.get('scope', 'me')
+    if scope == 'team' and (current_user.has_admin_access or
+                             db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (current_user.id,)).fetchone()['c'] > 0):
+        ids = [current_user.id] + get_all_descendants(current_user.id)
+    else:
+        scope = 'me'
+        ids = [current_user.id]
+    placeholders = ','.join('?' * len(ids))
+
+    def funnel_for(typ):
+        if typ == 'rk':
+            cond = "liste_typ='rk'"
+        else:
+            cond = "COALESCE(liste_typ,'vk')='vk'"
+        total = db.execute(f"SELECT COUNT(*) as c FROM leads WHERE owner_id IN ({placeholders}) AND {cond}", ids).fetchone()['c']
+        contacted = db.execute(f"SELECT COUNT(*) as c FROM leads WHERE owner_id IN ({placeholders}) AND {cond} AND status NOT IN ('neu')", ids).fetchone()['c']
+        angebot = db.execute(f"SELECT COUNT(*) as c FROM leads WHERE owner_id IN ({placeholders}) AND {cond} AND status IN ('angebot','rekrutierung','gewonnen','abgeschlossen')", ids).fetchone()['c']
+        won = db.execute(f"SELECT COUNT(*) as c FROM leads WHERE owner_id IN ({placeholders}) AND {cond} AND status IN ('gewonnen','abgeschlossen')", ids).fetchone()['c']
+        lost = db.execute(f"SELECT COUNT(*) as c FROM leads WHERE owner_id IN ({placeholders}) AND {cond} AND status='verloren'", ids).fetchone()['c']
+        new_30d = db.execute(f"SELECT COUNT(*) as c FROM leads WHERE owner_id IN ({placeholders}) AND {cond} AND date(created_at) >= date('now','-30 days')", ids).fetchone()['c']
+        won_30d = db.execute(f"SELECT COUNT(*) as c FROM leads WHERE owner_id IN ({placeholders}) AND {cond} AND status IN ('gewonnen','abgeschlossen') AND date(updated_at) >= date('now','-30 days')", ids).fetchone()['c']
+        return {
+            'total': total, 'contacted': contacted, 'angebot': angebot, 'won': won, 'lost': lost,
+            'new_30d': new_30d, 'won_30d': won_30d,
+            'contact_pct': round(contacted / total * 100, 1) if total else 0,
+            'angebot_pct': round(angebot / max(contacted, 1) * 100, 1),
+            'won_pct': round(won / max(angebot, 1) * 100, 1),
+            'overall_pct': round(won / total * 100, 1) if total else 0,
+        }
+
+    vk = funnel_for('vk')
+    rk = funnel_for('rk')
+
+    # Termine→Abschluss-Quote
+    term_done_60 = db.execute(f"SELECT COUNT(*) as c FROM appointments WHERE owner_id IN ({placeholders}) AND status='erledigt' AND date(termin_date) >= date('now','-60 days')", ids).fetchone()['c']
+    contracts_won_60 = db.execute(f"SELECT COUNT(*) as c FROM contracts WHERE owner_id IN ({placeholders}) AND status='abgeschlossen' AND date(abschluss_date) >= date('now','-60 days')", ids).fetchone()['c']
+    termin_quote = round(term_done_60 / max(contracts_won_60, 1), 1)
+
+    # Recruiting → echte Partner-Anlage (60 Tage)
+    new_partners_60 = db.execute(f"SELECT COUNT(*) as c FROM users WHERE parent_id IN ({placeholders}) AND active=1 AND date(last_login) >= date('now','-60 days')", ids).fetchone()['c'] if False else 0
+    # einfacher: alle direkten Partner zählen
+    direct_total = db.execute(f"SELECT COUNT(*) as c FROM users WHERE parent_id IN ({placeholders}) AND active=1", ids).fetchone()['c']
+
+    db.close()
+    return render_template('tracking.html',
+        vk=vk, rk=rk, scope=scope,
+        termin_quote=termin_quote, term_done_60=term_done_60, contracts_won_60=contracts_won_60,
+        direct_total=direct_total
+    )
 
 
 @app.route('/team-kalender')
