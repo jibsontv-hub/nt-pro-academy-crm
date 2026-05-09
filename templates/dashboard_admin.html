@@ -37,6 +37,48 @@
 </div>
 {% endif %}
 
+<!-- 📅 MONATS- & HALBJAHRES-PROGRESS (der Strahl) -->
+{% if period_stats %}
+<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#d4a843 4%,var(--surface)));border:1px solid color-mix(in srgb,#d4a843 25%,var(--border))">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px">
+        <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+                <div>
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">📅 Aktueller Monat</div>
+                    <div style="font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.5px;margin-top:2px">{{ period_stats.monat_label }} {{ period_stats.monat_year }}</div>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);font-weight:600">Tag {{ period_stats.monat_days_passed }}/{{ period_stats.monat_days_total }}</div>
+            </div>
+            <div style="background:var(--bg-2);border-radius:99px;height:8px;overflow:hidden;margin-bottom:12px">
+                <div style="height:100%;width:{{ period_stats.monat_pct }}%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:99px;transition:width 0.6s"></div>
+            </div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px">
+                <div><span style="color:var(--text-muted)">EH:</span> <strong style="color:var(--gold);font-size:16px">{{ "{:,.0f}".format(period_stats.monat_eh).replace(",", ".") }}</strong></div>
+                <div><span style="color:var(--text-muted)">Verträge:</span> <strong style="color:var(--text)">{{ period_stats.monat_vtr }}</strong></div>
+                <div><span style="color:var(--text-muted)">Neue Partner:</span> <strong style="color:var(--text)">{{ period_stats.monat_partner }}</strong></div>
+            </div>
+        </div>
+        <div style="border-left:1px solid var(--border);padding-left:18px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+                <div>
+                    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;font-weight:700">⏳ Laufendes Halbjahr</div>
+                    <div style="font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.5px;margin-top:2px">{{ period_stats.h_name }}</div>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);font-weight:600">noch {{ period_stats.h_remaining }} Tage</div>
+            </div>
+            <div style="background:var(--bg-2);border-radius:99px;height:8px;overflow:hidden;margin-bottom:12px">
+                <div style="height:100%;width:{{ period_stats.h_pct }}%;background:linear-gradient(90deg,#3b82f6,#a855f7);border-radius:99px;transition:width 0.6s"></div>
+            </div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px">
+                <div><span style="color:var(--text-muted)">EH:</span> <strong style="color:var(--gold);font-size:16px">{{ "{:,.0f}".format(period_stats.h_eh).replace(",", ".") }}</strong></div>
+                <div><span style="color:var(--text-muted)">Verträge:</span> <strong style="color:var(--text)">{{ period_stats.h_vtr }}</strong></div>
+                <div><span style="color:var(--text-muted)">Neue Partner:</span> <strong style="color:var(--text)">{{ period_stats.h_partner }}</strong></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- ⏰ Deadlines -->
 {% if deadlines %}
 <div class="revo-chips">
