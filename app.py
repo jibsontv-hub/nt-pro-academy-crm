@@ -581,6 +581,13 @@ def build_user_context(user_id):
         inactive_partners = 0
 
     db.close()
+
+    # Wer hat HEUTE nichts gemacht (max 8 Namen für Prompt-Kompaktheit)
+    inactive_today = get_inactive_team_members(user_id, days=1, scope='all')
+    inactive_today_names = ', '.join([f"{u['name']} ({u['days_inactive']}T)" for u in inactive_today[:8]]) or 'niemand — alle waren aktiv'
+    # Wer ist 3+ Tage still
+    inactive_3d = [u for u in inactive_today if u['days_inactive'] >= 3]
+    inactive_3d_names = ', '.join([f"{u['name']} ({u['days_inactive']}T)" for u in inactive_3d[:8]]) or '–'
     career = career_for_row(user['manual_career_level'], own_eh)
     next_lvl = next((c for c in CAREER_LEVELS if c['level'] == career['level'] + 1), None)
     eh_to_go = max(0, next_lvl['min_eh'] - own_eh) if next_lvl else 0
@@ -603,6 +610,10 @@ def build_user_context(user_id):
         'team_size': team_size,
         'team_eh': int(team_eh),
         'inactive_partners': inactive_partners,
+        'inactive_today_count': len(inactive_today),
+        'inactive_today_names': inactive_today_names,
+        'inactive_3d_count': len(inactive_3d),
+        'inactive_3d_names': inactive_3d_names,
         'vision': user['vision'] or '–',
         'eingabeschluss': deadlines['eingabeschluss_str'] + ' (in ' + str(deadlines['eingabe_in_days']) + ' Tagen)' if deadlines else '–',
         'grundseminar': deadlines['grundseminar_str'] if deadlines else '–',
@@ -657,7 +668,15 @@ AKTUELLER STAND VON {ctx['name']} ({ctx['role']}):
 - Leads/Namensliste: {ctx['leads']} | Geplante Termine: {ctx['open_appointments']}
 - Direkte Partner: {ctx['direct_partners']} | Team-Größe gesamt: {ctx['team_size']}
 - Inaktive Partner (>7 Tage): {ctx['inactive_partners']}
+- Heute NICHT aktiv ({ctx['inactive_today_count']}): {ctx['inactive_today_names']}
+- 3+ Tage still ({ctx['inactive_3d_count']}): {ctx['inactive_3d_names']}
 - Vision: {ctx['vision']}
+
+WENN DER USER FRAGT WER NICHTS GEMACHT HAT:
+- Nutze die Liste oben ("Heute NICHT aktiv" oder "3+ Tage still")
+- Nenne 3-5 Namen konkret, mit Tagen
+- Schlag vor: "Ruf {{Name}} an — frag woran's hakt"
+- Verlinke wenn passend: "Details unter /partner/<id> oder /team/inaktiv"
 
 WICHTIGE TERMINE:
 - Eingabeschluss/Produktionsschluss: {ctx['eingabeschluss']}
@@ -803,7 +822,17 @@ def heuristic_weekly_briefing(user_id):
     elif pending > 0:
         parts.append(f"Tipp: {pending} Recherche{'n' if pending > 1 else ''} noch offen — kurz nachfragen.")
 
-    # 6. Vision-Reminder
+    # 6. Inaktive Partner — wichtig für Führungskräfte!
+    try:
+        inact = get_inactive_team_members(user_id, days=1, scope='all')
+        if inact:
+            top = inact[:3]
+            names = ', '.join([f"{u['name']} ({u['days_inactive']}T)" for u in top])
+            parts.append(f"⚠ Inaktiv: {names}{' und mehr' if len(inact) > 3 else ''}. Ruf sie an — woran hakt's?")
+    except Exception:
+        pass
+
+    # 7. Vision-Reminder
     if user['vision'] and user['vision'].strip() and weekday in [0, 4]:
         vision_short = user['vision'][:80] + ('…' if len(user['vision']) > 80 else '')
         parts.append(f'Erinnere dich: „{vision_short}" — dafür machst du das hier.')
@@ -2202,6 +2231,15 @@ def inject_career():
                     alerts = 0
                 cache_set(ai_key, alerts, ttl=300)
             ctx['coach_alerts'] = alerts
+            # Inactive-Alert: 3+ Tage stille direkte Partner (für Führungskräfte)
+            try:
+                inact = get_inactive_team_members(current_user.id, days=3, scope='direct')
+                ctx['inactive_alert'] = [
+                    {'id': u['id'], 'name': u['name'], 'days': u['days_inactive']}
+                    for u in inact[:3]
+                ] if inact else []
+            except Exception:
+                ctx['inactive_alert'] = []
             cache_set(cache_key, ctx, ttl=60)
         # Sprachpräferenz aus DB (für Tour-Voice + Datei-Auswahl)
         try:
