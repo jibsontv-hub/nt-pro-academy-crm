@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}{{ the_date.strftime('%d.%m.%Y') }} – Team-Tag{% endblock %}
+{% block page_title %}📅 {{ the_date.strftime('%A, %d.%m.%Y') }}{% endblock %}
+
+{% block content %}
+
+<style>
+    .day-wrap { display: grid; grid-template-columns: 1fr 320px; gap: 16px; }
+    @media (max-width: 900px) { .day-wrap { grid-template-columns: 1fr; } }
+
+    .timeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; }
+    .timeline-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+    .timeline-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .timeline-sub { font-size: 12px; color: var(--text-muted); }
+    .timeline-nav { display: flex; gap: 6px; }
+
+    .timeline {
+        position: relative; display: grid;
+        grid-template-columns: 50px 1fr; gap: 0;
+        background: var(--bg-2); border-radius: 14px; overflow: hidden;
+    }
+    .hour-row { display: contents; }
+    .hour-label {
+        font-size: 11px; color: var(--text-muted); font-weight: 700;
+        text-align: right; padding: 14px 8px 0 0; border-top: 1px solid var(--border);
+        position: relative; min-height: 56px;
+    }
+    .hour-row:first-child .hour-label { border-top: none; }
+    .hour-slot {
+        border-top: 1px solid var(--border); position: relative; min-height: 56px;
+        cursor: pointer; transition: background 0.15s;
+    }
+    .hour-row:first-child .hour-slot { border-top: none; }
+    .hour-slot:hover { background: color-mix(in srgb, var(--gold) 8%, transparent); }
+    .hour-slot.now { background: color-mix(in srgb, var(--gold) 5%, transparent); }
+    .hour-now-line {
+        position: absolute; left: 0; right: 0; height: 2px;
+        background: var(--red); z-index: 5;
+    }
+    .hour-now-line::before {
+        content: ''; position: absolute; left: -6px; top: -4px;
+        width: 10px; height: 10px; border-radius: 50%; background: var(--red);
+    }
+
+    .event-block {
+        position: absolute; left: 6px; right: 6px;
+        background: var(--accent, var(--gold)); color: #fff;
+        border-radius: 10px; padding: 8px 12px;
+        font-weight: 700; font-size: 13px; z-index: 3;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        cursor: pointer; transition: all 0.15s; overflow: hidden;
+    }
+    .event-block:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.2); }
+    .event-block .et { font-size: 11px; opacity: 0.85; font-weight: 600; margin-bottom: 2px; }
+    .event-block .ec { font-size: 11px; opacity: 0.8; font-weight: 500; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+    .event-attendees { display: inline-flex; align-items: center; margin-left: 6px; }
+    .att-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #fff; margin-left: -4px; font-size: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+
+    .all-day-evts { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
+    .all-day-evt {
+        background: var(--bg-2); border-left: 3px solid var(--accent, var(--gold));
+        border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 10px;
+        cursor: pointer; transition: background 0.15s;
+    }
+    .all-day-evt:hover { background: var(--surface); }
+
+    .add-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; }
+
+    .att-pick-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 6px; max-height: 220px; overflow-y: auto;
+        padding: 8px; background: var(--bg-2); border-radius: 10px;
+    }
+    .att-pick-item {
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 10px; border-radius: 8px; cursor: pointer;
+        font-size: 12px; font-weight: 600; color: var(--text);
+        background: var(--surface); border: 1px solid var(--border);
+        transition: all 0.15s;
+    }
+    .att-pick-item.selected { background: var(--accent, var(--gold)); color: #fff; border-color: var(--accent, var(--gold)); }
+    .att-pick-item input { display: none; }
+    .att-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+</style>
+
+<div class="day-wrap">
+    <!-- TIMELINE -->
+    <div class="timeline-card">
+        <div class="timeline-head">
+            <div>
+                <div class="timeline-title">{{ the_date.strftime('%d. %B %Y') | replace('January','Januar') | replace('February','Februar') | replace('March','März') | replace('April','April') | replace('May','Mai') | replace('June','Juni') | replace('July','Juli') | replace('August','August') | replace('September','September') | replace('October','Oktober') | replace('November','November') | replace('December','Dezember') }}</div>
+                <div class="timeline-sub">
+                    {% if is_sub_root %}⤵ Sub-Struktur · {% endif %}
+                    <strong style="color:var(--gold)">{{ root.name }}</strong> · {{ appointments | length }} Termin{% if appointments|length != 1 %}e{% endif %} · {{ members | length }} Partner sichtbar
+                </div>
+            </div>
+            <div class="timeline-nav">
+                <a href="/team-kalender/tag/{{ prev_d }}{% if is_sub_root %}?root={{ root.id }}{% endif %}" class="btn btn-secondary btn-sm">← Vortag</a>
+                <a href="/team-kalender/tag/{{ today_iso }}{% if is_sub_root %}?root={{ root.id }}{% endif %}" class="btn btn-secondary btn-sm">Heute</a>
+                <a href="/team-kalender/tag/{{ next_d }}{% if is_sub_root %}?root={{ root.id }}{% endif %}" class="btn btn-secondary btn-sm">Folgetag →</a>
+            </div>
+        </div>
+
+        <!-- Termine ohne Uhrzeit (all-day) -->
+        {% set timed = appointments | selectattr('termin_time') | list %}
+        {% set untimed = appointments | rejectattr('termin_time') | list %}
+        {% if untimed %}
+        <div class="all-day-evts">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:4px">Ohne Uhrzeit</div>
+            {% for e in untimed %}
+            <div class="all-day-evt" style="--accent:{{ e.color }}" onclick="document.getElementById('addTitle').value='Bzgl. {{ e.title }}'">
+                <span style="font-size:18px">{% if e.typ == 'erstgespraech' %}🆕{% elif e.typ == 'abschluss' %}✓{% elif e.typ == 'recruiting' %}🎯{% elif e.typ == 'schulung' %}🎓{% elif e.typ == 'seminar' %}📚{% else %}👥{% endif %}</span>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:700">{{ e.title }}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">{{ e.owner_name }}{% if e.client_name %} · {{ e.client_name }}{% endif %}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Stunden-Timeline 7-22 Uhr -->
+        <div class="timeline" id="timeline">
+            {% for h in range(7, 23) %}
+            <div class="hour-row">
+                <div class="hour-label">{{ '%02d:00' | format(h) }}</div>
+                <div class="hour-slot" data-hour="{{ h }}" onclick="quickAddAt({{ h }})"></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ADD-PANEL (sticky right) -->
+    <div class="add-card">
+        <div style="font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:12px">+ Neuer Termin</div>
+        <form method="POST" action="/team-kalender/quick-add">
+            <input type="hidden" name="termin_date" value="{{ datestr }}">
+            <input type="hidden" name="return_to" value="day">
+
+            <div class="form-group" style="margin-bottom:10px">
+                <label>Titel *</label>
+                <input type="text" name="title" id="addTitle" required maxlength="140" placeholder="z.B. Kundengespräch Müller">
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                <div class="form-group">
+                    <label>Uhrzeit</label>
+                    <input type="time" name="termin_time" id="addTime">
+                </div>
+                <div class="form-group">
+                    <label>Dauer (Min)</label>
+                    <select name="duration_min">
+                        <option value="30">30 min</option>
+                        <option value="60" selected>60 min</option>
+                        <option value="90">90 min</option>
+                        <option value="120">2 h</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:10px">
+                <label>Typ</label>
+                <select name="typ">
+                    <option value="kundentermin">👥 Kundentermin</option>
+                    <option value="erstgespraech">🆕 Erstgespräch</option>
+                    <option value="abschluss">✓ Abschluss</option>
+                    <option value="recruiting">🎯 Recruiting</option>
+                    <option value="schulung">🎓 Schulung</option>
+                    <option value="seminar">📚 Seminar</option>
+                    <option value="sonstiges">💼 Sonstiges</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom:10px">
+                <label>Kunde / Person</label>
+                <input type="text" name="client_name" placeholder="optional">
+            </div>
+
+            {% if members and members | length > 1 %}
+            <div class="form-group" style="margin-bottom:14px">
+                <label>👥 Mit wem? (Multi-Auswahl)</label>
+                <div class="att-pick-grid">
+                    {% for m in members %}
+                    {% if m.id != current_user.id %}
+                    <label class="att-pick-item" onclick="toggleAtt(this, {{ m.id }})">
+                        <input type="checkbox" name="attendee_ids" value="{{ m.id }}">
+                        <span class="att-color" style="background:{{ m.color }}"></span>
+                        <span style="overflow:hidden;text-overflow:ellipsis">{{ m.name }}</span>
+                    </label>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                <span style="font-size:11px;color:var(--text-soft);margin-top:4px">Leer = alleine. Sonst gemeinsamer Termin.</span>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary" style="width:100%">📅 Eintragen</button>
+        </form>
+
+        {% if root and root.id != current_user.id %}
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <a href="/team-kalender{% if is_sub_root %}?root={{ root.id }}{% endif %}" style="color:var(--gold);text-decoration:none;font-size:12px;font-weight:700">← Zurück zum Monats-Kalender</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+const APPTS = {{ appointments | tojson }};
+
+function toggleAtt(label, uid) {
+    const cb = label.querySelector('input');
+    cb.checked = !cb.checked;
+    label.classList.toggle('selected', cb.checked);
+}
+
+function quickAddAt(hour) {
+    document.getElementById('addTime').value = String(hour).padStart(2,'0') + ':00';
+    document.getElementById('addTitle').focus();
+}
+
+// Termin-Blöcke in Timeline platzieren
+function renderEvents() {
+    const tl = document.getElementById('timeline');
+    const slots = tl.querySelectorAll('.hour-slot');
+    APPTS.forEach(e => {
+        if (!e.termin_time) return;
+        const t = e.termin_time.substring(0, 5);
+        const [h, m] = t.split(':').map(Number);
+        if (h < 7 || h > 22) return;
+        const slot = tl.querySelector(`.hour-slot[data-hour="${h}"]`);
+        if (!slot) return;
+        const dur = e.duration_min || 60;
+        const pxPerMin = 56 / 60;
+        const top = m * pxPerMin;
+        const height = Math.max(28, dur * pxPerMin - 4);
+        const block = document.createElement('div');
+        block.className = 'event-block';
+        block.style.setProperty('--accent', e.color);
+        block.style.top = top + 'px';
+        block.style.height = height + 'px';
+        const typIcon = ({'kundentermin':'👥','erstgespraech':'🆕','abschluss':'✓','recruiting':'🎯','schulung':'🎓','seminar':'📚'})[e.typ] || '💼';
+        let attHtml = '';
+        if (e.attendees && e.attendees.length) {
+            attHtml = '<span class="event-attendees">';
+            e.attendees.slice(0, 4).forEach(a => {
+                attHtml += `<span class="att-dot" style="background:${a.color}" title="${a.name}">${a.name[0]}</span>`;
+            });
+            if (e.attendees.length > 4) attHtml += `<span class="att-dot" style="background:#94a3b8">+${e.attendees.length - 4}</span>`;
+            attHtml += '</span>';
+        }
+        block.innerHTML = `
+            <div class="et">${typIcon} ${t} · ${e.owner_name}</div>
+            <div>${e.title || '–'}</div>
+            ${e.client_name ? `<div class="ec">${e.client_name}${attHtml}</div>` : (attHtml ? `<div class="ec">${attHtml}</div>` : '')}
+        `;
+        block.onclick = (ev) => { ev.stopPropagation(); window.location.href = '/termine'; };
+        slot.appendChild(block);
+    });
+
+    // Aktuelle Zeit-Linie (nur wenn heute)
+    const today = '{{ today_iso }}';
+    if ('{{ datestr }}' === today) {
+        const now = new Date();
+        const h = now.getHours(), m = now.getMinutes();
+        if (h >= 7 && h <= 22) {
+            const slot = tl.querySelector(`.hour-slot[data-hour="${h}"]`);
+            if (slot) {
+                slot.classList.add('now');
+                const line = document.createElement('div');
+                line.className = 'hour-now-line';
+                line.style.top = (m * 56/60) + 'px';
+                slot.appendChild(line);
+            }
+        }
+    }
+}
+renderEvents();
+</script>
+
+{% endblock %}

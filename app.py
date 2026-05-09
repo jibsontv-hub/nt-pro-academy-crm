@@ -3132,6 +3132,14 @@ def init_db():
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
 
+        # appointments: attendee_ids (JSON-Liste mit User-IDs für Multi-Partner-Termine)
+        appt_cols = db.execute("PRAGMA table_info(appointments)").fetchall()
+        appt_col_names = [c['name'] for c in appt_cols]
+        if 'attendee_ids' not in appt_col_names:
+            db.execute("ALTER TABLE appointments ADD COLUMN attendee_ids TEXT")
+        if 'duration_min' not in appt_col_names:
+            db.execute("ALTER TABLE appointments ADD COLUMN duration_min INTEGER DEFAULT 60")
+
         # contracts: kunde_birthday + lead_id für Koppelung mit Namensliste
         contract_cols = db.execute("PRAGMA table_info(contracts)").fetchall()
         contract_col_names = [c['name'] for c in contract_cols]
@@ -5845,11 +5853,29 @@ def struktur():
 @app.route('/team-kalender')
 @login_required
 def team_kalender():
-    """Team-Kalender ab HREP+ — alle Termine der Struktur sichtbar."""
-    root = get_team_calendar_root(current_user.id)
-    if not root:
-        flash('Team-Kalender ist ab HREP-Stufe verfügbar — du oder ein Upline-Partner muss HREP oder höher sein.', 'info')
-        return redirect(url_for('dashboard'))
+    """Team-Kalender ab HREP+ — alle Termine der Struktur sichtbar.
+    Optional: ?root=<id> um in eine Sub-Struktur zu zoomen (nur wenn Upline)
+    Optional: ?partner=<id> um nur einen Partner zu filtern."""
+    root_param = request.args.get('root')
+    if root_param and root_param.isdigit():
+        target_id = int(root_param)
+        # Berechtigung: nur wenn current_user Upline ist (oder Admin oder selber)
+        descendants = get_all_descendants(current_user.id)
+        if not (current_user.has_admin_access or target_id == current_user.id or target_id in descendants):
+            flash('Keine Berechtigung für diesen Sub-Kalender.', 'error')
+            return redirect(url_for('team_kalender'))
+        db = get_db()
+        target_user = db.execute('SELECT * FROM users WHERE id=? AND active=1', (target_id,)).fetchone()
+        db.close()
+        if not target_user:
+            return redirect(url_for('team_kalender'))
+        root = {'id': target_id, 'name': target_user['name'], 'level': target_user['manual_career_level'] or 1, 'short': 'TEAM'}
+    else:
+        root = get_team_calendar_root(current_user.id)
+        if not root:
+            flash('Team-Kalender ist ab HREP-Stufe verfügbar — du oder ein Upline-Partner muss HREP oder höher sein.', 'info')
+            return redirect(url_for('dashboard'))
+
     today = date.today()
     try:
         year = int(request.args.get('year', today.year))
@@ -5859,6 +5885,11 @@ def team_kalender():
     if month < 1: month, year = 12, year - 1
     if month > 12: month, year = 1, year + 1
     data = get_team_calendar_data(root['id'], year, month)
+    # Filter nach einem Partner
+    partner_filter = request.args.get('partner')
+    if partner_filter and partner_filter.isdigit():
+        pid = int(partner_filter)
+        data['appointments'] = [a for a in data['appointments'] if a['owner_id'] == pid]
     # Navigation
     prev_month, prev_year = (12, year - 1) if month == 1 else (month - 1, year)
     next_month, next_year = (1, year + 1) if month == 12 else (month + 1, year)
@@ -5869,32 +5900,114 @@ def team_kalender():
         appointments=data['appointments'], members=data['members'],
         prev_year=prev_year, prev_month=prev_month,
         next_year=next_year, next_month=next_month,
-        today_iso=today.isoformat()
+        today_iso=today.isoformat(),
+        partner_filter=int(partner_filter) if partner_filter and partner_filter.isdigit() else None,
+        is_sub_root=bool(root_param)
+    )
+
+
+@app.route('/team-kalender/tag/<datestr>')
+@login_required
+def team_kalender_tag(datestr):
+    """Tages-Detail-Ansicht mit Stunden-Timeline."""
+    try:
+        d = datetime.strptime(datestr, '%Y-%m-%d').date()
+    except ValueError:
+        return redirect(url_for('team_kalender'))
+    root_param = request.args.get('root')
+    if root_param and root_param.isdigit():
+        target_id = int(root_param)
+        descendants = get_all_descendants(current_user.id)
+        if not (current_user.has_admin_access or target_id == current_user.id or target_id in descendants):
+            return redirect(url_for('team_kalender'))
+        db = get_db()
+        target_user = db.execute('SELECT * FROM users WHERE id=? AND active=1', (target_id,)).fetchone()
+        db.close()
+        root = {'id': target_id, 'name': target_user['name'], 'level': 1, 'short': 'TEAM'} if target_user else None
+    else:
+        root = get_team_calendar_root(current_user.id)
+    if not root:
+        return redirect(url_for('dashboard'))
+
+    db = get_db()
+    ids = [root['id']] + get_all_descendants(root['id'])
+    placeholders = ','.join('?' * len(ids))
+    members = db.execute(f'SELECT id, name FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
+    color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}
+    members_list = [{'id': m['id'], 'name': m['name'], 'color': color_map[m['id']]} for m in members]
+
+    appts = db.execute(f'''SELECT a.*, u.name as owner_name FROM appointments a
+                            JOIN users u ON a.owner_id=u.id
+                            WHERE a.owner_id IN ({placeholders}) AND date(a.termin_date)=?
+                            ORDER BY a.termin_time NULLS FIRST, a.id''', ids + [datestr]).fetchall()
+    appts_list = []
+    for a in appts:
+        d2 = dict(a)
+        d2['color'] = color_map.get(a['owner_id'], '#94a3b8')
+        # Attendees auflösen
+        d2['attendees'] = []
+        try:
+            if a['attendee_ids']:
+                att_ids = [int(x) for x in json.loads(a['attendee_ids']) if str(x).isdigit()]
+                if att_ids:
+                    aph = ','.join('?' * len(att_ids))
+                    arows = db.execute(f'SELECT id, name FROM users WHERE id IN ({aph})', att_ids).fetchall()
+                    for ar in arows:
+                        d2['attendees'].append({'id': ar['id'], 'name': ar['name'], 'color': color_map.get(ar['id'], '#94a3b8')})
+        except Exception:
+            pass
+        appts_list.append(d2)
+    db.close()
+
+    # Vor/Zurück
+    prev_d = (d - timedelta(days=1)).isoformat()
+    next_d = (d + timedelta(days=1)).isoformat()
+    return render_template('team_kalender_tag.html',
+        root=root, the_date=d, datestr=datestr,
+        appointments=appts_list, members=members_list,
+        prev_d=prev_d, next_d=next_d,
+        is_sub_root=bool(root_param),
+        today_iso=date.today().isoformat()
     )
 
 
 @app.route('/team-kalender/quick-add', methods=['POST'])
 @login_required
 def team_kalender_quick_add():
-    """Quick-Add Termin direkt aus dem Kalender-Slot."""
+    """Quick-Add Termin direkt aus dem Kalender — mit Multi-Partner-Attendees."""
     title = (request.form.get('title') or '').strip()
     termin_date = (request.form.get('termin_date') or '').strip()
     termin_time = (request.form.get('termin_time') or '').strip()
     typ = (request.form.get('typ') or 'kundentermin').strip()
     client_name = (request.form.get('client_name') or '').strip()
+    try:
+        duration = int(request.form.get('duration_min', 60) or 60)
+    except (ValueError, TypeError):
+        duration = 60
+    # Multi-Partner: form sendet attendee_ids als kommaseparierte Liste oder als getlist
+    attendee_raw = request.form.getlist('attendee_ids') or []
+    if not attendee_raw and request.form.get('attendee_ids_csv'):
+        attendee_raw = [x.strip() for x in request.form.get('attendee_ids_csv', '').split(',') if x.strip()]
+    attendee_ids_list = [int(x) for x in attendee_raw if str(x).isdigit()]
+    attendee_json = json.dumps(attendee_ids_list) if attendee_ids_list else None
+
     if not title or not termin_date:
         flash('Titel und Datum sind Pflicht.', 'error')
         return redirect(url_for('team_kalender'))
     db = get_db()
-    db.execute('''INSERT INTO appointments (owner_id, title, client_name, termin_date, termin_time, typ, status)
-                  VALUES (?, ?, ?, ?, ?, ?, 'geplant')''',
-               (current_user.id, title, client_name or None, termin_date, termin_time or None, typ))
+    db.execute('''INSERT INTO appointments
+                  (owner_id, title, client_name, termin_date, termin_time, typ, status, attendee_ids, duration_min)
+                  VALUES (?, ?, ?, ?, ?, ?, 'geplant', ?, ?)''',
+               (current_user.id, title, client_name or None, termin_date,
+                termin_time or None, typ, attendee_json, duration))
     db.commit()
     db.close()
     log_activity(current_user.id, 'termin_neu', f'{current_user.name} hat Termin „{title}" angelegt',
                  icon='📅', color='blue')
     flash(f'Termin „{title}" am {termin_date} angelegt.', 'success')
-    # Zurück zur Kalender-Ansicht im richtigen Monat
+    # Bei Tages-Ansicht zurück zum Tag, sonst zum Monat
+    if request.form.get('return_to') == 'day':
+        return redirect(url_for('team_kalender_tag', datestr=termin_date))
     try:
         d = datetime.strptime(termin_date, '%Y-%m-%d').date()
         return redirect(url_for('team_kalender', year=d.year, month=d.month))

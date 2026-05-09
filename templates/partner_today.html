@@ -2,6 +2,7 @@
 {% block title %}{{ target.name }} – Heute{% endblock %}
 {% block page_title %}{{ target.name }} – Was war heute?{% endblock %}
 {% block topbar_actions %}
+<a href="/team-kalender?root={{ target.id }}" class="btn btn-primary btn-sm">📅 Sub-Kalender</a>
 <a href="/team/{{ target.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a>
 {% endblock %}
 

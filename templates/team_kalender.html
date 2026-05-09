@@ -65,15 +65,39 @@
         <div>
             <div class="cal-month">{{ monat_label }} {{ year }}</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
-                Team-Wurzel: <strong style="color:var(--gold)">{{ root.name }} ({{ root.short }})</strong> · {{ members | length }} Mitglieder
+                {% if is_sub_root %}<span style="color:var(--gold);font-weight:700">⤵ Sub-Struktur:</span> {% endif %}
+                <strong style="color:var(--gold)">{{ root.name }}</strong> · {{ members | length }} Mitglieder
+                {% if is_sub_root %} · <a href="/team-kalender" style="color:var(--blue);text-decoration:none">↩ Zurück zu Gesamt-Kalender</a>{% endif %}
             </div>
         </div>
         <div class="cal-nav">
-            <a href="?year={{ prev_year }}&month={{ prev_month }}" class="btn btn-secondary btn-sm">← Vorheriger</a>
-            <a href="/team-kalender" class="btn btn-secondary btn-sm">Heute</a>
-            <a href="?year={{ next_year }}&month={{ next_month }}" class="btn btn-secondary btn-sm">Nächster →</a>
+            <a href="?year={{ prev_year }}&month={{ prev_month }}{% if is_sub_root %}&root={{ root.id }}{% endif %}" class="btn btn-secondary btn-sm">←</a>
+            <a href="?{% if is_sub_root %}root={{ root.id }}{% endif %}" class="btn btn-secondary btn-sm">Heute</a>
+            <a href="?year={{ next_year }}&month={{ next_month }}{% if is_sub_root %}&root={{ root.id }}{% endif %}" class="btn btn-secondary btn-sm">→</a>
         </div>
     </div>
+
+    <!-- Filter-Chips: nach Partner filtern -->
+    {% if members and members | length > 1 %}
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+        <a href="?year={{ year }}&month={{ month }}{% if is_sub_root %}&root={{ root.id }}{% endif %}"
+           style="padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;
+                  background:{% if not partner_filter %}var(--gold);color:#0f1c3f{% else %}var(--bg-2);color:var(--text-muted){% endif %};
+                  border:1px solid {% if not partner_filter %}var(--gold){% else %}var(--border){% endif %}">
+            Alle ({{ members | length }})
+        </a>
+        {% for m in members %}
+        <a href="?year={{ year }}&month={{ month }}&partner={{ m.id }}{% if is_sub_root %}&root={{ root.id }}{% endif %}"
+           style="padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;
+                  display:inline-flex;align-items:center;gap:6px;
+                  background:{% if partner_filter == m.id %}{{ m.color }};color:#fff{% else %}var(--bg-2);color:var(--text-muted){% endif %};
+                  border:1px solid {% if partner_filter == m.id %}{{ m.color }}{% else %}var(--border){% endif %}">
+            <span style="width:8px;height:8px;border-radius:50%;background:{% if partner_filter == m.id %}#fff{% else %}{{ m.color }}{% endif %}"></span>
+            {{ m.name }}{% if m.id == current_user.id %} (du){% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <!-- Wochentags-Header -->
     <div class="cal-grid" style="margin-bottom:6px">
@@ -179,6 +203,7 @@ function buildCalendar() {
     }
 
     // Tage
+    const subRootParam = {{ ('"&root=' ~ root.id ~ '"') | safe if is_sub_root else '""' | safe }};
     for (let day = 1; day <= lastDay; day++) {
         const iso = `${YEAR}-${String(MONTH).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const dt = new Date(YEAR, MONTH - 1, day);
@@ -189,7 +214,8 @@ function buildCalendar() {
         const cell = document.createElement('div');
         cell.className = 'cal-day' + (isToday ? ' today' : '') + (isWeekend ? ' weekend' : '');
         cell.dataset.date = iso;
-        cell.onclick = () => openDay(iso, events);
+        // Klick → Tages-Detail-Seite (mit Stunden-Timeline)
+        cell.onclick = () => { window.location.href = `/team-kalender/tag/${iso}?${subRootParam.replace('&','')}`; };
 
         const num = document.createElement('div');
         num.className = 'cal-daynum';
