@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}{{ target.name }} – Heute{% endblock %}
+{% block page_title %}{{ target.name }} – Was war heute?{% endblock %}
+{% block topbar_actions %}
+<a href="/team/{{ target.id }}/edit" class="btn btn-secondary btn-sm">Bearbeiten</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border:none">
+    <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <div style="width:56px;height:56px;border-radius:14px;background:{{ target_career.color }};display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#fff;border:2px solid rgba(255,255,255,0.2)">{{ target_career.short }}</div>
+        <div style="flex:1;min-width:200px">
+            <div style="font-size:24px;font-weight:900;letter-spacing:-0.5px">{{ target.name }}</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.7)">{{ target_career.name }} · {{ "{:,.0f}".format(own_eh).replace(",", ".") }} EH</div>
+        </div>
+        <div style="text-align:right">
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;font-weight:700">Status heute</div>
+            {% if activity.active_today %}
+            <div style="font-size:18px;font-weight:800;color:#34d399">● Aktiv ({{ activity.total_actions_today }} Aktionen)</div>
+            {% else %}
+            <div style="font-size:18px;font-weight:800;color:#fca5a5">⚠ Inaktiv</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- KPI-Row -->
+<div class="kpi-grid">
+    <div class="kpi-card blue">
+        <div class="kpi-label">Neue Leads heute</div>
+        <div class="kpi-value">{{ activity.leads_today }}</div>
+    </div>
+    <div class="kpi-card orange">
+        <div class="kpi-label">Termine angelegt</div>
+        <div class="kpi-value">{{ activity.termine_today }}</div>
+    </div>
+    <div class="kpi-card green">
+        <div class="kpi-label">Termine erledigt</div>
+        <div class="kpi-value">{{ activity.termine_done_today }}</div>
+    </div>
+    <div class="kpi-card gold">
+        <div class="kpi-label">Verträge heute</div>
+        <div class="kpi-value">{{ activity.vertraege_today }}</div>
+    </div>
+    <div class="kpi-card purple">
+        <div class="kpi-label">Tagesaufgaben</div>
+        <div class="kpi-value">{{ activity.tasks_done }}/{{ activity.tasks_total }}</div>
+    </div>
+</div>
+
+<!-- Tagesaufgaben -->
+{% if today_tasks %}
+<div class="card">
+    <div class="card-title">✓ Tagesaufgaben</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+        {% for t in today_tasks %}
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;{% if t.done %}opacity:0.6{% endif %}">
+            <span style="font-size:18px">{% if t.done %}✅{% else %}⬜{% endif %}</span>
+            <div style="flex:1">
+                <div style="font-size:14px;font-weight:600;color:var(--text){% if t.done %};text-decoration:line-through{% endif %}">{{ t.titel or t.task or '–' }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Leads heute -->
+{% if today_leads %}
+<div class="card">
+    <div class="card-title">◎ Heute angelegte Leads</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Name</th><th>Produkt</th><th>Status</th><th>Telefon</th></tr></thead>
+            <tbody>
+                {% for l in today_leads %}
+                <tr>
+                    <td><strong>{{ l.name }}</strong></td>
+                    <td>{{ l.produkt or '–' }}</td>
+                    <td><span class="status-badge status-{{ l.status }}">{{ l.status }}</span></td>
+                    <td>{% if l.phone %}<a href="tel:{{ l.phone }}" style="color:var(--gold)">{{ l.phone }}</a>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Termine heute -->
+{% if today_termine %}
+<div class="card">
+    <div class="card-title">◷ Termine heute</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Titel</th><th>Datum</th><th>Typ</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for t in today_termine %}
+                <tr>
+                    <td><strong>{{ t.title }}</strong></td>
+                    <td>{{ t.termin_date }}</td>
+                    <td>{{ t.typ or '–' }}</td>
+                    <td><span class="status-badge status-{{ t.status }}">{{ t.status }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Verträge heute -->
+{% if today_vertraege %}
+<div class="card">
+    <div class="card-title">◻ Heute eingetragene Verträge</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Kunde</th><th>Produkt</th><th>EH</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for c in today_vertraege %}
+                <tr>
+                    <td><strong>{{ c.kunde_name }}</strong></td>
+                    <td>{{ c.produkt or '–' }}</td>
+                    <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(c.einheiten or 0).replace(",", ".") }}</strong></td>
+                    <td><span class="status-badge status-{{ c.status }}">{{ c.status }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Falls nichts heute -->
+{% if not activity.active_today %}
+<div class="card" style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid #fecaca">
+    <div style="display:flex;align-items:flex-start;gap:14px">
+        <div style="font-size:32px">⚠</div>
+        <div>
+            <div style="font-size:16px;font-weight:800;color:#991b1b;margin-bottom:6px">{{ target.name }} hat heute noch nichts gemacht</div>
+            <div style="font-size:13px;color:#7f1d1d;line-height:1.6">
+                Letzte Aktivität: {% if activity.last_active_at %}{{ activity.last_active_at[:10] }}{% else %}unbekannt{% endif %}.<br>
+                Zeit für einen Anruf — frag woran's hakt.
+            </div>
+            {% if target.phone %}
+            <a href="tel:{{ target.phone }}" class="btn btn-primary" style="margin-top:12px">📞 Jetzt anrufen</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Aktivitäts-Verlauf 14 Tage -->
+{% if history %}
+<div class="card">
+    <div class="card-title">📊 Aktivität letzte 14 Tage</div>
+    <div style="display:flex;gap:4px;flex-wrap:nowrap;overflow-x:auto;padding:6px 0">
+        {% for d in history %}
+        <div title="{{ d.d }}: {{ d.c }} Aktionen" style="flex:1;min-width:24px;text-align:center">
+            <div style="height:60px;background:var(--bg-2);border-radius:6px;position:relative;display:flex;align-items:flex-end;justify-content:center">
+                <div style="width:80%;background:linear-gradient(180deg,var(--gold),var(--gold-light));border-radius:4px;height:{{ [d.c * 12, 100] | min }}%"></div>
+            </div>
+            <div style="font-size:9px;color:var(--text-muted);margin-top:4px">{{ d.d[5:] }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

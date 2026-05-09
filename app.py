@@ -3176,6 +3176,72 @@ def get_commissions_for_user(user_id, only_own=False):
     }
 
 
+def get_user_activity_today(user_id):
+    """Was hat ein User HEUTE getan? Returns dict mit Counts und last_active_at."""
+    db = get_db()
+    today = date.today().isoformat()
+    cnt_leads = db.execute("SELECT COUNT(*) as c FROM leads WHERE owner_id=? AND date(created_at)=?", (user_id, today)).fetchone()['c']
+    cnt_termine = db.execute("SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(created_at)=?", (user_id, today)).fetchone()['c']
+    cnt_termine_done = db.execute("SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date)=? AND status='erledigt'", (user_id, today)).fetchone()['c']
+    cnt_vertraege = db.execute("SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND date(created_at)=?", (user_id, today)).fetchone()['c']
+    # Tagesaufgaben done/total
+    try:
+        tasks_total = db.execute("SELECT COUNT(*) as c FROM user_tasks WHERE user_id=? AND date(datum)=?", (user_id, today)).fetchone()['c']
+        tasks_done = db.execute("SELECT COUNT(*) as c FROM user_tasks WHERE user_id=? AND date(datum)=? AND done=1", (user_id, today)).fetchone()['c']
+    except Exception:
+        tasks_total, tasks_done = 0, 0
+    # Letzte Aktivität via activity_log (max date) — falls vorhanden
+    last_act = db.execute("SELECT MAX(created_at) as la FROM activity_log WHERE user_id=?", (user_id,)).fetchone()
+    last_active_at = last_act['la'] if last_act else None
+    db.close()
+    total_actions = cnt_leads + cnt_termine + cnt_termine_done + cnt_vertraege + tasks_done
+    return {
+        'leads_today': cnt_leads, 'termine_today': cnt_termine,
+        'termine_done_today': cnt_termine_done, 'vertraege_today': cnt_vertraege,
+        'tasks_done': tasks_done, 'tasks_total': tasks_total,
+        'last_active_at': last_active_at,
+        'active_today': total_actions > 0,
+        'total_actions_today': total_actions,
+    }
+
+
+def get_inactive_team_members(user_id, days=1, scope='direct'):
+    """Liefert Liste der Partner die seit X Tagen nichts getan haben.
+    scope='direct' = nur direkte Downline, 'all' = ganze Struktur."""
+    db = get_db()
+    if scope == 'direct':
+        ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE parent_id=? AND active=1', (user_id,)).fetchall()]
+    else:
+        ids = get_all_descendants(user_id)
+    if not ids:
+        db.close()
+        return []
+    placeholders = ','.join('?' * len(ids))
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    rows = db.execute(f'''
+        SELECT u.id, u.name, u.email,
+               (SELECT MAX(created_at) FROM activity_log WHERE user_id=u.id) as last_active,
+               (SELECT MAX(created_at) FROM leads WHERE owner_id=u.id) as last_lead,
+               (SELECT MAX(created_at) FROM appointments WHERE owner_id=u.id) as last_termin
+        FROM users u
+        WHERE u.id IN ({placeholders}) AND u.active=1
+    ''', ids).fetchall()
+    db.close()
+    inactive = []
+    for r in rows:
+        latest = max([x for x in [r['last_active'], r['last_lead'], r['last_termin']] if x] or [''])
+        if not latest or latest[:10] < cutoff:
+            try:
+                days_inactive = (date.today() - datetime.strptime(latest[:10], '%Y-%m-%d').date()).days if latest else 999
+            except Exception:
+                days_inactive = 999
+            inactive.append({
+                'id': r['id'], 'name': r['name'], 'email': r['email'],
+                'last_active': latest or None, 'days_inactive': days_inactive
+            })
+    return sorted(inactive, key=lambda x: x['days_inactive'], reverse=True)
+
+
 def get_user_total_eh(user_id, include_team=False):
     """EH eines Users (eigene oder mit Team)"""
     db = get_db()
@@ -4204,7 +4270,16 @@ def dashboard():
         for r in direct_rows:
             d = dict(r)
             d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+            act = get_user_activity_today(r['id'])
+            d['active_today'] = act['active_today']
+            try:
+                la = act['last_active_at']
+                d['last_active_days'] = (date.today() - datetime.strptime(la[:10], '%Y-%m-%d').date()).days if la else None
+            except Exception:
+                d['last_active_days'] = None
             direct_partners.append(d)
+        # Inaktive Partner (länger als 1 Tag nichts gemacht) — Admin-Alarm
+        inactive_team = get_inactive_team_members(current_user.id, days=1, scope='all')[:10]
 
         recent_contracts = db.execute('''
             SELECT c.*, u.name as berater_name FROM contracts c
@@ -4281,6 +4356,7 @@ def dashboard():
             total_contracts=total_contracts, total_volumen=total_volumen,
             total_einheiten=total_einheiten, open_appointments=open_appointments,
             top_performer=top_performer, direct_partners=direct_partners,
+            inactive_team=inactive_team,
             recent_contracts=recent_contracts,
             monthly_data=json.dumps([dict(r) for r in monthly_data]),
             own_eh=own_eh, team_eh=team_eh, career=career, next_level=next_level,
@@ -4330,6 +4406,13 @@ def dashboard():
         for r in direct_rows:
             d = dict(r)
             d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+            act = get_user_activity_today(r['id'])
+            d['active_today'] = act['active_today']
+            try:
+                la = act['last_active_at']
+                d['last_active_days'] = (date.today() - datetime.strptime(la[:10], '%Y-%m-%d').date()).days if la else None
+            except Exception:
+                d['last_active_days'] = None
             direct_team.append(d)
 
         current_month = date.today().strftime('%Y-%m')
@@ -4740,6 +4823,57 @@ def team_neu():
             return redirect(url_for('team'))
     db.close()
     return render_template('team_form.html', member=None, possible_parents=possible_parents, all_levels=CAREER_LEVELS)
+
+
+@app.route('/partner/<int:uid>')
+@login_required
+def partner_today(uid):
+    """Was hat ein Partner HEUTE gemacht? Sichtbar für Upline-Kette + Admin."""
+    db = get_db()
+    target = db.execute('SELECT * FROM users WHERE id=? AND active=1', (uid,)).fetchone()
+    if not target:
+        db.close()
+        flash('Partner nicht gefunden', 'error')
+        return redirect(url_for('team'))
+    # Berechtigung: Admin, Upline-Kette, oder selbst
+    descendants = get_all_descendants(current_user.id)
+    if not (current_user.has_admin_access or uid == current_user.id or uid in descendants):
+        db.close()
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('team'))
+    today = date.today().isoformat()
+    activity = get_user_activity_today(uid)
+    today_leads = db.execute("SELECT * FROM leads WHERE owner_id=? AND date(created_at)=? ORDER BY created_at DESC", (uid, today)).fetchall()
+    today_termine = db.execute("SELECT * FROM appointments WHERE owner_id=? AND (date(created_at)=? OR date(termin_date)=?) ORDER BY termin_date DESC", (uid, today, today)).fetchall()
+    today_vertraege = db.execute("SELECT * FROM contracts WHERE owner_id=? AND date(created_at)=? ORDER BY created_at DESC", (uid, today)).fetchall()
+    try:
+        today_tasks = db.execute("SELECT * FROM user_tasks WHERE user_id=? AND date(datum)=? ORDER BY id", (uid, today)).fetchall()
+    except Exception:
+        today_tasks = []
+    # Aktivitäts-Verlauf der letzten 14 Tage (Heatmap-Lite)
+    history = db.execute('''
+        SELECT date(created_at) as d, COUNT(*) as c FROM activity_log
+        WHERE user_id=? AND date(created_at) >= date('now', '-14 days')
+        GROUP BY d ORDER BY d
+    ''', (uid,)).fetchall()
+    own_eh = get_user_total_eh(uid, include_team=False)
+    target_career = career_for_row(target['manual_career_level'], own_eh)
+    db.close()
+    return render_template('partner_today.html',
+        target=target, target_career=target_career, own_eh=own_eh,
+        activity=activity, today_leads=today_leads, today_termine=today_termine,
+        today_vertraege=today_vertraege, today_tasks=today_tasks,
+        history=[dict(h) for h in history], today=today)
+
+
+@app.route('/team/inaktiv')
+@login_required
+def team_inactive():
+    """Liste aller inaktiven Partner (für Führungskräfte)."""
+    days = int(request.args.get('days', 1))
+    scope = 'all' if (current_user.has_admin_access or request.args.get('scope') == 'all') else 'direct'
+    inactive = get_inactive_team_members(current_user.id, days=days, scope=scope)
+    return render_template('team_inactive.html', inactive=inactive, days=days, scope=scope)
 
 
 @app.route('/team/<int:uid>/edit', methods=['GET', 'POST'])

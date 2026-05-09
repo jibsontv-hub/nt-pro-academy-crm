@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Inaktive Partner{% endblock %}
+{% block page_title %}⚠ Wer hat nichts gemacht?{% endblock %}
+
+{% block content %}
+
+<div class="card">
+    <div class="card-title">
+        Inaktive Partner — letzte {{ days }} Tag{% if days != 1 %}e{% endif %}
+        <span style="font-size:11px;color:var(--text-soft);text-transform:none;letter-spacing:0;font-weight:500">
+            Scope: {% if scope == 'all' %}Ganze Struktur{% else %}Nur direkte Downline{% endif %}
+        </span>
+    </div>
+
+    <!-- Filter -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+        <a href="?days=1&scope={{ scope }}" class="btn btn-sm {% if days == 1 %}btn-primary{% else %}btn-secondary{% endif %}">heute</a>
+        <a href="?days=3&scope={{ scope }}" class="btn btn-sm {% if days == 3 %}btn-primary{% else %}btn-secondary{% endif %}">3 Tage</a>
+        <a href="?days=7&scope={{ scope }}" class="btn btn-sm {% if days == 7 %}btn-primary{% else %}btn-secondary{% endif %}">7 Tage</a>
+        <a href="?days=14&scope={{ scope }}" class="btn btn-sm {% if days == 14 %}btn-primary{% else %}btn-secondary{% endif %}">14 Tage</a>
+        {% if current_user.has_admin_access %}
+        <span style="margin-left:auto"></span>
+        <a href="?days={{ days }}&scope=direct" class="btn btn-sm {% if scope == 'direct' %}btn-primary{% else %}btn-secondary{% endif %}">Nur direkt</a>
+        <a href="?days={{ days }}&scope=all" class="btn btn-sm {% if scope == 'all' %}btn-primary{% else %}btn-secondary{% endif %}">Ganze Struktur</a>
+        {% endif %}
+    </div>
+
+    {% if inactive %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Name</th><th>E-Mail</th><th>Letzte Aktivität</th><th>Tage inaktiv</th><th></th></tr></thead>
+            <tbody>
+                {% for u in inactive %}
+                <tr>
+                    <td><strong>{{ u.name }}</strong></td>
+                    <td><a href="mailto:{{ u.email }}" style="color:var(--text-muted)">{{ u.email }}</a></td>
+                    <td style="color:var(--text-muted);font-size:12px">
+                        {% if u.last_active %}{{ u.last_active[:10] }}{% else %}–{% endif %}
+                    </td>
+                    <td>
+                        {% if u.days_inactive >= 14 %}<span style="background:#7f1d1d;color:#fff;padding:3px 10px;border-radius:14px;font-weight:800;font-size:12px">{{ u.days_inactive }}T 🔴</span>
+                        {% elif u.days_inactive >= 7 %}<span style="background:#dc2626;color:#fff;padding:3px 10px;border-radius:14px;font-weight:800;font-size:12px">{{ u.days_inactive }}T</span>
+                        {% elif u.days_inactive >= 3 %}<span style="background:#f59e0b;color:#fff;padding:3px 10px;border-radius:14px;font-weight:700;font-size:12px">{{ u.days_inactive }}T</span>
+                        {% else %}<span style="background:var(--gold);color:#0f1c3f;padding:3px 10px;border-radius:14px;font-weight:700;font-size:12px">{{ u.days_inactive }}T</span>{% endif %}
+                    </td>
+                    <td><a href="/partner/{{ u.id }}" class="btn btn-secondary btn-sm">Details →</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align:center;padding:48px 20px;color:var(--text-muted)">
+        <div style="font-size:42px;margin-bottom:12px">🎉</div>
+        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px">Alle waren aktiv!</div>
+        <div style="font-size:13px">Keine inaktiven Partner in den letzten {{ days }} Tag{% if days != 1 %}en{% endif %}.</div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

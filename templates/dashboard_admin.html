@@ -152,6 +152,33 @@
 </div>
 {% endif %}
 
+<!-- 🚨 INAKTIV-ALARM (Führungskraft-Sicht) -->
+{% if inactive_team %}
+<div class="card" style="background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fff;border:none">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:14px">
+        <div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">⚠ KI-Coach · Inaktive Partner</div>
+            <div style="font-size:20px;font-weight:900;color:#fff;margin-top:4px">{{ inactive_team|length }} Partner haben heute nichts gemacht</div>
+        </div>
+        <a href="/team/inaktiv?scope=all" style="color:#d4a843;text-decoration:none;font-size:13px;font-weight:700;white-space:nowrap">Alle ansehen →</a>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+        {% for u in inactive_team[:5] %}
+        <a href="/partner/{{ u.id }}" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:11px 14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;text-decoration:none;color:#fff;transition:all 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
+            <div style="font-size:18px">⚠</div>
+            <div style="flex:1;min-width:160px">
+                <div style="font-size:14px;font-weight:700">{{ u.name }}</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.6)">
+                    {% if u.days_inactive >= 14 %}{{ u.days_inactive }} Tage inaktiv 🔴{% elif u.days_inactive >= 7 %}{{ u.days_inactive }} Tage inaktiv{% elif u.days_inactive >= 3 %}seit {{ u.days_inactive }} Tagen still{% else %}heute nichts gemacht{% endif %}
+                </div>
+            </div>
+            <span style="background:#d4a843;color:#0f1c3f;padding:4px 11px;border-radius:8px;font-size:11px;font-weight:800">Heute →</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- 🤖 Smart-Coach Wochen-Briefing -->
 {% if ai_briefing %}
 <div class="card" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(167,139,250,0.08) 100%);border:1px solid rgba(167,139,250,0.3)">
