@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Push-Notifications – Admin{% endblock %}
+{% block page_title %}🔔 Push-Notifications{% endblock %}
+
+{% block content %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px">
+    <div class="kpi-card gold">
+        <div class="kpi-label">Geräte registriert</div>
+        <div class="kpi-value"><span class="counter" data-target="{{ sub_count }}">0</span></div>
+        <div class="kpi-sub">Aktive Subscriptions</div>
+    </div>
+    <div class="kpi-card blue">
+        <div class="kpi-label">User aktiviert</div>
+        <div class="kpi-value"><span class="counter" data-target="{{ user_count }}">0</span></div>
+        <div class="kpi-sub">Mind. 1 Gerät</div>
+    </div>
+    <div class="kpi-card purple">
+        <div class="kpi-label">Logs heute</div>
+        <div class="kpi-value"><span class="counter" data-target="{{ recent_log|length }}">0</span></div>
+        <div class="kpi-sub">Letzte 20 Pushes</div>
+    </div>
+</div>
+
+<!-- BROADCAST -->
+<div class="card">
+    <div class="card-title">▶ Broadcast — Push an mehrere User</div>
+    <form id="broadcastForm" onsubmit="return sendBroadcast(event)">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Empfänger</label>
+                <select name="scope" id="bcScope">
+                    <option value="all">▦ Alle aktiven User</option>
+                    <option value="team">◈ Mein Team (ich + Downline)</option>
+                    {% for l in levels_active %}
+                    <option value="level:{{ l.lvl }}">Stufe {{ l.lvl }} ({{ l.c }} User)</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Ziel-URL</label>
+                <input type="text" name="url" value="/dashboard" placeholder="/dashboard">
+            </div>
+            <div class="form-group full">
+                <label>Titel *</label>
+                <input type="text" name="title" required maxlength="100" placeholder="z.B. „Live-Webinar heute Abend!""">
+            </div>
+            <div class="form-group full">
+                <label>Nachricht *</label>
+                <textarea name="body" required rows="3" maxlength="200" placeholder="Was soll der User wissen? (max 200 Zeichen)"></textarea>
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:14px">
+            <button type="submit" class="btn btn-primary">📤 Senden</button>
+            <span id="bcStatus" style="font-size:13px;color:var(--text-muted);align-self:center"></span>
+        </div>
+    </form>
+</div>
+
+<!-- DAILY PUSH MANUELL -->
+<div class="card">
+    <div class="card-title">⚙ Daily-Push manuell triggern</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.6">
+        Normalerweise laufen die Daily-Pushes automatisch beim ersten Dashboard-Load des Tages.
+        Hier kannst du sie sofort auslösen (z.B. zum Testen oder wenn was schief lief).
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button onclick="runDaily(false)" class="btn btn-secondary">▶ Daily-Push (nur ausstehende)</button>
+        <button onclick="runDaily(true)" class="btn btn-secondary">⟲ Daily-Push (force, nochmal alle)</button>
+        <span id="dailyStatus" style="font-size:13px;color:var(--text-muted);align-self:center"></span>
+    </div>
+</div>
+
+<!-- WAS WIRD AUTOMATISCH GEPUSHT -->
+<div class="card">
+    <div class="card-title">📋 Was läuft automatisch?</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="padding:12px 14px;background:var(--bg-2);border-radius:10px;border-left:3px solid #34d399">
+            <strong>🎂 Geburtstage</strong> · Heute: jedem User wird gepusht wenn ein Kunde/Partner heute Geburtstag hat. Tag vorher: Reminder.
+        </div>
+        <div style="padding:12px 14px;background:var(--bg-2);border-radius:10px;border-left:3px solid #ef4444">
+            <strong>⚠ Inaktive Partner</strong> · Wenn 3+ Tage stille direkte Partner → Upline kriegt Push „X Partner sind inaktiv".
+        </div>
+        <div style="padding:12px 14px;background:var(--bg-2);border-radius:10px;border-left:3px solid #f59e0b">
+            <strong>⏰ Eingabeschluss</strong> · Wenn ≤ 2 Tage bis zum Eingabeschluss → alle aktiven User kriegen Push.
+        </div>
+        <div style="padding:12px 14px;background:var(--bg-2);border-radius:10px;border-left:3px solid #d4a843">
+            <strong>☎ Starter-Routine</strong> · Stufe-1-Partner kriegen täglichen Kick-off-Push „5 Anrufe heute!"
+        </div>
+        <div style="padding:12px 14px;background:var(--bg-2);border-radius:10px;border-left:3px solid #a855f7">
+            <strong>🎉 Vertrag abgeschlossen</strong> · Push an Upline sobald Vertrag eingetragen wurde (instant).
+        </div>
+        <div style="padding:12px 14px;background:var(--bg-2);border-radius:10px;border-left:3px solid #3b82f6">
+            <strong>💡 Vorschlag</strong> · Wenn Partner Vorschlag einreicht → Push an alle Admins (instant).
+        </div>
+    </div>
+</div>
+
+<!-- LOGS -->
+{% if recent_log %}
+<div class="card">
+    <div class="card-title">📜 Letzte 20 Pushes</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>User-ID</th><th>Typ</th><th>Ref</th><th>Gesendet</th></tr></thead>
+            <tbody>
+                {% for l in recent_log %}
+                <tr>
+                    <td>{{ l.user_id }}</td>
+                    <td><span class="status-badge status-{{ 'erledigt' if 'birthday' in l.push_type else 'geplant' }}">{{ l.push_type }}</span></td>
+                    <td style="font-size:11px;color:var(--text-muted)">{{ l.ref_key[:30] }}</td>
+                    <td style="font-size:11px;color:var(--text-muted)">{{ l.sent_at[:16] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<script>
+async function sendBroadcast(e) {
+    e.preventDefault();
+    const f = e.target;
+    const status = document.getElementById('bcStatus');
+    status.textContent = 'Sende...';
+    try {
+        const resp = await fetch('/api/push/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: f.title.value,
+                body: f.body.value,
+                url: f.url.value,
+                scope: f.scope.value,
+            }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            status.textContent = `✓ ${data.recipients} Empfänger · ${data.sent} gesendet · ${data.failed} fehlgeschlagen`;
+            status.style.color = 'var(--green)';
+            f.reset();
+        } else {
+            status.textContent = '✗ ' + (data.error || 'Fehler');
+            status.style.color = 'var(--red)';
+        }
+    } catch (err) {
+        status.textContent = '✗ ' + err.message;
+        status.style.color = 'var(--red)';
+    }
+    return false;
+}
+
+async function runDaily(force) {
+    const status = document.getElementById('dailyStatus');
+    status.textContent = 'Läuft...';
+    try {
+        const resp = await fetch('/api/push/run-daily' + (force ? '?force=1' : ''), { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) {
+            const s = data.stats;
+            const total = Object.values(s).reduce((a, b) => a + b, 0);
+            status.textContent = `✓ ${total} Pushes: ${s.birthday_customer} 🎂 Kunde · ${s.birthday_partner} 🎉 Partner · ${s.inactive_alert} ⚠ inaktiv · ${s.eingabeschluss} ⏰ Deadline · ${s.daily_routine} ☎ Routine`;
+            status.style.color = 'var(--green)';
+        } else {
+            status.textContent = '✗ ' + (data.error || 'Fehler');
+            status.style.color = 'var(--red)';
+        }
+    } catch (err) {
+        status.textContent = '✗ ' + err.message;
+        status.style.color = 'var(--red)';
+    }
+}
+</script>
+
+{% endblock %}

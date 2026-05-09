@@ -2999,6 +2999,15 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS push_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            push_type TEXT NOT NULL,
+            ref_key TEXT,
+            sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, push_type, ref_key)
+        );
+
         CREATE TABLE IF NOT EXISTS push_subscriptions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -3909,6 +3918,209 @@ def send_push_to_user(user_id, title, body, url='/dashboard', urgent=False, tag=
     return (sent, failed)
 
 
+def _push_already_sent(user_id, push_type, ref_key=''):
+    """Prüft ob ein bestimmter Push für den User heute schon raus ist (idempotent)."""
+    db = get_db()
+    today = date.today().isoformat()
+    full_key = f'{today}:{ref_key}'
+    row = db.execute('SELECT id FROM push_log WHERE user_id=? AND push_type=? AND ref_key=?',
+                     (user_id, push_type, full_key)).fetchone()
+    db.close()
+    return row is not None
+
+
+def _push_mark_sent(user_id, push_type, ref_key=''):
+    db = get_db()
+    today = date.today().isoformat()
+    full_key = f'{today}:{ref_key}'
+    try:
+        db.execute('INSERT OR IGNORE INTO push_log (user_id, push_type, ref_key) VALUES (?, ?, ?)',
+                   (user_id, push_type, full_key))
+        db.commit()
+    finally:
+        db.close()
+
+
+def run_daily_pushes(force=False):
+    """Schickt alle anstehenden Push-Notifications. Idempotent (1× pro Tag pro Push pro User).
+    force=True ignoriert die Tagessperre.
+    Returns: dict mit statistiken."""
+    stats = {'birthday_customer': 0, 'birthday_partner': 0, 'inactive_alert': 0,
+             'eingabeschluss': 0, 'daily_routine': 0}
+    db = get_db()
+    active_users = db.execute("SELECT id, name, role, manual_career_level FROM users WHERE active=1").fetchall()
+    deadlines = get_production_deadlines()
+    db.close()
+
+    for u in active_users:
+        uid = u['id']
+
+        # 1) GEBURTSTAGS-PUSHES (Kunden + Partner mit relevantem Geburtstag in 0-2 Tagen)
+        try:
+            db = get_db()
+            # Kunden (leads) mit Birthday
+            lead_birthdays = db.execute(
+                "SELECT id, name, birthday, phone FROM leads WHERE owner_id=? AND birthday IS NOT NULL", (uid,)
+            ).fetchall()
+            # Direkte Partner mit Birthday (du als Upline kriegst Push)
+            partner_birthdays = db.execute(
+                "SELECT id, name, birthday, phone FROM users WHERE parent_id=? AND active=1 AND birthday IS NOT NULL", (uid,)
+            ).fetchall()
+            db.close()
+            for b in lead_birthdays:
+                d = days_until_birthday(b['birthday'])
+                if d is None: continue
+                if d == 0:
+                    key = f'kunde-{b["id"]}-{b["birthday"]}'
+                    if force or not _push_already_sent(uid, 'birthday_customer', key):
+                        send_push_to_user(uid,
+                            title=f'🎂 {b["name"]} hat heute Geburtstag!',
+                            body=f'Kurz anrufen oder Nachricht schicken — kostet nichts, wirkt viel.',
+                            url='/namensliste', urgent=True, tag='birthday')
+                        _push_mark_sent(uid, 'birthday_customer', key)
+                        stats['birthday_customer'] += 1
+                elif d == 1:
+                    key = f'kunde-{b["id"]}-vor-{b["birthday"]}'
+                    if force or not _push_already_sent(uid, 'birthday_customer_before', key):
+                        send_push_to_user(uid,
+                            title=f'🎂 Morgen Geburtstag: {b["name"]}',
+                            body='Vergiss nicht — eine kurze Nachricht macht den Tag.',
+                            url='/namensliste', tag='birthday-soon')
+                        _push_mark_sent(uid, 'birthday_customer_before', key)
+                        stats['birthday_customer'] += 1
+            for b in partner_birthdays:
+                d = days_until_birthday(b['birthday'])
+                if d == 0:
+                    key = f'partner-{b["id"]}-{b["birthday"]}'
+                    if force or not _push_already_sent(uid, 'birthday_partner', key):
+                        send_push_to_user(uid,
+                            title=f'🎉 {b["name"]} hat heute Geburtstag (Partner)!',
+                            body='Dein Partner hat heute Geburtstag — feier ihn kurz.',
+                            url=f'/partner/{b["id"]}/profil', urgent=True, tag='birthday')
+                        _push_mark_sent(uid, 'birthday_partner', key)
+                        stats['birthday_partner'] += 1
+        except Exception:
+            pass
+
+        # 2) INAKTIV-ALERT für Uplines (3+ Tage stille direkte Partner)
+        try:
+            inact = get_inactive_team_members(uid, days=3, scope='direct')
+            if inact:
+                key = f'inact-{len(inact)}'
+                if force or not _push_already_sent(uid, 'inactive_alert', key):
+                    names = ', '.join([f"{x['name']} ({x['days_inactive']}T)" for x in inact[:3]])
+                    send_push_to_user(uid,
+                        title=f'⚠ {len(inact)} Partner sind inaktiv',
+                        body=f'{names}{" und mehr" if len(inact) > 3 else ""}. Kurzer Anruf?',
+                        url='/team/inaktiv', tag='inactive')
+                    _push_mark_sent(uid, 'inactive_alert', key)
+                    stats['inactive_alert'] += 1
+        except Exception:
+            pass
+
+        # 3) EINGABESCHLUSS-REMINDER (wenn ≤ 2 Tage)
+        try:
+            if deadlines and 0 < deadlines.get('eingabe_in_days', 99) <= 2:
+                key = f'eingabe-{deadlines["eingabeschluss"].isoformat()}'
+                if force or not _push_already_sent(uid, 'eingabeschluss', key):
+                    days_left = deadlines['eingabe_in_days']
+                    send_push_to_user(uid,
+                        title=f'⏰ Eingabeschluss in {days_left} Tag{"en" if days_left > 1 else ""}!',
+                        body='Alle Verträge eintragen — sonst zählen die EH nicht für diesen Monat.',
+                        url='/vertraege', urgent=True, tag='deadline')
+                    _push_mark_sent(uid, 'eingabeschluss', key)
+                    stats['eingabeschluss'] += 1
+        except Exception:
+            pass
+
+        # 4) STARTER-ROUTINE (Stufe 1) — täglicher Kick-off-Push
+        try:
+            if (u['manual_career_level'] or 1) <= 1 and u['role'] != 'admin':
+                key = f'routine'
+                if force or not _push_already_sent(uid, 'daily_routine', key):
+                    send_push_to_user(uid,
+                        title='☎ Heute 5 Anrufe!',
+                        body='Stufe-1-Routine: 5 Personen aus der Namensliste anrufen + Upline kontaktieren + 1 Termin planen.',
+                        url='/namensliste', tag='routine')
+                    _push_mark_sent(uid, 'daily_routine', key)
+                    stats['daily_routine'] += 1
+        except Exception:
+            pass
+
+    return stats
+
+
+@app.route('/api/push/run-daily', methods=['POST', 'GET'])
+@login_required
+def push_run_daily():
+    """Daily-Push manuell triggern (Admin)."""
+    if not current_user.has_admin_access:
+        return jsonify({'ok': False, 'error': 'admin only'}), 403
+    force = request.args.get('force') == '1'
+    stats = run_daily_pushes(force=force)
+    return jsonify({'ok': True, 'stats': stats})
+
+
+@app.route('/api/push/broadcast', methods=['POST'])
+@login_required
+def push_broadcast():
+    """Admin schickt manuelle Push an Team (alle / Stufe / einzelne)."""
+    if not current_user.has_admin_access:
+        return jsonify({'ok': False, 'error': 'admin only'}), 403
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
+    body = (data.get('body') or '').strip()
+    url_target = data.get('url', '/dashboard')
+    scope = data.get('scope', 'all')  # 'all', 'team', 'level:N', 'user:ID'
+    if not title:
+        return jsonify({'ok': False, 'error': 'no title'}), 400
+
+    db = get_db()
+    if scope == 'all':
+        rows = db.execute('SELECT id FROM users WHERE active=1').fetchall()
+    elif scope == 'team':
+        ids = [current_user.id] + get_all_descendants(current_user.id)
+        ph = ','.join('?' * len(ids))
+        rows = db.execute(f'SELECT id FROM users WHERE id IN ({ph}) AND active=1', ids).fetchall()
+    elif scope.startswith('level:'):
+        try:
+            lvl = int(scope.split(':')[1])
+            rows = db.execute('SELECT id FROM users WHERE active=1 AND COALESCE(manual_career_level,1)=?', (lvl,)).fetchall()
+        except Exception:
+            rows = []
+    elif scope.startswith('user:'):
+        try:
+            target = int(scope.split(':')[1])
+            rows = [{'id': target}]
+        except Exception:
+            rows = []
+    else:
+        rows = []
+    db.close()
+
+    sent_total, failed_total = 0, 0
+    for r in rows:
+        s, f = send_push_to_user(r['id'], title=title, body=body, url=url_target, tag='broadcast')
+        sent_total += s
+        failed_total += f
+    return jsonify({'ok': True, 'recipients': len(rows), 'sent': sent_total, 'failed': failed_total})
+
+
+# Lazy-Trigger: beim Dashboard-Load (1× pro Tag) Daily-Pushes laufen lassen
+_daily_push_lock = {'date': None}
+
+
+def _maybe_run_daily_pushes_lazy():
+    today = date.today().isoformat()
+    if _daily_push_lock['date'] == today:
+        return
+    _daily_push_lock['date'] = today
+    try:
+        run_daily_pushes(force=False)
+    except Exception:
+        pass
+
+
 @app.route('/sw.js')
 def service_worker():
     """Service Worker MUSS unter root-scope ausgeliefert werden, nicht unter /static/."""
@@ -4743,6 +4955,8 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # 1× pro Tag (lazy beim ersten Dashboard-Load): Daily-Pushes
+    _maybe_run_daily_pushes_lazy()
     # Catch-Up-Check: erstmaliger Login → Wizard zeigen
     if needs_catchup(current_user.id):
         return redirect(url_for('onboarding_catchup'))
@@ -6540,6 +6754,24 @@ def vorschlag():
     own = db.execute('SELECT * FROM partner_suggestions WHERE user_id=? ORDER BY created_at DESC', (current_user.id,)).fetchall()
     db.close()
     return render_template('vorschlag.html', own=own)
+
+
+@app.route('/admin/push')
+@login_required
+def admin_push():
+    """Admin-Page: Manuell Push-Notifications senden + Stats."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('dashboard'))
+    db = get_db()
+    sub_count = db.execute('SELECT COUNT(*) as c FROM push_subscriptions').fetchone()['c']
+    user_count = db.execute('SELECT COUNT(DISTINCT user_id) as c FROM push_subscriptions').fetchone()['c']
+    recent_log = db.execute('SELECT * FROM push_log ORDER BY id DESC LIMIT 20').fetchall()
+    levels_active = db.execute('SELECT COALESCE(manual_career_level,1) as lvl, COUNT(*) as c FROM users WHERE active=1 GROUP BY lvl ORDER BY lvl').fetchall()
+    db.close()
+    return render_template('admin_push.html',
+        sub_count=sub_count, user_count=user_count,
+        recent_log=recent_log, levels_active=levels_active)
 
 
 @app.route('/admin/vorschlaege')
