@@ -5930,14 +5930,18 @@ def onboarding_catchup():
 
 
 def needs_catchup(user_id):
-    """User braucht Catch-Up wenn catchup_done=0 und mind. 7 Tage seit Account-Anlage."""
+    """User braucht Catch-Up wenn catchup_done=0 und nicht Admin."""
     db = get_db()
-    row = db.execute('SELECT catchup_done, role, created_at FROM users WHERE id=?', (user_id,)).fetchone()
+    try:
+        row = db.execute('SELECT catchup_done, role FROM users WHERE id=?', (user_id,)).fetchone()
+    except Exception:
+        db.close()
+        return False  # Falls Spalte fehlt → safe default
     db.close()
     if not row or row['catchup_done']:
         return False
     if row['role'] == 'admin':
-        return False  # Admin überspringt
+        return False
     return True
 
 
