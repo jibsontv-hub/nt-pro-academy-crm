@@ -19,8 +19,13 @@
                 {% for m in members %}
                 <tr>
                     <td>
-                        <strong>{{ m.name }}</strong>
-                        <div style="font-size:11px;color:var(--text-soft)">🔑 {{ m.email }}</div>
+                        <a href="/partner/{{ m.id }}" style="color:var(--text);text-decoration:none;font-weight:700;display:flex;align-items:center;gap:10px">
+                            <span style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,{{ m.career.color }},{{ m.career.color }}aa);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0">{{ m.name[:2]|upper }}</span>
+                            <span>
+                                <span style="display:block">{{ m.name }} <span style="color:var(--gold);font-size:11px">→</span></span>
+                                <span style="font-size:11px;color:var(--text-soft);font-weight:500">{{ m.email }}</span>
+                            </span>
+                        </a>
                     </td>
                     <td>
                         <span class="stufe-pill" style="background:{{ m.career.color }}15;color:{{ m.career.color }};border:1px solid {{ m.career.color }}50">{{ m.career.short }}</span>

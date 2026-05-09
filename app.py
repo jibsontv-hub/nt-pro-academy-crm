@@ -3167,6 +3167,10 @@ def init_db():
         # leads
         lead_cols = db.execute("PRAGMA table_info(leads)").fetchall()
         lead_col_names = [c['name'] for c in lead_cols]
+        if 'liste_typ' not in lead_col_names:
+            db.execute("ALTER TABLE leads ADD COLUMN liste_typ TEXT DEFAULT 'vk'")
+        if 'kontaktiert_at' not in lead_col_names:
+            db.execute("ALTER TABLE leads ADD COLUMN kontaktiert_at TEXT")
         if 'birthday' not in lead_col_names:
             db.execute("ALTER TABLE leads ADD COLUMN birthday TEXT")
         if 'source' not in lead_col_names:
@@ -4850,21 +4854,26 @@ def leads():
 @app.route('/leads/neu', methods=['GET', 'POST'])
 @login_required
 def lead_neu():
+    pre_typ = (request.args.get('typ') or 'vk').lower()
+    if pre_typ not in ('vk', 'rk'): pre_typ = 'vk'
     if request.method == 'POST':
+        liste_typ = (request.form.get('liste_typ') or 'vk').lower()
+        if liste_typ not in ('vk', 'rk'): liste_typ = 'vk'
         db = get_db()
-        db.execute('INSERT INTO leads (owner_id, name, email, phone, birthday, produkt, status, notizen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        db.execute('''INSERT INTO leads (owner_id, name, email, phone, birthday, produkt, status, notizen, liste_typ)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (current_user.id, request.form['name'], request.form.get('email', ''),
              request.form.get('phone', ''), request.form.get('birthday') or None,
              request.form.get('produkt', ''),
-             request.form.get('status', 'neu'), request.form.get('notizen', '')))
+             request.form.get('status', 'neu'), request.form.get('notizen', ''), liste_typ))
         db.commit()
         db.close()
         log_activity(current_user.id, 'lead_neu',
-            f'{current_user.name} hat „{request.form["name"]}" zur Namensliste hinzugefügt',
+            f'{current_user.name} hat „{request.form["name"]}" zur {"Rekrutierungs" if liste_typ == "rk" else "Vertriebs"}-Liste hinzugefügt',
             icon='◇', color='purple')
-        flash('Lead erfolgreich angelegt!', 'success')
-        return redirect(url_for('leads'))
-    return render_template('lead_form.html', lead=None)
+        flash(f'{("Rekrutierungs" if liste_typ == "rk" else "Vertriebs")}-Kontakt angelegt!', 'success')
+        return redirect(url_for('namensliste', typ=liste_typ))
+    return render_template('lead_form.html', lead=None, pre_typ=pre_typ)
 
 
 @app.route('/leads/<int:lead_id>/edit', methods=['GET', 'POST'])
@@ -4874,19 +4883,27 @@ def lead_edit(lead_id):
     lead = db.execute('SELECT * FROM leads WHERE id = ?', (lead_id,)).fetchone()
     if not lead:
         db.close()
-        return redirect(url_for('leads'))
+        return redirect(url_for('namensliste'))
     if request.method == 'POST':
-        db.execute('UPDATE leads SET name=?, email=?, phone=?, birthday=?, produkt=?, status=?, notizen=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+        liste_typ = (request.form.get('liste_typ') or lead['liste_typ'] or 'vk').lower()
+        if liste_typ not in ('vk', 'rk'): liste_typ = 'vk'
+        new_status = request.form.get('status', 'neu')
+        # Wenn Status zu "kontaktiert" wechselt → Zeitstempel setzen (falls noch nicht da)
+        kontakt_at = lead['kontaktiert_at']
+        if new_status in ('kontakt', 'angebot', 'gewonnen', 'abgeschlossen') and not kontakt_at:
+            kontakt_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        db.execute('''UPDATE leads SET name=?, email=?, phone=?, birthday=?, produkt=?, status=?,
+                      notizen=?, liste_typ=?, kontaktiert_at=?, updated_at=CURRENT_TIMESTAMP WHERE id=?''',
             (request.form['name'], request.form.get('email', ''), request.form.get('phone', ''),
              request.form.get('birthday') or None,
-             request.form.get('produkt', ''), request.form.get('status', 'neu'),
-             request.form.get('notizen', ''), lead_id))
+             request.form.get('produkt', ''), new_status,
+             request.form.get('notizen', ''), liste_typ, kontakt_at, lead_id))
         db.commit()
         db.close()
-        flash('Lead aktualisiert!', 'success')
-        return redirect(url_for('leads'))
+        flash('Kontakt aktualisiert!', 'success')
+        return redirect(url_for('namensliste', typ=liste_typ))
     db.close()
-    return render_template('lead_form.html', lead=lead)
+    return render_template('lead_form.html', lead=lead, pre_typ=lead['liste_typ'] or 'vk')
 
 
 @app.route('/leads/<int:lead_id>/delete', methods=['POST'])
@@ -6184,21 +6201,67 @@ def namensliste_neu():
     return lead_neu()
 
 
+@app.route('/leads/<int:lead_id>/typ', methods=['POST'])
+@login_required
+def lead_change_typ(lead_id):
+    """Lead zwischen VK und RK verschieben (1-Klick)."""
+    new_typ = (request.form.get('typ') or 'vk').lower()
+    if new_typ not in ('vk', 'rk'): new_typ = 'vk'
+    db = get_db()
+    db.execute('UPDATE leads SET liste_typ=? WHERE id=? AND owner_id=?',
+               (new_typ, lead_id, current_user.id))
+    db.commit()
+    db.close()
+    return redirect(url_for('namensliste', typ=new_typ))
+
+
 @app.route('/namensliste')
 @login_required
 def namensliste():
-    """Eigene Namensliste / Potenziale (nur die eigenen)"""
+    """Namensliste mit 2 Tabs: VK (Vertrieb) und RK (Rekrutierung)"""
+    typ = (request.args.get('typ') or 'vk').lower()
+    if typ not in ('vk', 'rk', 'all'): typ = 'vk'
+    status_filter = request.args.get('status', '')
     db = get_db()
-    rows = db.execute('SELECT * FROM leads WHERE owner_id = ? ORDER BY created_at DESC', (current_user.id,)).fetchall()
+    # Counts pro Liste für Tabs
+    vk_count = db.execute("SELECT COUNT(*) as c FROM leads WHERE owner_id=? AND COALESCE(liste_typ,'vk')='vk'", (current_user.id,)).fetchone()['c']
+    rk_count = db.execute("SELECT COUNT(*) as c FROM leads WHERE owner_id=? AND liste_typ='rk'", (current_user.id,)).fetchone()['c']
 
-    # Stats
-    total = len(rows)
+    # Liste filtern
+    if typ == 'all':
+        base_q = 'SELECT * FROM leads WHERE owner_id = ?'
+        params = [current_user.id]
+    elif typ == 'rk':
+        base_q = "SELECT * FROM leads WHERE owner_id = ? AND liste_typ = 'rk'"
+        params = [current_user.id]
+    else:  # vk
+        base_q = "SELECT * FROM leads WHERE owner_id = ? AND COALESCE(liste_typ, 'vk') = 'vk'"
+        params = [current_user.id]
+    if status_filter:
+        base_q += ' AND status = ?'
+        params.append(status_filter)
+    base_q += ' ORDER BY created_at DESC'
+    rows = db.execute(base_q, params).fetchall()
+
+    # Status-Counts (für die aktive Liste)
     by_status = {}
     for r in rows:
         by_status[r['status']] = by_status.get(r['status'], 0) + 1
 
+    # Quoten berechnen für die aktive Liste
+    total = len(rows)
+    won_status = ('gewonnen', 'abgeschlossen')
+    won = sum(1 for r in rows if r['status'] in won_status)
+    contacted = sum(1 for r in rows if r['status'] not in ('neu',))
+    quote = round((won / total * 100), 1) if total > 0 else 0
+    contact_quote = round((contacted / total * 100), 1) if total > 0 else 0
+
     db.close()
-    return render_template('namensliste.html', leads=rows, total=total, by_status=by_status)
+    return render_template('namensliste.html',
+        leads=rows, total=total, by_status=by_status,
+        typ=typ, status_filter=status_filter,
+        vk_count=vk_count, rk_count=rk_count,
+        quote=quote, contact_quote=contact_quote, won=won, contacted=contacted)
 
 
 # === QUOTEN ===
