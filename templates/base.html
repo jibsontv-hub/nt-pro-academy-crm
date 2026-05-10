@@ -1855,8 +1855,9 @@
                         try { localStorage.removeItem('ntpro-tour-done'); } catch(e){}
                         // Google-Translate-Cookie setzen damit Page nach Reload sofort übersetzt ist
                         const gtTarget = (lang === 'de') ? '' : '/de/' + lang;
+                        // Cookie ohne explizite Domain → gilt automatisch für aktuelle Domain
+                        // (funktioniert für beide: pythonanywhere.com UND proacademy-business.de)
                         document.cookie = 'googtrans=' + gtTarget + '; path=/; max-age=31536000';
-                        document.cookie = 'googtrans=' + gtTarget + '; path=/; domain=.pythonanywhere.com; max-age=31536000';
                         location.reload();
                     }
                 }).catch(()=>{});

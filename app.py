@@ -61,6 +61,12 @@ login_manager.login_view = 'login'
 _LOGIN_ATTEMPTS = {}
 _LOGIN_LOCK = threading.Lock() if 'threading' in dir() else None
 
+# === Canonical-URL ===
+# Wird in E-Mails / Push-Bodies / Public-Anleitungen verwendet wo kein
+# request-Context da ist. Override per env var falls nötig.
+CANONICAL_URL = os.environ.get('CANONICAL_URL', 'https://proacademy-business.de')
+CANONICAL_HOST = CANONICAL_URL.replace('https://', '').replace('http://', '').rstrip('/')
+
 def is_login_blocked(ip_or_email):
     if not _LOGIN_LOCK:
         return False
@@ -253,7 +259,7 @@ NT Pro Academy"""
 
 <p style="font-weight:700;margin-top:24px">Was du jetzt machst:</p>
 <ol style="margin-left:20px;line-height:2;color:#0f172a;font-size:14px">
-<li>Login: <a href="https://proacademy.pythonanywhere.com" style="color:#b8902e;font-weight:600">proacademy.pythonanywhere.com</a></li>
+<li>Login: <a href="''' + CANONICAL_URL + '''" style="color:#b8902e;font-weight:600">''' + CANONICAL_HOST + '''</a></li>
 <li>Klick auf <strong>„Verträge"</strong></li>
 <li>Status auf <strong>„abgeschlossen"</strong> + Recherche auf <strong>„freigegeben"</strong></li>
 </ol>
@@ -2687,7 +2693,7 @@ def admin_eingabe_reminder_now():
         first_name = r['name'].split()[0] if r['name'] else ''
         ok, _ = send_email(r['email'],
                           f'⏰ Eingabeschluss {eingabe_str} — {total} Vertrag{"" if total==1 else "äge"} klären!',
-                          f'Hi {first_name},\n\nbis Eingabeschluss am {eingabe_str} hast du noch {r["open_count"] or 0} offene Verträge und {r["pending_research"] or 0} hängende Recherchen.\n\nLogin: https://proacademy.pythonanywhere.com\n\nNTcoach',
+                          f'Hi {first_name},\n\nbis Eingabeschluss am {eingabe_str} hast du noch {r["open_count"] or 0} offene Verträge und {r["pending_research"] or 0} hängende Recherchen.\n\nLogin: {CANONICAL_URL}\n\nNTcoach',
                           sent_by=current_user.id)
         if ok: sent += 1
     flash(f'✅ {sent} Reminder verschickt', 'success')

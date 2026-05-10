@@ -10,7 +10,7 @@
             <strong>Public Lead-Capture aktiv:</strong> Hier landen alle Anmeldungen über deine öffentliche Werbe-URL.
             <br>
             <strong style="color:var(--gold)">Dein Werbe-Link:</strong>
-            <code style="background:var(--bg);padding:3px 8px;border-radius:5px;font-size:12px">https://proacademy.pythonanywhere.com/start</code>
+            <code style="background:var(--bg);padding:3px 8px;border-radius:5px;font-size:12px">{{ request.url_root.rstrip('/') }}/start</code>
             (oder lokal: <code style="background:var(--bg);padding:3px 8px;border-radius:5px;font-size:12px">/start</code>)
             <br>
             <strong style="color:var(--gold)">Mit Empfehlungs-Code:</strong>
