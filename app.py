@@ -1977,6 +1977,21 @@ def auto_promote_user(user_id):
             log_activity(user_id, 'befoerderung',
                 f'{user["name"]} wurde automatisch zu {new_career["short"]} befördert! 🚀',
                 icon='⬆️', color='gold')
+            # Push: Beförderung an User selbst + Upline
+            try:
+                send_push_to_user(user_id,
+                    title=f'🎯 Beförderung erreicht!',
+                    body=f'Glückwunsch — du bist jetzt {new_career["short"]} ({new_career["name"]})!',
+                    url='/dashboard', urgent=True, tag='goal',
+                    push_type='goal_achieved')
+                if user['parent_id']:
+                    send_push_to_user(user['parent_id'],
+                        title=f'🎉 {user["name"]} wurde befördert!',
+                        body=f'Neue Stufe: {new_career["short"]} — kurz gratulieren!',
+                        url=f'/partner/{user_id}/profil', urgent=True, tag='abschluss',
+                        push_type='contract_done')
+            except Exception:
+                pass
     db.close()
 
 
@@ -3197,6 +3212,7 @@ def init_db():
             ('catchup_done', "INTEGER DEFAULT 0"),
             ('photo_path', "TEXT"),
             ('advanced_mode', "INTEGER DEFAULT 0"),
+            ('push_prefs', "TEXT DEFAULT '{}'"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -3706,23 +3722,46 @@ def get_coach_actions(user_id, max_actions=5):
 
 
 def get_team_calendar_root(user_id):
-    """Wurzel ist IMMER der User selbst — er sieht nur sich + seine eigene Downline.
-    Verfügbar wenn:
-    - User ist HREP+ (Stufe 3+), ODER
-    - User hat selber Downline (auch ein REP der schon Partner geworben hat).
-    Sonst None (kein Team-Kalender).
-    Returns: dict {id, name, level, short} oder None.
-    Geschwister-Strukturen werden NICHT angezeigt — jeder hat seine private Bubble."""
+    """Kalender-Bubble-Logik:
+    - Admin → eigene Wurzel (sieht alles)
+    - HREP+ (Stufe 3+) → eigene Wurzel (sieht eigene Downline)
+    - LREP/REP MIT HREP+ Ancestor → nutzt diesen HREP als Wurzel (geteilter Kalender)
+    - LREP/REP OHNE HREP+ Ancestor aber MIT eigener Downline → eigene Wurzel (z.B. Abdallah-Case)
+    - REP ohne alles → None (nur eigene Termine)
+    Returns: dict {id, name, level, short} oder None."""
     db = get_db()
     user = db.execute('SELECT * FROM users WHERE id=? AND active=1', (user_id,)).fetchone()
     if not user:
         db.close()
         return None
+    # Admin = sieht eigene volle Struktur
+    if user['role'] == 'admin':
+        db.close()
+        return {'id': user_id, 'name': user['name'], 'level': 6, 'short': 'ADMIN'}
     own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    own_eh += user['initial_eh'] or 0
     own_career = career_for_row(user['manual_career_level'], own_eh)
+    # Self ist HREP+ → eigene Wurzel
+    if own_career['level'] >= 3:
+        db.close()
+        return {'id': user_id, 'name': user['name'], 'level': own_career['level'], 'short': own_career['short']}
+    # Suche HREP+ Ancestor
+    current_id = user['parent_id']
+    while current_id:
+        parent = db.execute('SELECT * FROM users WHERE id=? AND active=1', (current_id,)).fetchone()
+        if not parent:
+            break
+        peh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (current_id,)).fetchone()['s']
+        peh += parent['initial_eh'] or 0
+        pcareer = career_for_row(parent['manual_career_level'], peh)
+        if pcareer['level'] >= 3:
+            db.close()
+            return {'id': current_id, 'name': parent['name'], 'level': pcareer['level'], 'short': pcareer['short']}
+        current_id = parent['parent_id']
+    # Kein HREP+ in Kette — fallback: eigene Wurzel wenn eigene Downline (Abdallah-Case)
     has_downline = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (user_id,)).fetchone()['c'] > 0
     db.close()
-    if own_career['level'] >= 3 or has_downline:
+    if has_downline:
         return {'id': user_id, 'name': user['name'], 'level': own_career['level'], 'short': own_career['short']}
     return None
 
@@ -4091,9 +4130,27 @@ VAPID_PRIVATE = 'xIzBWGWIy96l7zdFSPlJyEKnoOtBTa3zVnGhT1ADp1o'
 VAPID_CONTACT = 'mailto:najib@ntpro.de'
 
 
-def send_push_to_user(user_id, title, body, url='/dashboard', urgent=False, tag=None):
+def _user_wants_push(user_id, push_type):
+    """Checkt ob User diese Push-Kategorie aktiviert hat. Default: alles an."""
+    db = get_db()
+    row = db.execute('SELECT push_prefs FROM users WHERE id=?', (user_id,)).fetchone()
+    db.close()
+    if not row or not row['push_prefs']:
+        return True
+    try:
+        prefs = json.loads(row['push_prefs'])
+        # Default True wenn nicht gesetzt
+        return prefs.get(push_type, True)
+    except Exception:
+        return True
+
+
+def send_push_to_user(user_id, title, body, url='/dashboard', urgent=False, tag=None, push_type=None):
     """Sendet eine Push-Notification an alle registrierten Geräte des Users.
+    push_type: optional — wenn gesetzt, wird User-Präferenz geprüft.
     Returns: (sent_count, failed_count)"""
+    if push_type and not _user_wants_push(user_id, push_type):
+        return (0, 0)
     try:
         from pywebpush import webpush, WebPushException
     except ImportError:
@@ -4194,7 +4251,7 @@ def run_daily_pushes(force=False):
                         send_push_to_user(uid,
                             title=f'🎂 {b["name"]} hat heute Geburtstag!',
                             body=f'Kurz anrufen oder Nachricht schicken — kostet nichts, wirkt viel.',
-                            url='/namensliste', urgent=True, tag='birthday')
+                            url='/namensliste', urgent=True, tag='birthday', push_type='birthday_customer')
                         _push_mark_sent(uid, 'birthday_customer', key)
                         stats['birthday_customer'] += 1
                 elif d == 1:
@@ -4214,7 +4271,7 @@ def run_daily_pushes(force=False):
                         send_push_to_user(uid,
                             title=f'🎉 {b["name"]} hat heute Geburtstag (Partner)!',
                             body='Dein Partner hat heute Geburtstag — feier ihn kurz.',
-                            url=f'/partner/{b["id"]}/profil', urgent=True, tag='birthday')
+                            url=f'/partner/{b["id"]}/profil', urgent=True, tag='birthday', push_type='birthday_partner')
                         _push_mark_sent(uid, 'birthday_partner', key)
                         stats['birthday_partner'] += 1
         except Exception:
@@ -4230,7 +4287,7 @@ def run_daily_pushes(force=False):
                     send_push_to_user(uid,
                         title=f'⚠ {len(inact)} Partner sind inaktiv',
                         body=f'{names}{" und mehr" if len(inact) > 3 else ""}. Kurzer Anruf?',
-                        url='/team/inaktiv', tag='inactive')
+                        url='/team/inaktiv', tag='inactive', push_type='inactive_alert')
                     _push_mark_sent(uid, 'inactive_alert', key)
                     stats['inactive_alert'] += 1
         except Exception:
@@ -4245,7 +4302,7 @@ def run_daily_pushes(force=False):
                     send_push_to_user(uid,
                         title=f'⏰ Eingabeschluss in {days_left} Tag{"en" if days_left > 1 else ""}!',
                         body='Alle Verträge eintragen — sonst zählen die EH nicht für diesen Monat.',
-                        url='/vertraege', urgent=True, tag='deadline')
+                        url='/vertraege', urgent=True, tag='deadline', push_type='eingabeschluss')
                     _push_mark_sent(uid, 'eingabeschluss', key)
                     stats['eingabeschluss'] += 1
         except Exception:
@@ -4259,7 +4316,7 @@ def run_daily_pushes(force=False):
                     send_push_to_user(uid,
                         title='☎ Heute 5 Anrufe!',
                         body='Stufe-1-Routine: 5 Personen aus der Namensliste anrufen + Upline kontaktieren + 1 Termin planen.',
-                        url='/namensliste', tag='routine')
+                        url='/namensliste', tag='routine', push_type='daily_routine')
                     _push_mark_sent(uid, 'daily_routine', key)
                     stats['daily_routine'] += 1
         except Exception:
@@ -4318,7 +4375,7 @@ def push_broadcast():
 
     sent_total, failed_total = 0, 0
     for r in rows:
-        s, f = send_push_to_user(r['id'], title=title, body=body, url=url_target, tag='broadcast')
+        s, f = send_push_to_user(r['id'], title=title, body=body, url=url_target, tag='broadcast', push_type='broadcast')
         sent_total += s
         failed_total += f
     return jsonify({'ok': True, 'recipients': len(rows), 'sent': sent_total, 'failed': failed_total})
@@ -4386,6 +4443,52 @@ def push_unsubscribe():
         db.commit()
         db.close()
     return jsonify({'ok': True})
+
+
+PUSH_CATEGORIES = [
+    ('birthday_customer', '🎂 Kunden-Geburtstage', 'Wenn ein Kunde aus deiner Namensliste Geburtstag hat'),
+    ('birthday_partner', '🎉 Partner-Geburtstage', 'Wenn ein Partner aus deinem Team Geburtstag hat'),
+    ('inactive_alert', '⚠ Inaktive Partner', 'Wenn ein direkter Partner 3+ Tage still ist'),
+    ('eingabeschluss', '⏰ Eingabeschluss-Reminder', 'Bei ≤ 2 Tagen bis zum Eingabeschluss'),
+    ('daily_routine', '☎ Tägliche Routine (Stufe 1)', 'Morgendlicher Kick-off — 5 Anrufe etc.'),
+    ('contract_done', '🎉 Abschluss in deiner Struktur', 'Wenn ein Partner einen Vertrag abschließt'),
+    ('appointment_made', '📅 Termin angelegt', 'Bestätigung wenn du einen Termin einträgst'),
+    ('lead_won', '✓ Lead gewonnen', 'Wenn dein Lead-Status auf "gewonnen" wechselt'),
+    ('partner_recruited', '◇ Partner rekrutiert', 'Wenn ein neuer Partner in deine Struktur kommt'),
+    ('goal_achieved', '🎯 Ziel erreicht', 'Wenn du dein Wochenziel/Karriere-Stufe erreichst'),
+    ('vorschlag', '💡 Vorschläge (nur Admin)', 'Wenn ein Partner einen Vorschlag einreicht'),
+    ('broadcast', '📢 Broadcasts vom Admin', 'Wichtige Mitteilungen an alle'),
+]
+
+
+@app.route('/api/push/prefs', methods=['GET', 'POST'])
+@login_required
+def push_prefs():
+    db = get_db()
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        # Nur erlaubte Keys
+        allowed_keys = [k for k, _, _ in PUSH_CATEGORIES]
+        prefs = {k: bool(data.get(k)) for k in allowed_keys}
+        db.execute('UPDATE users SET push_prefs=? WHERE id=?', (json.dumps(prefs), current_user.id))
+        db.commit()
+        db.close()
+        return jsonify({'ok': True, 'prefs': prefs})
+    row = db.execute('SELECT push_prefs FROM users WHERE id=?', (current_user.id,)).fetchone()
+    db.close()
+    try:
+        prefs = json.loads(row['push_prefs']) if row and row['push_prefs'] else {}
+    except Exception:
+        prefs = {}
+    # Defaults: alles an
+    full = {k: prefs.get(k, True) for k, _, _ in PUSH_CATEGORIES}
+    return jsonify({'ok': True, 'prefs': full, 'categories': [{'key': k, 'label': l, 'desc': d} for k, l, d in PUSH_CATEGORIES]})
+
+
+@app.route('/push-settings')
+@login_required
+def push_settings():
+    return render_template('push_settings.html', categories=PUSH_CATEGORIES)
 
 
 @app.route('/api/push/test', methods=['POST'])
@@ -5500,6 +5603,15 @@ def lead_edit(lead_id):
              request.form.get('notizen', ''), liste_typ, kontakt_at, lead_id))
         db.commit()
         db.close()
+        # Push: wenn Status zu "gewonnen" wechselt
+        if new_status in ('gewonnen', 'abgeschlossen') and lead['status'] not in ('gewonnen', 'abgeschlossen'):
+            try:
+                send_push_to_user(current_user.id,
+                    title=f'✓ Lead gewonnen: {request.form["name"]}',
+                    body=f'{liste_typ.upper()}-Kontakt erfolgreich gewonnen!',
+                    url='/namensliste', tag='lead_won', push_type='lead_won')
+            except Exception:
+                pass
         flash('Kontakt aktualisiert!', 'success')
         return redirect(url_for('namensliste', typ=liste_typ))
     db.close()
@@ -5585,7 +5697,7 @@ def vertrag_neu():
                     send_push_to_user(u_row['parent_id'],
                         title=f'🎉 {current_user.name} hat abgeschlossen!',
                         body=f'{request.form["client_name"]} · {int(einheiten)} EH',
-                        url='/team', tag='abschluss')
+                        url='/team', tag='abschluss', push_type='contract_done')
             except Exception:
                 pass
         else:
@@ -5691,6 +5803,14 @@ def termin_neu():
         log_activity(current_user.id, 'termin_neu',
             f'{current_user.name} hat Termin „{request.form["title"]}" für {request.form["termin_date"]} angelegt',
             icon='◷', color='blue')
+        # Push: Termin-Bestätigung an User selbst
+        try:
+            send_push_to_user(current_user.id,
+                title=f'📅 Termin eingetragen',
+                body=f'{request.form["title"]} · {request.form["termin_date"]}',
+                url='/termine', tag='termin', push_type='appointment_made')
+        except Exception:
+            pass
         flash('Termin angelegt!', 'success')
         return redirect(url_for('termine'))
     return render_template('termin_form.html', termin=None)
@@ -5848,6 +5968,15 @@ def team_neu():
             log_activity(new_user_id, 'partner_neu',
                 f'{request.form["name"]} ist neuer Geschäftspartner ({stufe_short})',
                 icon='●', color='green')
+            # Push: Werber kriegt "Du hast jemanden rekrutiert!"
+            try:
+                send_push_to_user(current_user.id,
+                    title=f'◇ Du hast {request.form["name"]} rekrutiert!',
+                    body=f'Neuer Geschäftspartner ({stufe_short}) — willkommen heißen!',
+                    url=f'/partner/{new_user_id}/profil', urgent=True, tag='recruiting',
+                    push_type='partner_recruited')
+            except Exception:
+                pass
 
             # Welcome-E-Mail
             mail_status = ''
@@ -7181,7 +7310,7 @@ def vorschlag():
                 send_push_to_user(a['id'],
                     title=f'💡 Neuer Vorschlag von {current_user.name}',
                     body=f'{titel[:80]} · Kategorie: {kategorie}',
-                    url='/admin/vorschlaege', tag='vorschlag')
+                    url='/admin/vorschlaege', tag='vorschlag', push_type='vorschlag')
         except Exception:
             pass
         flash('Danke! Dein Vorschlag ist beim Admin angekommen.', 'success')

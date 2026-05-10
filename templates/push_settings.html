@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Push-Einstellungen – NT Pro Academy{% endblock %}
+{% block page_title %}🔔 Push-Einstellungen{% endblock %}
+
+{% block content %}
+
+<div style="max-width:680px">
+    <div class="card">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+            <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">🔔</div>
+            <div style="flex:1;min-width:200px">
+                <div style="font-size:18px;font-weight:800;color:var(--text)">Push-Notifications</div>
+                <div style="font-size:13px;color:var(--text-muted);margin-top:2px;line-height:1.5">
+                    Wähle was du aufs Handy bekommst. Standardmäßig alles an.
+                </div>
+            </div>
+            <button onclick="ntproRequestPush()" class="btn btn-primary">📲 Aktivieren / Test</button>
+        </div>
+
+        <div id="prefsList" style="display:flex;flex-direction:column;gap:8px">
+            <div style="text-align:center;padding:20px;color:var(--text-muted)">Lade Einstellungen…</div>
+        </div>
+
+        <div style="margin-top:18px;display:flex;gap:10px;align-items:center">
+            <button onclick="savePrefs()" class="btn btn-primary">💾 Speichern</button>
+            <span id="saveStatus" style="font-size:13px;color:var(--text-muted)"></span>
+        </div>
+    </div>
+
+    <div class="card" style="background:var(--bg-2)">
+        <div style="font-size:13px;color:var(--text);line-height:1.6">
+            💡 <strong>Tipp:</strong> Push-Notifications kommen aufs Handy <strong>auch wenn die App geschlossen ist</strong> — auf Android wenn der Bildschirm aus ist, auf iOS wenn die App im Background ist.
+            <br><br>
+            <strong>Wenn keine Pushes kommen:</strong>
+            <ol style="margin-top:8px;padding-left:20px">
+                <li>iOS: Einstellungen → NT Pro → Mitteilungen → Erlauben</li>
+                <li>Android: Einstellungen → Apps → NT Pro → Benachrichtigungen → An</li>
+                <li>Browser: Schloss-Icon oben in URL → Benachrichtigungen → Zulassen</li>
+            </ol>
+        </div>
+    </div>
+</div>
+
+<script>
+let _allPrefs = {};
+async function loadPrefs() {
+    const resp = await fetch('/api/push/prefs');
+    const data = await resp.json();
+    if (!data.ok) return;
+    _allPrefs = data.prefs;
+    const list = document.getElementById('prefsList');
+    list.innerHTML = '';
+    data.categories.forEach(cat => {
+        const enabled = _allPrefs[cat.key] !== false;
+        const row = document.createElement('label');
+        row.style.cssText = 'display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--bg-2);border:1px solid var(--border);border-radius:12px;cursor:pointer';
+        row.innerHTML = `
+            <input type="checkbox" ${enabled ? 'checked' : ''} data-key="${cat.key}" style="width:22px;height:22px;accent-color:var(--gold);cursor:pointer;flex-shrink:0">
+            <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:700;color:var(--text)">${cat.label}</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${cat.desc}</div>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+}
+async function savePrefs() {
+    const status = document.getElementById('saveStatus');
+    status.textContent = 'Speichere...';
+    const data = {};
+    document.querySelectorAll('#prefsList input[type=checkbox]').forEach(cb => {
+        data[cb.dataset.key] = cb.checked;
+    });
+    const resp = await fetch('/api/push/prefs', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+    });
+    const d = await resp.json();
+    if (d.ok) { status.textContent = '✓ Gespeichert'; status.style.color = 'var(--green)'; }
+    else { status.textContent = '✗ Fehler'; status.style.color = 'var(--red)'; }
+    setTimeout(() => status.textContent = '', 3000);
+}
+loadPrefs();
+</script>
+
+{% endblock %}
