@@ -4821,6 +4821,7 @@ def public_lead_capture():
         phone = (request.form.get('phone') or '').strip()
         message = (request.form.get('message') or '').strip()
         referred_by = (request.form.get('referred_by') or '').strip()
+        interesse = (request.form.get('interesse') or '').strip().lower()  # 'beratung' | 'karriere'
         privacy = request.form.get('privacy')
 
         if not name or not email or '@' not in email:
@@ -4851,12 +4852,20 @@ def public_lead_capture():
             db.close()
             return render_template('public_lead.html', success=True, duplicate=True)
 
+        # Notiz inkl. Interesse-Tag — sofort sichtbar im CRM
+        interesse_tag = ''
+        if interesse == 'beratung':
+            interesse_tag = '🎯 BERATUNG · '
+        elif interesse == 'karriere':
+            interesse_tag = '🚀 KARRIERE · '
+        notizen_full = f'{interesse_tag}Über Online-Form. {message}' if (interesse_tag or message) else 'Über Online-Form.'
+        # Lead-Liste-Typ: Beratung → vk (Vertrieb), Karriere → rk (Recruiting)
+        liste_typ = 'rk' if interesse == 'karriere' else 'vk'
         cur = db.execute('''INSERT INTO leads (owner_id, name, email, phone, status, notizen,
-                            source, public_message, referred_by)
-                            VALUES (?, ?, ?, ?, 'neu', ?, 'public', ?, ?)''',
-                       (owner_id, name, email, phone,
-                        f'Über Online-Form. {message}' if message else 'Über Online-Form.',
-                        message, referred_by))
+                            source, public_message, referred_by, liste_typ)
+                            VALUES (?, ?, ?, ?, 'neu', ?, 'public', ?, ?, ?)''',
+                       (owner_id, name, email, phone, notizen_full,
+                        message, referred_by, liste_typ))
         new_id = cur.lastrowid
         db.commit()
         db.close()

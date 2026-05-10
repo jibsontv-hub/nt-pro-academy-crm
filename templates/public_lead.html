@@ -7,32 +7,38 @@
 <link rel="alternate icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32.png?v=3">
 <link rel="shortcut icon" type="image/png" href="/static/icons/favicon-32.png?v=3">
 <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png?v=3">
-<link rel="apple-touch-icon-precomposed" sizes="180x180" href="/static/icons/apple-touch-icon.png?v=3">
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="NT Pro">
+<meta name="apple-mobile-web-app-title" content="NT Pro Academy">
 <meta name="theme-color" content="#0f1c3f">
-<title>Werde Geschäftspartner – NT Pro Academy</title>
+<meta name="description" content="Werde finanziell unabhängig. Ehrliche Beratung statt Hardsell. Vermögensaufbau, Familienabsicherung, Karriere im Finanzbereich.">
+<meta property="og:title" content="NT Pro Academy — Finanziell unabhängig werden">
+<meta property="og:description" content="Wir helfen Menschen, mit ihren Finanzen besser umzugehen. Ehrlich. Persönlich. Mit System.">
+<meta property="og:type" content="website">
+<title>NT Pro Academy — Finanziell unabhängig werden</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 body {
     font-family: 'Inter', -apple-system, sans-serif;
     background: #0a0e1a; color: #f1f5f9;
     min-height: 100vh; -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
+    overflow-x: hidden; line-height: 1.6;
 }
 body::before {
     content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
     background:
         radial-gradient(ellipse 70% 60% at 30% 0%, rgba(212,168,67,0.18), transparent 70%),
-        radial-gradient(ellipse 60% 50% at 100% 50%, rgba(96,165,250,0.1), transparent 70%);
+        radial-gradient(ellipse 60% 50% at 100% 50%, rgba(96,165,250,0.08), transparent 70%);
 }
-.wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
-.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 60px; }
+.wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+
+/* ── Brand Header ── */
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 50px; }
 .brand-icon {
     width: 44px; height: 44px; border-radius: 12px;
     background: linear-gradient(135deg, #d4a843, #b8902e);
@@ -42,87 +48,215 @@ body::before {
 .brand-text strong { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; display: block; }
 .brand-text small { font-size: 11px; color: #64748b; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
 
-.hero { display: grid; grid-template-columns: 1fr 480px; gap: 60px; align-items: start; }
-@media (max-width: 900px) { .hero { grid-template-columns: 1fr; gap: 40px; } }
-
+/* ── HERO ── */
+.hero {
+    display: grid; grid-template-columns: 1fr 460px; gap: 60px; align-items: start;
+    margin-bottom: 80px;
+}
+@media (max-width: 980px) { .hero { grid-template-columns: 1fr; gap: 36px; } }
+.hero-left .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 14px; background: rgba(212,168,67,0.15);
+    border: 1px solid rgba(212,168,67,0.35); border-radius: 999px;
+    font-size: 12px; font-weight: 700; color: #d4a843;
+    margin-bottom: 22px; letter-spacing: 0.3px;
+}
 .hero-left h1 {
     font-size: 56px; font-weight: 900; letter-spacing: -2px; line-height: 1.05;
-    margin-bottom: 20px;
+    margin-bottom: 22px;
 }
 .hero-left h1 .accent {
-    background: linear-gradient(135deg, #d4a843, #fff);
+    background: linear-gradient(135deg, #d4a843, #f5c870 60%, #fff);
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
 }
-@media (max-width: 600px) { .hero-left h1 { font-size: 38px; } }
-.hero-left p { font-size: 17px; color: #94a3b8; line-height: 1.6; margin-bottom: 28px; max-width: 480px; }
-.benefits { display: flex; flex-direction: column; gap: 14px; }
-.benefit {
-    display: flex; align-items: flex-start; gap: 14px;
-    padding: 16px 18px; background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06); border-radius: 14px;
+@media (max-width: 600px) { .hero-left h1 { font-size: 36px; letter-spacing: -1.2px; } }
+.hero-left .lead {
+    font-size: 18px; color: #cbd5e1; line-height: 1.65; max-width: 520px;
 }
-.benefit-icon {
-    width: 36px; height: 36px; border-radius: 10px;
-    background: rgba(212,168,67,0.15); color: #d4a843;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; font-size: 16px;
-}
-.benefit-title { font-weight: 700; font-size: 14px; }
-.benefit-desc { font-size: 12px; color: #94a3b8; margin-top: 3px; line-height: 1.5; }
+.hero-left .lead strong { color: #fff; font-weight: 700; }
 
-.form-card {
-    background: rgba(19,24,41,0.7); backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 20px;
-    padding: 36px 32px; box-shadow: 0 25px 80px rgba(0,0,0,0.5);
-    position: sticky; top: 30px;
+/* ── Founder-Card mit Foto ── */
+.founder {
+    display: flex; gap: 14px; align-items: center;
+    margin-top: 26px; padding: 16px 18px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; max-width: 480px;
 }
+.founder-photo {
+    width: 56px; height: 56px; border-radius: 50%;
+    object-fit: cover; flex-shrink: 0;
+    border: 2px solid rgba(212,168,67,0.4);
+    box-shadow: 0 4px 14px rgba(212,168,67,0.2);
+}
+.founder-text { flex: 1; }
+.founder-name { font-weight: 700; font-size: 14px; }
+.founder-role { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+/* ── FORM-CARD ── */
+.form-card {
+    background: rgba(19,24,41,0.78); backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 22px;
+    padding: 32px 30px; box-shadow: 0 30px 80px rgba(0,0,0,0.55);
+    position: sticky; top: 24px;
+}
+@media (max-width: 980px) { .form-card { position: static; } }
 .form-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px; }
-.form-sub { font-size: 13px; color: #94a3b8; margin-bottom: 24px; line-height: 1.5; }
-label {
+.form-sub { font-size: 13px; color: #94a3b8; margin-bottom: 22px; line-height: 1.5; }
+
+/* Auswahl-Pfad: Beratung vs Karriere */
+.path-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+.path-option {
+    cursor: pointer; padding: 14px 12px; text-align: center;
+    background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.08);
+    border-radius: 12px; transition: all 0.18s; font-size: 13px; font-weight: 700;
+    user-select: none;
+}
+.path-option .ico { display: block; font-size: 22px; margin-bottom: 6px; }
+.path-option .sub { display: block; font-size: 11px; color: #94a3b8; font-weight: 500; margin-top: 3px; line-height: 1.3; }
+.path-option:hover { background: rgba(212,168,67,0.06); }
+.path-option.active {
+    background: rgba(212,168,67,0.18);
+    border-color: #d4a843;
+    box-shadow: 0 0 0 3px rgba(212,168,67,0.15);
+    color: #fff;
+}
+.path-option input { position: absolute; opacity: 0; pointer-events: none; }
+
+label.fl {
     font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.7px;
     font-weight: 700; display: block; margin-bottom: 6px; margin-top: 14px;
 }
-label:first-of-type { margin-top: 0; }
-input, textarea {
-    width: 100%; padding: 12px 14px; background: rgba(255,255,255,0.04);
+label.fl:first-of-type { margin-top: 0; }
+input.in, textarea.in {
+    width: 100%; padding: 13px 14px; background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
-    color: #f1f5f9; font-size: 14px; font-family: inherit; transition: all 0.2s;
+    color: #f1f5f9; font-size: 14px; font-family: inherit; transition: all 0.18s;
 }
-input:focus, textarea:focus { outline: none; border-color: #d4a843; background: rgba(255,255,255,0.06); }
-input::placeholder, textarea::placeholder { color: #475569; }
-textarea { resize: vertical; min-height: 80px; }
-.privacy-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; font-size: 12px; color: #94a3b8; line-height: 1.5; }
-.privacy-row input { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; accent-color: #d4a843; }
+input.in:focus, textarea.in:focus { outline: none; border-color: #d4a843; background: rgba(255,255,255,0.07); }
+input.in::placeholder, textarea.in::placeholder { color: #475569; }
+textarea.in { resize: vertical; min-height: 70px; }
+
+.privacy-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 18px; font-size: 12px; color: #94a3b8; line-height: 1.5; }
+.privacy-row input { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; accent-color: #d4a843; cursor: pointer; }
 .privacy-row a { color: #d4a843; text-decoration: none; font-weight: 600; }
+
 .btn-submit {
-    width: 100%; padding: 14px; margin-top: 20px;
+    width: 100%; padding: 15px; margin-top: 20px;
     background: linear-gradient(135deg, #d4a843, #f0c970);
     color: #0f1c3f; border: none; border-radius: 12px; font-size: 15px; font-weight: 800;
     cursor: pointer; font-family: inherit;
-    box-shadow: 0 4px 14px rgba(212,168,67,0.35);
+    box-shadow: 0 4px 16px rgba(212,168,67,0.4);
     transition: all 0.2s;
 }
-.btn-submit:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(212,168,67,0.5); }
+.btn-submit:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(212,168,67,0.55); }
+.btn-submit:active { transform: translateY(0); }
 
-.success {
-    text-align: center; padding: 36px 20px;
+/* ── PROBLEM-SECTION ── */
+.section-h {
+    font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px;
+    color: #d4a843; margin-bottom: 16px;
 }
+.section-h2 {
+    font-size: 32px; font-weight: 900; letter-spacing: -1px; margin-bottom: 36px;
+    line-height: 1.15;
+}
+@media (max-width: 600px) { .section-h2 { font-size: 24px; } }
+
+.problems { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+@media (max-width: 700px) { .problems { grid-template-columns: 1fr; } }
+.problem {
+    padding: 22px 24px;
+    background: rgba(220,38,38,0.06);
+    border: 1px solid rgba(220,38,38,0.18);
+    border-left: 3px solid #ef4444;
+    border-radius: 12px;
+}
+.problem-q {
+    font-size: 16px; font-weight: 700; color: #fca5a5; margin-bottom: 6px; line-height: 1.35;
+}
+.problem-a { font-size: 13px; color: #cbd5e1; line-height: 1.55; }
+
+/* ── SOLUTIONS ── */
+.solutions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+@media (max-width: 800px) { .solutions { grid-template-columns: 1fr; } }
+.solution {
+    padding: 24px 22px;
+    background: linear-gradient(180deg, rgba(212,168,67,0.08), rgba(212,168,67,0.02));
+    border: 1px solid rgba(212,168,67,0.25);
+    border-radius: 14px;
+}
+.solution-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, #d4a843, #b8902e);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 14px; color: #0f1c3f;
+}
+.solution-title { font-size: 16px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.2px; }
+.solution-desc { font-size: 13px; color: #cbd5e1; line-height: 1.55; }
+
+/* ── VISION-Section ── */
+.vision-block {
+    margin-top: 100px; padding: 40px 38px;
+    background: linear-gradient(135deg, rgba(212,168,67,0.10), rgba(96,165,250,0.05));
+    border: 1px solid rgba(212,168,67,0.2);
+    border-radius: 22px; text-align: center;
+}
+@media (max-width: 600px) { .vision-block { padding: 28px 22px; } }
+.vision-quote {
+    font-size: 24px; font-weight: 700; line-height: 1.45; max-width: 720px; margin: 0 auto 22px;
+    color: #fff; letter-spacing: -0.5px;
+}
+@media (max-width: 600px) { .vision-quote { font-size: 18px; } }
+.vision-author { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.vision-photo {
+    width: 48px; height: 48px; border-radius: 50%; object-fit: cover;
+    border: 2px solid rgba(212,168,67,0.5);
+}
+.vision-author-text { text-align: left; }
+.vision-author-name { font-weight: 700; font-size: 14px; }
+.vision-author-role { font-size: 12px; color: #94a3b8; }
+
+/* ── CTA-Wiederholung ── */
+.cta-bottom {
+    margin-top: 60px; padding: 36px 32px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 18px; text-align: center;
+}
+.cta-bottom h3 {
+    font-size: 22px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px;
+}
+.cta-bottom p { font-size: 14px; color: #94a3b8; margin-bottom: 18px; }
+.cta-bottom a {
+    display: inline-block; padding: 14px 32px;
+    background: linear-gradient(135deg, #d4a843, #f0c970);
+    color: #0f1c3f; text-decoration: none; border-radius: 12px;
+    font-weight: 800; font-size: 15px;
+    box-shadow: 0 4px 16px rgba(212,168,67,0.4);
+    transition: all 0.2s;
+}
+.cta-bottom a:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(212,168,67,0.55); }
+
+/* ── SUCCESS Page ── */
+.success { text-align: center; padding: 36px 20px; }
 .success-icon {
     width: 80px; height: 80px; border-radius: 24px; margin: 0 auto 20px;
     background: linear-gradient(135deg, #34d399, #10b981);
     display: flex; align-items: center; justify-content: center; font-size: 40px;
 }
 .success h2 { font-size: 26px; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
-.success p { font-size: 14px; color: #94a3b8; line-height: 1.6; }
+.success p { font-size: 14px; color: #94a3b8; line-height: 1.65; }
 
 .error-box {
     background: rgba(220,38,38,0.15); color: #fca5a5;
     border: 1px solid rgba(220,38,38,0.3); border-radius: 10px;
     padding: 12px 16px; font-size: 13px; margin-bottom: 14px;
 }
+
+/* ── Footer ── */
 .footer { text-align: center; margin-top: 60px; font-size: 11px; color: #475569; }
 .footer a { color: #94a3b8; text-decoration: none; margin: 0 8px; }
+.footer a:hover { color: #d4a843; }
 </style>
 </head>
 <body>
@@ -131,7 +265,7 @@ textarea { resize: vertical; min-height: 80px; }
         <div class="brand-icon">NT</div>
         <div class="brand-text">
             <strong>NT Pro Academy</strong>
-            <small>Strukturvertrieb · Karriere · Vermögen</small>
+            <small>Finanzen · Vermögen · Karriere</small>
         </div>
     </div>
 
@@ -142,90 +276,202 @@ textarea { resize: vertical; min-height: 80px; }
             <h2>{% if duplicate %}Wir kennen dich schon!{% else %}Vielen Dank!{% endif %}</h2>
             <p>
                 {% if duplicate %}
-                Mit dieser E-Mail haben wir schon eine Anfrage erhalten. Wir melden uns bei dir, sobald jemand Zeit hat.
+                Mit dieser E-Mail haben wir bereits eine Anfrage von dir. Wir melden uns sobald jemand verfügbar ist.
                 {% else %}
-                Deine Anmeldung ist eingegangen. <strong style="color:#d4a843">Wir melden uns innerhalb von 24-48 Std.</strong> bei dir.
+                Deine Anfrage ist eingegangen.<br>
+                <strong style="color:#d4a843">Najib oder ein Team-Mitglied meldet sich innerhalb von 24-48 Std. persönlich bei dir.</strong>
                 <br><br>
-                In der Zwischenzeit: schau dich auf unseren Social-Media-Kanälen um — da gibt's viele Insights zu Karriere, Vertrieb und Finanzwissen.
+                In der Zwischenzeit: schau auf unseren Social-Media-Kanälen vorbei — dort gibt's regelmäßig Infos rund um Vermögensaufbau, Finanzen und unser Team.
                 {% endif %}
             </p>
         </div>
     </div>
     {% else %}
+
+    <!-- ═══════════════ HERO ═══════════════ -->
     <div class="hero">
         <div class="hero-left">
-            <h1>Werde Teil von <span class="accent">NT Pro Academy</span></h1>
-            <p>Strukturvertrieb mit echtem System: Karriere-Tracking, Provisionen automatisch, KI-Coach, Onboarding mit Sprachausgabe — alles in einem Cockpit.</p>
-            <div class="benefits">
-                <div class="benefit">
-                    <div class="benefit-icon">⚡</div>
-                    <div>
-                        <div class="benefit-title">Klare Karriere-Wege</div>
-                        <div class="benefit-desc">REP → LREP → HREP → CREP → DREP → GREP. Klare Kriterien, automatische Beförderung.</div>
-                    </div>
-                </div>
-                <div class="benefit">
-                    <div class="benefit-icon">💰</div>
-                    <div>
-                        <div class="benefit-title">Faire Differenz-Provisionen</div>
-                        <div class="benefit-desc">5,00 - 23,00 €/EH je nach Stufe. Volle Transparenz, automatische Auszahlung.</div>
-                    </div>
-                </div>
-                <div class="benefit">
-                    <div class="benefit-icon">🧠</div>
-                    <div>
-                        <div class="benefit-title">KI-Mentor</div>
-                        <div class="benefit-desc">Tägliche Empfehlungen, Coaching-Diagnose, Wochen-Briefing — wie ein echter Mentor.</div>
-                    </div>
-                </div>
-                <div class="benefit">
-                    <div class="benefit-icon">🏆</div>
-                    <div>
-                        <div class="benefit-title">Wettbewerb + Trophäen</div>
-                        <div class="benefit-desc">27 Achievements, Wochen-Ranking, Live-Feed — Motivation pur.</div>
-                    </div>
+            <div class="badge">⚡ Kostenloses Erstgespräch · keine Verpflichtung</div>
+            <h1>Geld verdienen ist eine Sache.<br><span class="accent">Geld behalten</span> ist die andere.</h1>
+            <p class="lead">
+                Du arbeitest hart — und am Monatsende ist trotzdem nichts übrig?
+                <strong>Wir helfen Menschen, ihre Finanzen endlich in den Griff zu bekommen.</strong>
+                Ehrlich. Persönlich. Ohne Verkaufsmasche.
+            </p>
+            <div class="founder">
+                <img src="/static/icons/coach-figure-200.jpg" alt="Najib Tchatikpi" class="founder-photo" loading="lazy" decoding="async">
+                <div class="founder-text">
+                    <div class="founder-name">Najib Tchatikpi</div>
+                    <div class="founder-role">Gründer NT Pro Academy · Vermögensmentor</div>
                 </div>
             </div>
         </div>
 
-        <form class="form-card" method="POST">
-            <div class="form-title">📋 Jetzt unverbindlich anmelden</div>
-            <div class="form-sub">Wir melden uns innerhalb von 24-48 Std. bei dir.</div>
+        <!-- ═══════ FORM ═══════ -->
+        <form class="form-card" method="POST" id="leadForm">
+            <div class="form-title">Lass uns kurz reden</div>
+            <div class="form-sub">Wir melden uns innerhalb von <strong style="color:#d4a843">24-48 Std.</strong> bei dir — kostenlos &amp; unverbindlich.</div>
 
             {% if error %}<div class="error-box">⚠️ {{ error }}</div>{% endif %}
 
-            <label>Vollständiger Name *</label>
-            <input type="text" name="name" required placeholder="Max Mustermann" autocomplete="name">
+            <!-- Pfad-Auswahl -->
+            <label class="fl">Was suchst du?</label>
+            <div class="path-selector">
+                <label class="path-option active" id="opt-beratung">
+                    <input type="radio" name="interesse" value="beratung" checked>
+                    <span class="ico">💡</span>
+                    Finanz-Beratung
+                    <span class="sub">Vermögen aufbauen, Familie absichern</span>
+                </label>
+                <label class="path-option" id="opt-karriere">
+                    <input type="radio" name="interesse" value="karriere">
+                    <span class="ico">🚀</span>
+                    Karriere im Team
+                    <span class="sub">Selbst Berater werden, eigenes Business</span>
+                </label>
+            </div>
 
-            <label>E-Mail *</label>
-            <input type="email" name="email" required placeholder="max@email.de" autocomplete="email">
+            <label class="fl">Name *</label>
+            <input class="in" type="text" name="name" required placeholder="Max Mustermann" autocomplete="name">
 
-            <label>Telefon</label>
-            <input type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
+            <label class="fl">E-Mail *</label>
+            <input class="in" type="email" name="email" required placeholder="max@email.de" autocomplete="email">
 
-            <label>Wer hat dich empfohlen?</label>
-            <input type="text" name="referred_by" value="{{ referred_by or '' }}" placeholder="Name oder E-Mail des Partners">
+            <label class="fl">Telefon (für schnelleren Rückruf)</label>
+            <input class="in" type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
 
-            <label>Deine Nachricht (optional)</label>
-            <textarea name="message" placeholder="Erzähl kurz etwas über dich oder warum du Interesse hast…"></textarea>
+            <label class="fl">Wer hat dich empfohlen? (optional)</label>
+            <input class="in" type="text" name="referred_by" value="{{ referred_by or '' }}" placeholder="Name oder E-Mail">
+
+            <label class="fl">Deine Frage / Situation (optional)</label>
+            <textarea class="in" name="message" placeholder="Erzähl in 1-2 Sätzen worum's geht…"></textarea>
 
             <div class="privacy-row">
                 <input type="checkbox" name="privacy" value="1" id="privacy" required>
-                <label for="privacy" style="font-size:12px;color:#94a3b8;text-transform:none;letter-spacing:0;font-weight:500;margin:0">
+                <label for="privacy" style="font-size:12px;color:#94a3b8;text-transform:none;letter-spacing:0;font-weight:500;margin:0;cursor:pointer">
                     Ich habe die <a href="/datenschutz" target="_blank">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zu.
                 </label>
             </div>
 
-            <button type="submit" class="btn-submit">Anmelden →</button>
+            <button type="submit" class="btn-submit">Kostenloses Gespräch anfragen →</button>
         </form>
     </div>
+
+    <!-- ═══════════════ DIE PROBLEME ═══════════════ -->
+    <div style="margin-top: 80px">
+        <div class="section-h">Warum dieser Termin sich lohnt</div>
+        <h2 class="section-h2">Vielleicht erkennst du dich hier wieder.</h2>
+        <div class="problems">
+            <div class="problem">
+                <div class="problem-q">„Mein Geld läuft monatlich einfach weg."</div>
+                <div class="problem-a">Konsumkredite, Versicherungen, Handy, Auto-Leasing — am Ende bleibt nichts zum Sparen.</div>
+            </div>
+            <div class="problem">
+                <div class="problem-q">„Steuern fressen mein Gehalt."</div>
+                <div class="problem-a">Du verdienst gut, aber netto bleibt wenig hängen. Du weißt nicht wie's anders geht.</div>
+            </div>
+            <div class="problem">
+                <div class="problem-q">„Wenn mir was passiert, ist meine Familie aufgeschmissen."</div>
+                <div class="problem-a">Keine Berufsunfähigkeits-Absicherung, keine Risikolebens, kein Plan für den Notfall.</div>
+            </div>
+            <div class="problem">
+                <div class="problem-q">„Sparen lohnt sich doch nicht mehr."</div>
+                <div class="problem-a">Inflation frisst dein Geld auf. Du weißt nicht in was du sicher und renditestark investieren sollst.</div>
+            </div>
+            <div class="problem">
+                <div class="problem-q">„Mein Vermieter wird teurer — ich will eigene 4 Wände."</div>
+                <div class="problem-a">Aber Eigenkapital fehlt, Immobilienpreise explodieren, Banken sagen nein.</div>
+            </div>
+            <div class="problem">
+                <div class="problem-q">„Ich hab keine Ahnung wo ich anfangen soll."</div>
+                <div class="problem-a">Versicherungen, Aktien, Immobilien, Altersvorsorge — wer blickt da noch durch?</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ DIE LÖSUNG ═══════════════ -->
+    <div style="margin-top: 90px">
+        <div class="section-h">So helfen wir dir</div>
+        <h2 class="section-h2">Klare Antworten. Echtes System.<br>Persönliche Begleitung.</h2>
+        <div class="solutions">
+            <div class="solution">
+                <div class="solution-icon">💼</div>
+                <div class="solution-title">Finanz-Check ohne Druck</div>
+                <div class="solution-desc">Wir analysieren ehrlich deine Situation. Du erfährst was sinnvoll ist und was du dir sparen kannst — auch wenn du nichts bei uns abschließt.</div>
+            </div>
+            <div class="solution">
+                <div class="solution-icon">🛡</div>
+                <div class="solution-title">Familie absichern</div>
+                <div class="solution-desc">Berufsunfähigkeit, Risikolebens, Pflege — wir bauen einen einfachen Plan, der zu deinem Budget passt. Ohne Überversicherung.</div>
+            </div>
+            <div class="solution">
+                <div class="solution-icon">📈</div>
+                <div class="solution-title">Vermögen aufbauen</div>
+                <div class="solution-desc">ETFs, Fonds, Immobilien — was passt zu DIR? Wir zeigen dir verschiedene Wege und du entscheidest. Keine Black-Box-Produkte.</div>
+            </div>
+            <div class="solution">
+                <div class="solution-icon">🏠</div>
+                <div class="solution-title">Eigenheim-Strategie</div>
+                <div class="solution-desc">Eigenkapital aufbauen, Förderungen ausnutzen, Finanzierung vorbereiten. Auch wenn's noch 5 Jahre dauert.</div>
+            </div>
+            <div class="solution">
+                <div class="solution-icon">📚</div>
+                <div class="solution-title">Finanz-Bildung</div>
+                <div class="solution-desc">Du verstehst jeden Schritt. Wir erklären in deiner Sprache, ohne Banker-Deutsch und Gebühren-Versteckspielchen.</div>
+            </div>
+            <div class="solution">
+                <div class="solution-icon">🚀</div>
+                <div class="solution-title">Karriere im Finanzbereich</div>
+                <div class="solution-desc">Du willst selbst beraten und ein eigenes Business aufbauen? Wir bilden aus, geben dir Tools und Begleitung — Quereinsteiger willkommen.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ VISION ═══════════════ -->
+    <div class="vision-block">
+        <div class="section-h" style="text-align:center">Unsere Vision</div>
+        <p class="vision-quote">
+            „Ich glaube, dass jeder Mensch — egal woher er kommt — mit den richtigen Tools und Wissen finanziell unabhängig werden kann.
+            Wir wollen Menschen helfen, die Wahrheit über ihr Geld zu verstehen — und dann gemeinsam was Großes daraus machen."
+        </p>
+        <div class="vision-author">
+            <img src="/static/icons/coach-figure-200.jpg" alt="Najib Tchatikpi" class="vision-photo" loading="lazy" decoding="async">
+            <div class="vision-author-text">
+                <div class="vision-author-name">Najib Tchatikpi</div>
+                <div class="vision-author-role">Gründer NT Pro Academy</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ CTA UNTEN ═══════════════ -->
+    <div class="cta-bottom">
+        <h3>Bereit für ein ehrliches Gespräch?</h3>
+        <p>Kostenlos · 30 Minuten · keine Verpflichtung · keine Verkaufsmasche</p>
+        <a href="#leadForm">Jetzt Termin anfragen ↑</a>
+    </div>
+
     {% endif %}
 
     <div class="footer">
-        © {{ '' }}2026 NT Pro Academy
+        © 2026 NT Pro Academy
         <a href="/datenschutz">Datenschutz</a>
         <a href="/login">Login für Mitglieder</a>
     </div>
 </div>
+
+<script>
+// Path-Selector aktiv-State togglen
+(function(){
+    const opts = document.querySelectorAll('.path-option');
+    opts.forEach(o => {
+        o.addEventListener('click', () => {
+            opts.forEach(x => x.classList.remove('active'));
+            o.classList.add('active');
+            const radio = o.querySelector('input[type="radio"]');
+            if (radio) radio.checked = true;
+        });
+    });
+})();
+</script>
 </body>
 </html>
