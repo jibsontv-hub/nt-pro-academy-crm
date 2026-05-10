@@ -1010,7 +1010,8 @@
             <details class="nav-group"{% if not is_starter %} open{% endif %} data-group="team">
                 <summary class="nav-section-toggle">▸ Mein Team</summary>
                 <div class="nav-group-items">
-                    <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Team-Liste</a>
+                    <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Direkte Geschäftspartner</a>
+                    <a href="/genehmigungen" class="nav-link {% if '/genehmigungen' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Neue Anmeldungen</a>
                     {% if team_calendar_available %}
                     <a href="/team-kalender" class="nav-link {% if '/team-kalender' in request.path %}active{% endif %}"><span class="nav-icon">▦</span> Team-Kalender</a>
                     {% endif %}

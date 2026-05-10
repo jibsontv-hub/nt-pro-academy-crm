@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
+<title>Anmeldung – NT Pro Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', sans-serif; background: #0a0e1a; color: #f1f5f9; min-height: 100vh; padding: 20px; -webkit-font-smoothing: antialiased; }
+body::before { content:''; position:fixed; inset:0; background: radial-gradient(ellipse at top, rgba(212,168,67,0.12), transparent 60%), radial-gradient(ellipse at bottom right, rgba(96,165,250,0.08), transparent 60%); pointer-events:none; }
+.wrap { max-width: 520px; margin: 40px auto; position:relative; }
+.brand { display:flex; align-items:center; gap:12px; margin-bottom: 24px; }
+.brand-i { width:44px; height:44px; border-radius: 12px; background: linear-gradient(135deg,#0f1c3f,#1a2c5b); color: #d4a843; font-weight: 900; display:flex; align-items:center; justify-content:center; font-size:14px; box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
+.brand-t { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
+.brand-s { font-size: 10px; color:#94a3b8; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
+.card { background: rgba(19,24,41,0.85); backdrop-filter: blur(20px) saturate(180%); border: 1px solid rgba(255,255,255,0.08); border-radius: 22px; padding: 32px 28px; box-shadow: 0 25px 80px rgba(0,0,0,0.5); }
+h1 { font-size: 26px; font-weight: 900; letter-spacing: -0.6px; margin-bottom: 8px; }
+.sub { font-size: 14px; color: #94a3b8; margin-bottom: 24px; line-height: 1.6; }
+label { display: block; font-size: 12px; color: #94a3b8; font-weight: 600; margin-bottom: 6px; margin-top: 14px; }
+input { width: 100%; padding: 14px 16px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #f1f5f9; font-size: 15px; font-family: inherit; transition: all 0.18s; }
+input:focus { outline: none; border-color: #d4a843; background: rgba(255,255,255,0.08); box-shadow: 0 0 0 4px rgba(212,168,67,0.15); }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .row { grid-template-columns: 1fr; gap: 0; } }
+.btn { width: 100%; padding: 16px; background: linear-gradient(135deg,#d4a843,#f0c970); color: #0f1c3f; border: none; border-radius: 12px; font-size: 15px; font-weight: 800; cursor: pointer; margin-top: 24px; font-family: inherit; box-shadow: 0 6px 20px rgba(212,168,67,0.3); transition: all 0.2s; }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(212,168,67,0.4); }
+.flash { padding: 12px 16px; border-radius: 12px; margin-bottom: 14px; font-size: 13px; background: rgba(220,38,38,0.15); color: #fca5a5; border: 1px solid rgba(220,38,38,0.3); }
+.flash.success { background: rgba(52,211,153,0.15); color:#86efac; border-color: rgba(52,211,153,0.3); }
+.hint { background: rgba(212,168,67,0.08); border: 1px solid rgba(212,168,67,0.2); border-radius: 12px; padding: 12px 14px; font-size: 12px; color: #d4a843; margin-top: 14px; line-height: 1.5; }
+.foot { text-align: center; margin-top: 18px; font-size: 13px; color: #64748b; }
+.foot a { color: #d4a843; text-decoration: none; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="brand">
+        <div class="brand-i">NT</div>
+        <div>
+            <div class="brand-t">NT Pro Academy</div>
+            <div class="brand-s">Strukturvertrieb · Karriere · Vermögen</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h1>Geschäftspartner werden</h1>
+        <p class="sub">Trag dich in 30 Sekunden ein. Dein Strukturhöher bestätigt deine Anmeldung — danach kannst du sofort loslegen.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="flash {% if category == 'success' %}success{% endif %}">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+
+        <form method="POST">
+            <label>👤 Vor- und Nachname *</label>
+            <input type="text" name="name" value="{{ form.name or '' }}" required minlength="3" placeholder="Max Mustermann" autofocus>
+
+            <label>✉ E-Mail *</label>
+            <input type="email" name="email" value="{{ form.email or '' }}" required placeholder="max@email.de" autocomplete="email">
+
+            <div class="row">
+                <div>
+                    <label>☎ Telefon</label>
+                    <input type="tel" name="phone" value="{{ form.phone or '' }}" placeholder="+49 170 …">
+                </div>
+                <div>
+                    <label>🎂 Geburtstag</label>
+                    <input type="date" name="birthday" value="{{ form.birthday or '' }}">
+                </div>
+            </div>
+
+            <label>⬢ Strukturhöher (Mentor/Empfehler) *</label>
+            <input type="text" name="strukturhoeher_name" value="{{ form.strukturhoeher_name or '' }}" required placeholder="Name oder E-Mail des Strukturhöheren">
+            <span style="font-size:11px;color:#64748b;margin-top:4px;display:block">Wer hat dich auf NT Pro aufmerksam gemacht? — exakter Name oder seine E-Mail</span>
+
+            <div class="row">
+                <div>
+                    <label>🔒 Passwort *</label>
+                    <input type="password" name="password" required minlength="6" placeholder="Mind. 6 Zeichen">
+                </div>
+                <div>
+                    <label>🔒 Wiederholen *</label>
+                    <input type="password" name="password2" required minlength="6" placeholder="Nochmal eingeben">
+                </div>
+            </div>
+
+            <button type="submit" class="btn">▶ Account erstellen</button>
+
+            <div class="hint">
+                💡 <strong>Was passiert danach?</strong><br>
+                Dein Strukturhöher bekommt direkt eine Push-Benachrichtigung und bestätigt dich. Sobald aktiv: Dashboard, NTcoach, Tagesaufgaben, Trophäen — alles freigeschaltet.
+            </div>
+        </form>
+    </div>
+
+    <div class="foot">
+        Schon registriert? <a href="/login">Hier einloggen</a>
+    </div>
+</div>
+</body>
+</html>

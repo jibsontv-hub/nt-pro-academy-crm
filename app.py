@@ -6610,6 +6610,152 @@ def profil_photo_delete():
     return redirect(url_for('profil'))
 
 
+@app.route('/registrieren', methods=['GET', 'POST'])
+def self_register():
+    """Self-Registration: Neue Geschäftspartner können sich selbst anmelden.
+    Strukturhöher-Name als Pflichtfeld → Account ist pending bis bestätigt."""
+    db = get_db()
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
+        phone = (request.form.get('phone') or '').strip()
+        birthday = request.form.get('birthday') or None
+        strukt_name = (request.form.get('strukturhoeher_name') or '').strip()
+        pw = (request.form.get('password') or '').strip()
+        pw2 = (request.form.get('password2') or '').strip()
+
+        # Validation
+        errors = []
+        if len(name) < 3: errors.append('Name zu kurz')
+        if '@' not in email or len(email) < 5: errors.append('E-Mail ungültig')
+        if not strukt_name: errors.append('Name deines Strukturhöheren fehlt')
+        if len(pw) < 6: errors.append('Passwort zu kurz (min 6 Zeichen)')
+        if pw != pw2: errors.append('Passwörter stimmen nicht überein')
+        existing = db.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
+        if existing: errors.append('E-Mail ist schon registriert')
+
+        # Strukturhöher suchen (Name oder E-Mail)
+        parent = db.execute(
+            'SELECT id, name, email, role FROM users WHERE active=1 AND (LOWER(name)=LOWER(?) OR LOWER(email)=LOWER(?)) LIMIT 1',
+            (strukt_name, strukt_name)).fetchone()
+        if not parent:
+            errors.append(f'Strukturhöher „{strukt_name}" nicht gefunden — frag deinen Mentor nach dem genauen Namen oder E-Mail')
+
+        if errors:
+            db.close()
+            for e in errors: flash(e, 'error')
+            return render_template('self_register.html', form=request.form)
+
+        # Account anlegen — pending bis Strukturhöher bestätigt
+        cur = db.execute('''INSERT INTO users
+            (name, email, password, role, parent_id, level, phone, birthday,
+             manual_career_level, must_change_password, active)
+            VALUES (?, ?, ?, 'partner', ?, ?, ?, ?, 1, 0, 0)''',
+            (name, email, hash_password(pw), parent['id'],
+             1, phone or None, birthday, ))
+        new_id = cur.lastrowid
+        db.commit()
+        db.close()
+        log_activity(parent['id'], 'registrierung_pending',
+            f'{name} möchte deine Downline werden — bitte bestätigen',
+            icon='◎', color='gold')
+        # Push an Strukturhöher
+        try:
+            send_push_to_user(parent['id'],
+                title=f'◎ Neue Anmeldung: {name}',
+                body=f'{name} möchte in deine Struktur — jetzt bestätigen oder ablehnen.',
+                url='/genehmigungen', urgent=True, tag='registrierung')
+        except Exception:
+            pass
+        flash(f'Anmeldung erfolgreich! {parent["name"]} muss dich noch bestätigen — du wirst per E-Mail informiert sobald aktiv.', 'success')
+        return redirect(url_for('login'))
+
+    db.close()
+    return render_template('self_register.html', form={})
+
+
+@app.route('/genehmigungen')
+@login_required
+def genehmigungen_personal():
+    """Personal-Approval: Strukturhöhere ab Stufe 2 können neue Registrierungen in ihrer Downline bestätigen."""
+    db = get_db()
+    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (current_user.id,)).fetchone()['s']
+    user = db.execute('SELECT manual_career_level, role FROM users WHERE id=?', (current_user.id,)).fetchone()
+    own_career = career_for_row(user['manual_career_level'], own_eh + (db.execute('SELECT initial_eh FROM users WHERE id=?', (current_user.id,)).fetchone()['initial_eh'] or 0))
+    is_eligible = current_user.has_admin_access or own_career['level'] >= 2
+    if not is_eligible:
+        db.close()
+        flash('Stufe 2 (LREP) oder höher erforderlich', 'error')
+        return redirect(url_for('dashboard'))
+
+    # Nur direkt unter mir oder in meiner Downline
+    downline = [current_user.id] + get_all_descendants(current_user.id)
+    ph = ','.join('?' * len(downline))
+    if current_user.has_admin_access:
+        # Admin sieht alle pending
+        pending = db.execute("""
+            SELECT u.*, p.name as parent_name FROM users u
+            LEFT JOIN users p ON u.parent_id = p.id
+            WHERE u.active=0 ORDER BY u.id DESC""").fetchall()
+    else:
+        pending = db.execute(f"""
+            SELECT u.*, p.name as parent_name FROM users u
+            LEFT JOIN users p ON u.parent_id = p.id
+            WHERE u.active=0 AND u.parent_id IN ({ph}) ORDER BY u.id DESC""", downline).fetchall()
+    db.close()
+    return render_template('genehmigungen_account.html', pending=pending, is_admin=current_user.has_admin_access)
+
+
+@app.route('/genehmigungen/<int:uid>/bestaetigen', methods=['POST'])
+@login_required
+def genehmigung_bestaetigen(uid):
+    db = get_db()
+    target = db.execute('SELECT * FROM users WHERE id=? AND active=0', (uid,)).fetchone()
+    if not target:
+        db.close()
+        return redirect(url_for('genehmigungen_personal'))
+    # Berechtigung: Admin oder Eltern-Kette
+    descendants = [current_user.id] + get_all_descendants(current_user.id)
+    if not (current_user.has_admin_access or target['parent_id'] in descendants or target['parent_id'] == current_user.id):
+        db.close()
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('genehmigungen_personal'))
+    db.execute('UPDATE users SET active=1 WHERE id=?', (uid,))
+    db.commit()
+    db.close()
+    log_activity(uid, 'partner_neu', f'{target["name"]} ist freigeschaltet als neuer Geschäftspartner', icon='●', color='green')
+    # Push an den frisch freigeschalteten User
+    try:
+        send_push_to_user(uid,
+            title=f'✓ Willkommen in der Struktur!',
+            body='Du bist jetzt freigeschaltet. Log dich ein und leg los!',
+            url='/dashboard', urgent=True, tag='aktiviert')
+    except Exception:
+        pass
+    flash(f'{target["name"]} freigeschaltet!', 'success')
+    return redirect(url_for('genehmigungen_personal'))
+
+
+@app.route('/genehmigungen/<int:uid>/ablehnen', methods=['POST'])
+@login_required
+def genehmigung_ablehnen(uid):
+    db = get_db()
+    target = db.execute('SELECT * FROM users WHERE id=? AND active=0', (uid,)).fetchone()
+    if not target:
+        db.close()
+        return redirect(url_for('genehmigungen_personal'))
+    descendants = [current_user.id] + get_all_descendants(current_user.id)
+    if not (current_user.has_admin_access or target['parent_id'] in descendants or target['parent_id'] == current_user.id):
+        db.close()
+        flash('Keine Berechtigung', 'error')
+        return redirect(url_for('genehmigungen_personal'))
+    db.execute('DELETE FROM users WHERE id=?', (uid,))
+    db.commit()
+    db.close()
+    flash(f'Anmeldung von {target["name"]} abgelehnt + gelöscht.', 'info')
+    return redirect(url_for('genehmigungen_personal'))
+
+
 @app.route('/onboarding/catchup', methods=['GET', 'POST'])
 @login_required
 def onboarding_catchup():

@@ -178,7 +178,12 @@
                 <a href="#" onclick="document.getElementById('forgotModal').style.display='flex';return false" style="font-size:12px;color:#6b7280;text-decoration:none">🔑 Passwort vergessen?</a>
             </div>
 
-            <div class="hint">Zugang nur für autorisierte Mitglieder · <a href="/datenschutz" target="_blank" style="color:#9ca3af">Datenschutz</a> · <a href="/start" style="color:#9ca3af">Werde Partner</a></div>
+            <div style="text-align:center;margin-top:16px;padding:14px;background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.25);border-radius:12px">
+                <div style="font-size:13px;color:#0f1c3f;font-weight:700;margin-bottom:6px">Noch kein Account?</div>
+                <a href="/registrieren" style="display:inline-block;color:#fff;background:linear-gradient(135deg,#d4a843,#f0c970);padding:10px 22px;border-radius:10px;text-decoration:none;font-size:13px;font-weight:800">▶ Jetzt registrieren</a>
+                <div style="font-size:10px;color:#94a3b8;margin-top:8px">Dein Strukturhöher bestätigt dich, dann geht's los</div>
+            </div>
+            <div class="hint" style="margin-top:14px">· <a href="/datenschutz" target="_blank" style="color:#9ca3af">Datenschutz</a> · <a href="/start" style="color:#9ca3af">Mehr Infos</a></div>
 
             <!-- "Passwort vergessen?" Modal -->
             <div id="forgotModal" style="display:none;position:fixed;inset:0;background:rgba(15,28,63,0.7);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(6px)" onclick="if(event.target===this) this.style.display='none'">

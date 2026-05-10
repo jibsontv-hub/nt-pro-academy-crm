@@ -101,7 +101,7 @@
                     <th>Status</th>
                     <th>Name</th>
                     <th>Stufe</th>
-                    <th>Upline</th>
+                    <th>Strukturhöher</th>
                     <th>Letzter Login</th>
                     <th>Logins gesamt</th>
                     <th>EH</th>
@@ -125,7 +125,7 @@
                     <td>
                         <span class="stufe-pill" style="background:{{ m.career.color }}15;color:{{ m.career.color }}">{{ m.career.short }}</span>
                     </td>
-                    <td>{{ m.upline_name or '–' }}</td>
+                    <td>{{ m.strukturhöher_name or '–' }}</td>
                     <td>
                         {% if m.last_login %}
                         <span style="font-size:12px">{{ m.last_login[:16] }}</span>

@@ -178,20 +178,20 @@
 
     <!-- RIGHT: Sidebar -->
     <div>
-        <!-- Upline -->
-        {% if upline %}
-        <div class="section-h">⬢ Upline</div>
-        <a href="/partner/{{ upline.id }}/profil" class="card" style="display:flex;align-items:center;gap:12px;padding:14px;text-decoration:none;color:var(--text)">
+        <!-- Strukturhöher -->
+        {% if strukturhöher %}
+        <div class="section-h">⬢ Strukturhöher</div>
+        <a href="/partner/{{ strukturhöher.id }}/profil" class="card" style="display:flex;align-items:center;gap:12px;padding:14px;text-decoration:none;color:var(--text)">
             <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--bg-2);display:flex;align-items:center;justify-content:center;border:2px solid var(--gold)">
-                {% if upline.photo_path %}
-                <img src="{{ upline.photo_path }}" style="width:100%;height:100%;object-fit:cover">
+                {% if strukturhöher.photo_path %}
+                <img src="{{ strukturhöher.photo_path }}" style="width:100%;height:100%;object-fit:cover">
                 {% else %}
-                <span style="font-weight:800;font-size:13px">{{ upline.name[:2]|upper }}</span>
+                <span style="font-weight:800;font-size:13px">{{ strukturhöher.name[:2]|upper }}</span>
                 {% endif %}
             </div>
             <div style="flex:1">
-                <div style="font-weight:700;font-size:14px">{{ upline.name }}</div>
-                <div style="font-size:11px;color:var(--text-muted)">Upline-Mentor</div>
+                <div style="font-weight:700;font-size:14px">{{ strukturhöher.name }}</div>
+                <div style="font-size:11px;color:var(--text-muted)">Strukturhöher</div>
             </div>
             <span style="color:var(--gold)">→</span>
         </a>

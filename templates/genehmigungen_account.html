@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Anmeldungen – NT Pro Academy{% endblock %}
+{% block page_title %}◎ Neue Anmeldungen{% endblock %}
+
+{% block content %}
+
+{% if pending %}
+<div class="revo-section-h">{{ pending|length }} wartet auf deine Bestätigung</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+    {% for u in pending %}
+    <div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#d4a843 5%,var(--surface)));border:1px solid color-mix(in srgb,#d4a843 30%,var(--border))">
+        <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap">
+            <div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;flex-shrink:0">
+                {{ u.name[:2]|upper }}
+            </div>
+            <div style="flex:1;min-width:200px">
+                <div style="font-size:18px;font-weight:800">{{ u.name }}</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
+                    ✉ <a href="mailto:{{ u.email }}" style="color:var(--text-muted)">{{ u.email }}</a>
+                    {% if u.phone %} · ☎ <a href="tel:{{ u.phone }}" style="color:var(--gold)">{{ u.phone }}</a>{% endif %}
+                </div>
+                {% if u.birthday %}<div style="font-size:11px;color:var(--text-muted);margin-top:2px">🎂 {{ u.birthday }}</div>{% endif %}
+                <div style="font-size:11px;color:var(--text-soft);margin-top:8px">
+                    Möchte in die Struktur von <strong style="color:var(--gold)">{{ u.parent_name or 'Top' }}</strong>
+                    {% if u.parent_id == current_user.id %}<span style="background:var(--gold);color:#0f1c3f;padding:2px 8px;border-radius:99px;font-weight:800;margin-left:6px;font-size:10px">DIREKT BEI DIR</span>{% endif %}
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <form method="POST" action="/genehmigungen/{{ u.id }}/bestaetigen" style="margin:0">
+                    <button type="submit" class="btn btn-primary">✓ Bestätigen</button>
+                </form>
+                <form method="POST" action="/genehmigungen/{{ u.id }}/ablehnen" style="margin:0" onsubmit="return confirm('Ablehnung löscht den Account von {{ u.name }} unwiderruflich. Sicher?')">
+                    <button type="submit" class="btn btn-danger">× Ablehnen</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:48px 20px">
+    <div style="font-size:42px;margin-bottom:12px">○</div>
+    <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px">Keine offenen Anmeldungen</div>
+    <div style="font-size:13px;color:var(--text-muted)">Sobald jemand sich in deine Struktur registriert, siehst du ihn hier.</div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -27,7 +27,7 @@
                 <div>
                     <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">{{ p.name }}</div>
                     <div style="font-size:12px;color:var(--text-muted)">
-                        🔑 {{ p.email }} · Upline: <strong>{{ p.upline_name or '–' }}</strong>
+                        🔑 {{ p.email }} · Strukturhöher: <strong>{{ p.strukturhöher_name or '–' }}</strong>
                     </div>
                     <div style="font-size:11px;color:var(--text-soft);margin-top:4px">
                         Vorgeschlagen von <strong>{{ p.proposed_by or '?' }}</strong> · {{ p.pending_at[:16] if p.pending_at else '' }}
