@@ -498,6 +498,21 @@
         }
         /* === PERFORMANCE — content-visibility für Off-Screen Cards === */
         .card, .revo-section { content-visibility: auto; contain-intrinsic-size: auto 200px; }
+        /* === SKELETON-FALLBACK — verhindert White-Screen während Cold-Cache === */
+        @keyframes skeleton-pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 0.85; }
+        }
+        .skeleton-shimmer {
+            background: linear-gradient(90deg, var(--bg-2) 0%, var(--surface) 50%, var(--bg-2) 100%);
+            background-size: 200% 100%;
+            animation: skeleton-shimmer-anim 1.4s ease-in-out infinite;
+            border-radius: 8px;
+        }
+        @keyframes skeleton-shimmer-anim {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
         /* GPU-Layer-Promotion für animierte Elemente */
         .nav-link, .btn, .card[onclick] { will-change: auto; }
         /* Bilder: explizite Aspect-Ratios verhindern Layout-Shift */

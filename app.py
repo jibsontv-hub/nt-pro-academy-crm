@@ -8101,6 +8101,59 @@ def quota_setzen():
 init_db()
 
 
+def _warm_cache_background():
+    """Pre-warmt die teuren Cache-Wrapper für die wichtigsten User direkt nach dem Boot.
+    Eliminiert den 6-Sekunden-Cold-Cache-Hit beim ersten Dashboard-Aufruf.
+    Läuft in Daemon-Thread → Boot wird NICHT blockiert."""
+    import time as _t
+    _t.sleep(1.5)  # init_db beenden lassen
+    print('[warm] Background-Cache-Warmer gestartet ...', flush=True)
+    t_start = _t.time()
+    try:
+        with app.app_context():
+            db = get_db()
+            ids = [r['id'] for r in db.execute(
+                "SELECT id FROM users WHERE active = 1 AND (role = 'admin' OR manual_career_level >= 3) LIMIT 5"
+            ).fetchall()]
+            db.close()
+            # Globale Helper (1×, nicht pro User)
+            try:
+                get_smart_insights(scope_user_id=None)
+                print('[warm] ✓ smart_insights(global)', flush=True)
+            except Exception as e:
+                print(f'[warm] ✗ smart_insights(global): {e}', flush=True)
+            # Pro-User-Helper (alles was die Dashboards aufrufen)
+            for uid in ids:
+                t_user = _t.time()
+                helpers = [
+                    ('strang', lambda u=uid: get_strang_status(u)),
+                    ('forecast30', lambda u=uid: get_quoten_forecast(u, days=30)),
+                    ('forecast', lambda u=uid: get_forecast(u)),
+                    ('recent', lambda u=uid: get_recent_partner_views(u, limit=3)),
+                    ('admin_pers', lambda u=uid: get_admin_personal_dashboard(u)),
+                    ('career', lambda u=uid: get_career_level_for_user(u)),
+                    ('insights_user', lambda u=uid: get_smart_insights(scope_user_id=u)),
+                    ('inactive', lambda u=uid: get_inactive_team_members(u, days=3, scope='direct')),
+                    # LLM-Helper — die teuersten, weil Claude-API-Calls (5-10s)
+                    ('ai_briefing', lambda u=uid: ai_generate_weekly_briefing(u)),
+                    ('ki_recs', lambda u=uid: get_ki_recommendations(u, scope_user_id=None)),
+                    ('coach_actions', lambda u=uid: get_coach_actions(u, max_actions=5)),
+                    ('struktur_news', lambda u=uid: get_struktur_news(u, days=7, limit=10)),
+                ]
+                for name, fn in helpers:
+                    try: fn()
+                    except Exception as e: print(f'[warm] ✗ {name} {uid}: {e}', flush=True)
+                print(f'[warm] ✓ User {uid} gewarmt in {(_t.time()-t_user)*1000:.0f}ms', flush=True)
+            print(f'[warm] FERTIG · {len(ids)} User · Total {(_t.time()-t_start)*1000:.0f}ms', flush=True)
+    except Exception as e:
+        print(f'[warm] Background-Warm fehlgeschlagen: {e}', flush=True)
+
+
+# Background-Warmer starten (Daemon → stirbt mit dem Prozess, blockiert nichts)
+import threading as _threading
+_threading.Thread(target=_warm_cache_background, daemon=True, name='cache-warmer').start()
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("✅ NT Pro Academy – Control Hub gestartet!")
