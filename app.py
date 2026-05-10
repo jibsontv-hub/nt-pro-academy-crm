@@ -6150,7 +6150,7 @@ def dashboard():
             deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist,
             forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news,
             streak_days=streak_days, vision_needed=vision_needed,
-            admin_personal=admin_personal
+            admin_personal=None  # nur Admin hat das — Partner nicht
         )
 
 
