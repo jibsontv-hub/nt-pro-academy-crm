@@ -315,8 +315,14 @@ textarea.in { resize: vertical; min-height: 70px; }
 
         <!-- ═══════ FORM ═══════ -->
         <form class="form-card" method="POST" id="leadForm">
-            <div class="form-title">Schreib mir kurz</div>
-            <div class="form-sub">Ich melde mich innerhalb von <strong style="color:#d4a843">24-48 Std.</strong> bei dir zurück — kostenlos, unverbindlich, kein Verkaufsgespräch.</div>
+            <!-- Direkt-Buchen-Banner über dem Form -->
+            <a href="/buchen{% if referred_by %}?ref={{ referred_by }}{% endif %}" style="display:block;text-decoration:none;margin:-8px -8px 18px;padding:14px 16px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border-radius:14px;text-align:center;font-weight:800;font-size:14px;letter-spacing:-0.2px;box-shadow:0 6px 20px rgba(212,168,67,0.3);transition:all 0.2s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 30px rgba(212,168,67,0.45)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 6px 20px rgba(212,168,67,0.3)'">
+                ⚡ Lieber direkt einen Termin buchen?
+                <div style="font-size:11px;font-weight:700;opacity:0.85;margin-top:3px">Wähle Tag &amp; Uhrzeit · 30 Min · sofort bestätigt</div>
+            </a>
+
+            <div class="form-title">Oder schreib mir kurz</div>
+            <div class="form-sub">Ich melde mich innerhalb von <strong style="color:#d4a843">24-48 Std.</strong> zurück — kostenlos, unverbindlich, kein Verkaufsgespräch.</div>
 
             {% if error %}<div class="error-box">⚠️ {{ error }}</div>{% endif %}
 
@@ -346,8 +352,20 @@ textarea.in { resize: vertical; min-height: 70px; }
             <label class="fl">Telefon (für schnelleren Rückruf)</label>
             <input class="in" type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
 
-            <label class="fl">Wer hat dich empfohlen? (optional)</label>
-            <input class="in" type="text" name="referred_by" value="{{ referred_by or '' }}" placeholder="Name oder E-Mail">
+            <label class="fl">Wie bist du auf uns aufmerksam geworden?</label>
+            <select class="in" name="quelle" style="cursor:pointer">
+                <option value="">— bitte wählen —</option>
+                <option value="instagram">📸 Instagram</option>
+                <option value="tiktok">🎵 TikTok</option>
+                <option value="youtube">▶️ YouTube</option>
+                <option value="empfehlung">🤝 Empfehlung von Bekannten</option>
+                <option value="google">🔍 Google-Suche</option>
+                <option value="podcast">🎙 Podcast</option>
+                <option value="event">📅 Event / Vortrag</option>
+                <option value="werbung">📢 Werbung / Anzeige</option>
+                <option value="sonstiges">✨ Anders / Sonstiges</option>
+            </select>
+            <input type="hidden" name="referred_by" value="{{ referred_by or '' }}">
 
             <label class="fl">Deine Frage / Situation (optional)</label>
             <textarea class="in" name="message" placeholder="Erzähl in 1-2 Sätzen worum's geht…"></textarea>

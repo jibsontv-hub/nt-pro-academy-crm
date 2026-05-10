@@ -4830,6 +4830,7 @@ def public_lead_capture():
         phone = (request.form.get('phone') or '').strip()
         message = (request.form.get('message') or '').strip()
         referred_by = (request.form.get('referred_by') or '').strip()
+        quelle = (request.form.get('quelle') or '').strip().lower()  # neue Quelle-Auswahl
         interesse = (request.form.get('interesse') or '').strip().lower()  # 'beratung' | 'karriere'
         privacy = request.form.get('privacy')
 
@@ -4861,13 +4862,20 @@ def public_lead_capture():
             db.close()
             return render_template('public_lead.html', success=True, duplicate=True)
 
-        # Notiz inkl. Interesse-Tag — sofort sichtbar im CRM
+        # Notiz inkl. Interesse + Quelle-Tag — sofort sichtbar im CRM
         interesse_tag = ''
         if interesse == 'beratung':
             interesse_tag = '🎯 BERATUNG · '
         elif interesse == 'karriere':
             interesse_tag = '🚀 KARRIERE · '
-        notizen_full = f'{interesse_tag}Über Online-Form. {message}' if (interesse_tag or message) else 'Über Online-Form.'
+        quelle_emoji = {
+            'instagram': '📸 Instagram', 'tiktok': '🎵 TikTok', 'youtube': '▶ YouTube',
+            'empfehlung': '🤝 Empfehlung', 'google': '🔍 Google',
+            'podcast': '🎙 Podcast', 'event': '📅 Event', 'werbung': '📢 Werbung',
+            'sonstiges': '✨ Anders'
+        }.get(quelle, '')
+        quelle_tag = f' · Quelle: {quelle_emoji}' if quelle_emoji else ''
+        notizen_full = f'{interesse_tag}Über Online-Form{quelle_tag}. {message}' if (interesse_tag or message or quelle_tag) else 'Über Online-Form.'
         # Lead-Liste-Typ: Beratung → vk (Vertrieb), Karriere → rk (Recruiting)
         liste_typ = 'rk' if interesse == 'karriere' else 'vk'
         cur = db.execute('''INSERT INTO leads (owner_id, name, email, phone, status, notizen,
@@ -4907,6 +4915,182 @@ def public_lead_capture():
     ref = request.args.get('ref', '').strip()
     db.close()
     return render_template('public_lead.html', referred_by=ref)
+
+
+# === PUBLIC BOOKING — Kalendly-Style Slot-Picker ===
+def _generate_booking_slots(owner_id, days_ahead=14):
+    """Generiert verfügbare 30-Min-Slots für die nächsten N Tage.
+    Berücksichtigt bereits gebuchte Termine des Owners."""
+    db = get_db()
+    # Hole alle existierenden Termine des Owners im Zeitraum
+    today = date.today()
+    end_date = today + timedelta(days=days_ahead)
+    booked_rows = db.execute('''
+        SELECT termin_date, termin_time FROM appointments
+        WHERE owner_id=? AND termin_date >= ? AND termin_date <= ?
+              AND status IN ('geplant', 'bestätigt')
+    ''', (owner_id, today.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchall()
+    db.close()
+    booked_set = set()
+    for r in booked_rows:
+        if r['termin_time']:
+            booked_set.add(f"{r['termin_date']}_{r['termin_time'][:5]}")
+
+    # Slot-Definition: Mo-Fr je 4 Slots, Sa 2 Slots, So nichts
+    weekday_slots = ['10:00', '14:00', '17:00', '19:00']
+    saturday_slots = ['10:00', '14:00']
+    days = []
+    for offset in range(0, days_ahead):
+        d = today + timedelta(days=offset)
+        weekday = d.weekday()  # 0=Mo, 6=So
+        if weekday == 6:  # Sonntag
+            continue
+        slot_times = saturday_slots if weekday == 5 else weekday_slots
+        slots = []
+        for t in slot_times:
+            # Heute: nur Slots in der Zukunft (mind. 2h Puffer)
+            if offset == 0:
+                slot_dt = datetime.combine(d, datetime.strptime(t, '%H:%M').time())
+                if slot_dt < datetime.now() + timedelta(hours=2):
+                    continue
+            key = f"{d.strftime('%Y-%m-%d')}_{t}"
+            slots.append({
+                'time': t,
+                'available': key not in booked_set,
+                'datetime_iso': f"{d.strftime('%Y-%m-%d')}T{t}",
+            })
+        days.append({
+            'date': d,
+            'date_iso': d.strftime('%Y-%m-%d'),
+            'date_short': d.strftime('%d.%m.'),
+            'weekday_short': ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][weekday],
+            'slots': slots,
+            'has_free': any(s['available'] for s in slots),
+        })
+    return days
+
+
+@app.route('/buchen', methods=['GET', 'POST'])
+@app.route('/termin', methods=['GET', 'POST'])
+def public_booking():
+    """Kalendly-ähnliche Buchung: Lead wählt Slot → Termin + Lead automatisch im CRM."""
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr or 'unknown').split(',')[0].strip()
+    block_key = f'public_booking:{client_ip}'
+
+    # Owner ermitteln (Admin als Default oder via ?ref=)
+    db = get_db()
+    ref = (request.args.get('ref') or request.form.get('referred_by') or '').strip()
+    owner_id = None
+    if ref:
+        ref_user = db.execute(
+            "SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(name) LIKE ? AND active = 1",
+            (ref.lower(), f'%{ref.lower()}%')
+        ).fetchone()
+        if ref_user:
+            owner_id = ref_user['id']
+    if not owner_id:
+        admin = db.execute("SELECT id, name FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").fetchone()
+        owner_id = admin['id'] if admin else 1
+    owner_row = db.execute('SELECT name FROM users WHERE id=?', (owner_id,)).fetchone()
+    owner_name = owner_row['name'] if owner_row else 'Najib'
+    db.close()
+
+    if request.method == 'POST':
+        if is_login_blocked(block_key):
+            return render_template('booking.html', error='Zu viele Anfragen — bitte später nochmal.',
+                                   days=_generate_booking_slots(owner_id), owner_name=owner_name)
+
+        name = (request.form.get('name') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
+        phone = (request.form.get('phone') or '').strip()
+        slot_iso = (request.form.get('slot') or '').strip()  # Format: 2026-05-15T14:00
+        message = (request.form.get('message') or '').strip()
+        interesse = (request.form.get('interesse') or 'beratung').strip().lower()
+        privacy = request.form.get('privacy')
+
+        if not name or not email or '@' not in email:
+            return render_template('booking.html', error='Bitte Name + gültige E-Mail eingeben.',
+                                   days=_generate_booking_slots(owner_id), owner_name=owner_name)
+        if not slot_iso or 'T' not in slot_iso:
+            return render_template('booking.html', error='Bitte einen Termin-Slot wählen.',
+                                   days=_generate_booking_slots(owner_id), owner_name=owner_name)
+        if not privacy:
+            return render_template('booking.html', error='Bitte Datenschutzerklärung akzeptieren.',
+                                   days=_generate_booking_slots(owner_id), owner_name=owner_name)
+
+        record_login_attempt(block_key, success=False)
+
+        # Slot parsen
+        try:
+            slot_date, slot_time = slot_iso.split('T')
+            datetime.strptime(slot_date, '%Y-%m-%d')
+            datetime.strptime(slot_time, '%H:%M')
+        except Exception:
+            return render_template('booking.html', error='Ungültiger Termin-Slot.',
+                                   days=_generate_booking_slots(owner_id), owner_name=owner_name)
+
+        # Conflict-Check: Slot noch frei?
+        db = get_db()
+        conflict = db.execute('''SELECT id FROM appointments
+                                 WHERE owner_id=? AND termin_date=? AND termin_time=?
+                                       AND status IN ('geplant','bestätigt')''',
+                              (owner_id, slot_date, slot_time)).fetchone()
+        if conflict:
+            db.close()
+            return render_template('booking.html', error='Dieser Slot wurde gerade weggebucht — bitte einen anderen wählen.',
+                                   days=_generate_booking_slots(owner_id), owner_name=owner_name)
+
+        # 1. Lead anlegen
+        interesse_tag = '🎯 BERATUNG · ' if interesse == 'beratung' else '🚀 KARRIERE · '
+        notizen_lead = f'{interesse_tag}Termin direkt online gebucht: {slot_date} um {slot_time} Uhr. {message}'
+        liste_typ = 'rk' if interesse == 'karriere' else 'vk'
+        cur = db.execute('''INSERT INTO leads (owner_id, name, email, phone, status, notizen,
+                            source, public_message, liste_typ)
+                            VALUES (?, ?, ?, ?, 'kontakt', ?, 'public-booking', ?, ?)''',
+                       (owner_id, name, email, phone, notizen_lead, message, liste_typ))
+        lead_id = cur.lastrowid
+
+        # 2. Termin anlegen
+        title = f"{'Beratung' if interesse == 'beratung' else 'Kennenlern-Gespräch'}: {name}"
+        notizen_termin = f'📞 Online-Buchung · Lead-ID #{lead_id} · {email}{" · " + phone if phone else ""}'
+        db.execute('''INSERT INTO appointments
+                      (owner_id, title, client_name, termin_date, termin_time, typ, status, notizen)
+                      VALUES (?, ?, ?, ?, ?, 'kundentermin', 'geplant', ?)''',
+                   (owner_id, title, name, slot_date, slot_time, notizen_termin))
+        db.commit()
+        db.close()
+
+        # Activity-Log + Push
+        log_activity(owner_id, 'booking',
+                     f'📅 Online-Termin gebucht: {name} am {slot_date} um {slot_time}',
+                     icon='📅', color='gold')
+        try:
+            send_push_to_user(owner_id,
+                              title=f'📅 Neuer Online-Termin!',
+                              body=f'{name} hat Slot {slot_date} {slot_time} gebucht',
+                              url='/termine', urgent=True, tag='booking',
+                              push_type='appointment_made')
+        except Exception:
+            pass
+
+        # Cache invalidieren
+        cache_invalidate('ctx:'); cache_invalidate('coach_acts:')
+
+        # Bestätigungs-Mail wenn SMTP konfiguriert
+        if is_smtp_configured():
+            try:
+                send_email(email,
+                           f'✓ Termin bestätigt: {slot_date} um {slot_time}',
+                           f'Hi {name.split()[0]},\n\nvielen Dank für deine Buchung!\n\nDein Termin: {slot_date} um {slot_time} Uhr\nMit: {owner_name}\n\nIch melde mich kurz vorher mit Details.\n\nBis bald!\n{owner_name}',
+                           sent_by=None)
+            except Exception:
+                pass
+
+        return render_template('booking.html', success=True, slot_date=slot_date, slot_time=slot_time, owner_name=owner_name)
+
+    # GET: Slot-Picker zeigen
+    days = _generate_booking_slots(owner_id)
+    return render_template('booking.html', days=days, owner_name=owner_name, ref=ref)
 
 
 @app.route('/admin/inbox')

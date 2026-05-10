@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" href="/static/icons/pa-icon-192.png?v=2">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/icons/pa-apple-touch.png?v=2">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#000000">
+<title>Termin buchen — Pro Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #0a0e1a; color: #f1f5f9;
+    min-height: 100vh; -webkit-font-smoothing: antialiased; line-height: 1.6;
+}
+body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse 70% 60% at 30% 0%, rgba(212,168,67,0.18), transparent 70%);
+}
+.wrap { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 32px 24px 60px; }
+
+/* Brand */
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+.brand-icon {
+    width: 48px; height: 48px; border-radius: 12px; background: #000;
+    overflow: hidden; flex-shrink: 0;
+    color: #d4a843; display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 16px;
+}
+.brand-icon img { width: 100%; height: 100%; object-fit: cover; object-position: center 32%; display: block; }
+.brand-text strong { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; display: block; }
+.brand-text small { font-size: 11px; color: #64748b; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
+
+/* Hero */
+.hero-card {
+    background: rgba(19,24,41,0.7); backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 18px;
+    padding: 28px 28px; margin-bottom: 24px;
+}
+.hero-h { font-size: 28px; font-weight: 900; letter-spacing: -1px; margin-bottom: 8px; }
+.hero-h .accent { background: linear-gradient(135deg,#d4a843,#fff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-sub { font-size: 14px; color: #94a3b8; }
+.hero-meta { display: flex; gap: 18px; margin-top: 16px; flex-wrap: wrap; }
+.hero-meta-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #cbd5e1; }
+.hero-meta-item .dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; }
+
+/* Slot-Picker */
+.section-h { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #d4a843; margin: 32px 0 14px; font-weight: 800; }
+.days-bar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+.day-btn {
+    flex-shrink: 0; min-width: 64px; padding: 10px 12px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; cursor: pointer; text-align: center;
+    transition: all 0.15s; user-select: none;
+}
+.day-btn:hover { background: rgba(212,168,67,0.08); }
+.day-btn.active {
+    background: linear-gradient(135deg, rgba(212,168,67,0.25), rgba(212,168,67,0.08));
+    border-color: #d4a843;
+}
+.day-btn.disabled { opacity: 0.3; cursor: not-allowed; }
+.day-btn .day-w { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 700; }
+.day-btn .day-d { font-size: 18px; font-weight: 800; margin-top: 2px; }
+
+.slots-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px; margin-top: 18px;
+}
+.slot-btn {
+    padding: 14px 12px; background: rgba(255,255,255,0.04);
+    border: 1.5px solid rgba(255,255,255,0.1); border-radius: 12px;
+    color: #f1f5f9; font-size: 14px; font-weight: 700; font-family: inherit;
+    cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.slot-btn:hover:not(:disabled) { background: rgba(212,168,67,0.12); border-color: rgba(212,168,67,0.5); transform: translateY(-1px); }
+.slot-btn.selected { background: linear-gradient(135deg, #d4a843, #f0c970); color: #0f1c3f; border-color: #d4a843; }
+.slot-btn:disabled { opacity: 0.25; cursor: not-allowed; text-decoration: line-through; }
+.no-slots { text-align: center; padding: 32px 20px; color: #64748b; font-size: 13px; }
+
+/* Form */
+.form-card {
+    background: rgba(19,24,41,0.78); backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 18px;
+    padding: 24px 24px; margin-top: 24px;
+    display: none;
+}
+.form-card.visible { display: block; animation: slideUp 0.3s ease-out; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.selected-slot {
+    padding: 14px 16px; background: rgba(212,168,67,0.12); border: 1px solid rgba(212,168,67,0.35);
+    border-radius: 12px; margin-bottom: 18px; display: flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 700;
+}
+
+label.fl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 6px; margin-top: 14px; }
+label.fl:first-of-type { margin-top: 0; }
+input.in, textarea.in, select.in {
+    width: 100%; padding: 12px 14px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+    color: #f1f5f9; font-size: 14px; font-family: inherit;
+}
+input.in:focus, textarea.in:focus, select.in:focus { outline: none; border-color: #d4a843; }
+textarea.in { resize: vertical; min-height: 70px; }
+
+.path-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0 0; }
+.path-option { cursor: pointer; padding: 12px 10px; text-align: center; background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.08); border-radius: 10px; font-size: 12px; font-weight: 700; }
+.path-option.active { background: rgba(212,168,67,0.18); border-color: #d4a843; }
+.path-option .ico { display: block; font-size: 18px; margin-bottom: 4px; }
+.path-option input { position: absolute; opacity: 0; pointer-events: none; }
+
+.privacy-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; font-size: 12px; color: #94a3b8; }
+.privacy-row input { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; accent-color: #d4a843; cursor: pointer; }
+.privacy-row a { color: #d4a843; text-decoration: none; font-weight: 600; }
+
+.btn-submit {
+    width: 100%; padding: 14px; margin-top: 18px;
+    background: linear-gradient(135deg, #d4a843, #f0c970); color: #0f1c3f;
+    border: none; border-radius: 12px; font-size: 15px; font-weight: 800;
+    cursor: pointer; font-family: inherit;
+    box-shadow: 0 4px 16px rgba(212,168,67,0.4); transition: all 0.2s;
+}
+.btn-submit:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(212,168,67,0.55); }
+
+.error-box {
+    background: rgba(220,38,38,0.15); color: #fca5a5;
+    border: 1px solid rgba(220,38,38,0.3); border-radius: 10px;
+    padding: 12px 16px; font-size: 13px; margin-bottom: 16px;
+}
+
+/* Success */
+.success-card {
+    text-align: center; padding: 48px 28px;
+    background: rgba(19,24,41,0.78); backdrop-filter: blur(24px);
+    border: 1px solid rgba(212,168,67,0.3); border-radius: 18px;
+}
+.success-icon {
+    width: 84px; height: 84px; border-radius: 24px; margin: 0 auto 20px;
+    background: linear-gradient(135deg, #34d399, #10b981);
+    display: flex; align-items: center; justify-content: center; font-size: 42px;
+}
+.success-h { font-size: 26px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 12px; }
+.success-time {
+    display: inline-block; margin-top: 12px; padding: 12px 22px;
+    background: rgba(212,168,67,0.15); border: 1px solid rgba(212,168,67,0.35);
+    border-radius: 12px; font-size: 16px; font-weight: 800; color: #d4a843;
+}
+
+.footer { text-align: center; margin-top: 40px; font-size: 11px; color: #475569; }
+.footer a { color: #94a3b8; text-decoration: none; margin: 0 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="brand">
+        <div class="brand-icon"><img src="/static/icons/pa-logo.png?v=1" alt="Pro Academy" onerror="this.parentElement.innerText='PA'"></div>
+        <div class="brand-text">
+            <strong>Pro Academy</strong>
+            <small>Termin direkt online buchen</small>
+        </div>
+    </div>
+
+    {% if success %}
+    <div class="success-card">
+        <div class="success-icon">✓</div>
+        <div class="success-h">Termin gebucht!</div>
+        <p style="color:#cbd5e1;font-size:14px;line-height:1.6;max-width:480px;margin:0 auto">
+            Vielen Dank! Dein Termin ist im Kalender — {{ owner_name }} meldet sich kurz vorher.
+        </p>
+        <div class="success-time">
+            📅 {{ slot_date }} · 🕐 {{ slot_time }} Uhr
+        </div>
+        <p style="color:#94a3b8;font-size:12px;margin-top:24px">Du erhältst gleich eine Bestätigungs-E-Mail mit allen Details.</p>
+    </div>
+    {% else %}
+
+    <div class="hero-card">
+        <div class="hero-h">Termin mit <span class="accent">{{ owner_name }}</span></div>
+        <div class="hero-sub">Such dir einen freien Slot — ich melde mich kurz vorher mit Details.</div>
+        <div class="hero-meta">
+            <div class="hero-meta-item"><span class="dot"></span> 30 Minuten</div>
+            <div class="hero-meta-item"><span class="dot"></span> Online via Telefon/Video</div>
+            <div class="hero-meta-item"><span class="dot"></span> Kostenlos &amp; unverbindlich</div>
+        </div>
+    </div>
+
+    {% if error %}<div class="error-box">⚠️ {{ error }}</div>{% endif %}
+
+    <div class="section-h">1. Tag wählen</div>
+    <div class="days-bar" id="daysBar">
+        {% for d in days %}
+        <button type="button" class="day-btn {{ 'disabled' if not d.has_free else '' }}"
+                data-day="{{ d.date_iso }}"
+                {% if not d.has_free %}disabled{% endif %}>
+            <div class="day-w">{{ d.weekday_short }}</div>
+            <div class="day-d">{{ d.date_short }}</div>
+        </button>
+        {% endfor %}
+    </div>
+
+    <div class="section-h">2. Uhrzeit wählen</div>
+    <div id="slotsContainer">
+        <div class="no-slots">← Wähle erst einen Tag oben</div>
+    </div>
+
+    <form class="form-card" method="POST" id="bookingForm">
+        <div class="selected-slot" id="selectedSlotDisplay">📅 <span id="selectedSlotText">…</span></div>
+        <input type="hidden" name="slot" id="slotInput">
+        <input type="hidden" name="referred_by" value="{{ ref or '' }}">
+
+        <label class="fl">Was suchst du?</label>
+        <div class="path-selector">
+            <label class="path-option active" id="opt-beratung">
+                <input type="radio" name="interesse" value="beratung" checked>
+                <span class="ico">💡</span> Beratung
+            </label>
+            <label class="path-option" id="opt-karriere">
+                <input type="radio" name="interesse" value="karriere">
+                <span class="ico">🚀</span> Karriere
+            </label>
+        </div>
+
+        <label class="fl">Name *</label>
+        <input class="in" type="text" name="name" required placeholder="Max Mustermann" autocomplete="name">
+
+        <label class="fl">E-Mail *</label>
+        <input class="in" type="email" name="email" required placeholder="max@email.de" autocomplete="email">
+
+        <label class="fl">Telefon</label>
+        <input class="in" type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
+
+        <label class="fl">Worum geht's? (optional)</label>
+        <textarea class="in" name="message" placeholder="Kurz in 1-2 Sätzen…"></textarea>
+
+        <div class="privacy-row">
+            <input type="checkbox" name="privacy" value="1" id="privacy" required>
+            <label for="privacy" style="font-size:12px;color:#94a3b8;cursor:pointer;line-height:1.5">
+                Ich habe die <a href="/datenschutz" target="_blank">Datenschutzerklärung</a> gelesen und stimme der Verarbeitung meiner Daten zu.
+            </label>
+        </div>
+
+        <button type="submit" class="btn-submit">Termin verbindlich buchen →</button>
+    </form>
+
+    {% endif %}
+
+    <div class="footer">
+        © 2026 Pro Academy
+        <a href="/datenschutz">Datenschutz</a>
+        <a href="/start">Statt Termin: Nachricht schreiben</a>
+    </div>
+</div>
+
+{% if not success %}
+<script>
+// Slot-Daten als JS-Object
+const SLOTS_BY_DAY = {
+    {% for d in days %}
+    "{{ d.date_iso }}": [
+        {% for s in d.slots %}
+        {time: "{{ s.time }}", available: {{ 'true' if s.available else 'false' }}, iso: "{{ s.datetime_iso }}"}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+const daysBar = document.getElementById('daysBar');
+const slotsContainer = document.getElementById('slotsContainer');
+const form = document.getElementById('bookingForm');
+const slotInput = document.getElementById('slotInput');
+const slotText = document.getElementById('selectedSlotText');
+let selectedSlot = null;
+
+// Tag-Klick
+daysBar.querySelectorAll('.day-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if (btn.classList.contains('disabled')) return;
+        daysBar.querySelectorAll('.day-btn').forEach(x => x.classList.remove('active'));
+        btn.classList.add('active');
+        renderSlots(btn.dataset.day);
+        // Form ausblenden bis Slot gewählt
+        form.classList.remove('visible');
+        selectedSlot = null;
+    });
+});
+
+function renderSlots(dayIso) {
+    const slots = SLOTS_BY_DAY[dayIso] || [];
+    if (slots.length === 0) {
+        slotsContainer.innerHTML = '<div class="no-slots">Keine freien Termine an diesem Tag.</div>';
+        return;
+    }
+    slotsContainer.innerHTML = '<div class="slots-grid">' + slots.map(s =>
+        `<button type="button" class="slot-btn" data-iso="${s.iso}" data-time="${s.time}" ${s.available ? '' : 'disabled'}>${s.time}</button>`
+    ).join('') + '</div>';
+    slotsContainer.querySelectorAll('.slot-btn:not([disabled])').forEach(btn => {
+        btn.addEventListener('click', () => {
+            slotsContainer.querySelectorAll('.slot-btn').forEach(x => x.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedSlot = { iso: btn.dataset.iso, time: btn.dataset.time, day: dayIso };
+            slotInput.value = selectedSlot.iso;
+            // Display formatieren
+            const d = new Date(dayIso + 'T00:00');
+            const dStr = d.toLocaleDateString('de-DE', {weekday:'long', day:'numeric', month:'long'});
+            slotText.textContent = `${dStr} um ${selectedSlot.time} Uhr`;
+            form.classList.add('visible');
+            // Smooth scroll zum Form
+            setTimeout(() => form.scrollIntoView({behavior:'smooth', block:'start'}), 100);
+        });
+    });
+}
+
+// Pfad-Selector
+document.querySelectorAll('.path-option').forEach(o => {
+    o.addEventListener('click', () => {
+        document.querySelectorAll('.path-option').forEach(x => x.classList.remove('active'));
+        o.classList.add('active');
+        const r = o.querySelector('input[type="radio"]');
+        if (r) r.checked = true;
+    });
+});
+
+// Auto-select first available day
+const firstFree = daysBar.querySelector('.day-btn:not(.disabled)');
+if (firstFree) firstFree.click();
+</script>
+{% endif %}
+</body>
+</html>
