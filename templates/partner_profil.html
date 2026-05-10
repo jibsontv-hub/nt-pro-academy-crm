@@ -52,7 +52,7 @@
         <div style="display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap">
             <div class="profile-avatar">
                 {% if target.photo_path %}
-                <img src="{{ target.photo_path }}" alt="{{ target.name }}">
+                <img loading="lazy" decoding="async" src="{{ target.photo_path }}" alt="{{ target.name }}">
                 {% else %}
                 <span style="font-size:36px;font-weight:900;color:var(--text-muted);letter-spacing:-1px">{{ target.name[:2]|upper }}</span>
                 {% endif %}
@@ -184,7 +184,7 @@
         <a href="/partner/{{ strukturhöher.id }}/profil" class="card" style="display:flex;align-items:center;gap:12px;padding:14px;text-decoration:none;color:var(--text)">
             <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--bg-2);display:flex;align-items:center;justify-content:center;border:2px solid var(--gold)">
                 {% if strukturhöher.photo_path %}
-                <img src="{{ strukturhöher.photo_path }}" style="width:100%;height:100%;object-fit:cover">
+                <img loading="lazy" decoding="async" src="{{ strukturhöher.photo_path }}" style="width:100%;height:100%;object-fit:cover">
                 {% else %}
                 <span style="font-weight:800;font-size:13px">{{ strukturhöher.name[:2]|upper }}</span>
                 {% endif %}
@@ -204,7 +204,7 @@
             {% for d in direct_dl[:8] %}
             <a href="/partner/{{ d.id }}/profil" style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;text-decoration:none;color:var(--text);transition:background 0.15s" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background='transparent'">
                 <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--bg-2);display:flex;align-items:center;justify-content:center;border:2px solid {{ d.career.color }}">
-                    {% if d.photo_path %}<img src="{{ d.photo_path }}" style="width:100%;height:100%;object-fit:cover">
+                    {% if d.photo_path %}<img loading="lazy" decoding="async" src="{{ d.photo_path }}" style="width:100%;height:100%;object-fit:cover">
                     {% else %}<span style="font-weight:800;font-size:11px">{{ d.name[:2]|upper }}</span>{% endif %}
                 </div>
                 <div style="flex:1;min-width:0">

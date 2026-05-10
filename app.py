@@ -2325,7 +2325,7 @@ def admin_toggle_advanced(uid):
         new_val = 0 if (cur['advanced_mode'] or 0) else 1
         db.execute('UPDATE users SET advanced_mode=? WHERE id=?', (new_val, uid))
         db.commit()
-        cache_invalidate('ctx:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
         flash(f'Advanced-Mode {"aktiviert" if new_val else "deaktiviert"}.', 'success')
     db.close()
     return redirect(request.referrer or url_for('team'))
@@ -2399,7 +2399,7 @@ def admin_toggle_co_admin(uid):
     db.execute('UPDATE users SET is_co_admin = ? WHERE id = ?', (new_state, uid))
     db.commit()
     db.close()
-    cache_invalidate('ctx:')
+    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
     log_activity(current_user.id, 'co_admin_change',
                  f'{user["name"]} ist jetzt {"Co-Admin" if new_state else "kein Co-Admin mehr"}',
                  icon='⚡', color='gold')
@@ -3226,6 +3226,15 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_activity_user_date ON activity_log(user_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_user_achievements ON user_achievements(user_id);
             CREATE INDEX IF NOT EXISTS idx_user_tasks ON user_tasks(user_id, datum);
+            CREATE INDEX IF NOT EXISTS idx_contracts_owner ON contracts(owner_id, status, recherche_status);
+            CREATE INDEX IF NOT EXISTS idx_contracts_abschluss ON contracts(abschluss_date);
+            CREATE INDEX IF NOT EXISTS idx_appointments_owner_date ON appointments(owner_id, termin_date);
+            CREATE INDEX IF NOT EXISTS idx_leads_owner ON leads(owner_id, status);
+            CREATE INDEX IF NOT EXISTS idx_leads_typ ON leads(owner_id, liste_typ);
+            CREATE INDEX IF NOT EXISTS idx_users_parent ON users(parent_id, active);
+            CREATE INDEX IF NOT EXISTS idx_commissions_user ON commissions(user_id);
+            CREATE INDEX IF NOT EXISTS idx_push_log_lookup ON push_log(user_id, push_type, ref_key);
+            CREATE INDEX IF NOT EXISTS idx_vision_user_date ON vision_entries(user_id, datum);
         ''')
     except Exception as e:
         print(f"Index creation warning: {e}")
@@ -3419,6 +3428,17 @@ def get_commissions_for_user(user_id, only_own=False):
 
 
 def get_struktur_news(user_id, days=7, limit=8):
+    """Cached für 5 Min — News ändern sich nicht im Sekundentakt"""
+    ckey = f'news:{user_id}:{days}:{limit}'
+    cached_v = cache_get(ckey)
+    if cached_v is not None:
+        return cached_v
+    result = _get_struktur_news_uncached(user_id, days, limit)
+    cache_set(ckey, result, ttl=300)
+    return result
+
+
+def _get_struktur_news_uncached(user_id, days=7, limit=8):
     """Highlights aus der Downline der letzten X Tage: Promotions, Trophäen, viele Termine, große Abschlüsse.
     Returns: list of {icon, color, title, detail, who_id, who_name, time, score}
     Score = Wichtigkeit für Sortierung."""
@@ -3548,6 +3568,17 @@ def get_struktur_news(user_id, days=7, limit=8):
 
 
 def get_strang_status(user_id):
+    """Cached für 2 Min."""
+    ckey = f'strang:{user_id}'
+    cached_v = cache_get(ckey)
+    if cached_v is not None:
+        return cached_v
+    result = _get_strang_status_uncached(user_id)
+    cache_set(ckey, result, ttl=120)
+    return result
+
+
+def _get_strang_status_uncached(user_id):
     """Strang-Status für Dashboard: bin ich auf Kurs für die nächste Stufe?
     Returns: dict mit straenge, qualifizierte, benötigt, next_level."""
     db = get_db()
@@ -3641,6 +3672,17 @@ def get_structure_distribution(user_id, scope='all'):
 
 
 def get_coach_actions(user_id, max_actions=5):
+    """Cached für 2 Min."""
+    ckey = f'coach_acts:{user_id}:{max_actions}'
+    cached_v = cache_get(ckey)
+    if cached_v is not None:
+        return cached_v
+    result = _get_coach_actions_uncached(user_id, max_actions)
+    cache_set(ckey, result, ttl=120)
+    return result
+
+
+def _get_coach_actions_uncached(user_id, max_actions=5):
     """Was soll ich JETZT tun? Konsolidierte Action-Liste für die Dashboard-Coach-Karte.
     Mischt: KI-Recs, inaktive Partner, hängende Recherchen, Geburtstage, anstehende Termine.
     Returns: list of {icon, title, detail, action_label, action_url, priority}"""
@@ -3854,6 +3896,17 @@ def get_team_calendar_data(root_user_id, year, month):
 
 
 def get_quoten_forecast(user_id, days=30):
+    """Cached für 5 Min."""
+    ckey = f'forecast:{user_id}:{days}'
+    cached_v = cache_get(ckey)
+    if cached_v is not None:
+        return cached_v
+    result = _get_quoten_forecast_uncached(user_id, days)
+    cache_set(ckey, result, ttl=300)
+    return result
+
+
+def _get_quoten_forecast_uncached(user_id, days=30):
     """Auto-Prognose: was wird der User dieses Monat schaffen — basierend auf Vergangenheit?
     Returns: dict mit termine/abschluss/eh/abgesagt/abgelehnt — vorhergesagt."""
     db = get_db()
@@ -5437,6 +5490,17 @@ def onboarding_task_undo(day, code):
 
 # ====== JIBSON-PERSONAL-COACH (Admin-only Spezial-Section) ======
 def get_admin_personal_dashboard(user_id):
+    """Cached für 3 Min."""
+    ckey = f'adm_pers:{user_id}'
+    cached_v = cache_get(ckey)
+    if cached_v is not None:
+        return cached_v
+    result = _get_admin_personal_dashboard_uncached(user_id)
+    cache_set(ckey, result, ttl=180)
+    return result
+
+
+def _get_admin_personal_dashboard_uncached(user_id):
     """Persönliches Command-Center für den Admin/Top-Performer.
     Zeigt: Monats-EH-Ziel, GP-Gespräche, Zielgespräche, Strang-Status."""
     db = get_db()
@@ -6104,7 +6168,7 @@ def vertrag_neu():
         db.close()
         auto_promote_user(current_user.id)
         recalculate_all_commissions()
-        cache_invalidate('ctx:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
         if request.form.get('status') == 'abgeschlossen' and request.form.get('recherche_status') == 'freigegeben':
             log_activity(current_user.id, 'vertrag_abgeschlossen',
                 f'{current_user.name} hat Vertrag „{request.form["client_name"]}" abgeschlossen ({einheiten:.0f} EH)',
@@ -6169,7 +6233,7 @@ def vertrag_edit(vid):
         db.close()
         auto_promote_user(owner_id)
         recalculate_all_commissions()
-        cache_invalidate('ctx:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
         flash(f'Vertrag aktualisiert! ({einheiten:.0f} EH)', 'success')
         return redirect(url_for('vertraege'))
     leads_for_select = db.execute(
@@ -6621,7 +6685,7 @@ def team_edit(uid):
         db.commit()
         db.close()
         recalculate_all_commissions()
-        cache_invalidate('ctx:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
         if pending_level and not is_admin:
             flash(f'Aktualisiert. Stufen-Änderung auf {pending_level} wartet auf Admin-Bestätigung.', 'success')
         else:
@@ -7163,7 +7227,7 @@ def profil_photo_upload():
         db.execute('UPDATE users SET photo_path=? WHERE id=?', (rel, current_user.id))
         db.commit()
         db.close()
-        cache_invalidate('ctx:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
         flash('Foto hochgeladen!', 'success')
     except ImportError:
         flash('Foto-Modul nicht installiert (PIL fehlt)', 'error')
@@ -7184,7 +7248,7 @@ def profil_photo_delete():
         p = os.path.join(app.root_path, 'static', 'avatars', f'user-{current_user.id}{s}.jpg')
         try: os.remove(p)
         except Exception: pass
-    cache_invalidate('ctx:')
+    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
     flash('Foto gelöscht', 'success')
     return redirect(url_for('profil'))
 
@@ -7444,7 +7508,7 @@ def onboarding_catchup():
                            (current_user.id, name, est_eh, p_cnt, notes or None))
             db.commit()
             recalculate_all_commissions()
-            cache_invalidate('ctx:')
+            cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
             log_activity(current_user.id, 'catchup_done',
                 f'{current_user.name} hat seinen Stand eingetragen ({eh:.0f} EH + Strukturen)',
                 icon='📊', color='gold')
