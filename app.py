@@ -3325,6 +3325,135 @@ def get_commissions_for_user(user_id, only_own=False):
     }
 
 
+def get_struktur_news(user_id, days=7, limit=8):
+    """Highlights aus der Downline der letzten X Tage: Promotions, Trophäen, viele Termine, große Abschlüsse.
+    Returns: list of {icon, color, title, detail, who_id, who_name, time, score}
+    Score = Wichtigkeit für Sortierung."""
+    db = get_db()
+    descendants = get_all_descendants(user_id)
+    if not descendants:
+        db.close()
+        return []
+    ph = ','.join('?' * len(descendants))
+    items = []
+
+    # 1) TROPHÄEN — Achievements der letzten X Tage
+    try:
+        trophy_rows = db.execute(f'''
+            SELECT ua.code, ua.unlocked_at, u.id as uid, u.name, u.photo_path
+            FROM user_achievements ua
+            JOIN users u ON ua.user_id = u.id
+            WHERE u.id IN ({ph}) AND date(ua.unlocked_at) >= date('now', '-{days} days')
+            ORDER BY ua.unlocked_at DESC
+        ''', descendants).fetchall()
+        for t in trophy_rows:
+            items.append({
+                'icon': '★', 'color': '#d4a843',
+                'title': f"{t['name']} hat eine Trophäe erreicht",
+                'detail': f"Achievement: {t['code']}",
+                'who_id': t['uid'], 'who_name': t['name'], 'who_photo': t['photo_path'],
+                'time': t['unlocked_at'], 'score': 80,
+                'url': f"/partner/{t['uid']}/profil"
+            })
+    except Exception:
+        pass
+
+    # 2) STUFEN-AUFSTIEG — Beförderungen via activity_log
+    try:
+        promo_rows = db.execute(f'''
+            SELECT a.message, a.created_at, a.metadata, u.id as uid, u.name, u.photo_path
+            FROM activity_log a
+            JOIN users u ON a.user_id = u.id
+            WHERE u.id IN ({ph}) AND a.event_type IN ('career_promo', 'beförderung', 'pending_approved')
+              AND date(a.created_at) >= date('now', '-{days} days')
+            ORDER BY a.created_at DESC
+        ''', descendants).fetchall()
+        for p in promo_rows:
+            items.append({
+                'icon': '⬆', 'color': '#10b981',
+                'title': f"{p['name']} wurde befördert",
+                'detail': p['message'][:100] if p['message'] else 'Neue Karriere-Stufe erreicht',
+                'who_id': p['uid'], 'who_name': p['name'], 'who_photo': p['photo_path'],
+                'time': p['created_at'], 'score': 100,
+                'url': f"/partner/{p['uid']}/profil"
+            })
+    except Exception:
+        pass
+
+    # 3) GROSSE ABSCHLÜSSE der letzten Tage (>= 50 EH einzeln)
+    try:
+        big_contracts = db.execute(f'''
+            SELECT c.client_name, c.einheiten, c.created_at, u.id as uid, u.name, u.photo_path
+            FROM contracts c
+            JOIN users u ON c.owner_id = u.id
+            WHERE u.id IN ({ph}) AND c.status='abgeschlossen' AND c.recherche_status='freigegeben'
+              AND date(c.abschluss_date) >= date('now', '-{days} days')
+              AND c.einheiten >= 50
+            ORDER BY c.einheiten DESC LIMIT 8
+        ''', descendants).fetchall()
+        for b in big_contracts:
+            items.append({
+                'icon': '€', 'color': '#a855f7',
+                'title': f"{b['name']}: großer Abschluss!",
+                'detail': f"{b['client_name']} · {int(b['einheiten'])} EH",
+                'who_id': b['uid'], 'who_name': b['name'], 'who_photo': b['photo_path'],
+                'time': b['created_at'], 'score': 90 + min(int(b['einheiten']) // 10, 20),
+                'url': f"/partner/{b['uid']}/profil"
+            })
+    except Exception:
+        pass
+
+    # 4) FLEISSIGE TERMIN-MACHER (>= 8 Termine in Woche)
+    try:
+        active_rows = db.execute(f'''
+            SELECT u.id as uid, u.name, u.photo_path, COUNT(a.id) as cnt
+            FROM users u
+            LEFT JOIN appointments a ON a.owner_id = u.id AND date(a.termin_date) >= date('now', '-{days} days')
+            WHERE u.id IN ({ph})
+            GROUP BY u.id
+            HAVING cnt >= 8
+            ORDER BY cnt DESC LIMIT 5
+        ''', descendants).fetchall()
+        for r in active_rows:
+            items.append({
+                'icon': '◷', 'color': '#3b82f6',
+                'title': f"{r['name']}: starke Termin-Woche",
+                'detail': f"{r['cnt']} Termine in {days} Tagen — Pipeline läuft!",
+                'who_id': r['uid'], 'who_name': r['name'], 'who_photo': r['photo_path'],
+                'time': None, 'score': 60 + min(r['cnt'], 30),
+                'url': f"/partner/{r['uid']}/profil"
+            })
+    except Exception:
+        pass
+
+    # 5) NEUE PARTNER (innerhalb des Zeitfensters in der eigenen Struktur)
+    try:
+        new_partners = db.execute(f'''
+            SELECT a.message, a.created_at, u.id as uid, u.name, u.photo_path
+            FROM activity_log a
+            JOIN users u ON a.user_id = u.id
+            WHERE u.id IN ({ph}) AND a.event_type='partner_neu'
+              AND date(a.created_at) >= date('now', '-{days} days')
+            ORDER BY a.created_at DESC LIMIT 5
+        ''', descendants).fetchall()
+        for n in new_partners:
+            items.append({
+                'icon': '◈', 'color': '#10b981',
+                'title': f"Neuer Partner: {n['name']}",
+                'detail': 'Willkommen in der Familie!',
+                'who_id': n['uid'], 'who_name': n['name'], 'who_photo': n['photo_path'],
+                'time': n['created_at'], 'score': 70,
+                'url': f"/partner/{n['uid']}/profil"
+            })
+    except Exception:
+        pass
+
+    db.close()
+    # Nach Score sortieren, dann nach Zeit
+    items.sort(key=lambda x: (-x.get('score', 0), -(int(x['time'][:4] + x['time'][5:7] + x['time'][8:10]) if x.get('time') else 0)))
+    return items[:limit]
+
+
 def get_strang_status(user_id):
     """Strang-Status für Dashboard: bin ich auf Kurs für die nächste Stufe?
     Returns: dict mit straenge, qualifizierte, benötigt, next_level."""
@@ -5155,6 +5284,7 @@ def dashboard():
         structure_dist = get_structure_distribution(current_user.id, scope='all')
         forecast_30d = get_quoten_forecast(current_user.id, days=30)
         strang_status = get_strang_status(current_user.id)
+        struktur_news = get_struktur_news(current_user.id, days=7, limit=10)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -5174,7 +5304,7 @@ def dashboard():
             ki_recs=ki_recs, forecast=forecast, anomalies=anomalies,
             ai_briefing=ai_briefing, deadlines=deadlines,
             coach_actions=coach_actions, structure_dist=structure_dist,
-            forecast_30d=forecast_30d, strang_status=strang_status
+            forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -5257,6 +5387,7 @@ def dashboard():
         structure_dist = get_structure_distribution(current_user.id, scope='all')
         forecast_30d = get_quoten_forecast(current_user.id, days=30)
         strang_status = get_strang_status(current_user.id)
+        struktur_news = get_struktur_news(current_user.id, days=7, limit=8)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -5270,7 +5401,7 @@ def dashboard():
             period_stats=period_stats, career_criteria=career_criteria,
             ki_recs=ki_recs, forecast=forecast, ai_briefing=ai_briefing,
             deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist,
-            forecast_30d=forecast_30d, strang_status=strang_status
+            forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news
         )
 
 
