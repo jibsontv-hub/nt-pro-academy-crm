@@ -2299,6 +2299,18 @@ def inject_career():
             ctx['user_photo'] = None
             ctx['feature_tier'] = 1
         return ctx
+    # Nicht-authentifizierte User (Login, Register, Public Pages) — leeres aber valides dict
+    return {
+        'user_lang': 'de',
+        'user_photo': None,
+        'feature_tier': 1,
+        'team_calendar_available': False,
+        'inactive_alert': [],
+        'coach_alerts': 0,
+        'pending_count': 0,
+        'streak_days': 0,
+        'vision_needed': False,
+    }
 
 
 @app.route('/admin/team/<int:uid>/toggle-advanced', methods=['POST'])
