@@ -3411,7 +3411,7 @@ def get_struktur_news(user_id, days=7, limit=8):
     # 1) TROPHÄEN — Achievements der letzten X Tage
     try:
         trophy_rows = db.execute(f'''
-            SELECT ua.code, ua.unlocked_at, u.id as uid, u.name, u.photo_path
+            SELECT ua.achievement_code as code, ua.unlocked_at, u.id as uid, u.name, u.photo_path
             FROM user_achievements ua
             JOIN users u ON ua.user_id = u.id
             WHERE u.id IN ({ph}) AND date(ua.unlocked_at) >= date('now', '-{days} days')
@@ -6140,7 +6140,7 @@ def partner_profil(uid):
     trophy_count = len(trophy_rows)
     trophies = []
     for t in trophy_rows[:10]:
-        trophies.append({'code': t['code'], 'unlocked_at': t['unlocked_at']})
+        trophies.append({'code': t['achievement_code'], 'unlocked_at': t['unlocked_at']})
     # Last contracts
     last_contracts = db.execute('SELECT * FROM contracts WHERE owner_id=? ORDER BY created_at DESC LIMIT 5', (uid,)).fetchall()
     # Last appointments
