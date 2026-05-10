@@ -1133,72 +1133,47 @@
             <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
             <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil</a>
             {% else %}
-            <!-- ══════════════ STUFE 2+ — VOLL ══════════════ -->
+            <!-- ══════════════ STUFE 2+ — FLAT CAPS-SECTIONS (LearningSuite-Style) ══════════════ -->
 
-            <!-- 📋 TAGESGESCHÄFT -->
-            <details class="nav-group" open data-group="tagesgeschaeft">
-                <summary class="nav-section-toggle">▸ Tagesgeschäft</summary>
-                <div class="nav-group-items">
-                    <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Tagesaufgaben</a>
-                    <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path or request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
-                    <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
-                    <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Termine</a>
-                </div>
-            </details>
+            <div class="nav-section">Tagesgeschäft</div>
+            <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Tagesaufgaben</a>
+            <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path or request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
+            <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
+            <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Termine</a>
 
-            <!-- 👥 MEIN TEAM -->
-            <details class="nav-group" open data-group="team">
-                <summary class="nav-section-toggle">▸ Mein Team</summary>
-                <div class="nav-group-items">
-                    <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Direkte Geschäftspartner</a>
-                    <a href="/genehmigungen" class="nav-link {% if '/genehmigungen' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Neue Anmeldungen</a>
-                    <a href="/team/inaktiv" class="nav-link {% if '/team/inaktiv' in request.path %}active{% endif %}"><span class="nav-icon">⚠</span> Wer ist inaktiv?</a>
-                    {% if team_calendar_available %}
-                    <a href="/team-kalender" class="nav-link {% if '/team-kalender' in request.path %}active{% endif %}"><span class="nav-icon">▦</span> Team-Kalender</a>
-                    {% endif %}
-                    {% if ftier >= 3 %}
-                    <a href="/struktur" class="nav-link {% if '/struktur' in request.path %}active{% endif %}"><span class="nav-icon">⬢</span> Struktur-Baum</a>
-                    <a href="/quoten" class="nav-link {% if '/quoten' in request.path %}active{% endif %}"><span class="nav-icon">◉</span> Quoten</a>
-                    {% endif %}
-                </div>
-            </details>
+            <div class="nav-section">Mein Team</div>
+            <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Direkte Geschäftspartner</a>
+            <a href="/genehmigungen" class="nav-link {% if '/genehmigungen' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Neue Anmeldungen</a>
+            <a href="/team/inaktiv" class="nav-link {% if '/team/inaktiv' in request.path %}active{% endif %}"><span class="nav-icon">⚠</span> Wer ist inaktiv?</a>
+            {% if team_calendar_available %}
+            <a href="/team-kalender" class="nav-link {% if '/team-kalender' in request.path %}active{% endif %}"><span class="nav-icon">▦</span> Team-Kalender</a>
+            {% endif %}
+            {% if ftier >= 3 %}
+            <a href="/struktur" class="nav-link {% if '/struktur' in request.path %}active{% endif %}"><span class="nav-icon">⬢</span> Struktur-Baum</a>
+            <a href="/quoten" class="nav-link {% if '/quoten' in request.path %}active{% endif %}"><span class="nav-icon">◉</span> Quoten</a>
+            {% endif %}
 
-            <!-- 🏆 KARRIERE -->
-            <details class="nav-group" data-group="karriere">
-                <summary class="nav-section-toggle">▸ Karriere</summary>
-                <div class="nav-group-items">
-                    <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
-                    <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
-                    <a href="/news" class="nav-link {% if '/news' in request.path %}active{% endif %}"><span class="nav-icon">📣</span> Struktur-News</a>
-                    <a href="/tracking" class="nav-link {% if '/tracking' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Tracking & Quoten</a>
-                    <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}"><span class="nav-icon">▲</span> Wochen-Ranking</a>
-                    <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
-                </div>
-            </details>
+            <div class="nav-section">Karriere</div>
+            <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
+            <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
+            <a href="/news" class="nav-link {% if '/news' in request.path %}active{% endif %}"><span class="nav-icon">📣</span> Struktur-News</a>
+            <a href="/tracking" class="nav-link {% if '/tracking' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Tracking & Quoten</a>
+            <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}"><span class="nav-icon">▲</span> Wochen-Ranking</a>
+            <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
 
-            <!-- COACHING & LERNEN -->
-            <details class="nav-group" data-group="coaching">
-                <summary class="nav-section-toggle">▸ Coaching</summary>
-                <div class="nav-group-items">
-                    <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> NTcoach Chat</a>
-                    <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
-                    <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
-                    <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
-                </div>
-            </details>
+            <div class="nav-section">Coaching & Lernen</div>
+            <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> NTcoach Chat</a>
+            <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
+            <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
+            <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
 
-            <!-- MEHR -->
-            <details class="nav-group" data-group="mehr">
-                <summary class="nav-section-toggle">▸ Mehr</summary>
-                <div class="nav-group-items">
-                    <a href="/vorschlag" class="nav-link {% if request.path == '/vorschlag' %}active{% endif %}"><span class="nav-icon">＋</span> Vorschlag einreichen</a>
-                    <a href="/webhook-setup" class="nav-link {% if '/webhook-setup' in request.path %}active{% endif %}"><span class="nav-icon">🔌</span> Webhook (Typeform)</a>
-                    <a href="/onboarding/catchup" class="nav-link {% if '/onboarding' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Stand & Strukturen</a>
-                    <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil & Vision</a>
-                    <a href="/push-settings" class="nav-link {% if '/push-settings' in request.path %}active{% endif %}"><span class="nav-icon">▶</span> Push-Einstellungen</a>
-                    <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path %}active{% endif %}"><span class="nav-icon">⚙</span> Einstellungen</a>
-                </div>
-            </details>
+            <div class="nav-section">Mehr</div>
+            <a href="/vorschlag" class="nav-link {% if request.path == '/vorschlag' %}active{% endif %}"><span class="nav-icon">＋</span> Vorschlag einreichen</a>
+            <a href="/webhook-setup" class="nav-link {% if '/webhook-setup' in request.path %}active{% endif %}"><span class="nav-icon">🔌</span> Webhook (Typeform)</a>
+            <a href="/onboarding/catchup" class="nav-link {% if '/onboarding' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Stand & Strukturen</a>
+            <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil & Vision</a>
+            <a href="/push-settings" class="nav-link {% if '/push-settings' in request.path %}active{% endif %}"><span class="nav-icon">▶</span> Push-Einstellungen</a>
+            <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path %}active{% endif %}"><span class="nav-icon">⚙</span> Einstellungen</a>
             {% endif %}
 
             {% if current_user.has_admin_access %}

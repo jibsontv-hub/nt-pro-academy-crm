@@ -144,6 +144,62 @@
 </div>
 {% endif %}
 
+{# === ZULETZT GEÖFFNET — Pin-Bar (LearningSuite-Style Quick-Resume) === #}
+{% if recent_partners and recent_partners|length > 0 %}
+<div class="recent-pin-bar">
+    <div class="recent-pin-label">⏱ Zuletzt geöffnet</div>
+    <div class="recent-pin-items">
+        {% for p in recent_partners %}
+        <a href="/partner/{{ p.id }}/profil" class="recent-pin-item">
+            {% if p.photo_path %}
+                <img src="{{ p.photo_path }}" alt="" class="recent-pin-avatar" loading="lazy">
+            {% else %}
+                <div class="recent-pin-avatar recent-pin-avatar-fallback">{{ p.name[0] | upper }}</div>
+            {% endif %}
+            <span class="recent-pin-name">{{ p.name }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+<style>
+    .recent-pin-bar {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 14px; margin-bottom: 14px;
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 12px; flex-wrap: wrap;
+    }
+    .recent-pin-label {
+        font-size: 11px; text-transform: uppercase; letter-spacing: 1.1px;
+        color: var(--text-muted); font-weight: 700; flex-shrink: 0;
+    }
+    .recent-pin-items { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+    .recent-pin-item {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 6px 12px 6px 6px;
+        background: var(--bg); border: 1px solid var(--border); border-radius: 999px;
+        text-decoration: none; color: var(--text); font-size: 12px; font-weight: 600;
+        transition: all 0.15s ease;
+    }
+    .recent-pin-item:hover {
+        border-color: var(--gold); transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(212,168,67,0.12);
+    }
+    .recent-pin-avatar {
+        width: 24px; height: 24px; border-radius: 50%; object-fit: cover;
+    }
+    .recent-pin-avatar-fallback {
+        background: linear-gradient(135deg, var(--gold), color-mix(in srgb, var(--gold) 70%, white));
+        color: var(--navy); display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: 800;
+    }
+    .recent-pin-name { letter-spacing: -0.1px; }
+    @media (max-width: 480px) {
+        .recent-pin-bar { padding: 8px 10px; }
+        .recent-pin-label { font-size: 10px; }
+    }
+</style>
+{% endif %}
+
 <!-- 🎯 HERO — Gesamt-Stats -->
 <div class="revo-hero">
     <div class="revo-hero-label">Gesamt-Struktur · {{ greeting.greeting if greeting else 'Servus, Boss' }}</div>
@@ -292,6 +348,95 @@
         <div class="revo-q-l">NTcoach</div>
     </a>
 </div>
+
+<!-- 🗂 ADMIN-VERWALTUNG — Tile-Grid (LearningSuite-Style, premium-Navy/Gold) -->
+<div class="revo-section-h" style="margin-top:24px">⚙ Verwaltung</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px">
+    <a href="/admin/genehmigungen" class="adm-tile">
+        <div class="adm-tile-icon">✓</div>
+        <div>
+            <div class="adm-tile-title">Genehmigungen
+                {% if pending_count and pending_count > 0 %}<span class="adm-tile-badge">{{ pending_count }}</span>{% endif %}
+            </div>
+            <div class="adm-tile-sub">Anmeldungen freigeben</div>
+        </div>
+    </a>
+    <a href="/admin/push" class="adm-tile">
+        <div class="adm-tile-icon">📨</div>
+        <div>
+            <div class="adm-tile-title">Push-Broadcast</div>
+            <div class="adm-tile-sub">Push an alle Partner</div>
+        </div>
+    </a>
+    <a href="/admin/vorschlaege" class="adm-tile">
+        <div class="adm-tile-icon">💬</div>
+        <div>
+            <div class="adm-tile-title">Vorschläge</div>
+            <div class="adm-tile-sub">Partner-Feedback prüfen</div>
+        </div>
+    </a>
+    <a href="/admin/aktivitaet" class="adm-tile">
+        <div class="adm-tile-icon">▦</div>
+        <div>
+            <div class="adm-tile-title">Aktivitäts-Log</div>
+            <div class="adm-tile-sub">Wer macht was wann</div>
+        </div>
+    </a>
+    <a href="/admin/inbox" class="adm-tile">
+        <div class="adm-tile-icon">📥</div>
+        <div>
+            <div class="adm-tile-title">Bewerber-Inbox</div>
+            <div class="adm-tile-sub">Externe Bewerbungen</div>
+        </div>
+    </a>
+    <a href="/team" class="adm-tile">
+        <div class="adm-tile-icon">👥</div>
+        <div>
+            <div class="adm-tile-title">Mitglieder</div>
+            <div class="adm-tile-sub">Alle Partner verwalten</div>
+        </div>
+    </a>
+</div>
+<style>
+    .adm-tile {
+        display: flex; align-items: center; gap: 14px;
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 14px; padding: 16px 18px;
+        text-decoration: none; color: var(--text);
+        transition: all 0.18s ease;
+    }
+    .adm-tile:hover {
+        transform: translateY(-2px);
+        border-color: var(--gold);
+        box-shadow: 0 8px 24px rgba(212,168,67,0.12);
+    }
+    .adm-tile-icon {
+        width: 44px; height: 44px; border-radius: 11px;
+        background: linear-gradient(135deg, rgba(212,168,67,0.18), rgba(212,168,67,0.06));
+        display: flex; align-items: center; justify-content: center;
+        font-size: 18px; color: var(--gold); flex-shrink: 0; font-weight: 800;
+    }
+    .adm-tile-title {
+        font-size: 14px; font-weight: 800; color: var(--text);
+        letter-spacing: -0.2px; display: flex; align-items: center; gap: 8px;
+    }
+    .adm-tile-sub {
+        font-size: 12px; color: var(--text-muted); margin-top: 3px;
+    }
+    .adm-tile-badge {
+        background: var(--red); color: #fff; border-radius: 10px;
+        font-size: 10px; font-weight: 800; padding: 1px 7px; min-width: 18px; text-align: center;
+    }
+    @media (max-width: 768px) {
+        .adm-tile { padding: 14px; }
+        .adm-tile-icon { width: 40px; height: 40px; }
+    }
+    @media (max-width: 600px) {
+        .revo-section-h + div[style*="grid-template-columns:repeat(3"] {
+            grid-template-columns: 1fr !important;
+        }
+    }
+</style>
 
 <!-- 💰 Provision (gesamt) -->
 {% if my_commissions and my_commissions.total > 0 %}

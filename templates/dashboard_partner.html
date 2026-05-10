@@ -97,6 +97,25 @@
 }
 </style>
 
+{# === ZULETZT GEÖFFNET — Pin-Bar (nur Stufe 2+, ab dann hat man genug Partner) === #}
+{% if recent_partners and recent_partners|length > 0 %}
+<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:1.1px;color:var(--text-muted);font-weight:700;flex-shrink:0">⏱ Zuletzt geöffnet</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1">
+        {% for p in recent_partners %}
+        <a href="/partner/{{ p.id }}/profil" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;background:var(--bg);border:1px solid var(--border);border-radius:999px;text-decoration:none;color:var(--text);font-size:12px;font-weight:600;transition:all 0.15s ease" onmouseover="this.style.borderColor='var(--gold)';this.style.transform='translateY(-1px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform='translateY(0)'">
+            {% if p.photo_path %}
+                <img src="{{ p.photo_path }}" alt="" style="width:24px;height:24px;border-radius:50%;object-fit:cover" loading="lazy">
+            {% else %}
+                <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--gold),color-mix(in srgb,var(--gold) 70%,white));color:var(--navy);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800">{{ p.name[0] | upper }}</div>
+            {% endif %}
+            <span>{{ p.name }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- ============================================
      🎯 HERO — die "Balance" Karte
      ============================================ -->

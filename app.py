@@ -2261,6 +2261,50 @@ def load_user(user_id):
     return None
 
 
+def record_partner_view(visitor_id, viewed_user_id):
+    """Trackt Partner-Profil-Aufrufe für die "Zuletzt geöffnet"-Pin-Bar.
+    UPSERT: gleicher Partner → bumpt nur viewed_at."""
+    if not visitor_id or not viewed_user_id or visitor_id == viewed_user_id:
+        return
+    try:
+        db = get_db()
+        db.execute('''INSERT INTO recent_partner_views (visitor_id, viewed_user_id, viewed_at)
+                      VALUES (?, ?, CURRENT_TIMESTAMP)
+                      ON CONFLICT(visitor_id, viewed_user_id)
+                      DO UPDATE SET viewed_at = CURRENT_TIMESTAMP''',
+                   (visitor_id, viewed_user_id))
+        db.commit()
+        db.close()
+        # Cache invalidieren damit nächster Page-Load die neue Pin-Bar zeigt
+        cache_invalidate(f'recent:{visitor_id}')
+    except Exception as e:
+        print(f'[record_partner_view] {e}')
+
+
+def get_recent_partner_views(visitor_id, limit=3):
+    """Gibt die top N zuletzt besuchten Partner zurück (für Pin-Bar)."""
+    ckey = f'recent:{visitor_id}:{limit}'
+    cached = cache_get(ckey)
+    if cached is not None:
+        return cached
+    try:
+        db = get_db()
+        rows = db.execute('''SELECT u.id, u.name, u.photo_path, r.viewed_at
+                             FROM recent_partner_views r
+                             JOIN users u ON u.id = r.viewed_user_id
+                             WHERE r.visitor_id = ? AND u.active = 1
+                             ORDER BY r.viewed_at DESC
+                             LIMIT ?''', (visitor_id, limit)).fetchall()
+        db.close()
+        result = [{'id': r['id'], 'name': r['name'],
+                   'photo_path': r['photo_path'], 'viewed_at': r['viewed_at']} for r in rows]
+        cache_set(ckey, result, ttl=120)
+        return result
+    except Exception as e:
+        print(f'[get_recent_partner_views] {e}')
+        return []
+
+
 @app.context_processor
 def inject_career():
     """Stellt aktuelle Karriere-Stufe + Pending-Anzahl + Coach-Anzahl bereit (CACHED)."""
@@ -2324,6 +2368,14 @@ def inject_career():
             ctx['user_lang'] = 'de'
             ctx['user_photo'] = None
             ctx['feature_tier'] = 1
+        # Pin-Bar: zuletzt geöffnete Partner-Profile (nur für Stufe 2+, sonst Lärm)
+        try:
+            if ctx.get('feature_tier', 1) >= 2:
+                ctx['recent_partners'] = get_recent_partner_views(current_user.id, limit=3)
+            else:
+                ctx['recent_partners'] = []
+        except Exception:
+            ctx['recent_partners'] = []
         return ctx
     # Nicht-authentifizierte User (Login, Register, Public Pages) — leeres aber valides dict
     return {
@@ -3121,6 +3173,16 @@ def init_db():
             ref_key TEXT,
             sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, push_type, ref_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS recent_partner_views (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            visitor_id INTEGER NOT NULL,
+            viewed_user_id INTEGER NOT NULL,
+            viewed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(visitor_id, viewed_user_id),
+            FOREIGN KEY (visitor_id) REFERENCES users(id),
+            FOREIGN KEY (viewed_user_id) REFERENCES users(id)
         );
 
         CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -6539,6 +6601,8 @@ def partner_profil(uid):
         db.close()
         flash('Keine Berechtigung', 'error')
         return redirect(url_for('team'))
+    # Pin-Bar: diesen Aufruf für „Zuletzt geöffnet" tracken
+    record_partner_view(current_user.id, uid)
     # Career
     own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (uid,)).fetchone()['s']
     own_eh += target['initial_eh'] or 0
