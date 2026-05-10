@@ -423,6 +423,20 @@
             font-weight: 800 !important;
         }
 
+        /* Mobile Performance: Glass-Effekte reduzieren auf Low-End */
+        @media (max-width: 768px) {
+            .sidebar { backdrop-filter: none !important; }
+            .topbar { backdrop-filter: none !important; }
+            .revo-fab-item, .revo-fab-menu { backdrop-filter: none !important; }
+            /* Animationen reduzieren */
+            * { animation-duration: 0.6s !important; }
+            .card { box-shadow: none !important; }
+        }
+        /* Respektiere User-Präferenz für reduzierte Animation */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
+
         /* Page-Container Padding auf Mobile — luftiger, premium */
         @media (max-width: 768px) {
             .content { padding: 20px 18px 32px !important; }
@@ -993,9 +1007,9 @@
                 {% endif %}
             </a>
 
-            {% set is_starter = my_career and my_career.level <= 1 and not current_user.has_admin_access %}
+            {% set ftier = feature_tier or 1 %}
 
-            <!-- 📋 TAGESGESCHÄFT (default offen) -->
+            <!-- 📋 TAGESGESCHÄFT (immer offen, alle sehen) -->
             <details class="nav-group" open data-group="tagesgeschaeft">
                 <summary class="nav-section-toggle">▸ Tagesgeschäft</summary>
                 <div class="nav-group-items">
@@ -1006,16 +1020,18 @@
                 </div>
             </details>
 
-            <!-- 👥 MEIN TEAM (Starter: nur Team-Liste; Profis: alles) -->
-            <details class="nav-group"{% if not is_starter %} open{% endif %} data-group="team">
+            <!-- 👥 MEIN TEAM -->
+            <details class="nav-group"{% if ftier >= 2 %} open{% endif %} data-group="team">
                 <summary class="nav-section-toggle">▸ Mein Team</summary>
                 <div class="nav-group-items">
                     <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Direkte Geschäftspartner</a>
+                    {% if ftier >= 2 %}
                     <a href="/genehmigungen" class="nav-link {% if '/genehmigungen' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Neue Anmeldungen</a>
+                    {% endif %}
                     {% if team_calendar_available %}
                     <a href="/team-kalender" class="nav-link {% if '/team-kalender' in request.path %}active{% endif %}"><span class="nav-icon">▦</span> Team-Kalender</a>
                     {% endif %}
-                    {% if not is_starter %}
+                    {% if ftier >= 3 %}
                     <a href="/team/inaktiv" class="nav-link {% if '/team/inaktiv' in request.path %}active{% endif %}"><span class="nav-icon">⚠</span> Wer ist inaktiv?</a>
                     <a href="/struktur" class="nav-link {% if '/struktur' in request.path %}active{% endif %}"><span class="nav-icon">⬢</span> Struktur-Baum</a>
                     <a href="/quoten" class="nav-link {% if '/quoten' in request.path %}active{% endif %}"><span class="nav-icon">◉</span> Quoten</a>
@@ -1028,10 +1044,11 @@
                 <summary class="nav-section-toggle">▸ Karriere</summary>
                 <div class="nav-group-items">
                     <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
-                    <a href="/tracking" class="nav-link {% if '/tracking' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Tracking & Quoten</a>
                     <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
+                    <a href="/news" class="nav-link {% if '/news' in request.path %}active{% endif %}"><span class="nav-icon">📣</span> Struktur-News</a>
+                    {% if ftier >= 2 %}
+                    <a href="/tracking" class="nav-link {% if '/tracking' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Tracking & Quoten</a>
                     <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}"><span class="nav-icon">▲</span> Wochen-Ranking</a>
-                    {% if not is_starter %}
                     <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
                     {% endif %}
                 </div>
@@ -1042,11 +1059,11 @@
                 <summary class="nav-section-toggle">▸ Coaching</summary>
                 <div class="nav-group-items">
                     <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> NTcoach Chat</a>
-                    {% if not is_starter %}
+                    <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
+                    {% if ftier >= 2 %}
                     <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
                     <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
                     {% endif %}
-                    <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
                 </div>
             </details>
 

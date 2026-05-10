@@ -63,6 +63,9 @@
                         <form method="POST" action="/admin/team/{{ m.id }}/toggle-co-admin" style="display:inline" onsubmit="return confirm('{{ m.name }} {% if m.is_co_admin %}vom Co-Admin-Status entfernen{% else %}zum Co-Admin machen{% endif %}?')">
                             <button type="submit" class="btn btn-secondary btn-sm" title="{% if m.is_co_admin %}Co-Admin entziehen{% else %}Zum Co-Admin machen{% endif %}" style="{% if m.is_co_admin %}background:var(--gold-soft);color:var(--gold);border-color:var(--gold){% endif %}">⚡</button>
                         </form>
+                        <form method="POST" action="/admin/team/{{ m.id }}/toggle-advanced" style="display:inline">
+                            <button type="submit" class="btn btn-secondary btn-sm" title="{% if m.advanced_mode %}Advanced-Mode aus — wieder Standard-Sidebar{% else %}Advanced-Mode an — volle Sidebar freischalten (vor Stufen-Erreichen){% endif %}" style="{% if m.advanced_mode %}background:#10b98115;color:#10b981;border-color:#10b981{% endif %}">▤</button>
+                        </form>
                         {% endif %}
                         {% if m.id != current_user.id %}
                         <form method="POST" action="/team/{{ m.id }}/deactivate" style="display:inline" onsubmit="return confirm('Mitglied deaktivieren?')">

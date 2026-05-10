@@ -2261,17 +2261,47 @@ def inject_career():
             except Exception:
                 ctx['inactive_alert'] = []
             cache_set(cache_key, ctx, ttl=60)
-        # Sprachpräferenz + Foto aus DB
+        # Sprachpräferenz + Foto + feature_tier aus DB
         try:
             db = get_db()
-            row = db.execute('SELECT language, photo_path FROM users WHERE id=?', (current_user.id,)).fetchone()
+            row = db.execute('SELECT language, photo_path, advanced_mode, manual_career_level FROM users WHERE id=?', (current_user.id,)).fetchone()
             db.close()
             ctx['user_lang'] = (row['language'] if row and row['language'] else 'de')
             ctx['user_photo'] = (row['photo_path'] if row and row['photo_path'] else None)
+            # Feature-Tier: 1 = Starter, 2 = LREP, 3 = HREP+, oder advanced_mode = full
+            lvl = (row['manual_career_level'] or 1) if row else 1
+            adv = (row['advanced_mode'] or 0) if row else 0
+            if current_user.has_admin_access or adv:
+                ctx['feature_tier'] = 3
+            elif lvl >= 3:
+                ctx['feature_tier'] = 3
+            elif lvl >= 2:
+                ctx['feature_tier'] = 2
+            else:
+                ctx['feature_tier'] = 1
         except Exception:
             ctx['user_lang'] = 'de'
             ctx['user_photo'] = None
+            ctx['feature_tier'] = 1
         return ctx
+
+
+@app.route('/admin/team/<int:uid>/toggle-advanced', methods=['POST'])
+@login_required
+def admin_toggle_advanced(uid):
+    """Admin schaltet einem Partner Advanced-Mode (volle Sidebar) frei oder ab."""
+    if not current_user.has_admin_access:
+        return redirect(url_for('dashboard'))
+    db = get_db()
+    cur = db.execute('SELECT advanced_mode FROM users WHERE id=?', (uid,)).fetchone()
+    if cur is not None:
+        new_val = 0 if (cur['advanced_mode'] or 0) else 1
+        db.execute('UPDATE users SET advanced_mode=? WHERE id=?', (new_val, uid))
+        db.commit()
+        cache_invalidate('ctx:')
+        flash(f'Advanced-Mode {"aktiviert" if new_val else "deaktiviert"}.', 'success')
+    db.close()
+    return redirect(request.referrer or url_for('team'))
     return {'user_lang': 'de'}
 
 
@@ -3166,6 +3196,7 @@ def init_db():
             ('initial_eh', "REAL DEFAULT 0"),
             ('catchup_done', "INTEGER DEFAULT 0"),
             ('photo_path', "TEXT"),
+            ('advanced_mode', "INTEGER DEFAULT 0"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -6608,6 +6639,75 @@ def profil_photo_delete():
     cache_invalidate('ctx:')
     flash('Foto gelöscht', 'success')
     return redirect(url_for('profil'))
+
+
+@app.route('/news')
+@login_required
+def struktur_news_page():
+    """Struktur-News + Top-Performer + Live-Feed in einer Seite."""
+    days = int(request.args.get('days', 7))
+    if days not in (1, 7, 30, 90): days = 7
+    news = get_struktur_news(current_user.id, days=days, limit=30)
+    db = get_db()
+    descendants = [current_user.id] + get_all_descendants(current_user.id)
+    ph = ','.join('?' * len(descendants))
+    # Top-Performer der gewählten Periode (nach EH)
+    top_rows = db.execute(f'''
+        SELECT u.id, u.name, u.photo_path, u.manual_career_level,
+               COALESCE(SUM(c.einheiten), 0) as eh,
+               COUNT(c.id) as vertraege
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id = u.id
+            AND c.status='abgeschlossen' AND c.recherche_status='freigegeben'
+            AND date(c.abschluss_date) >= date('now', '-{days} days')
+        WHERE u.id IN ({ph}) AND u.active=1
+        GROUP BY u.id
+        ORDER BY eh DESC, vertraege DESC
+        LIMIT 10
+    ''', descendants).fetchall()
+    top_list = []
+    for r in top_rows:
+        d = dict(r)
+        d['career'] = career_for_row(r['manual_career_level'], r['eh'])
+        d['is_me'] = (r['id'] == current_user.id)
+        top_list.append(d)
+    # Aktivitäts-Feed
+    activity = db.execute(f'''
+        SELECT a.*, u.name as user_name, u.photo_path
+        FROM activity_log a
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.user_id IN ({ph}) AND date(a.created_at) >= date('now', '-{days} days')
+        ORDER BY a.created_at DESC LIMIT 30
+    ''', descendants).fetchall()
+    db.close()
+    return render_template('news.html', news=news, top=top_list, activity=activity, days=days)
+
+
+# Error-Handler — keine weißen Seiten mehr
+@app.errorhandler(404)
+def err_404(e):
+    return render_template('error.html', code=404,
+        title='Seite nicht gefunden',
+        msg='Die Seite die du suchst existiert nicht oder wurde verschoben.'), 404
+
+
+@app.errorhandler(500)
+def err_500(e):
+    try:
+        import traceback
+        print(f'[ERROR 500] {request.path}: {traceback.format_exc()}')
+    except Exception:
+        pass
+    return render_template('error.html', code=500,
+        title='Etwas ist schief gelaufen',
+        msg='Ein interner Fehler. Versuch es nochmal — falls weiterhin Probleme, sag deinem Admin Bescheid.'), 500
+
+
+@app.errorhandler(403)
+def err_403(e):
+    return render_template('error.html', code=403,
+        title='Keine Berechtigung',
+        msg='Für diese Seite hast du keine Berechtigung. Frag deinen Admin oder Strukturhöher.'), 403
 
 
 @app.route('/registrieren', methods=['GET', 'POST'])

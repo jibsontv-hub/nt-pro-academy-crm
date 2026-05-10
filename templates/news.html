@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Struktur-News – NT Pro Academy{% endblock %}
+{% block page_title %}📣 Struktur-News{% endblock %}
+
+{% block content %}
+
+<style>
+.day-tabs { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+.day-tabs a {
+    padding:8px 14px; border-radius:99px; text-decoration:none;
+    background:var(--bg-2); color:var(--text-muted); font-weight:700; font-size:12px;
+    border:1px solid var(--border);
+}
+.day-tabs a.active { background:var(--gold); color:#0f1c3f; border-color:var(--gold); }
+.news-grid { display: grid; grid-template-columns: 2fr 1fr; gap:16px; }
+@media (max-width:900px) { .news-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="day-tabs">
+    <a href="?days=1" class="{% if days == 1 %}active{% endif %}">heute</a>
+    <a href="?days=7" class="{% if days == 7 %}active{% endif %}">7 Tage</a>
+    <a href="?days=30" class="{% if days == 30 %}active{% endif %}">30 Tage</a>
+    <a href="?days=90" class="{% if days == 90 %}active{% endif %}">90 Tage</a>
+</div>
+
+<div class="news-grid">
+    <!-- LINKS: Highlights + Activity -->
+    <div>
+        <!-- HIGHLIGHTS -->
+        {% if news %}
+        <div class="revo-section-h">★ Highlights · letzte {{ days }} Tag{% if days != 1 %}e{% endif %}</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">
+            {% for n in news %}
+            <a href="{{ n.url }}" style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-left:3px solid {{ n.color }};border-radius:12px;text-decoration:none;color:var(--text);transition:all 0.15s" onmouseover="this.style.transform='translateX(2px)'" onmouseout="this.style.transform=''">
+                <div style="position:relative;flex-shrink:0">
+                    <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;background:var(--bg);display:flex;align-items:center;justify-content:center;border:2px solid {{ n.color }};font-weight:800;font-size:13px;color:var(--text-muted)">
+                        {% if n.who_photo %}<img src="{{ n.who_photo }}" alt="{{ n.who_name }}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+                        {% else %}{{ n.who_name[:2]|upper }}{% endif %}
+                    </div>
+                    <div style="position:absolute;bottom:-3px;right:-3px;width:20px;height:20px;border-radius:50%;background:{{ n.color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;border:2px solid var(--surface)">{{ n.icon }}</div>
+                </div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:14px;font-weight:700;line-height:1.3">{{ n.title }}</div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{{ n.detail }}</div>
+                </div>
+                <span style="color:{{ n.color }};font-size:14px;font-weight:700">→</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- ACTIVITY-FEED -->
+        {% if activity %}
+        <div class="revo-section-h">~ Live-Feed</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+            {% for a in activity %}
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-2);border-radius:10px;font-size:13px">
+                <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;background:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:var(--text-muted);flex-shrink:0">
+                    {% if a.photo_path %}<img src="{{ a.photo_path }}" alt="" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+                    {% else %}{{ (a.user_name or '?')[:2]|upper }}{% endif %}
+                </div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:12px;color:var(--text);line-height:1.4">{{ a.message }}</div>
+                    <div style="font-size:10px;color:var(--text-muted);margin-top:1px">{{ a.created_at[:16] }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if not news and not activity %}
+        <div class="card" style="text-align:center;padding:48px 20px">
+            <div style="font-size:42px;margin-bottom:12px">○</div>
+            <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px">Noch nichts los</div>
+            <div style="font-size:13px;color:var(--text-muted)">In den letzten {{ days }} Tagen gab's keine Aktivität in deiner Struktur.</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- RECHTS: Top-Performer -->
+    <div>
+        <div class="revo-section-h">▲ Top Performer</div>
+        <div class="card" style="padding:8px">
+            {% for p in top %}
+            {% if p.eh > 0 or loop.index <= 3 %}
+            <a href="/partner/{{ p.id }}/profil" style="display:flex;align-items:center;gap:12px;padding:11px;border-radius:10px;text-decoration:none;color:var(--text);{% if p.is_me %}background:var(--gold-soft){% endif %};transition:background 0.15s" onmouseover="this.style.background='var(--bg-2)'" onmouseout="this.style.background='{% if p.is_me %}var(--gold-soft){% else %}transparent{% endif %}'">
+                <div style="font-size:18px;font-weight:900;color:var(--text-muted);min-width:24px;text-align:center">
+                    {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
+                </div>
+                <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--bg);display:flex;align-items:center;justify-content:center;border:2px solid {{ p.career.color }};font-weight:800;font-size:11px;flex-shrink:0">
+                    {% if p.photo_path %}<img src="{{ p.photo_path }}" alt="" style="width:100%;height:100%;object-fit:cover" loading="lazy">
+                    {% else %}{{ p.name[:2]|upper }}{% endif %}
+                </div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:700">{{ p.name }}{% if p.is_me %} <span style="color:var(--gold);font-size:10px">DU</span>{% endif %}</div>
+                    <div style="font-size:10px;color:var(--text-muted)">{{ p.career.short }} · {{ p.vertraege }} Verträge</div>
+                </div>
+                <strong style="color:var(--gold);font-size:13px">{{ "{:,.0f}".format(p.eh).replace(",", ".") }}</strong>
+            </a>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>{{ title or 'Fehler' }} – NT Pro Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin:0; padding:0; }
+body { font-family:'Inter',system-ui,sans-serif; background:#0a0e1a; color:#f1f5f9; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; -webkit-font-smoothing:antialiased; }
+body::before { content:''; position:fixed; inset:0; background:radial-gradient(ellipse at top, rgba(212,168,67,0.12), transparent 60%); pointer-events:none; }
+.box { max-width:480px; width:100%; background:rgba(19,24,41,0.85); backdrop-filter:blur(20px) saturate(180%); border:1px solid rgba(255,255,255,0.08); border-radius:22px; padding:36px 28px; text-align:center; box-shadow:0 25px 80px rgba(0,0,0,0.5); position:relative; }
+.code { font-size:80px; font-weight:900; letter-spacing:-3px; background:linear-gradient(135deg,#d4a843,#f0c970); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; line-height:1; margin-bottom:8px; }
+h1 { font-size:22px; font-weight:800; letter-spacing:-0.4px; margin-bottom:10px; }
+.msg { font-size:14px; color:#94a3b8; line-height:1.6; margin-bottom:24px; }
+.actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:12px 20px; border-radius:12px; text-decoration:none; font-weight:700; font-size:13px; font-family:inherit; cursor:pointer; border:none; transition:all 0.2s; }
+.btn-primary { background:linear-gradient(135deg,#d4a843,#f0c970); color:#0f1c3f; box-shadow:0 4px 14px rgba(212,168,67,0.3); }
+.btn-primary:hover { transform:translateY(-1px); box-shadow:0 8px 24px rgba(212,168,67,0.4); }
+.btn-ghost { background:rgba(255,255,255,0.05); color:#f1f5f9; border:1px solid rgba(255,255,255,0.1); }
+.btn-ghost:hover { background:rgba(255,255,255,0.08); }
+</style>
+</head>
+<body>
+<div class="box">
+    <div class="code">{{ code or '?' }}</div>
+    <h1>{{ title or 'Fehler' }}</h1>
+    <p class="msg">{{ msg or 'Etwas ist schief gelaufen.' }}</p>
+    <div class="actions">
+        <a href="/dashboard" class="btn btn-primary">▦ Zum Dashboard</a>
+        <button onclick="history.back()" class="btn btn-ghost">← Zurück</button>
+    </div>
+</div>
+</body>
+</html>
