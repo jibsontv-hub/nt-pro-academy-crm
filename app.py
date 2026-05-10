@@ -3044,6 +3044,16 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS vision_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            datum TEXT NOT NULL,
+            text TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, datum),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS push_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -3213,6 +3223,8 @@ def init_db():
             ('photo_path', "TEXT"),
             ('advanced_mode', "INTEGER DEFAULT 0"),
             ('push_prefs', "TEXT DEFAULT '{}'"),
+            ('streak_days', "INTEGER DEFAULT 0"),
+            ('streak_last_date', "TEXT"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -3605,7 +3617,7 @@ def get_coach_actions(user_id, max_actions=5):
     pending_r = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (user_id,)).fetchone()['c']
     if pending_r >= 3:
         actions.append({'icon': '⏳', 'priority': 'high', 'title': f'{pending_r} Verträge hängen in Recherche',
-                        'detail': 'Schnell nachfassen — sonst zählen die EH nicht', 'action_label': 'Verträge', 'action_url': '/vertraege'})
+                        'detail': 'Nachfassen. Sonst war der Vertrag Arbeit für nix.', 'action_label': 'Verträge', 'action_url': '/vertraege'})
     # 2) Inaktive direkte Partner
     inact = get_inactive_team_members(user_id, days=2, scope='direct')
     for u in inact[:2]:
@@ -3643,7 +3655,7 @@ def get_coach_actions(user_id, max_actions=5):
     if deadlines and deadlines.get('eingabe_in_days') is not None and 0 < deadlines['eingabe_in_days'] <= 3:
         actions.append({'icon': '⏰', 'priority': 'critical',
                         'title': f"Eingabeschluss in {deadlines['eingabe_in_days']} Tag{'en' if deadlines['eingabe_in_days'] > 1 else ''}",
-                        'detail': 'Alle Verträge eintragen!', 'action_label': 'Verträge', 'action_url': '/vertraege'})
+                        'detail': 'Lieferst du oder schiebst du? Verträge rein.', 'action_label': 'Verträge', 'action_url': '/vertraege'})
 
     # 6) Wachstums-Tipps (wenn noch Platz ist)
     week_termine = db.execute("SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date) >= date('now','-7 days')", (user_id,)).fetchone()['c']
@@ -3667,7 +3679,7 @@ def get_coach_actions(user_id, max_actions=5):
         if called_today < 5 and namensliste_size > 0:
             growth_tips.append({'icon': '☎', 'priority': 'high',
                                 'title': f'5 Anrufe heute (du hast {called_today})',
-                                'detail': 'Stufe 1 = jeden Tag 5 Personen aus der Namensliste anrufen',
+                                'detail': 'Pflicht für Stufe 1: 5 Anrufe. Heute. Keine Ausreden.',
                                 'action_label': 'Liste öffnen', 'action_url': '/namensliste'})
         # 2) Upline kontaktieren wenn 3+ Tage kein Login mit Upline-Aktivität
         if upline_id:
@@ -3675,7 +3687,7 @@ def get_coach_actions(user_id, max_actions=5):
             up_name = up_row['name'] if up_row else 'deine Upline'
             growth_tips.append({'icon': '⬢', 'priority': 'high',
                                 'title': f'{up_name} anrufen',
-                                'detail': 'Tagesplanung + offene Fragen mit deiner Upline durchgehen',
+                                'detail': 'Tagesplanung mit Strukturhöher klären. Allein bist du langsamer.',
                                 'action_label': 'Upline', 'action_url': f'/partner/{upline_id}'})
         # 3) Mindestens 1 Termin heute
         today_term_planned = db.execute("SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND date(termin_date)=date('now')",
@@ -3683,18 +3695,18 @@ def get_coach_actions(user_id, max_actions=5):
         if today_term_planned == 0:
             growth_tips.append({'icon': '◷', 'priority': 'high',
                                 'title': 'Mindestens 1 Termin heute',
-                                'detail': 'Auch wenn klein — jeder Tag ohne Termin = verlorener Tag',
+                                'detail': 'Kein Termin = kein Geschäft. Plan jetzt einen ein.',
                                 'action_label': '+ Termin', 'action_url': '/termine/neu'})
 
     if namensliste_size < 50:
         growth_tips.append({'icon': '◎', 'priority': 'medium',
                             'title': 'Namensliste ausbauen',
-                            'detail': f'Nur {namensliste_size} Kontakte — Ziel: 100+ für stabile Pipeline',
+                            'detail': f'Du hast {namensliste_size} Kontakte. Ziel: 100. Wer fehlt?',
                             'action_label': '+ Hinzufügen', 'action_url': '/namensliste/neu'})
     if week_termine < 5:
         growth_tips.append({'icon': '📞', 'priority': 'medium',
                             'title': 'Mehr Termine planen',
-                            'detail': f'Diese Woche nur {week_termine} Termine — 3 Termine = 1 Abschluss (Faustregel)',
+                            'detail': f'{week_termine} Termine diese Woche. Reicht nicht. 3 Termine = 1 Abschluss.',
                             'action_label': '+ Termin', 'action_url': '/termine/neu'})
     if week_neue_leads < 3:
         growth_tips.append({'icon': '🎯', 'priority': 'low',
@@ -4452,7 +4464,7 @@ PUSH_CATEGORIES = [
     ('eingabeschluss', '⏰ Eingabeschluss-Reminder', 'Bei ≤ 2 Tagen bis zum Eingabeschluss'),
     ('daily_routine', '☎ Tägliche Routine (Stufe 1)', 'Morgendlicher Kick-off — 5 Anrufe etc.'),
     ('contract_done', '🎉 Abschluss in deiner Struktur', 'Wenn ein Partner einen Vertrag abschließt'),
-    ('appointment_made', '📅 Termin angelegt', 'Bestätigung wenn du einen Termin einträgst'),
+    ('appointment_made', '📅 Termin angelegt', 'Direkte Bestätigung wenn du einen Termin setzt.'),
     ('lead_won', '✓ Lead gewonnen', 'Wenn dein Lead-Status auf "gewonnen" wechselt'),
     ('partner_recruited', '◇ Partner rekrutiert', 'Wenn ein neuer Partner in deine Struktur kommt'),
     ('goal_achieved', '🎯 Ziel erreicht', 'Wenn du dein Wochenziel/Karriere-Stufe erreichst'),
@@ -5273,9 +5285,84 @@ def logout():
     return redirect(url_for('login'))
 
 
+def _update_streak(user_id):
+    """Streak-Logik: täglicher Login zählt. +1 wenn gestern auch, reset auf 1 wenn Lücke.
+    Returns: (current_streak, is_new_today)"""
+    db = get_db()
+    row = db.execute('SELECT streak_days, streak_last_date FROM users WHERE id=?', (user_id,)).fetchone()
+    if not row:
+        db.close()
+        return (0, False)
+    today = date.today()
+    today_iso = today.isoformat()
+    last = row['streak_last_date']
+    cur = row['streak_days'] or 0
+    is_new_today = False
+    if last == today_iso:
+        db.close()
+        return (cur, False)  # heute schon gezählt
+    yesterday_iso = (today - timedelta(days=1)).isoformat()
+    if last == yesterday_iso:
+        cur += 1  # weiter
+    else:
+        cur = 1  # reset / start
+    is_new_today = True
+    db.execute('UPDATE users SET streak_days=?, streak_last_date=? WHERE id=?',
+               (cur, today_iso, user_id))
+    db.commit()
+    db.close()
+    return (cur, is_new_today)
+
+
+def _has_vision_today(user_id):
+    db = get_db()
+    today_iso = date.today().isoformat()
+    row = db.execute('SELECT id FROM vision_entries WHERE user_id=? AND datum=?',
+                     (user_id, today_iso)).fetchone()
+    db.close()
+    return row is not None
+
+
+@app.route('/api/vision/today', methods=['POST'])
+@login_required
+def vision_today():
+    data = request.get_json(silent=True) or {}
+    text = (data.get('text') or '').strip()
+    skip = data.get('skip', False)
+    db = get_db()
+    today_iso = date.today().isoformat()
+    if skip:
+        # Skip — speichere leeren Eintrag damit nicht mehr gefragt wird
+        db.execute('INSERT OR IGNORE INTO vision_entries (user_id, datum, text) VALUES (?, ?, ?)',
+                   (current_user.id, today_iso, '__skip__'))
+    elif text and len(text) >= 5:
+        db.execute('INSERT OR REPLACE INTO vision_entries (user_id, datum, text) VALUES (?, ?, ?)',
+                   (current_user.id, today_iso, text[:500]))
+    else:
+        db.close()
+        return jsonify({'ok': False, 'error': 'text too short'}), 400
+    db.commit()
+    db.close()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/vision/recent')
+@login_required
+def vision_recent():
+    """Letzte 7 Vision-Einträge (für Wochen-Briefing)."""
+    db = get_db()
+    rows = db.execute(
+        'SELECT datum, text FROM vision_entries WHERE user_id=? AND text != "__skip__" ORDER BY datum DESC LIMIT 7',
+        (current_user.id,)).fetchall()
+    db.close()
+    return jsonify({'entries': [{'datum': r['datum'], 'text': r['text']} for r in rows]})
+
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    # Streak update (1× pro Tag)
+    _update_streak(current_user.id)
     # 1× pro Tag (lazy beim ersten Dashboard-Load): Daily-Pushes
     _maybe_run_daily_pushes_lazy()
     # Catch-Up-Check: erstmaliger Login → Wizard zeigen
@@ -5419,6 +5506,11 @@ def dashboard():
         forecast_30d = get_quoten_forecast(current_user.id, days=30)
         strang_status = get_strang_status(current_user.id)
         struktur_news = get_struktur_news(current_user.id, days=7, limit=10)
+        db_s = get_db()
+        s_row = db_s.execute('SELECT streak_days FROM users WHERE id=?', (current_user.id,)).fetchone()
+        db_s.close()
+        streak_days = (s_row['streak_days'] or 0) if s_row else 0
+        vision_needed = not _has_vision_today(current_user.id)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -5438,7 +5530,8 @@ def dashboard():
             ki_recs=ki_recs, forecast=forecast, anomalies=anomalies,
             ai_briefing=ai_briefing, deadlines=deadlines,
             coach_actions=coach_actions, structure_dist=structure_dist,
-            forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news
+            forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news,
+            streak_days=streak_days, vision_needed=vision_needed
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -5522,6 +5615,12 @@ def dashboard():
         forecast_30d = get_quoten_forecast(current_user.id, days=30)
         strang_status = get_strang_status(current_user.id)
         struktur_news = get_struktur_news(current_user.id, days=7, limit=8)
+        # Streak holen (kein update — schon oben passiert)
+        db_s = get_db()
+        s_row = db_s.execute('SELECT streak_days FROM users WHERE id=?', (current_user.id,)).fetchone()
+        db_s.close()
+        streak_days = (s_row['streak_days'] or 0) if s_row else 0
+        vision_needed = not _has_vision_today(current_user.id)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -5535,7 +5634,8 @@ def dashboard():
             period_stats=period_stats, career_criteria=career_criteria,
             ki_recs=ki_recs, forecast=forecast, ai_briefing=ai_briefing,
             deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist,
-            forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news
+            forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news,
+            streak_days=streak_days, vision_needed=vision_needed
         )
 
 

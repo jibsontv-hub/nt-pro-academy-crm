@@ -131,7 +131,7 @@
                 {% else %}
                 <tr><td colspan="6" style="text-align:center;color:var(--text-soft);padding:48px">
                     <div style="font-size:28px;margin-bottom:10px">○</div>
-                    {% if typ == 'rk' %}Keine Recruiting-Kontakte.{% else %}Keine Kontakte in dieser Liste.{% endif %}<br>
+                    {% if typ == 'rk' %}RK-Liste leer. Wen sprichst du als nächstes an?{% else %}Leer. Wer fehlt hier?{% endif %}<br>
                     <a href="/leads/neu?typ={{ typ if typ != 'all' else 'vk' }}" style="color:var(--gold);font-weight:700">+ Ersten Kontakt anlegen</a>
                 </td></tr>
                 {% endfor %}

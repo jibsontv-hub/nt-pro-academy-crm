@@ -1,7 +1,7 @@
 // NT Pro Academy — Service Worker
 // Stellt Offline-Fähigkeit + Push-Notifications bereit.
 
-const CACHE_VERSION = 'ntpro-v1';
+const CACHE_VERSION = 'ntpro-v3';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 

@@ -1142,6 +1142,43 @@
         </div>
     </div>
 
+    {% if current_user.is_authenticated and vision_needed and request.path == '/dashboard' %}
+    <!-- 🎯 VISION-DAILY-PROMPT — beim ersten Login pro Tag -->
+    <div id="visionModal" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:11800;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px)">
+        <div style="background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 60%,#0a132d 100%);border:1px solid rgba(212,168,67,0.4);border-radius:24px;padding:32px 28px;max-width:520px;width:100%;color:#fff;box-shadow:0 25px 80px rgba(0,0,0,0.6);position:relative;animation:slideDownBanner 0.4s cubic-bezier(0.16,1,0.3,1)">
+            <div style="text-align:center;margin-bottom:20px">
+                <div style="display:inline-block;width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;font-size:32px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">🎯</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1.5px;font-weight:800">Daily Anchor</div>
+                <div style="font-size:24px;font-weight:900;letter-spacing:-0.5px;margin-top:6px;line-height:1.2">Was reißt du <span style="color:#d4a843">heute</span> für deine nächste Stufe?</div>
+                <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:10px;line-height:1.5">30 Sekunden · ein Satz · keine Floskeln. Was bewegst du heute konkret?</div>
+            </div>
+            <textarea id="visionText" maxlength="500" rows="4" placeholder="z.B.: 5 Anrufe rausballern. Anna's Termin durchziehen. MMM vorbereiten." style="width:100%;padding:14px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:14px;color:#fff;font-size:15px;font-family:inherit;resize:none;line-height:1.5"></textarea>
+            <div style="display:flex;gap:10px;margin-top:16px">
+                <button onclick="ntproVisionSave()" style="flex:1;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border:none;padding:14px;border-radius:14px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit;box-shadow:0 4px 14px rgba(212,168,67,0.3)">▶ Eintragen & Loslegen</button>
+                <button onclick="ntproVisionSkip()" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.1);padding:14px 18px;border-radius:14px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Skip</button>
+            </div>
+            <div style="text-align:center;margin-top:14px;font-size:11px;color:rgba(255,255,255,0.4)">
+                Landet im Wochen-Briefing · NTcoach reflektiert mit dir Sonntag
+            </div>
+        </div>
+    </div>
+    <script>
+        (function(){
+            setTimeout(() => { const m = document.getElementById('visionModal'); if (m) { m.style.display = 'flex'; document.getElementById('visionText').focus(); } }, 800);
+        })();
+        async function ntproVisionSave() {
+            const txt = document.getElementById('visionText').value.trim();
+            if (txt.length < 5) { alert('Schreib mindestens 1 Satz.'); return; }
+            await fetch('/api/vision/today', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text: txt}) });
+            document.getElementById('visionModal').style.display = 'none';
+        }
+        async function ntproVisionSkip() {
+            await fetch('/api/vision/today', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({skip: true}) });
+            document.getElementById('visionModal').style.display = 'none';
+        }
+    </script>
+    {% endif %}
+
     <!-- 🚨 Inaktiv-Banner für Führungskräfte (1x pro Tag pro Partner) -->
     {% if inactive_alert and inactive_alert|length > 0 and request.path == '/dashboard' %}
     <div id="inactiveBanner" style="display:none;position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:10800;max-width:540px;width:calc(100% - 28px);background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fff;border-radius:14px;padding:14px 18px;box-shadow:0 12px 40px rgba(0,0,0,0.4);animation:slideDownBanner 0.4s cubic-bezier(0.16,1,0.3,1)">
@@ -1647,16 +1684,20 @@
             function startObs() {
                 const els = document.querySelectorAll('.counter:not([data-counted])');
                 if (!els.length) return;
+                let queue = [];
                 const obs = new IntersectionObserver((entries) => {
                     entries.forEach(e => {
                         if (e.isIntersecting) {
                             const el = e.target;
                             el.dataset.counted = '1';
-                            animateCounter(el);
+                            queue.push(el);
                             obs.unobserve(el);
                         }
                     });
-                }, { threshold: 0.3 });
+                    // Sequenziell starten mit 50ms Delay zwischen Countern (Mobile-Performance)
+                    queue.forEach((el, idx) => setTimeout(() => animateCounter(el), idx * 50));
+                    queue = [];
+                }, { threshold: 0.2 });
                 els.forEach(el => obs.observe(el));
             }
             if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startObs);
