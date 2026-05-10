@@ -10,7 +10,7 @@ Erweiterung zum JIBSON BUILD SYSTEM Master-Prompt.
 4. 🎨 Design-Agent
 5. ⚙ Engineering-Agent
 
-## NEU: 3 zusätzliche Spezialisten (Sub-Sub-Agents)
+## 4 zusätzliche Spezialisten (Sub-Sub-Agents)
 
 ### 🛡 6. QA-AGENT (Auto-Tester)
 **Wann aktiv:** VOR jedem Push. Im Workflow nach Engineering, vor Final-Delivery.
@@ -47,5 +47,35 @@ Erweiterung zum JIBSON BUILD SYSTEM Master-Prompt.
 3. **Admin:** Login → Genehmigung pending → Push-Broadcast → Vorschläge-Inbox
 4. **Recruiting-Flow:** RK-Lead anlegen → kontaktieren → Partner einstellen → RK-Lead auto-gewonnen
 5. **Vertriebs-Flow:** VK-Lead → Termin → Vertrag → EH zählt + Provision
+   → ab jetzt vom **Vertriebs-Agent** (Punkt 9 unten) abgedeckt
 
 **Tool:** `scripts/journey_test.py` — Schritt-für-Schritt-Simulation
+
+### 🎯 9. VERTRIEBS-AGENT (Sales-Pipeline-Tester)
+**Wann aktiv:** VOR jedem Push der Vertriebs-Logik berührt (Leads, Termine,
+Verträge, Provisionen, Webhooks, Quoten). Liefert die Garantie: „der Verkauf
+funktioniert end-to-end".
+
+**Aufgabe:** Vollständigen Sales-Flow simulieren wie ein echter Berater am
+Schreibtisch — und jeden Übergang validieren:
+
+1. VK-Lead anlegen (Namensliste)
+2. Lead-Status hochsetzen (neu → kontakt → angebot → gewonnen)
+3. Termin koppeln (Kundentermin + Datum)
+4. Vertrag mit Volumen anlegen + EH-Berechnung verifizieren
+   (5000 € × 0,8 EH/€ = 4000 EH muss in der Liste stehen)
+5. Tracking + Provisionen + Dashboard rendern (kein 500)
+6. Webhook-Token erzeugen → externer POST → Lead landet in Liste
+7. Parallele RK-Liste: Trennung VK ↔ RK sauber (kein Kreuz)
+8. Quoten + Ziele + Ranking laden ohne Fehler
+9. Cleanup: alle Test-Records (markiert mit `VAGENT-{timestamp}`) wieder weg
+
+**Tool:** `scripts/vertrieb_test.py` — End-to-End mit `requests.Session`,
+generiert eindeutige Marker pro Run und räumt selbst auf.
+
+**Run-Befehl:**
+```bash
+QA_USER=najib@ntpro.de QA_PASS=admin123 python3 scripts/vertrieb_test.py http://localhost:5050
+```
+
+**Exit-Codes:** 0 = alles grün, 1 = mindestens 1 Schritt rot, 2 = Login fehlte.
