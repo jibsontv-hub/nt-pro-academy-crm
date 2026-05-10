@@ -6,6 +6,18 @@
 
 {% set is_starter = own_eh < 100 %}
 
+{% if is_starter and feature_tier == 1 %}
+<!-- 🚀 Starter-Banner: prominent zur Roadmap führen -->
+<a href="/onboarding/roadmap" style="display:flex;align-items:center;gap:14px;padding:16px 18px;background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border-radius:18px;text-decoration:none;margin-bottom:16px;border:1px solid rgba(212,168,67,0.4);box-shadow:0 6px 20px rgba(0,0,0,0.2)">
+    <div style="font-size:32px">🚀</div>
+    <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:#d4a843;text-transform:uppercase;letter-spacing:1px;font-weight:800">Starter-Roadmap</div>
+        <div style="font-size:16px;font-weight:800;margin-top:2px">Folge dem 7-Tage-Plan — schneller Start als 80% der Branche</div>
+    </div>
+    <span style="background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;padding:8px 14px;border-radius:10px;font-weight:800;font-size:12px">Los →</span>
+</a>
+{% endif %}
+
 <!-- ============================================
      🤖 NTCOACH HERO — animierter Mentor mit To-Do
      ============================================ -->

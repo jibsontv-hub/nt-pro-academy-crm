@@ -73,6 +73,77 @@
 }
 </style>
 
+<!-- ============================================
+     ⚡ JIBSON-COMMAND-CENTER — Personal-Coach
+     ============================================ -->
+{% if admin_personal %}
+<div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b 60%,#0a132d);color:#fff;border:none;position:relative;overflow:hidden;padding:26px 24px">
+    <div style="position:absolute;right:-80px;top:-80px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,67,0.3),transparent 70%)"></div>
+    <div style="position:relative;z-index:1">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+            <div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1.5px;font-weight:800">⚡ Command Center · Monatsziel</div>
+                <div style="font-size:30px;font-weight:900;letter-spacing:-0.7px;line-height:1.1;margin-top:4px">
+                    <span style="color:#d4a843"><span class="counter" data-target="{{ admin_personal.eh_this_month|int }}">0</span></span> / {{ "{:,.0f}".format(admin_personal.monthly_target).replace(",", ".") }} EH
+                </div>
+                <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:6px">
+                    {% if admin_personal.eh_remaining > 0 %}
+                    Noch <strong style="color:#fff">{{ "{:,.0f}".format(admin_personal.eh_remaining).replace(",", ".") }} EH</strong> in {{ admin_personal.days_left }} Tagen — das sind <strong style="color:#d4a843">{{ admin_personal.eh_per_day_needed }} EH/Tag</strong> pro Strang
+                    {% else %}
+                    🏆 <strong style="color:#34d399">Ziel erreicht!</strong> Jetzt drauflegen — die nächste Stufe wartet.
+                    {% endif %}
+                </div>
+            </div>
+            <div style="text-align:right">
+                <div style="font-size:36px;font-weight:900;color:#d4a843;letter-spacing:-1px;line-height:1">
+                    {{ admin_personal.pct }}%
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.6)">Tag {{ admin_personal.days_passed }}/{{ admin_personal.days_in_month }}</div>
+            </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.08);border-radius:99px;height:12px;overflow:hidden;margin-bottom:18px">
+            <div style="height:100%;width:{{ admin_personal.pct if admin_personal.pct < 100 else 100 }}%;background:linear-gradient(90deg,#d4a843,#f0c970);border-radius:99px;box-shadow:0 0 12px rgba(212,168,67,0.5);transition:width 0.6s"></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+            <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center">
+                <div style="font-size:24px;font-weight:800;color:#fff"><span class="counter" data-target="{{ admin_personal.gp_count }}">0</span></div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px">GP-Gespräche</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center">
+                <div style="font-size:24px;font-weight:800;color:#fff"><span class="counter" data-target="{{ admin_personal.zg_count }}">0</span></div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px">Ziel-Gespräche</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center">
+                <div style="font-size:24px;font-weight:800;color:#fff"><span class="counter" data-target="{{ admin_personal.strang_status|length }}">0</span></div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.6);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px">Sub-Strukturen</div>
+            </div>
+        </div>
+
+        {% if admin_personal.strang_status %}
+        <div style="margin-top:18px">
+            <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.8px;font-weight:700;margin-bottom:10px">Strang-Performance · Diesen Monat</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+                {% for s in admin_personal.strang_status[:5] %}
+                <a href="/partner/{{ s.id }}/profil" style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;text-decoration:none;color:#fff;transition:all 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+                    <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;background:#1a2c5b;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid rgba(212,168,67,0.4);flex-shrink:0">
+                        {% if s.photo %}<img src="{{ s.photo }}" alt="" style="width:100%;height:100%;object-fit:cover">{% else %}{{ s.name[:2]|upper }}{% endif %}
+                    </div>
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:700;font-size:13px">{{ s.name }}</div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.5)">{{ s.partners }} Partner gesamt</div>
+                    </div>
+                    <div style="font-weight:800;color:#d4a843;font-size:14px">{{ "{:,.0f}".format(s.eh_month).replace(",", ".") }} EH</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <!-- 🎯 HERO — Gesamt-Stats -->
 <div class="revo-hero">
     <div class="revo-hero-label">Gesamt-Struktur · {{ greeting.greeting if greeting else 'Servus, Boss' }}</div>

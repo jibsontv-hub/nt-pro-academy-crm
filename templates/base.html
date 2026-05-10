@@ -1095,6 +1095,9 @@
             <details class="nav-group" open data-group="tagesgeschaeft">
                 <summary class="nav-section-toggle">▸ Tagesgeschäft</summary>
                 <div class="nav-group-items">
+                    {% if ftier <= 1 %}
+                    <a href="/onboarding/roadmap" class="nav-link {% if '/onboarding/roadmap' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.15),rgba(212,168,67,0.05));color:var(--gold);font-weight:800"><span class="nav-icon">🚀</span> Starter-Roadmap</a>
+                    {% endif %}
                     <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Tagesaufgaben</a>
                     <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path or request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
                     <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
@@ -1154,6 +1157,7 @@
                 <summary class="nav-section-toggle">▸ Mehr</summary>
                 <div class="nav-group-items">
                     <a href="/vorschlag" class="nav-link {% if request.path == '/vorschlag' %}active{% endif %}"><span class="nav-icon">＋</span> Vorschlag einreichen</a>
+                    <a href="/webhook-setup" class="nav-link {% if '/webhook-setup' in request.path %}active{% endif %}"><span class="nav-icon">🔌</span> Webhook (Typeform)</a>
                     <a href="/onboarding/catchup" class="nav-link {% if '/onboarding' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Stand & Strukturen</a>
                     <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil & Vision</a>
                     <a href="/push-settings" class="nav-link {% if '/push-settings' in request.path %}active{% endif %}"><span class="nav-icon">▶</span> Push-Einstellungen</a>

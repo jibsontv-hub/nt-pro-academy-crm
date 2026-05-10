@@ -3056,6 +3056,28 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS onboarding_roadmap (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            day_number INTEGER NOT NULL,
+            task_code TEXT NOT NULL,
+            completed_at TEXT,
+            UNIQUE(user_id, day_number, task_code),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS webhook_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_id INTEGER NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            label TEXT,
+            list_typ TEXT DEFAULT 'vk',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_used TEXT,
+            request_count INTEGER DEFAULT 0,
+            FOREIGN KEY (owner_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS vision_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -4343,6 +4365,20 @@ def run_daily_pushes(force=False):
                         url='/namensliste', tag='routine', push_type='daily_routine')
                     _push_mark_sent(uid, 'daily_routine', key)
                     stats['daily_routine'] += 1
+
+                # Onboarding-Roadmap-Reminder
+                progress = get_onboarding_progress(uid)
+                if progress and not progress['completed']:
+                    open_today = [t for t in progress['days'].get(progress['active_day'], []) if not t['done']]
+                    if open_today:
+                        key = f'roadmap-day{progress["active_day"]}'
+                        if force or not _push_already_sent(uid, 'onboarding_reminder', key):
+                            first = open_today[0]
+                            send_push_to_user(uid,
+                                title=f'🚀 Tag {progress["active_day"]}: {len(open_today)} Aufgabe{"n" if len(open_today)>1 else ""} offen',
+                                body=f'{first["title"]} — {first["detail"]}',
+                                url='/onboarding/roadmap', tag='roadmap', push_type='onboarding_reminder')
+                            _push_mark_sent(uid, 'onboarding_reminder', key)
         except Exception:
             pass
 
@@ -4470,6 +4506,7 @@ def push_unsubscribe():
 
 
 PUSH_CATEGORIES = [
+    ('onboarding_reminder', '🚀 Starter-Roadmap-Reminder', 'Tägliche Erinnerung an offene Tag-Aufgaben (nur Stufe 1)'),
     ('birthday_customer', '🎂 Kunden-Geburtstage', 'Wenn ein Kunde aus deiner Namensliste Geburtstag hat'),
     ('birthday_partner', '🎉 Partner-Geburtstage', 'Wenn ein Partner aus deinem Team Geburtstag hat'),
     ('inactive_alert', '⚠ Inaktive Partner', 'Wenn ein direkter Partner 3+ Tage still ist'),
@@ -5297,6 +5334,274 @@ def logout():
     return redirect(url_for('login'))
 
 
+ONBOARDING_ROADMAP_TASKS = [
+    # Tag 1: Setup
+    {'day': 1, 'code': 'profil_foto', 'title': 'Profilfoto hochladen', 'detail': 'Damit dein Team weiß wer du bist', 'url': '/profil', 'icon': '📷'},
+    {'day': 1, 'code': 'vision_first', 'title': 'Deine Vision aufschreiben', 'detail': 'Warum machst du das? In 2 Sätzen', 'url': '/profil', 'icon': '★'},
+    {'day': 1, 'code': 'first_call_upline', 'title': 'Strukturhöher anrufen', 'detail': 'Erstes Tagesgespräch — Plan für die Woche', 'url': '/team', 'icon': '☎'},
+    # Tag 2: Namensliste
+    {'day': 2, 'code': 'namensliste_10', 'title': '10 Personen in Namensliste', 'detail': 'Familie, Freunde, Kollegen — alle rein', 'url': '/namensliste', 'icon': '◎'},
+    {'day': 2, 'code': 'first_call_3', 'title': '3 Anrufe heute', 'detail': 'Aus der Liste — wenigstens 3 Personen kontaktieren', 'url': '/namensliste', 'icon': '☎'},
+    # Tag 3: Termine
+    {'day': 3, 'code': 'first_termin', 'title': 'Ersten Termin planen', 'detail': 'Klein anfangen — mit jemandem aus deiner Komfort-Zone', 'url': '/termine/neu', 'icon': '◷'},
+    {'day': 3, 'code': 'rk_3', 'title': '3 RK-Kontakte (Recruiting)', 'detail': 'Wer könnte Geschäftspartner werden? In RK-Liste', 'url': '/namensliste?typ=rk', 'icon': '◇'},
+    # Tag 4: Verträge verstehen
+    {'day': 4, 'code': 'training_video', 'title': 'Hauptprodukt verstanden', 'detail': 'Ergo Rente Chance Video durcharbeiten', 'url': '/weiterbildung', 'icon': '▤'},
+    {'day': 4, 'code': 'first_call_5', 'title': '5 Anrufe heute', 'detail': 'Steigerung — 5 Personen aus Namensliste', 'url': '/namensliste', 'icon': '☎'},
+    # Tag 5: Erstes Erfolgserlebnis
+    {'day': 5, 'code': 'second_termin', 'title': '2. Termin diese Woche', 'detail': 'Wiederholung schafft Routine', 'url': '/termine/neu', 'icon': '◷'},
+    {'day': 5, 'code': 'check_with_upline', 'title': 'Wochen-Check mit Strukturhöher', 'detail': 'Was lief gut, was muss anders?', 'url': '/team', 'icon': '⬢'},
+    # Tag 6: Aufbauen
+    {'day': 6, 'code': 'namensliste_30', 'title': '30 Kontakte in Namensliste', 'detail': 'Weiter ausbauen — Ziel: 100', 'url': '/namensliste', 'icon': '◎'},
+    {'day': 6, 'code': 'first_vertrag', 'title': 'Ersten Vertrag eintragen', 'detail': 'Auch wenn klein — der erste Schritt zählt', 'url': '/vertraege/neu', 'icon': '€'},
+    # Tag 7: Reflektion
+    {'day': 7, 'code': 'reflektion', 'title': 'Wochen-Reflektion mit Coach', 'detail': 'Frag NTcoach: was lief gut, was nicht?', 'url': '/assistent', 'icon': '◆'},
+    {'day': 7, 'code': 'plan_next_week', 'title': 'Nächste Woche planen', 'detail': '5 konkrete Aktionen für KW2 aufschreiben', 'url': '/aufgaben', 'icon': '✓'},
+]
+
+
+def get_onboarding_progress(user_id):
+    """Returns dict mit progress + active_day + tasks für UI."""
+    db = get_db()
+    user = db.execute('SELECT manual_career_level, role FROM users WHERE id=?', (user_id,)).fetchone()
+    if not user or user['role'] == 'admin':
+        db.close()
+        return None
+    if (user['manual_career_level'] or 1) > 1:
+        db.close()
+        return None  # nur für Stufe-1
+    # Day-Berechnung: erstes done-Datum als Start nehmen, fallback heute
+    first_done = db.execute('SELECT MIN(completed_at) as fd FROM onboarding_roadmap WHERE user_id=?', (user_id,)).fetchone()
+    try:
+        if first_done and first_done['fd']:
+            start = datetime.strptime(first_done['fd'][:10], '%Y-%m-%d').date()
+        else:
+            start = date.today()
+        days_since = (date.today() - start).days
+        active_day = min(7, max(1, days_since + 1))
+    except Exception:
+        active_day = 1
+    # Done-Status pro Task
+    done_rows = db.execute('SELECT day_number, task_code FROM onboarding_roadmap WHERE user_id=? AND completed_at IS NOT NULL', (user_id,)).fetchall()
+    done = {(r['day_number'], r['task_code']) for r in done_rows}
+    db.close()
+    # Tasks pro Tag aufbereitet
+    days = {}
+    total_tasks = len(ONBOARDING_ROADMAP_TASKS)
+    total_done = 0
+    for t in ONBOARDING_ROADMAP_TASKS:
+        d = t['day']
+        if d not in days: days[d] = []
+        is_done = (d, t['code']) in done
+        if is_done: total_done += 1
+        days[d].append({**t, 'done': is_done})
+    return {
+        'days': days, 'active_day': active_day,
+        'total_tasks': total_tasks, 'total_done': total_done,
+        'pct': round(total_done / total_tasks * 100, 1) if total_tasks else 0,
+        'completed': total_done == total_tasks,
+    }
+
+
+@app.route('/onboarding/roadmap')
+@login_required
+def onboarding_roadmap():
+    progress = get_onboarding_progress(current_user.id)
+    if not progress:
+        flash('Onboarding-Roadmap nur für Stufe 1 (REP).', 'info')
+        return redirect(url_for('dashboard'))
+    return render_template('onboarding_roadmap.html', p=progress)
+
+
+@app.route('/onboarding/task/<int:day>/<code>/done', methods=['POST'])
+@login_required
+def onboarding_task_done(day, code):
+    db = get_db()
+    db.execute('INSERT OR REPLACE INTO onboarding_roadmap (user_id, day_number, task_code, completed_at) VALUES (?, ?, ?, datetime("now"))',
+               (current_user.id, day, code))
+    db.commit()
+    db.close()
+    return redirect(url_for('onboarding_roadmap'))
+
+
+@app.route('/onboarding/task/<int:day>/<code>/undo', methods=['POST'])
+@login_required
+def onboarding_task_undo(day, code):
+    db = get_db()
+    db.execute('DELETE FROM onboarding_roadmap WHERE user_id=? AND day_number=? AND task_code=?',
+               (current_user.id, day, code))
+    db.commit()
+    db.close()
+    return redirect(url_for('onboarding_roadmap'))
+
+
+# ====== JIBSON-PERSONAL-COACH (Admin-only Spezial-Section) ======
+def get_admin_personal_dashboard(user_id):
+    """Persönliches Command-Center für den Admin/Top-Performer.
+    Zeigt: Monats-EH-Ziel, GP-Gespräche, Zielgespräche, Strang-Status."""
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id=?', (user_id,)).fetchone()
+    if not user:
+        db.close()
+        return None
+    # EH-Ziel diesen Monat (default 5000, hardcoded für Najib)
+    monthly_target = 5000
+    # Aktuelle EH diesen Monat (gesamt-team inkl. Downline)
+    descendants = [user_id] + get_all_descendants(user_id)
+    ph = ','.join('?' * len(descendants))
+    cur_month = date.today().strftime('%Y-%m')
+    eh_this_month = db.execute(f'''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
+                                    WHERE owner_id IN ({ph})
+                                      AND status="abgeschlossen" AND recherche_status="freigegeben"
+                                      AND strftime("%Y-%m", abschluss_date) = ?''',
+                                descendants + [cur_month]).fetchone()['s']
+    # GP-Gespräche (Termin mit typ='kundentermin' oder 'erstgespraech' diesen Monat)
+    gp_count = db.execute(f'''SELECT COUNT(*) as c FROM appointments
+                               WHERE owner_id IN ({ph})
+                                 AND status='erledigt'
+                                 AND strftime("%Y-%m", termin_date) = ?''',
+                          descendants + [cur_month]).fetchone()['c']
+    # Zielgespräche (Termin mit typ='recruiting' oder 'schulung')
+    zg_count = db.execute(f'''SELECT COUNT(*) as c FROM appointments
+                               WHERE owner_id IN ({ph})
+                                 AND typ IN ('recruiting','schulung','seminar')
+                                 AND strftime("%Y-%m", termin_date) = ?''',
+                          descendants + [cur_month]).fetchone()['c']
+    # Tage diesen Monat (für Tagesziel-Berechnung)
+    today_d = date.today()
+    days_in_month = ((today_d.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)).day
+    days_passed = today_d.day
+    days_left = max(1, days_in_month - days_passed)
+    eh_remaining = max(0, monthly_target - eh_this_month)
+    eh_per_day_needed = round(eh_remaining / days_left, 1)
+    # Strang-Status pro direkter Sub-Struktur
+    direct = db.execute('SELECT id, name, photo_path FROM users WHERE parent_id=? AND active=1 ORDER BY name', (user_id,)).fetchall()
+    strang_status = []
+    for d in direct:
+        chain = [d['id']] + get_all_descendants(d['id'])
+        cph = ','.join('?' * len(chain))
+        s_eh = db.execute(f'''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
+                              WHERE owner_id IN ({cph})
+                                AND status="abgeschlossen" AND recherche_status="freigegeben"
+                                AND strftime("%Y-%m", abschluss_date) = ?''',
+                          chain + [cur_month]).fetchone()['s']
+        strang_status.append({
+            'id': d['id'], 'name': d['name'], 'photo': d['photo_path'],
+            'eh_month': float(s_eh),
+            'partners': len(chain),
+        })
+    strang_status.sort(key=lambda x: -x['eh_month'])
+    db.close()
+    return {
+        'monthly_target': monthly_target,
+        'eh_this_month': float(eh_this_month),
+        'eh_remaining': eh_remaining,
+        'eh_per_day_needed': eh_per_day_needed,
+        'days_passed': days_passed,
+        'days_in_month': days_in_month,
+        'days_left': days_left,
+        'pct': round(eh_this_month / monthly_target * 100, 1) if monthly_target else 0,
+        'gp_count': gp_count,
+        'zg_count': zg_count,
+        'strang_status': strang_status,
+    }
+
+
+# ====== TYPEFORM/FORMSPREE WEBHOOK ======
+@app.route('/api/webhook/lead/<token>', methods=['POST', 'GET'])
+def webhook_lead(token):
+    """Public Webhook-Endpoint für Typeform / Formspree / Zapier.
+    POST mit JSON oder Form-Data: {name, email, phone, message?, source?}
+    Token-protected — jeder User kriegt eigenen Token unter /webhook-setup."""
+    db = get_db()
+    tk = db.execute('SELECT * FROM webhook_tokens WHERE token=?', (token,)).fetchone()
+    if not tk:
+        db.close()
+        return jsonify({'error': 'invalid token'}), 401
+    if request.method == 'GET':
+        # Test-Endpoint
+        db.close()
+        return jsonify({'ok': True, 'msg': 'Webhook aktiv. POST hierher um Lead anzulegen.', 'owner_id': tk['owner_id']})
+    # POST: Lead extrahieren (akzeptiert JSON oder Form-Data)
+    data = request.get_json(silent=True) or request.form.to_dict() or {}
+    # Typeform-Spezialfall: kommt als nested JSON
+    if 'form_response' in data:
+        answers = data['form_response'].get('answers', [])
+        for a in answers:
+            t = a.get('type')
+            if t == 'short_text' or t == 'long_text':
+                data.setdefault('name', a.get('text'))
+            elif t == 'email':
+                data.setdefault('email', a.get('email'))
+            elif t == 'phone_number':
+                data.setdefault('phone', a.get('phone_number'))
+    name = (data.get('name') or data.get('Name') or '').strip()
+    email = (data.get('email') or data.get('Email') or '').strip()
+    phone = (data.get('phone') or data.get('Phone') or data.get('telefon') or '').strip()
+    msg = (data.get('message') or data.get('Nachricht') or '').strip()
+    source = (data.get('source') or 'webhook').strip()
+    if not name and not email and not phone:
+        db.close()
+        return jsonify({'error': 'no data', 'received': data}), 400
+    if not name: name = email or phone or 'Webhook-Lead'
+    # Lead anlegen
+    db.execute('''INSERT INTO leads (owner_id, name, email, phone, status, source, notizen, liste_typ)
+                  VALUES (?, ?, ?, ?, 'neu', ?, ?, ?)''',
+               (tk['owner_id'], name, email, phone, source, msg or None, tk['list_typ'] or 'vk'))
+    # Token-Stats
+    db.execute('UPDATE webhook_tokens SET last_used=datetime("now"), request_count=COALESCE(request_count,0)+1 WHERE id=?', (tk['id'],))
+    db.commit()
+    db.close()
+    log_activity(tk['owner_id'], 'webhook_lead', f'Neuer Lead via Webhook: {name}', icon='◎', color='gold')
+    # Push an Owner
+    try:
+        send_push_to_user(tk['owner_id'],
+            title=f'◎ Neuer Lead!',
+            body=f'{name}{" · " + phone if phone else ""}{" · " + email if email else ""}',
+            url='/namensliste', urgent=True, tag='webhook',
+            push_type='lead_won')
+    except Exception:
+        pass
+    return jsonify({'ok': True, 'lead': name})
+
+
+@app.route('/webhook-setup')
+@login_required
+def webhook_setup():
+    db = get_db()
+    tokens = db.execute('SELECT * FROM webhook_tokens WHERE owner_id=? ORDER BY id DESC', (current_user.id,)).fetchall()
+    db.close()
+    return render_template('webhook_setup.html', tokens=tokens)
+
+
+@app.route('/webhook-setup/create', methods=['POST'])
+@login_required
+def webhook_create():
+    import secrets
+    token = secrets.token_urlsafe(24)
+    label = (request.form.get('label') or '').strip() or 'Default'
+    list_typ = request.form.get('list_typ', 'vk')
+    if list_typ not in ('vk', 'rk'): list_typ = 'vk'
+    db = get_db()
+    db.execute('INSERT INTO webhook_tokens (owner_id, token, label, list_typ) VALUES (?, ?, ?, ?)',
+               (current_user.id, token, label, list_typ))
+    db.commit()
+    db.close()
+    flash(f'Webhook-Token „{label}" erstellt!', 'success')
+    return redirect(url_for('webhook_setup'))
+
+
+@app.route('/webhook-setup/<int:tid>/delete', methods=['POST'])
+@login_required
+def webhook_delete(tid):
+    db = get_db()
+    db.execute('DELETE FROM webhook_tokens WHERE id=? AND owner_id=?', (tid, current_user.id))
+    db.commit()
+    db.close()
+    flash('Webhook gelöscht.', 'info')
+    return redirect(url_for('webhook_setup'))
+
+
 def _update_streak(user_id):
     """Streak-Logik: täglicher Login zählt. +1 wenn gestern auch, reset auf 1 wenn Lücke.
     Returns: (current_streak, is_new_today)"""
@@ -5523,6 +5828,7 @@ def dashboard():
         db_s.close()
         streak_days = (s_row['streak_days'] or 0) if s_row else 0
         vision_needed = not _has_vision_today(current_user.id)
+        admin_personal = get_admin_personal_dashboard(current_user.id)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -5647,7 +5953,8 @@ def dashboard():
             ki_recs=ki_recs, forecast=forecast, ai_briefing=ai_briefing,
             deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist,
             forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news,
-            streak_days=streak_days, vision_needed=vision_needed
+            streak_days=streak_days, vision_needed=vision_needed,
+            admin_personal=admin_personal
         )
 
 

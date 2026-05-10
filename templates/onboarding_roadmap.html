@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Onboarding-Roadmap – NT Pro Academy{% endblock %}
+{% block page_title %}🗺 Deine ersten 7 Tage{% endblock %}
+
+{% block content %}
+
+<style>
+.day-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px; margin-bottom: 14px; transition: all 0.2s; }
+.day-card.active { border-color: var(--gold); box-shadow: 0 8px 24px color-mix(in srgb, var(--gold) 25%, transparent); }
+.day-card.done { background: linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--green) 6%, var(--surface))); border-color: color-mix(in srgb, var(--green) 30%, var(--border)); }
+.day-card.locked { opacity: 0.55; pointer-events: none; }
+.day-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.day-num { width: 48px; height: 48px; border-radius: 12px; background: var(--bg-2); color: var(--text-muted); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 20px; flex-shrink: 0; border: 2px solid var(--border); }
+.day-card.active .day-num { background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: #0f1c3f; border-color: transparent; }
+.day-card.done .day-num { background: var(--green); color: #fff; border-color: transparent; }
+.day-title { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
+.day-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.task-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 12px; margin-top: 8px; transition: all 0.15s; }
+.task-row.done { background: color-mix(in srgb, var(--green) 8%, var(--bg-2)); border-color: color-mix(in srgb, var(--green) 30%, var(--border)); }
+.task-check { width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--border-strong); background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; }
+.task-row.done .task-check { background: var(--green); border-color: var(--green); color: #fff; font-weight: 800; }
+.task-icon { font-size: 18px; flex-shrink: 0; opacity: 0.85; }
+.task-body { flex: 1; min-width: 0; }
+.task-title { font-size: 14px; font-weight: 700; }
+.task-row.done .task-title { text-decoration: line-through; opacity: 0.7; }
+.task-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.task-go { color: var(--gold); text-decoration: none; font-size: 12px; font-weight: 700; padding: 6px 12px; border: 1px solid color-mix(in srgb, var(--gold) 40%, var(--border)); border-radius: 8px; }
+</style>
+
+<!-- HERO -->
+<div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b 60%,#0a132d);color:#fff;border:none;position:relative;overflow:hidden">
+    <div style="position:absolute;right:-50px;top:-50px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,67,0.25),transparent 70%)"></div>
+    <div style="position:relative;z-index:1">
+        <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.4px;font-weight:800">🚀 Starter-Roadmap</div>
+        <div style="font-size:24px;font-weight:900;letter-spacing:-0.5px;margin-top:4px;line-height:1.2">In 7 Tagen vom Anfänger zum Macher</div>
+        <div style="font-size:14px;color:rgba(255,255,255,0.85);margin-top:8px;line-height:1.6">
+            Folge Tag für Tag. Jeden Tag 2-3 konkrete Aufgaben. Wer 7/7 abhakt, hat in einer Woche mehr drauf als 80% der Branche in 3 Monaten.
+        </div>
+        <div style="margin-top:18px;background:rgba(255,255,255,0.08);border-radius:99px;height:10px;overflow:hidden">
+            <div style="height:100%;width:{{ p.pct }}%;background:linear-gradient(90deg,#d4a843,#f0c970);border-radius:99px;transition:width 0.6s"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,0.7);margin-top:6px">
+            <span><strong style="color:#d4a843;font-size:18px">{{ p.total_done }} / {{ p.total_tasks }}</strong> Aufgaben</span>
+            <span>Tag <strong>{{ p.active_day }}</strong> von 7</span>
+        </div>
+    </div>
+</div>
+
+{% if p.completed %}
+<div class="card" style="background:linear-gradient(135deg,var(--green-soft),var(--surface));border:1px solid var(--green);text-align:center;padding:32px">
+    <div style="font-size:48px">🏆</div>
+    <div style="font-size:22px;font-weight:900;color:var(--green);margin-top:8px">7 Tage abgeschlossen!</div>
+    <div style="font-size:14px;color:var(--text-muted);margin-top:6px">Du bist offiziell durch den Starter-Modus. Jetzt: <a href="/dashboard" style="color:var(--gold);font-weight:700">Vollgas geben →</a></div>
+</div>
+{% endif %}
+
+<!-- DAYS -->
+{% for day_num in range(1, 8) %}
+{% if day_num in p.days %}
+{% set day_tasks = p.days[day_num] %}
+{% set day_done = day_tasks | selectattr('done') | list | length %}
+{% set day_total = day_tasks | length %}
+{% set is_active = day_num == p.active_day %}
+{% set is_done = day_done == day_total %}
+{% set is_locked = day_num > p.active_day %}
+<div class="day-card {% if is_active %}active{% endif %} {% if is_done %}done{% endif %} {% if is_locked %}locked{% endif %}">
+    <div class="day-head">
+        <div class="day-num">{% if is_done %}✓{% else %}{{ day_num }}{% endif %}</div>
+        <div style="flex:1">
+            <div class="day-title">Tag {{ day_num }}{% if day_num == 1 %} — Setup & Einstieg{% elif day_num == 2 %} — Namensliste aufbauen{% elif day_num == 3 %} — Erste Termine{% elif day_num == 4 %} — Hauptprodukt verstehen{% elif day_num == 5 %} — Routine festigen{% elif day_num == 6 %} — Erster Vertrag{% elif day_num == 7 %} — Reflektion & Plan{% endif %}</div>
+            <div class="day-sub">{{ day_done }} / {{ day_total }} erledigt {% if is_locked %}· 🔒 in {{ day_num - p.active_day }} Tagen{% endif %}</div>
+        </div>
+    </div>
+
+    {% for t in day_tasks %}
+    <div class="task-row {% if t.done %}done{% endif %}">
+        {% if t.done %}
+        <form method="POST" action="/onboarding/task/{{ day_num }}/{{ t.code }}/undo" style="margin:0">
+            <button type="submit" class="task-check">✓</button>
+        </form>
+        {% else %}
+        <form method="POST" action="/onboarding/task/{{ day_num }}/{{ t.code }}/done" style="margin:0">
+            <button type="submit" class="task-check"></button>
+        </form>
+        {% endif %}
+        <div class="task-icon">{{ t.icon }}</div>
+        <div class="task-body">
+            <div class="task-title">{{ t.title }}</div>
+            <div class="task-detail">{{ t.detail }}</div>
+        </div>
+        {% if t.url and not t.done %}
+        <a href="{{ t.url }}" class="task-go">Los →</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Webhook-Setup – NT Pro Academy{% endblock %}
+{% block page_title %}🔌 Webhook · Externe Leads automatisch reinkommen{% endblock %}
+
+{% block content %}
+
+<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,var(--blue) 5%,var(--surface)));border:1px solid color-mix(in srgb,var(--blue) 25%,var(--border))">
+    <div class="card-title" style="color:var(--blue)">▶ So funktioniert's</div>
+    <ol style="font-size:13px;color:var(--text);line-height:1.8;padding-left:22px">
+        <li>Erstelle hier einen <strong>Webhook-Token</strong> (z.B. „Typeform" oder „Insta-Page")</li>
+        <li>Kopiere die generierte URL</li>
+        <li>In Typeform/Formspree/Zapier: einfügen als <strong>Webhook-Ziel</strong></li>
+        <li>Jeder neuer Submit landet als <strong>Lead in deiner Namensliste</strong> + du kriegst Push</li>
+    </ol>
+</div>
+
+<div class="card">
+    <div class="card-title">+ Neuen Webhook anlegen</div>
+    <form method="POST" action="/webhook-setup/create" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="flex:1;min-width:180px">
+            <label>Bezeichnung</label>
+            <input type="text" name="label" placeholder="z.B. Typeform-Hauptformular" required>
+        </div>
+        <div class="form-group" style="min-width:140px">
+            <label>Liste</label>
+            <select name="list_typ">
+                <option value="vk">▷ Vertrieb (VK)</option>
+                <option value="rk">◇ Recruiting (RK)</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">＋ Erstellen</button>
+    </form>
+</div>
+
+{% if tokens %}
+<div class="revo-section-h">Deine Webhooks</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+    {% for t in tokens %}
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+            <div>
+                <div style="font-weight:800;font-size:15px">{{ t.label }}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                    Liste: <strong>{{ 'RK' if t.list_typ == 'rk' else 'VK' }}</strong>
+                    · Erstellt {{ t.created_at[:10] }}
+                    · {{ t.request_count or 0 }} Anfragen
+                    {% if t.last_used %}· Letzte: {{ t.last_used[:16] }}{% endif %}
+                </div>
+            </div>
+            <form method="POST" action="/webhook-setup/{{ t.id }}/delete" onsubmit="return confirm('Webhook wirklich löschen? Bestehende Typeform-Verbindungen brechen ab.')">
+                <button type="submit" class="btn btn-danger btn-sm">× Löschen</button>
+            </form>
+        </div>
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);word-break:break-all;display:flex;gap:8px;align-items:center">
+            <span id="url-{{ t.id }}">{{ request.url_root }}api/webhook/lead/{{ t.token }}</span>
+            <button onclick="copyUrl('url-{{ t.id }}', this)" class="btn btn-secondary btn-sm" style="white-space:nowrap">📋 Kopieren</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="card" style="background:var(--bg-2)">
+    <div style="font-size:13px;color:var(--text);line-height:1.6">
+        <strong>💡 Beispiel — JSON-Body den du senden kannst:</strong>
+        <pre style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:8px;overflow-x:auto;font-size:11px">{
+  "name": "Max Mustermann",
+  "email": "max@email.de",
+  "phone": "+49 170 1234567",
+  "message": "Interessiert an Vermögensaufbau",
+  "source": "instagram-link"
+}</pre>
+        <strong style="display:block;margin-top:12px">Typeform:</strong> Funktioniert automatisch — wir parsen das `form_response` Format.
+        <br>
+        <strong style="display:block;margin-top:6px">Zapier:</strong> Action „Webhook by Zapier — POST" mit obigem JSON.
+        <br>
+        <strong style="display:block;margin-top:6px">Test:</strong> Browser → URL aufrufen (GET) → siehst „Webhook aktiv".
+    </div>
+</div>
+
+<script>
+function copyUrl(id, btn) {
+    const text = document.getElementById(id).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Kopiert';
+        setTimeout(() => btn.textContent = orig, 2000);
+    });
+}
+</script>
+
+{% endblock %}
