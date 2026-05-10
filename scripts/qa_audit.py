@@ -52,7 +52,7 @@ print(f'\n=== QA-AUDIT — {BASE_URL} — {len(ROUTES)} Routes ===\n')
 
 for path, method, original in ROUTES:
     # Skip einige Routes die Setup brauchen
-    if any(x in path for x in ['/static/', 'photo/delete', '/delete', '/deactivate']):
+    if any(x in path for x in ['/static/', 'photo/delete', '/delete', '/deactivate', '/logout']):
         skip.append(original)
         continue
     try:

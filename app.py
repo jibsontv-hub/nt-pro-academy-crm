@@ -6129,7 +6129,7 @@ def partner_profil(uid):
     # Total stats
     contracts_total = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (uid,)).fetchone()['c']
     volumen_total = db.execute('SELECT COALESCE(SUM(volumen),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (uid,)).fetchone()['s']
-    provision_total = db.execute('SELECT COALESCE(SUM(amount),0) as s FROM commissions WHERE earner_id=?', (uid,)).fetchone()['s']
+    provision_total = db.execute('SELECT COALESCE(SUM(amount),0) as s FROM commissions WHERE user_id=?', (uid,)).fetchone()['s']
     leads_total = db.execute('SELECT COUNT(*) as c FROM leads WHERE owner_id=?', (uid,)).fetchone()['c']
     appts_done = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND status="erledigt"', (uid,)).fetchone()['c']
     appts_planned = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND status="geplant"', (uid,)).fetchone()['c']
