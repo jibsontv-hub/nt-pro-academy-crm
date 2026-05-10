@@ -25,7 +25,33 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get('FLASK_DEBUG', '1') != '1',  # nur HTTPS in production
     PERMANENT_SESSION_LIFETIME=timedelta(days=14),
     MAX_CONTENT_LENGTH=16 * 1024 * 1024,  # 16 MB max upload
+    SEND_FILE_MAX_AGE_DEFAULT=86400,  # static assets cached 24h browser-side
+    TEMPLATES_AUTO_RELOAD=(os.environ.get('FLASK_DEBUG', '1') == '1'),  # production: aus
 )
+
+# Performance: globale Cache-Headers für statische Assets
+@app.after_request
+def add_cache_headers(response):
+    try:
+        # Static assets: aggressives Browser-Caching
+        if request.path.startswith('/static/'):
+            # Bilder, Fonts, JS, CSS: 7 Tage cachen
+            if any(request.path.endswith(ext) for ext in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.woff', '.woff2', '.ttf', '.otf')):
+                response.headers['Cache-Control'] = 'public, max-age=604800, immutable'
+            elif any(request.path.endswith(ext) for ext in ('.css', '.js')):
+                response.headers['Cache-Control'] = 'public, max-age=86400'
+            else:
+                response.headers['Cache-Control'] = 'public, max-age=3600'
+        # HTML: kein langes Cachen, aber Validators erlaubt
+        elif response.content_type and 'text/html' in response.content_type:
+            response.headers.setdefault('Cache-Control', 'private, max-age=0, must-revalidate')
+        # Security-Headers für alle Responses
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+        response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    except Exception:
+        pass
+    return response
 
 login_manager = LoginManager()
 login_manager.init_app(app)
