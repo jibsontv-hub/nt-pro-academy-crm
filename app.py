@@ -23,10 +23,16 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     SESSION_COOKIE_SECURE=os.environ.get('FLASK_DEBUG', '1') != '1',  # nur HTTPS in production
-    PERMANENT_SESSION_LIFETIME=timedelta(days=14),
+    PERMANENT_SESSION_LIFETIME=timedelta(days=60),  # 60 Tage Session — User bleibt eingeloggt
     MAX_CONTENT_LENGTH=16 * 1024 * 1024,  # 16 MB max upload
     SEND_FILE_MAX_AGE_DEFAULT=86400,  # static assets cached 24h browser-side
     TEMPLATES_AUTO_RELOAD=(os.environ.get('FLASK_DEBUG', '1') == '1'),  # production: aus
+    # Flask-Login Remember-Me — User bleibt selbst nach Browser/Handy-Restart drin
+    REMEMBER_COOKIE_DURATION=timedelta(days=60),
+    REMEMBER_COOKIE_HTTPONLY=True,
+    REMEMBER_COOKIE_SECURE=os.environ.get('FLASK_DEBUG', '1') != '1',
+    REMEMBER_COOKIE_SAMESITE='Lax',
+    REMEMBER_COOKIE_REFRESH_EACH_REQUEST=True,  # Cookie verlängert sich bei jedem Request
 )
 
 # Performance: globale Cache-Headers für statische Assets
@@ -4249,7 +4255,10 @@ def login():
                            (hash_password(password), row['id']))
             db.commit()
             db.close()
-            login_user(User(row))
+            # Session permanent machen + Remember-Me aktivieren
+            # → User bleibt 60 Tage eingeloggt, selbst nach Handy/Browser-Restart
+            session.permanent = True
+            login_user(User(row), remember=True, duration=timedelta(days=60))
             session['show_vision'] = True
             # Achievements prüfen
             try:
