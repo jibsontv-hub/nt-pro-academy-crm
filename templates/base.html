@@ -472,6 +472,88 @@
             .grid-2, .grid-3 { grid-template-columns: 1fr !important; gap: 12px !important; }
         }
 
+        /* === ULTRA-AGGRESSIVE THEME-CATCH-ALLS — fixen alle hardcodierten Farben in Inline-Styles === */
+        /* Background Linear Gradients mit weiß */
+        [data-theme="dark"] [style*="linear-gradient(135deg,#fff"],
+        [data-theme="dark"] [style*="linear-gradient(135deg, #fff"],
+        [data-theme="dark"] [style*="linear-gradient(135deg,#ffffff"],
+        [data-theme="dark"] [style*="background: linear-gradient(135deg, #fff"] {
+            background: linear-gradient(135deg, var(--surface), var(--bg-2)) !important;
+        }
+        /* Backgrounds mit gold-soft (#faf6ec) im Dark = stärker getönt */
+        [data-theme="dark"] [style*="background:#faf6ec"],
+        [data-theme="dark"] [style*="background: #faf6ec"],
+        [data-theme="dark"] [style*="linear-gradient(135deg,#fff,#faf6ec"],
+        [data-theme="dark"] [style*="linear-gradient(135deg, #fff 0%, #faf6ec"],
+        [data-theme="dark"] [style*="linear-gradient(135deg,#fff 0%,#faf6ec"] {
+            background: linear-gradient(135deg, var(--surface), var(--gold-soft)) !important;
+        }
+        /* Light-Mode Karten die explizit hellblau-tönt sind */
+        [data-theme="dark"] [style*="background:#fef3e7"],
+        [data-theme="dark"] [style*="background: #fef3e7"],
+        [data-theme="dark"] [style*="background:#fffbeb"],
+        [data-theme="dark"] [style*="background:#fef9c3"],
+        [data-theme="dark"] [style*="background:#fef0ee"] {
+            background: var(--orange-soft) !important;
+        }
+        [data-theme="dark"] [style*="background:#ecfdf5"],
+        [data-theme="dark"] [style*="background:#ecfdf3"],
+        [data-theme="dark"] [style*="background:#dcfce7"] {
+            background: var(--green-soft) !important;
+        }
+        [data-theme="dark"] [style*="background:#dbeafe"],
+        [data-theme="dark"] [style*="background:#eff6ff"],
+        [data-theme="dark"] [style*="background:#e0e7ff"] {
+            background: var(--blue-soft) !important;
+        }
+        [data-theme="dark"] [style*="background:#fce7f3"],
+        [data-theme="dark"] [style*="background:#f3e8ff"],
+        [data-theme="dark"] [style*="background:#f4eefb"] {
+            background: var(--purple-soft) !important;
+        }
+        [data-theme="dark"] [style*="background:#fee2e2"],
+        [data-theme="dark"] [style*="background:#fef2f2"] {
+            background: var(--red-soft) !important;
+        }
+        /* Hardcodierte dunkle Farben im Light-Mode → bleiben (sind okay), aber im Dark → text-default */
+        [data-theme="dark"] [style*="color:#3a1f10"],
+        [data-theme="dark"] [style*="color:#5a3a26"],
+        [data-theme="dark"] [style*="color:#1a0f08"],
+        [data-theme="dark"] [style*="color:#2a1810"],
+        [data-theme="dark"] [style*="color:#3d2818"] {
+            color: var(--text) !important;
+        }
+        /* Specific dark text on dark bg = weiß */
+        [data-theme="dark"] [style*="color:#0a0e1a"],
+        [data-theme="dark"] [style*="color: #0a0e1a"],
+        [data-theme="dark"] [style*="color:#08101f"] {
+            color: var(--text) !important;
+        }
+        /* Inputs mit weißem BG */
+        [data-theme="dark"] input[style*="background:#fff"],
+        [data-theme="dark"] input[style*="background: #fff"],
+        [data-theme="dark"] textarea[style*="background:#fff"],
+        [data-theme="dark"] select[style*="background:#fff"] {
+            background: var(--bg-2) !important;
+            color: var(--text) !important;
+        }
+        /* Border-Strong-Light → Dark Border */
+        [data-theme="dark"] [style*="border:1px solid #e0e3e8"],
+        [data-theme="dark"] [style*="border: 1px solid #e0e3e8"],
+        [data-theme="dark"] [style*="border:1.5px solid #e2e8f0"],
+        [data-theme="dark"] [style*="border:1px solid #cbd5e1"],
+        [data-theme="dark"] [style*="border:1.5px solid #e8d59a"],
+        [data-theme="dark"] [style*="border:1px solid #c9eed7"],
+        [data-theme="dark"] [style*="border: 1px solid #c9eed7"],
+        [data-theme="dark"] [style*="border:1px solid #f5d4a0"],
+        [data-theme="dark"] [style*="border:1px solid #e8d59a"] {
+            border-color: var(--border) !important;
+        }
+
+        /* === LIGHT-MODE CATCH-ALLS — wenn explizit dunkle Farben hardcoded sind === */
+        /* Manche Templates haben dunkle BGs hardcoded (Hero-Cards) — die SOLLEN dunkel bleiben (sind explizit so designed) */
+        /* Für gewollte Light-Mode-Erlebnisse: nur hardcodierte schwarze BGs umkippen die nicht im rgba/Gradient sind */
+
         /* === DARK-MODE CATCH-ALLS für hardcodierte Inline-Styles === */
         [data-theme="dark"] [style*="background:#fff"]:not([style*="rgba"]):not([style*="rgb("]),
         [data-theme="dark"] [style*="background: #fff"]:not([style*="rgba"]):not([style*="rgb("]),
@@ -1635,13 +1717,21 @@
             });
         });
 
-        // Theme-Toggle
+        // Theme-Toggle — Robust: forciert Repaint + Charts + meta-theme-color
         function toggleTheme() {
-            const cur = document.documentElement.getAttribute('data-theme') || 'light';
+            const cur = document.documentElement.getAttribute('data-theme') || 'dark';
             const next = cur === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', next);
             try { localStorage.setItem('ntpro-theme', next); } catch(e) {}
-            // Charts neu rendern wenn Chart.js da ist
+            // meta-theme-color (Browser-UI) anpassen
+            let meta = document.querySelector('meta[name="theme-color"]');
+            if (!meta) { meta = document.createElement('meta'); meta.name = 'theme-color'; document.head.appendChild(meta); }
+            meta.content = (next === 'dark') ? '#0f1c3f' : '#fafafa';
+            // Force repaint — manche Browser cachen sonst die alten Inline-Style-Catch-Alls
+            document.body.style.display = 'none';
+            document.body.offsetHeight;
+            document.body.style.display = '';
+            // Charts neu rendern
             if (window.Chart && Chart.instances) {
                 Object.values(Chart.instances).forEach(c => { try { c.update(); } catch(e){} });
             }

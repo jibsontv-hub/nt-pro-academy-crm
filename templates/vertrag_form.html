@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="card" style="max-width:800px">
-    <div style="background:var(--gold-soft);border:1px solid #e8d59a;border-radius:8px;padding:12px 16px;margin-bottom:22px;font-size:13px;color:#7a5c1a">
+    <div style="background:var(--gold-soft);border:1px solid #e8d59a;border-radius:8px;padding:12px 16px;margin-bottom:22px;font-size:13px;color:var(--gold)">
         💡 <strong>EH-Berechnung:</strong> 1 € Kundenvolumen = {{ eh_faktor }} EH (automatisch)
     </div>
 
@@ -96,7 +96,7 @@
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:14px">
                 ▸ Recherche-Ergebnis <span style="color:var(--gold);text-transform:none;letter-spacing:0">(entscheidet, ob EH gezählt werden!)</span>
             </div>
-            <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:16px">
+            <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:16px">
                 {% set rs = vertrag.recherche_status if vertrag else 'ausstehend' %}
                 {% set options = [
                     ('ausstehend', '🕓 Ausstehend', 'Recherche noch nicht beurteilt — EH zählt NICHT', '#9ca3af'),
@@ -124,7 +124,7 @@
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:14px">
                 ▸ Bearbeitungs-Status (Checkliste)
             </div>
-            <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:16px">
+            <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:16px">
                 {% set steps = [
                     ('recherche_done', '🔍 Recherche durchgeführt', 'Kundenrecherche (Bedarf, Vermögen, Hintergrund) abgeschlossen'),
                     ('telefonat_done', '📞 Telefonat erfolgt', 'Erstes Telefonat mit dem Kunden hat stattgefunden'),

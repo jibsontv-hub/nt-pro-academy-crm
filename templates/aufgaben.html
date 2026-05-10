@@ -5,7 +5,7 @@
 {% block content %}
 
 <!-- Hero -->
-<div class="card" style="background: linear-gradient(135deg, #fff 0%, #faf6ec 100%); border: 1px solid #e8d59a;">
+<div class="card" style="background: linear-gradient(135deg, var(--surface) 0%, var(--gold-soft) 100%); border: 1px solid color-mix(in srgb, var(--gold) 30%, var(--border));">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
         <div style="display:flex;align-items:center;gap:14px">
             <div style="width:56px;height:56px;border-radius:12px;background:{{ career.color }}15;border:1.5px solid {{ career.color }};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:{{ career.color }}">
@@ -111,7 +111,7 @@
     <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">
         {% for h in history|reverse %}
         {% set pct = (h.done_count / h.total * 100) if h.total > 0 else 0 %}
-        <div style="min-width:62px;text-align:center;background:#fafbfc;border:1px solid var(--border);border-radius:8px;padding:10px 8px">
+        <div style="min-width:62px;text-align:center;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:10px 8px">
             <div style="font-size:10px;color:var(--text-soft);font-weight:600">{{ h.datum[5:] }}</div>
             <div style="font-size:14px;font-weight:800;color:{% if pct == 100 %}var(--green){% elif pct >= 50 %}var(--gold){% else %}var(--red){% endif %};margin:4px 0">
                 {{ h.done_count }}/{{ h.total }}

@@ -65,7 +65,7 @@
 <div class="card">
     <div class="card-title">📊 Performance-Profil</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
-        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">⚡ Eigene EH</div>
             <div style="font-size:22px;font-weight:800;color:var(--gold);margin:4px 0" class="money">{{ "{:,.0f}".format(own_eh).replace(",", ".") }}</div>
             {% if next_career %}
@@ -78,39 +78,39 @@
             <div style="font-size:11px;color:var(--green);font-weight:700">★ Höchste Stufe!</div>
             {% endif %}
         </div>
-        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">📄 Verträge</div>
             <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0">{{ stats.vertraege }}</div>
             <div style="font-size:11px;color:var(--text-soft)">Abgeschlossen + freigegeben</div>
         </div>
-        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">◷ Erledigte Termine</div>
             <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0">{{ stats.termine }}</div>
             <div style="font-size:11px;color:var(--text-soft)">Insgesamt</div>
         </div>
-        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">🎯 Conversion</div>
             <div style="font-size:22px;font-weight:800;color:{% if stats.avg_termine_per_close > 0 and stats.avg_termine_per_close <= 3 %}var(--green){% elif stats.avg_termine_per_close <= 4.5 %}var(--gold){% else %}var(--red){% endif %};margin:4px 0">
                 {% if stats.avg_termine_per_close > 0 %}{{ "%.1f"|format(stats.avg_termine_per_close) }}{% else %}–{% endif %}
             </div>
             <div style="font-size:11px;color:var(--text-soft)">Termine pro Abschluss</div>
         </div>
-        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">◇ Namensliste</div>
             <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0">{{ stats.leads }}</div>
             <div style="font-size:11px;color:var(--text-soft)">Personen erfasst</div>
         </div>
-        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">⏳ Hängende Recherchen</div>
             <div style="font-size:22px;font-weight:800;color:{% if stats.pending_research == 0 %}var(--green){% elif stats.pending_research <= 2 %}var(--gold){% else %}var(--red){% endif %};margin:4px 0">{{ stats.pending_research }}</div>
             <div style="font-size:11px;color:var(--text-soft)">Offen</div>
         </div>
-        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">👥 Direkte Partner</div>
             <div style="font-size:22px;font-weight:800;color:var(--text);margin:4px 0">{{ stats.downline_count }}</div>
             <div style="font-size:11px;color:var(--text-soft)">+ {{ stats.full_team }} indirekt</div>
         </div>
-        <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
             <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600">🎓 Onboarding</div>
             <div style="font-size:22px;font-weight:800;color:{% if stats.ob_score == 5 %}var(--green){% elif stats.ob_score >= 3 %}var(--gold){% else %}var(--red){% endif %};margin:4px 0">{{ stats.ob_score }}/5</div>
             <div style="font-size:11px;color:var(--text-soft)">Schritte erledigt</div>
@@ -282,7 +282,7 @@ function useStarter(el) {
         {% if recent_activity %}
         <div style="display:flex;flex-direction:column;gap:8px">
             {% for a in recent_activity %}
-            <div style="background:#fafbfc;border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px">
+            <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px">
                 <div style="font-size:16px">{{ a.icon }}</div>
                 <div style="flex:1">{{ a.message }}</div>
                 <div style="font-size:11px;color:var(--text-soft)">{{ a.created_at[:10] }}</div>

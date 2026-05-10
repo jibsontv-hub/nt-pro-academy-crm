@@ -107,7 +107,7 @@
     <div class="card-title">Hierarchie-Ebenen (10 Ebenen tief)</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
         {% for i in range(1, 11) %}
-        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);padding:8px 14px;background:#fafbfc;border:1px solid var(--border);border-radius:8px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);padding:8px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px">
             <span class="level-dot level-{{ i if i <= 5 else 'other' }}"></span>
             Ebene {{ i }}:
             <strong>{{ members | selectattr('level', 'equalto', i) | list | length }}</strong>

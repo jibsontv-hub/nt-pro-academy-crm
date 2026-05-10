@@ -6,7 +6,7 @@
 <div class="card" style="max-width:720px">
 
     {% if current_user.role == 'admin' %}
-    <div style="background:var(--gold-soft);border:1px solid #e8d59a;border-radius:8px;padding:12px 16px;margin-bottom:22px;font-size:13px;color:#7a5c1a">
+    <div style="background:var(--gold-soft);border:1px solid #e8d59a;border-radius:8px;padding:12px 16px;margin-bottom:22px;font-size:13px;color:var(--gold)">
         ⚡ <strong>Admin-Modus:</strong> Du kannst Stufen direkt setzen — keine Bestätigung nötig.
     </div>
     {% else %}
@@ -87,7 +87,7 @@
                     ('onboarding_einarbeitung_3', '📙 Einarbeitung 3', 'Dritte Einarbeitungsstufe abgeschlossen'),
                     ('onboarding_seminar_bezahlt', '💳 Grundseminar bezahlt', 'Teilnahmegebühr für Grundseminar überwiesen')
                 ] %}
-                <div style="background:#fafbfc;border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px">
+                <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px">
                     {% set ob_done = 0 %}
                     {% for f, t, d in ob_steps %}{% if member[f] %}{% set ob_done = ob_done + 1 %}{% endif %}{% endfor %}
                     <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px">
