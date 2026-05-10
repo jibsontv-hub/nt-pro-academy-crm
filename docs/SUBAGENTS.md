@@ -3,6 +3,16 @@
 Erweiterung zum JIBSON BUILD SYSTEM Master-Prompt.
 **Scope:** ausschließlich CRM-App (alles andere → eigene Prompts).
 
+## 🚀 ONE-COMMAND-VERIFY (vor jedem Push)
+
+```bash
+bash scripts/pre_push.sh                          # gegen lokal-Server (auto-startet)
+bash scripts/pre_push.sh https://prod-url         # gegen LIVE
+```
+
+Fährt Flask hoch, lässt alle 3 Spezialisten-Agenten durchlaufen, räumt auf.
+Exit 0 = grün — bereit zum Push. Exit !=0 = mindestens 1 Agent rot.
+
 ## Die ursprünglichen 5 Subagents
 1. 🎤 Discovery-Agent (Interviewer)
 2. 🔍 Research-Agent
