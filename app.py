@@ -176,9 +176,20 @@ def get_next_level(current_level):
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH, timeout=10.0)
+    """Liefert eine SQLite-Connection mit WAL-Mode für hohe Concurrency.
+    WAL erlaubt parallele Reads + 1 Writer ohne 'database is locked'-Fehler."""
+    conn = sqlite3.connect(DB_PATH, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA foreign_keys = ON')
+    # WAL-Mode: parallele Reads, schnelle Writes, weniger Locks
+    conn.execute('PRAGMA journal_mode=WAL')
+    # Wenn DB doch mal locked → 30s warten statt sofort fail
+    conn.execute('PRAGMA busy_timeout=30000')
+    # Schneller writes (sicher genug für Web-App, kein DB-Verlust nur letzte Sekunden)
+    conn.execute('PRAGMA synchronous=NORMAL')
+    # Foreign-Keys aktiv
+    conn.execute('PRAGMA foreign_keys=ON')
+    # Cache-Size ~10MB
+    conn.execute('PRAGMA cache_size=-10000')
     return conn
 
 
