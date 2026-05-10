@@ -3433,7 +3433,11 @@ def get_struktur_news(user_id, days=7, limit=8):
     cached_v = cache_get(ckey)
     if cached_v is not None:
         return cached_v
-    result = _get_struktur_news_uncached(user_id, days, limit)
+    try:
+        result = _get_struktur_news_uncached(user_id, days, limit)
+    except Exception as ex:
+        print(f"[get_struktur_news] failed: {ex}")
+        result = None
     cache_set(ckey, result, ttl=300)
     return result
 
@@ -3568,12 +3572,16 @@ def _get_struktur_news_uncached(user_id, days=7, limit=8):
 
 
 def get_strang_status(user_id):
-    """Cached für 2 Min."""
+    """Cached für 2 Min — robust gegen Crashes."""
     ckey = f'strang:{user_id}'
     cached_v = cache_get(ckey)
     if cached_v is not None:
         return cached_v
-    result = _get_strang_status_uncached(user_id)
+    try:
+        result = _get_strang_status_uncached(user_id)
+    except Exception as e:
+        print(f'[strang] failed: {e}')
+        result = None
     cache_set(ckey, result, ttl=120)
     return result
 
@@ -3677,7 +3685,11 @@ def get_coach_actions(user_id, max_actions=5):
     cached_v = cache_get(ckey)
     if cached_v is not None:
         return cached_v
-    result = _get_coach_actions_uncached(user_id, max_actions)
+    try:
+        result = _get_coach_actions_uncached(user_id, max_actions)
+    except Exception as ex:
+        print(f"[get_coach_actions] failed: {ex}")
+        result = None
     cache_set(ckey, result, ttl=120)
     return result
 
@@ -3901,7 +3913,11 @@ def get_quoten_forecast(user_id, days=30):
     cached_v = cache_get(ckey)
     if cached_v is not None:
         return cached_v
-    result = _get_quoten_forecast_uncached(user_id, days)
+    try:
+        result = _get_quoten_forecast_uncached(user_id, days)
+    except Exception as ex:
+        print(f"[get_quoten_forecast] failed: {ex}")
+        result = None
     cache_set(ckey, result, ttl=300)
     return result
 
@@ -5495,7 +5511,11 @@ def get_admin_personal_dashboard(user_id):
     cached_v = cache_get(ckey)
     if cached_v is not None:
         return cached_v
-    result = _get_admin_personal_dashboard_uncached(user_id)
+    try:
+        result = _get_admin_personal_dashboard_uncached(user_id)
+    except Exception as ex:
+        print(f"[get_admin_personal_dashboard] failed: {ex}")
+        result = None
     cache_set(ckey, result, ttl=180)
     return result
 
