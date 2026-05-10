@@ -228,7 +228,7 @@ DU HAST AKTUELL:
 Diese müssen bis zum Eingabeschluss FERTIG sein, sonst zählen die EH erst im nächsten Monat!
 
 Was du jetzt machst:
-1. Geh ins NT Pro Academy Control Hub
+1. Geh ins Pro Academy Control Hub
 2. Klick auf "Verträge"
 3. Setz alle offenen auf "abgeschlossen" + freigegebene Recherche
 
@@ -236,7 +236,7 @@ Wenn du Hilfe brauchst — meld dich bei deinem Upline.
 
 Komm, das schaffst du! 🚀
 
-NT Pro Academy"""
+Pro Academy"""
 
         html = f"""<!DOCTYPE html><html><body style="font-family:Inter,Arial,sans-serif;background:#f6f7fb;margin:0;padding:24px">
 <table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;border:1px solid #ebeef4;overflow:hidden">
@@ -268,7 +268,7 @@ NT Pro Academy"""
 <p style="color:#64748b;font-size:13px">NTcoach</p>
 </td></tr>
 <tr><td style="padding:18px 28px;background:#fafbfc;color:#94a3b8;font-size:11px;border-top:1px solid #ebeef4">
-NT Pro Academy · Automatische Erinnerung 3 Tage vor Produktionsschluss
+Pro Academy · Automatische Erinnerung 3 Tage vor Produktionsschluss
 </td></tr></table></body></html>"""
 
         ok, _ = send_email(r['email'], subject, text, body_html=html, sent_by=None)
@@ -496,7 +496,7 @@ def send_email(to, subject, body_text, body_html=None, sent_by=None):
     smtp_port = int(get_setting('smtp_port', '587'))
     smtp_user = get_setting('smtp_user')
     smtp_password = get_setting('smtp_password')
-    sender_name = get_setting('smtp_from_name', 'NT Pro Academy')
+    sender_name = get_setting('smtp_from_name', 'Pro Academy')
     sender_email = get_setting('smtp_from_email', smtp_user)
 
     if not all([smtp_host, smtp_user, smtp_password]):
@@ -677,7 +677,7 @@ def chat_with_assistant(user_id, user_message):
     if not ctx:
         return None, 'User-Daten nicht gefunden.'
 
-    system_prompt = f"""Du bist NTcoach — ein KI-Assistent für Strukturvertrieb-Profis bei NT Pro Academy.
+    system_prompt = f"""Du bist NTcoach — ein KI-Assistent für Strukturvertrieb-Profis bei Pro Academy.
 
 DEINE PERSÖNLICHKEIT:
 - Du sprichst direkt, klar, motivierend — wie ein erfahrener Mentor mit Vertriebs-Erfahrung
@@ -1099,7 +1099,7 @@ def send_lead_confirmation_email(lead_email, lead_name):
 
     text = f"""Hi {first_name},
 
-vielen Dank für deine Anmeldung bei NT Pro Academy! 🎉
+vielen Dank für deine Anmeldung bei Pro Academy! 🎉
 
 Wir haben deine Daten erhalten und melden uns innerhalb von 24-48 Stunden bei dir.
 
@@ -1116,7 +1116,7 @@ Was dich bei uns erwartet:
 
 Bis ganz bald! 🚀
 
-Team NT Pro Academy
+Team Pro Academy
 
 ---
 Diese E-Mail wurde automatisch versendet, weil du dich bei uns angemeldet hast.
@@ -1127,7 +1127,7 @@ Wenn du das nicht warst, ignoriere bitte diese Nachricht."""
 <tr><td style="padding:40px 28px;background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 100%);text-align:center">
 <div style="font-size:48px;margin-bottom:12px">✅</div>
 <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-0.4px">Anmeldung erhalten!</div>
-<div style="font-size:13px;color:#d4a843;letter-spacing:1.5px;text-transform:uppercase;margin-top:8px;font-weight:700">NT Pro Academy</div>
+<div style="font-size:13px;color:#d4a843;letter-spacing:1.5px;text-transform:uppercase;margin-top:8px;font-weight:700">Pro Academy</div>
 </td></tr>
 <tr><td style="padding:32px 28px;color:#0f172a;line-height:1.6;font-size:15px">
 <p>Hi <strong>{first_name}</strong>,</p>
@@ -1154,7 +1154,7 @@ Wir haben deine Daten erhalten und melden uns <strong style="color:#b8902e">inne
 </div>
 
 <p>Bis ganz bald!</p>
-<p style="color:#64748b;font-size:13px;margin-top:24px">Team NT Pro Academy 🚀</p>
+<p style="color:#64748b;font-size:13px;margin-top:24px">Team Pro Academy 🚀</p>
 </td></tr>
 <tr><td style="padding:18px 28px;background:#fafbfc;color:#94a3b8;font-size:11px;border-top:1px solid #ebeef4;border-radius:0 0 14px 14px">
 Diese E-Mail wurde automatisch versendet. Wenn du dich nicht angemeldet hast, ignoriere bitte diese Nachricht.<br>
@@ -1169,14 +1169,14 @@ def send_welcome_email(user_email, user_name, password, sender_name='dein Upline
     if not is_smtp_configured():
         return False, 'SMTP nicht konfiguriert'
 
-    subject = f'🎉 Willkommen bei NT Pro Academy, {user_name.split()[0]}!'
+    subject = f'🎉 Willkommen bei Pro Academy, {user_name.split()[0]}!'
     base_url = get_setting('app_base_url', 'http://localhost:5001')
 
     text = f"""Hi {user_name.split()[0]},
 
 willkommen im Team! 🚀
 
-Du hast ab sofort Zugang zum NT Pro Academy Control Hub.
+Du hast ab sofort Zugang zum Pro Academy Control Hub.
 
 Deine Login-Daten:
 🔑 E-Mail: {user_email}
@@ -1202,11 +1202,11 @@ Lass uns starten! 💪
 <tr><td style="padding:36px 28px;background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 100%);text-align:center">
 <div style="font-size:36px;margin-bottom:8px">⚡</div>
 <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-0.4px">Willkommen, {user_name.split()[0]}!</div>
-<div style="font-size:13px;color:#d4a843;letter-spacing:1.5px;text-transform:uppercase;margin-top:8px;font-weight:700">NT Pro Academy · Control Hub</div>
+<div style="font-size:13px;color:#d4a843;letter-spacing:1.5px;text-transform:uppercase;margin-top:8px;font-weight:700">Pro Academy · Control Hub</div>
 </td></tr>
 <tr><td style="padding:32px 28px;color:#0f172a;line-height:1.6;font-size:15px">
 <p>Hi <strong>{user_name.split()[0]}</strong>,</p>
-<p>willkommen im Team! 🚀 Du hast ab sofort Zugang zum NT Pro Academy Control Hub.</p>
+<p>willkommen im Team! 🚀 Du hast ab sofort Zugang zum Pro Academy Control Hub.</p>
 
 <div style="background:#faf6ec;border:1px solid #e8d59a;border-radius:12px;padding:20px;margin:20px 0">
 <div style="font-size:11px;color:#7a5c1a;text-transform:uppercase;letter-spacing:1px;font-weight:800;margin-bottom:10px">🔑 Deine Login-Daten</div>
@@ -1236,7 +1236,7 @@ Lass uns starten! 💪
 <p style="color:#64748b;font-size:13px">{sender_name}</p>
 </td></tr>
 <tr><td style="padding:18px 28px;background:#fafbfc;color:#94a3b8;font-size:11px;border-top:1px solid #ebeef4">
-NT Pro Academy · Control Hub · Diese E-Mail wurde automatisch beim Anlegen deines Accounts versendet.
+Pro Academy · Control Hub · Diese E-Mail wurde automatisch beim Anlegen deines Accounts versendet.
 </td></tr></table></body></html>"""
 
     return send_email(user_email, subject, text, body_html=html, sent_by=None)
@@ -2620,7 +2620,7 @@ def admin_email_settings():
         'smtp_host': get_setting('smtp_host'),
         'smtp_port': get_setting('smtp_port', '587'),
         'smtp_user': get_setting('smtp_user'),
-        'smtp_from_name': get_setting('smtp_from_name', 'NT Pro Academy'),
+        'smtp_from_name': get_setting('smtp_from_name', 'Pro Academy'),
         'smtp_from_email': get_setting('smtp_from_email'),
         'has_password': bool(get_setting('smtp_password')),
     }
@@ -2648,9 +2648,9 @@ def admin_email_test():
         flash('Bitte E-Mail-Adresse angeben', 'error')
         return redirect(url_for('admin_email_settings'))
     ok, err = send_email(to_email,
-                         '✅ Test-E-Mail von NT Pro Academy',
+                         '✅ Test-E-Mail von Pro Academy',
                          f'Hallo!\n\nDies ist eine Test-E-Mail von deinem Control Hub.\nWenn du das siehst, ist alles richtig konfiguriert! 🎉\n\nGesendet: {datetime.now().strftime("%d.%m.%Y %H:%M")}',
-                         body_html=f'<h2 style="color:#0f1c3f">✅ Test erfolgreich!</h2><p>Dies ist eine Test-E-Mail von deinem <strong>NT Pro Academy Control Hub</strong>.</p><p>Wenn du das siehst, ist alles richtig konfiguriert! 🎉</p><p style="color:#94a3b8;font-size:12px">Gesendet: {datetime.now().strftime("%d.%m.%Y %H:%M")}</p>',
+                         body_html=f'<h2 style="color:#0f1c3f">✅ Test erfolgreich!</h2><p>Dies ist eine Test-E-Mail von deinem <strong>Pro Academy Control Hub</strong>.</p><p>Wenn du das siehst, ist alles richtig konfiguriert! 🎉</p><p style="color:#94a3b8;font-size:12px">Gesendet: {datetime.now().strftime("%d.%m.%Y %H:%M")}</p>',
                          sent_by=current_user.id)
     if ok:
         flash(f'✅ Test-E-Mail erfolgreich an {to_email} gesendet!', 'success')
@@ -2739,7 +2739,7 @@ def admin_mail():
         html_body = f'''<!DOCTYPE html><html><body style="font-family:Inter,sans-serif;background:#f6f7fb;margin:0;padding:24px">
 <table cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;border:1px solid #ebeef4">
 <tr><td style="padding:24px 28px;background:#0f1c3f;border-radius:14px 14px 0 0;color:#fff">
-<div style="font-size:20px;font-weight:800">NT Pro Academy</div>
+<div style="font-size:20px;font-weight:800">Pro Academy</div>
 <div style="font-size:11px;color:#d4a843;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px">Control Hub</div>
 </td></tr>
 <tr><td style="padding:28px;color:#0f172a;line-height:1.6;font-size:15px">{body.replace(chr(10), '<br>')}</td></tr>
@@ -4732,28 +4732,28 @@ def push_test():
 def web_app_manifest():
     """PWA Manifest — Android Home-Screen + Browser-Hint 'App installieren'."""
     return jsonify({
-        'name': 'NT Pro Academy',
-        'short_name': 'NT Pro',
-        'description': 'Strukturvertrieb-Cockpit · Karriere, Provisionen & Coaching',
+        'name': 'Pro Academy',
+        'short_name': 'Pro Academy',
+        'description': 'Lernen. Wachsen. Erfolgreich sein. · Karriere, Provisionen & Coaching',
         'start_url': '/dashboard',
         'scope': '/',
         'display': 'standalone',
         'display_override': ['standalone', 'minimal-ui'],
         'orientation': 'portrait',
-        'theme_color': '#0f1c3f',
-        'background_color': '#0a0e1a',
+        'theme_color': '#000000',
+        'background_color': '#000000',
         'lang': 'de',
         'dir': 'ltr',
         'categories': ['business', 'productivity', 'finance'],
         'icons': [
-            {'src': '/static/icons/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any maskable'},
-            {'src': '/static/icons/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any maskable'},
-            {'src': '/static/icons/apple-touch-icon.png', 'sizes': '180x180', 'type': 'image/png'},
+            {'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any maskable'},
+            {'src': '/static/icons/pa-icon-512.png?v=2', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any maskable'},
+            {'src': '/static/icons/pa-apple-touch.png?v=2', 'sizes': '180x180', 'type': 'image/png'},
         ],
         'shortcuts': [
-            {'name': 'Dashboard', 'url': '/dashboard', 'icons': [{'src': '/static/icons/icon-192.png', 'sizes': '192x192'}]},
-            {'name': 'NTcoach', 'url': '/assistent', 'icons': [{'src': '/static/icons/icon-192.png', 'sizes': '192x192'}]},
-            {'name': 'Tagesaufgaben', 'url': '/aufgaben', 'icons': [{'src': '/static/icons/icon-192.png', 'sizes': '192x192'}]},
+            {'name': 'Dashboard', 'url': '/dashboard', 'icons': [{'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192'}]},
+            {'name': 'Assistent', 'url': '/assistent', 'icons': [{'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192'}]},
+            {'name': 'Tagesaufgaben', 'url': '/aufgaben', 'icons': [{'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192'}]},
         ],
     })
 
@@ -8171,7 +8171,7 @@ _threading.Thread(target=_warm_cache_background, daemon=True, name='cache-warmer
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("✅ NT Pro Academy – Control Hub gestartet!")
+    print("✅ Pro Academy – Control Hub gestartet!")
     print("="*60)
     print("🌐 Öffne: http://localhost:5001")
     print("📧 Admin Login: najib@ntpro.de")

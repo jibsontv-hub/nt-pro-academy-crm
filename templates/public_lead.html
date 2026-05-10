@@ -10,13 +10,13 @@
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="NT Pro Academy">
+<meta name="apple-mobile-web-app-title" content="Pro Academy">
 <meta name="theme-color" content="#0f1c3f">
 <meta name="description" content="Werde finanziell unabhängig. Ehrliche Beratung statt Hardsell. Vermögensaufbau, Familienabsicherung, Karriere im Finanzbereich.">
-<meta property="og:title" content="NT Pro Academy — Finanziell unabhängig werden">
+<meta property="og:title" content="Pro Academy — Finanziell unabhängig werden">
 <meta property="og:description" content="Wir helfen Menschen, mit ihren Finanzen besser umzugehen. Ehrlich. Persönlich. Mit System.">
 <meta property="og:type" content="website">
-<title>NT Pro Academy — Finanziell unabhängig werden</title>
+<title>Pro Academy — Finanziell unabhängig werden</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -40,11 +40,13 @@ body::before {
 /* ── Brand Header ── */
 .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 50px; }
 .brand-icon {
-    width: 44px; height: 44px; border-radius: 12px;
-    background: linear-gradient(135deg, #d4a843, #b8902e);
-    color: #0f1c3f; font-weight: 900; font-size: 16px;
+    width: 48px; height: 48px; border-radius: 12px;
+    background: #000;
+    color: #d4a843; font-weight: 900; font-size: 16px;
     display: flex; align-items: center; justify-content: center;
+    overflow: hidden; flex-shrink: 0;
 }
+.brand-icon img { width: 100%; height: 100%; object-fit: cover; object-position: center 32%; display: block; }
 .brand-text strong { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; display: block; }
 .brand-text small { font-size: 11px; color: #64748b; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; }
 
@@ -265,10 +267,10 @@ textarea.in { resize: vertical; min-height: 70px; }
 <body>
 <div class="wrap">
     <div class="brand">
-        <div class="brand-icon">NT</div>
+        <div class="brand-icon"><img src="/static/icons/pa-logo.png?v=1" alt="Pro Academy" onerror="this.parentElement.innerText='PA'"></div>
         <div class="brand-text">
-            <strong>NT Pro Academy</strong>
-            <small>Finanzen · Vermögen · Karriere</small>
+            <strong>Pro Academy</strong>
+            <small>Lernen · Wachsen · Erfolgreich sein</small>
         </div>
     </div>
 
@@ -306,7 +308,7 @@ textarea.in { resize: vertical; min-height: 70px; }
                 <img src="/static/icons/najib-founder.jpg" alt="Najib Tchatikpi" class="founder-photo" loading="lazy" decoding="async" onerror="this.src='/static/icons/coach-figure-200.jpg'">
                 <div class="founder-text">
                     <div class="founder-name">Najib Tchatikpi</div>
-                    <div class="founder-role">Berater & Gründer · NT Pro Academy</div>
+                    <div class="founder-role">Berater & Gründer · Pro Academy</div>
                 </div>
             </div>
         </div>
@@ -445,7 +447,7 @@ textarea.in { resize: vertical; min-height: 70px; }
             <img src="/static/icons/najib-founder.jpg" alt="Najib Tchatikpi" class="vision-photo" loading="lazy" decoding="async" onerror="this.src='/static/icons/coach-figure-200.jpg'">
             <div class="vision-author-text">
                 <div class="vision-author-name">Najib Tchatikpi</div>
-                <div class="vision-author-role">Gründer NT Pro Academy</div>
+                <div class="vision-author-role">Gründer Pro Academy</div>
             </div>
         </div>
 
@@ -468,7 +470,7 @@ textarea.in { resize: vertical; min-height: 70px; }
     {% endif %}
 
     <div class="footer">
-        © 2026 NT Pro Academy
+        © 2026 Pro Academy
         <a href="/datenschutz">Datenschutz</a>
         <a href="/login">Login für Mitglieder</a>
     </div>

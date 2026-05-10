@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NT Pro">
 <meta name="theme-color" content="#0f1c3f">
-    <title>Login – NT Pro Academy Control Hub</title>
+    <title>Login – Pro Academy Control Hub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -58,13 +58,15 @@
         }
         .left > * { position: relative; z-index: 1; }
         .brand-icon {
-            width: 52px; height: 52px; border-radius: 14px;
-            background: linear-gradient(135deg, rgba(212,168,67,0.28), rgba(212,168,67,0.12));
+            width: 64px; height: 64px; border-radius: 14px;
+            background: #000;
             border: 1px solid rgba(212,168,67,0.35);
             color: #d4a843; display: flex; align-items: center; justify-content: center;
             font-weight: 800; font-size: 17px; margin-bottom: 28px;
             box-shadow: 0 8px 24px rgba(212,168,67,0.15), inset 0 1px 0 rgba(212,168,67,0.4);
+            overflow: hidden;
         }
+        .brand-icon img { width: 100%; height: 100%; object-fit: cover; object-position: center 32%; display: block; }
         .brand-title {
             font-size: 30px; font-weight: 900; letter-spacing: -0.7px; margin-bottom: 8px;
             background: linear-gradient(135deg, #fff 0%, #d4a843 100%);
@@ -131,8 +133,8 @@
     <div class="layout">
         <div class="left">
             <div>
-                <div class="brand-icon">NT</div>
-                <div class="brand-title">NT Pro Academy</div>
+                <div class="brand-icon"><img src="/static/icons/pa-logo.png?v=1" alt="Pro Academy" onerror="this.parentElement.innerText='PA'"></div>
+                <div class="brand-title">Pro Academy</div>
                 <div class="brand-subtitle">Control Hub</div>
 
                 <div class="pitch">
@@ -150,7 +152,7 @@
                     </div>
                 </div>
             </div>
-            <div class="footer-note">© NT Pro Academy · Strukturvertrieb-Management</div>
+            <div class="footer-note">© Pro Academy · Strukturvertrieb-Management</div>
         </div>
         <div class="right">
             <h1>Willkommen zurück</h1>

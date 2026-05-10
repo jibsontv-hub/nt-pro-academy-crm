@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}E-Mail-Einstellungen – NT Pro Academy{% endblock %}
+{% block title %}E-Mail-Einstellungen – Pro Academy{% endblock %}
 {% block page_title %}📧 E-Mail-Versand konfigurieren{% endblock %}
 {% block topbar_actions %}
 {% if configured %}<a href="/admin/mail" class="btn btn-primary">📨 Mail senden</a>{% endif %}
@@ -73,7 +73,7 @@
             </div>
             <div class="form-group">
                 <label>Absender-Name</label>
-                <input type="text" name="smtp_from_name" value="{{ settings.smtp_from_name }}" placeholder="NT Pro Academy">
+                <input type="text" name="smtp_from_name" value="{{ settings.smtp_from_name }}" placeholder="Pro Academy">
             </div>
             <div class="form-group">
                 <label>Absender-E-Mail (verifiziert!)</label>
