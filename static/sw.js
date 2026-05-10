@@ -1,7 +1,9 @@
-// NT Pro Academy — Service Worker
+// NT Pro Academy — Service Worker v5
 // Stellt Offline-Fähigkeit + Push-Notifications bereit.
+// v5: NUKE-RESET — alte Caches werden ALLE gelöscht (nicht nur ältere Versionen),
+// und alle offenen Tabs kriegen FORCE_RELOAD damit sie sich frisch holen.
 
-const CACHE_VERSION = 'ntpro-v4';
+const CACHE_VERSION = 'ntpro-v5';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -25,15 +27,22 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// === ACTIVATE — alte Caches löschen ===
+// === ACTIVATE — NUKE-RESET ===
 self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then(keys => {
-            return Promise.all(
-                keys.filter(k => !k.startsWith(CACHE_VERSION)).map(k => caches.delete(k))
-            );
-        }).then(() => self.clients.claim())
-    );
+    event.waitUntil((async () => {
+        // 1. ALLE Caches löschen die nicht zur aktuellen Version gehören
+        const keys = await caches.keys();
+        await Promise.all(
+            keys.filter(k => !k.startsWith(CACHE_VERSION)).map(k => caches.delete(k))
+        );
+        // 2. Sofort alle Clients (Tabs) übernehmen — auch die schon offen sind
+        await self.clients.claim();
+        // 3. Allen Tabs sagen: lade neu! (nur einmal pro SW-Update)
+        const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of allClients) {
+            client.postMessage({ type: 'FORCE_RELOAD', version: CACHE_VERSION });
+        }
+    })());
 });
 
 // === FETCH ===
@@ -49,8 +58,6 @@ self.addEventListener('fetch', (event) => {
 
     // POST/API niemals cachen
     if (req.url.includes('/api/') || req.url.includes('/admin/')) return;
-
-    const url = new URL(req.url);
 
     // Static assets: cache-first
     if (req.url.includes('/static/') || req.url.endsWith('.svg') || req.url.endsWith('.css') || req.url.endsWith('.js') || req.url.endsWith('.jpg') || req.url.endsWith('.png')) {
@@ -88,6 +95,22 @@ self.addEventListener('fetch', (event) => {
                 })
         );
         return;
+    }
+});
+
+// === MESSAGE — Manueller Reset über Client-API ===
+// Frontend kann `navigator.serviceWorker.controller.postMessage({type:'NUKE_CACHE'})` schicken,
+// dann werden alle Caches sofort gelöscht und Reload getriggert.
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'NUKE_CACHE') {
+        event.waitUntil((async () => {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+            const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+            for (const client of allClients) {
+                client.postMessage({ type: 'FORCE_RELOAD', version: CACHE_VERSION });
+            }
+        })());
     }
 });
 

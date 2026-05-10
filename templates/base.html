@@ -2057,12 +2057,39 @@
         </div>
     </div>
     <script>
-        // === Service Worker Registration ===
+        // === Service Worker Registration + FORCE_RELOAD-Listener ===
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js', { scope: '/' })
-                    .then(reg => { console.log('[NTpro] SW registered'); })
+                    .then(reg => {
+                        console.log('[NTpro] SW registered');
+                        // Auf neue SW-Version prüfen — wenn da, sofort übernehmen lassen
+                        reg.addEventListener('updatefound', () => {
+                            const sw = reg.installing;
+                            if (sw) {
+                                sw.addEventListener('statechange', () => {
+                                    if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+                                        console.log('[NTpro] Neue SW installiert, übernehme ...');
+                                    }
+                                });
+                            }
+                        });
+                    })
                     .catch(err => console.warn('[NTpro] SW failed', err));
+            });
+            // Auf FORCE_RELOAD vom SW reagieren — Loop-Schutz: max. 1× pro 30s
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'FORCE_RELOAD') {
+                    const lastReload = parseInt(sessionStorage.getItem('ntpro-last-force-reload') || '0');
+                    const now = Date.now();
+                    if (now - lastReload < 30000) {
+                        console.log('[NTpro] FORCE_RELOAD ignoriert (Loop-Schutz)');
+                        return;
+                    }
+                    sessionStorage.setItem('ntpro-last-force-reload', String(now));
+                    console.log('[NTpro] FORCE_RELOAD: SW v' + (event.data.version || '?') + ' aktiviert · Reload ...');
+                    location.reload();
+                }
             });
         }
 
