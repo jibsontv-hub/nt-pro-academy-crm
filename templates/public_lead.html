@@ -84,10 +84,11 @@ body::before {
     border-radius: 14px; max-width: 480px;
 }
 .founder-photo {
-    width: 56px; height: 56px; border-radius: 50%;
-    object-fit: cover; flex-shrink: 0;
-    border: 2px solid rgba(212,168,67,0.4);
-    box-shadow: 0 4px 14px rgba(212,168,67,0.2);
+    width: 64px; height: 64px; border-radius: 50%;
+    object-fit: cover; object-position: center 25%;
+    flex-shrink: 0;
+    border: 2px solid rgba(212,168,67,0.5);
+    box-shadow: 0 4px 18px rgba(212,168,67,0.25);
 }
 .founder-text { flex: 1; }
 .founder-name { font-weight: 700; font-size: 14px; }
@@ -210,8 +211,10 @@ textarea.in { resize: vertical; min-height: 70px; }
 @media (max-width: 600px) { .vision-quote { font-size: 18px; } }
 .vision-author { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .vision-photo {
-    width: 48px; height: 48px; border-radius: 50%; object-fit: cover;
+    width: 56px; height: 56px; border-radius: 50%;
+    object-fit: cover; object-position: center 25%;
     border: 2px solid rgba(212,168,67,0.5);
+    box-shadow: 0 4px 14px rgba(212,168,67,0.2);
 }
 .vision-author-text { text-align: left; }
 .vision-author-name { font-weight: 700; font-size: 14px; }
@@ -276,12 +279,12 @@ textarea.in { resize: vertical; min-height: 70px; }
             <h2>{% if duplicate %}Wir kennen dich schon!{% else %}Vielen Dank!{% endif %}</h2>
             <p>
                 {% if duplicate %}
-                Mit dieser E-Mail haben wir bereits eine Anfrage von dir. Wir melden uns sobald jemand verfügbar ist.
+                Mit dieser E-Mail hast du dich schon mal gemeldet. Ich komme auf dich zu sobald ich kann.
                 {% else %}
-                Deine Anfrage ist eingegangen.<br>
-                <strong style="color:#d4a843">Najib oder ein Team-Mitglied meldet sich innerhalb von 24-48 Std. persönlich bei dir.</strong>
+                Deine Nachricht ist bei mir.<br>
+                <strong style="color:#d4a843">Ich melde mich persönlich innerhalb von 24-48 Std. bei dir.</strong>
                 <br><br>
-                In der Zwischenzeit: schau auf unseren Social-Media-Kanälen vorbei — dort gibt's regelmäßig Infos rund um Vermögensaufbau, Finanzen und unser Team.
+                Bis dahin: schau auf meinem Insta &amp; YouTube vorbei — da gibt's regelmäßig Stuff zu Geld, Vermögen und wie ich arbeite.
                 {% endif %}
             </p>
         </div>
@@ -291,26 +294,27 @@ textarea.in { resize: vertical; min-height: 70px; }
     <!-- ═══════════════ HERO ═══════════════ -->
     <div class="hero">
         <div class="hero-left">
-            <div class="badge">⚡ Kostenloses Erstgespräch · keine Verpflichtung</div>
-            <h1>Geld verdienen ist eine Sache.<br><span class="accent">Geld behalten</span> ist die andere.</h1>
+            <div class="badge">⚡ Erstgespräch ist immer kostenlos · keine Verpflichtung</div>
+            <h1>Du arbeitest. Du verdienst.<br>Und trotzdem bleibt am Ende <span class="accent">nichts übrig?</span></h1>
             <p class="lead">
-                Du arbeitest hart — und am Monatsende ist trotzdem nichts übrig?
-                <strong>Wir helfen Menschen, ihre Finanzen endlich in den Griff zu bekommen.</strong>
-                Ehrlich. Persönlich. Ohne Verkaufsmasche.
+                Dann lass uns mal sprechen.<br><br>
+                Ich helfe Menschen, mit ihren Finanzen klarzukommen — ohne dass dir irgendwas angedreht wird.
+                <strong>Du verstehst was du machst, du entscheidest was du machst.</strong>
+                Mehr braucht's nicht.
             </p>
             <div class="founder">
-                <img src="/static/icons/coach-figure-200.jpg" alt="Najib Tchatikpi" class="founder-photo" loading="lazy" decoding="async">
+                <img src="/static/icons/najib-founder.jpg" alt="Najib Tchatikpi" class="founder-photo" loading="lazy" decoding="async" onerror="this.src='/static/icons/coach-figure-200.jpg'">
                 <div class="founder-text">
                     <div class="founder-name">Najib Tchatikpi</div>
-                    <div class="founder-role">Gründer NT Pro Academy · Vermögensmentor</div>
+                    <div class="founder-role">Berater & Gründer · NT Pro Academy</div>
                 </div>
             </div>
         </div>
 
         <!-- ═══════ FORM ═══════ -->
         <form class="form-card" method="POST" id="leadForm">
-            <div class="form-title">Lass uns kurz reden</div>
-            <div class="form-sub">Wir melden uns innerhalb von <strong style="color:#d4a843">24-48 Std.</strong> bei dir — kostenlos &amp; unverbindlich.</div>
+            <div class="form-title">Schreib mir kurz</div>
+            <div class="form-sub">Ich melde mich innerhalb von <strong style="color:#d4a843">24-48 Std.</strong> bei dir zurück — kostenlos, unverbindlich, kein Verkaufsgespräch.</div>
 
             {% if error %}<div class="error-box">⚠️ {{ error }}</div>{% endif %}
 
@@ -320,14 +324,14 @@ textarea.in { resize: vertical; min-height: 70px; }
                 <label class="path-option active" id="opt-beratung">
                     <input type="radio" name="interesse" value="beratung" checked>
                     <span class="ico">💡</span>
-                    Finanz-Beratung
-                    <span class="sub">Vermögen aufbauen, Familie absichern</span>
+                    Beratung für mich
+                    <span class="sub">Mit Geld besser umgehen, Familie absichern</span>
                 </label>
                 <label class="path-option" id="opt-karriere">
                     <input type="radio" name="interesse" value="karriere">
                     <span class="ico">🚀</span>
-                    Karriere im Team
-                    <span class="sub">Selbst Berater werden, eigenes Business</span>
+                    Bei dir mitmachen
+                    <span class="sub">Selbst beraten, eigenes Business aufbauen</span>
                 </label>
             </div>
 
@@ -353,14 +357,14 @@ textarea.in { resize: vertical; min-height: 70px; }
                 </label>
             </div>
 
-            <button type="submit" class="btn-submit">Kostenloses Gespräch anfragen →</button>
+            <button type="submit" class="btn-submit">Schreib mir →</button>
         </form>
     </div>
 
     <!-- ═══════════════ DIE PROBLEME ═══════════════ -->
     <div style="margin-top: 80px">
-        <div class="section-h">Warum dieser Termin sich lohnt</div>
-        <h2 class="section-h2">Vielleicht erkennst du dich hier wieder.</h2>
+        <div class="section-h">Klingt das vertraut?</div>
+        <h2 class="section-h2">Damit kommen die meisten zu mir.</h2>
         <div class="problems">
             <div class="problem">
                 <div class="problem-q">„Mein Geld läuft monatlich einfach weg."</div>
@@ -391,38 +395,38 @@ textarea.in { resize: vertical; min-height: 70px; }
 
     <!-- ═══════════════ DIE LÖSUNG ═══════════════ -->
     <div style="margin-top: 90px">
-        <div class="section-h">So helfen wir dir</div>
-        <h2 class="section-h2">Klare Antworten. Echtes System.<br>Persönliche Begleitung.</h2>
+        <div class="section-h">Was du bei mir kriegst</div>
+        <h2 class="section-h2">Ehrlich. Persönlich.<br>Du verstehst was passiert.</h2>
         <div class="solutions">
             <div class="solution">
                 <div class="solution-icon">💼</div>
                 <div class="solution-title">Finanz-Check ohne Druck</div>
-                <div class="solution-desc">Wir analysieren ehrlich deine Situation. Du erfährst was sinnvoll ist und was du dir sparen kannst — auch wenn du nichts bei uns abschließt.</div>
+                <div class="solution-desc">Wir gucken uns gemeinsam an wo du stehst. Ich sage dir ehrlich was sinnvoll ist — und auch was du dir sparen kannst. Auch wenn du am Ende nichts abschließt.</div>
             </div>
             <div class="solution">
                 <div class="solution-icon">🛡</div>
                 <div class="solution-title">Familie absichern</div>
-                <div class="solution-desc">Berufsunfähigkeit, Risikolebens, Pflege — wir bauen einen einfachen Plan, der zu deinem Budget passt. Ohne Überversicherung.</div>
+                <div class="solution-desc">Was passiert wenn dir morgen was passiert? Wir bauen einen einfachen Schutz für dich und deine Liebsten. Nichts was du nicht brauchst.</div>
             </div>
             <div class="solution">
                 <div class="solution-icon">📈</div>
                 <div class="solution-title">Vermögen aufbauen</div>
-                <div class="solution-desc">ETFs, Fonds, Immobilien — was passt zu DIR? Wir zeigen dir verschiedene Wege und du entscheidest. Keine Black-Box-Produkte.</div>
+                <div class="solution-desc">ETFs, Fonds, Immobilien — was passt zu DIR? Ich zeige dir verschiedene Wege. Du entscheidest. Keine Black-Box, kein "vertrau mir einfach".</div>
             </div>
             <div class="solution">
                 <div class="solution-icon">🏠</div>
-                <div class="solution-title">Eigenheim-Strategie</div>
-                <div class="solution-desc">Eigenkapital aufbauen, Förderungen ausnutzen, Finanzierung vorbereiten. Auch wenn's noch 5 Jahre dauert.</div>
+                <div class="solution-title">Richtung Eigenheim</div>
+                <div class="solution-desc">Eigenkapital aufbauen, Förderungen ausnutzen, Finanzierung vorbereiten. Auch wenn's noch 5 Jahre dauert — wir fangen jetzt an.</div>
             </div>
             <div class="solution">
                 <div class="solution-icon">📚</div>
-                <div class="solution-title">Finanz-Bildung</div>
-                <div class="solution-desc">Du verstehst jeden Schritt. Wir erklären in deiner Sprache, ohne Banker-Deutsch und Gebühren-Versteckspielchen.</div>
+                <div class="solution-title">Du verstehst jeden Schritt</div>
+                <div class="solution-desc">Kein Banker-Deutsch, kein Kleingedrucktes-Versteckspiel. Wenn du was nicht verstehst, frag — bis es klar ist.</div>
             </div>
             <div class="solution">
                 <div class="solution-icon">🚀</div>
-                <div class="solution-title">Karriere im Finanzbereich</div>
-                <div class="solution-desc">Du willst selbst beraten und ein eigenes Business aufbauen? Wir bilden aus, geben dir Tools und Begleitung — Quereinsteiger willkommen.</div>
+                <div class="solution-title">Selbst Berater werden</div>
+                <div class="solution-desc">Du willst nicht nur beraten werden, sondern selbst beraten? Eigenes Business aufbauen? Komm ins Team. Quereinsteiger willkommen, egal woher du kommst.</div>
             </div>
         </div>
     </div>
@@ -438,7 +442,7 @@ textarea.in { resize: vertical; min-height: 70px; }
             <span style="color:#d4a843">Wer wachsen will, ist hier richtig.</span>"
         </p>
         <div class="vision-author">
-            <img src="/static/icons/coach-figure-200.jpg" alt="Najib Tchatikpi" class="vision-photo" loading="lazy" decoding="async">
+            <img src="/static/icons/najib-founder.jpg" alt="Najib Tchatikpi" class="vision-photo" loading="lazy" decoding="async" onerror="this.src='/static/icons/coach-figure-200.jpg'">
             <div class="vision-author-text">
                 <div class="vision-author-name">Najib Tchatikpi</div>
                 <div class="vision-author-role">Gründer NT Pro Academy</div>
@@ -456,9 +460,9 @@ textarea.in { resize: vertical; min-height: 70px; }
 
     <!-- ═══════════════ CTA UNTEN ═══════════════ -->
     <div class="cta-bottom">
-        <h3>Bereit für ein ehrliches Gespräch?</h3>
-        <p>Kostenlos · 30 Minuten · keine Verpflichtung · keine Verkaufsmasche</p>
-        <a href="#leadForm">Jetzt Termin anfragen ↑</a>
+        <h3>Lass uns sprechen.</h3>
+        <p>Kostenlos · 30 Minuten · ich verkauf dir nichts</p>
+        <a href="#leadForm">Schreib mir ↑</a>
     </div>
 
     {% endif %}
