@@ -1189,8 +1189,9 @@
             {% set sec_kar = ('/provisionen' in p) or ('/trophaeen' in p) or (p == '/news' or p.startswith('/news/')) or ('/tracking' in p) or ('/ranking' in p) or ('/ziele' in p) %}
             {% set sec_coach = ('/assistent' in p) or ('/weiterbildung' in p and '/admin' not in p) or ('/coach/briefing' in p) or ('/feed' in p) %}
             {% set sec_mehr = (p == '/vorschlag') or ('/webhook-setup' in p) or ('/onboarding' in p) or ('/profil' in p) or ('/push-settings' in p) or ('/einstellungen' in p) %}
+            {% set any_sec = sec_tag or sec_team or sec_kar or sec_coach or sec_mehr %}
 
-            <details class="nav-group" data-group="tag" {% if sec_tag %}open{% endif %}>
+            <details class="nav-group" data-group="tag" {% if sec_tag or not any_sec %}open{% endif %}>
                 <summary>Tagesgeschäft</summary>
                 <div class="nav-group-items">
                     <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Tagesaufgaben</a>
@@ -1322,8 +1323,10 @@
         <script>
         // Sidebar-Klapp-Persistenz: merkt sich pro User welche Sektion offen ist.
         // Aktive Route bleibt SSR-aufgeklappt, User-Toggle überschreibt das.
+        // Key-Version v2: alte Default-Open-Stürme aus v1 werden ignoriert.
         (function(){
-            const KEY = 'pa_sidebar_groups_v1';
+            const KEY = 'pa_sidebar_groups_v2';
+            try { localStorage.removeItem('pa_sidebar_groups_v1'); } catch(e){}
             let state = {};
             try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e){}
             document.querySelectorAll('details.nav-group').forEach(d => {
