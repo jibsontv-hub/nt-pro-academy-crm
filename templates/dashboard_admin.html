@@ -5,14 +5,14 @@
 {% block content %}
 
 <!-- ============================================
-     🤖 NTCOACH HERO — animierter Mentor mit To-Do
+     🤖 COACH HERO — animierter Mentor mit To-Do
      ============================================ -->
 <div class="card" style="background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 50%,#0a132d 100%);color:#fff;border:none;position:relative;overflow:hidden;padding:24px 22px">
     <div style="position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,67,0.25) 0%,transparent 70%);pointer-events:none"></div>
     <div style="position:relative;z-index:1;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap">
         <div class="ntcoach-avatar" style="width:84px;height:84px;flex-shrink:0;position:relative;animation:ntcoachSway 6s ease-in-out infinite">
             <div style="position:absolute;inset:0;border-radius:50%;overflow:hidden;box-shadow:0 8px 24px rgba(212,168,67,0.5),0 0 0 3px #d4a843;animation:ntcoachBreathe 4s ease-in-out infinite;background:#0f1c3f">
-                <img src="/static/icons/coach-figure-200.jpg?v=8" alt="NTcoach" style="width:100%;height:100%;object-fit:cover;display:block">
+                <img src="/static/icons/coach-figure-200.jpg?v=8" alt="Coach" style="width:100%;height:100%;object-fit:cover;display:block">
             </div>
             <div style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(212,168,67,0.4);animation:ntcoachPulse 2.4s ease-out infinite;pointer-events:none"></div>
             <div style="position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(212,168,67,0.2);animation:ntcoachPulse 2.4s ease-out infinite 1.2s;pointer-events:none"></div>
@@ -20,7 +20,7 @@
         </div>
         <div style="flex:1;min-width:200px">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
-                <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">🤖 NTcoach · {{ greeting.greeting if greeting else 'Hallo Boss!' }}</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">🤖 Coach · {{ greeting.greeting if greeting else 'Hallo Boss!' }}</div>
                 {% if streak_days and streak_days > 0 %}
                 <span style="background:linear-gradient(135deg,#f59e0b,#dc2626);color:#fff;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:800;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 8px rgba(245,158,11,0.4)">🔥 {{ streak_days }} Tag{% if streak_days != 1 %}e{% endif %} Streak</span>
                 {% endif %}
@@ -44,7 +44,7 @@
         {% endfor %}
     </div>
     <div style="text-align:center;margin-top:12px">
-        <a href="/assistent" style="color:#d4a843;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.3px">💬 Mit NTcoach chatten →</a>
+        <a href="/assistent" style="color:#d4a843;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.3px">💬 Mit Coach chatten →</a>
     </div>
     {% endif %}
 </div>
@@ -345,7 +345,7 @@
     </a>
     <a href="/assistent" class="revo-q">
         <div class="revo-q-i">🤖</div>
-        <div class="revo-q-l">NTcoach</div>
+        <div class="revo-q-l">Coach</div>
     </a>
 </div>
 
@@ -452,7 +452,7 @@
 
 <!-- 🧠 KI-Briefing -->
 {% if ai_briefing %}
-<div class="revo-section-h">🧠 NTcoach · diese Woche</div>
+<div class="revo-section-h">🧠 Coach · diese Woche</div>
 <div style="background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:14px;padding:16px 18px;font-size:14px;line-height:1.6;color:var(--text)">
     {{ ai_briefing }}
 </div>

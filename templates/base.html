@@ -1122,9 +1122,15 @@
         <div class="sidebar-logo">
             <div class="brand-row">
                 <div class="brand-icon"><img src="/static/icons/pa-logo.png?v=1" alt="Pro Academy" onerror="this.parentElement.innerText='PA'"></div>
-                <div>
+                <div style="min-width:0;flex:1">
                     <div class="brand-main">Pro Academy</div>
+                    {% if current_user.is_authenticated %}
+                    <div class="brand-sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">
+                        {{ current_user.name }}{% if my_career and my_career.short %} <span style="color:var(--gold);font-weight:800">· {{ my_career.short }}</span>{% endif %}
+                    </div>
+                    {% else %}
                     <div class="brand-sub">Control Hub</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -1149,7 +1155,7 @@
             <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path or request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
             <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Termine</a>
             <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
-            <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> NTcoach</a>
+            <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach</a>
             <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
             <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil</a>
             {% else %}
@@ -1182,7 +1188,7 @@
             <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
 
             <div class="nav-section">Coaching & Lernen</div>
-            <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> NTcoach Chat</a>
+            <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach Chat</a>
             <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
             <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
             <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
@@ -1275,7 +1281,7 @@
                 <button onclick="ntproVisionSkip()" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.1);padding:14px 18px;border-radius:14px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Skip</button>
             </div>
             <div style="text-align:center;margin-top:14px;font-size:11px;color:rgba(255,255,255,0.4)">
-                Landet im Wochen-Briefing · NTcoach reflektiert mit dir Sonntag
+                Landet im Wochen-Briefing · Coach reflektiert mit dir Sonntag
             </div>
         </div>
     </div>
@@ -2056,7 +2062,7 @@
             <div style="font-size:28px">📲</div>
             <div style="flex:1;min-width:0">
                 <div style="font-size:14px;font-weight:800">App installieren</div>
-                <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px">NT Pro auf dem Home-Screen — schneller Zugriff + Push-Notifications</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px">Pro Academy auf dem Home-Screen — schneller Zugriff + Push-Notifications</div>
             </div>
             <button onclick="ntproInstall()" style="background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border:none;padding:9px 16px;border-radius:10px;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap">Installieren</button>
             <button onclick="ntproDismissInstall()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:20px;cursor:pointer;padding:0 4px">×</button>
@@ -2218,7 +2224,7 @@
         <a href="/leads" class="revo-bn {% if request.path.startswith('/leads') %}active{% endif %}">◎<span class="lab">Leads</span></a>
         <a href="/termine" class="revo-bn {% if '/termine' in request.path %}active{% endif %}">◷<span class="lab">Termine</span></a>
         <a href="/team" class="revo-bn {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}">👥<span class="lab">Team</span></a>
-        <a href="/assistent" class="revo-bn {% if '/assistent' in request.path %}active{% endif %}">🤖<span class="lab">NTcoach</span></a>
+        <a href="/assistent" class="revo-bn {% if '/assistent' in request.path %}active{% endif %}">🤖<span class="lab">Coach</span></a>
     </nav>
 
     <!-- ⚡ FAB (Quick-Add) -->

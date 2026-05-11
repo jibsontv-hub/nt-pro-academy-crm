@@ -21,10 +21,12 @@
 }
 .node {
     display: inline-flex; align-items: center; gap: 14px; padding: 11px 16px;
-    background: #fff; border: 1px solid var(--border);
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
     border-radius: 10px; min-width: 380px; transition: all 0.15s;
 }
-.node:hover { border-color: var(--gold); box-shadow: 0 1px 6px rgba(184,144,46,0.12); }
+.node:hover { border-color: var(--gold); box-shadow: 0 1px 6px rgba(212,168,67,0.18); background: var(--surface-hover, var(--surface)); }
+.node a { color: inherit !important; text-decoration: none; }
+.node a:hover { color: var(--gold) !important; }
 .node-badge {
     width: 42px; height: 42px; border-radius: 9px;
     display: flex; align-items: center; justify-content: center;

@@ -282,7 +282,7 @@ Pro Academy"""
 </ol>
 
 <p style="margin-top:24px">Komm, das schaffst du! 💪</p>
-<p style="color:#64748b;font-size:13px">NTcoach</p>
+<p style="color:#64748b;font-size:13px">Coach</p>
 </td></tr>
 <tr><td style="padding:18px 28px;background:#fafbfc;color:#94a3b8;font-size:11px;border-top:1px solid #ebeef4">
 Pro Academy · Automatische Erinnerung 3 Tage vor Produktionsschluss
@@ -333,7 +333,7 @@ Dazu: alle 2 Wochen Kontrollgespräche planen.
 
 Plan dir die Zeit ein — das ist DEIN Hebel als Direktionsrepräsentant.
 
-NTcoach"""
+Coach"""
 
     send_email(admin['email'], '🎯 Zeit für ZVGs nach Produktionsschluss', text, sent_by=None)
     set_setting(period_key, '1')
@@ -694,7 +694,7 @@ def chat_with_assistant(user_id, user_message):
     if not ctx:
         return None, 'User-Daten nicht gefunden.'
 
-    system_prompt = f"""Du bist NTcoach — ein KI-Assistent für Strukturvertrieb-Profis bei Pro Academy.
+    system_prompt = f"""Du bist Coach — ein KI-Assistent für Strukturvertrieb-Profis bei Pro Academy.
 
 DEINE PERSÖNLICHKEIT:
 - Du sprichst direkt, klar, motivierend — wie ein erfahrener Mentor mit Vertriebs-Erfahrung
@@ -2710,7 +2710,7 @@ def admin_eingabe_reminder_now():
         first_name = r['name'].split()[0] if r['name'] else ''
         ok, _ = send_email(r['email'],
                           f'⏰ Eingabeschluss {eingabe_str} — {total} Vertrag{"" if total==1 else "äge"} klären!',
-                          f'Hi {first_name},\n\nbis Eingabeschluss am {eingabe_str} hast du noch {r["open_count"] or 0} offene Verträge und {r["pending_research"] or 0} hängende Recherchen.\n\nLogin: {CANONICAL_URL}\n\nNTcoach',
+                          f'Hi {first_name},\n\nbis Eingabeschluss am {eingabe_str} hast du noch {r["open_count"] or 0} offene Verträge und {r["pending_research"] or 0} hängende Recherchen.\n\nLogin: {CANONICAL_URL}\n\nCoach',
                           sent_by=current_user.id)
         if ok: sent += 1
     flash(f'✅ {sent} Reminder verschickt', 'success')
@@ -4757,7 +4757,7 @@ def push_test():
     """Test-Notification an den User selbst."""
     sent, failed = send_push_to_user(
         current_user.id,
-        title='🚀 NTcoach Test',
+        title='🚀 Coach Test',
         body='Push-Notifications funktionieren! Ab jetzt erfährst du alles wichtige direkt.',
         url='/dashboard',
     )
@@ -5182,7 +5182,7 @@ def passwort_aendern():
 @app.route('/assistent')
 @login_required
 def assistent():
-    """KI-Chat-Assistent NTcoach."""
+    """KI-Chat-Assistent Coach."""
     db = get_db()
     msgs = db.execute(
         'SELECT role, content, created_at FROM chat_messages WHERE user_id=? ORDER BY id ASC LIMIT 50',
@@ -5764,7 +5764,7 @@ ONBOARDING_ROADMAP_TASKS = [
     {'day': 6, 'code': 'namensliste_30', 'title': '30 Kontakte in Namensliste', 'detail': 'Weiter ausbauen — Ziel: 100', 'url': '/namensliste', 'icon': '◎'},
     {'day': 6, 'code': 'first_vertrag', 'title': 'Ersten Vertrag eintragen', 'detail': 'Auch wenn klein — der erste Schritt zählt', 'url': '/vertraege/neu', 'icon': '€'},
     # Tag 7: Reflektion
-    {'day': 7, 'code': 'reflektion', 'title': 'Wochen-Reflektion mit Coach', 'detail': 'Frag NTcoach: was lief gut, was nicht?', 'url': '/assistent', 'icon': '◆'},
+    {'day': 7, 'code': 'reflektion', 'title': 'Wochen-Reflektion mit Coach', 'detail': 'Frag Coach: was lief gut, was nicht?', 'url': '/assistent', 'icon': '◆'},
     {'day': 7, 'code': 'plan_next_week', 'title': 'Nächste Woche planen', 'detail': '5 konkrete Aktionen für KW2 aufschreiben', 'url': '/aufgaben', 'icon': '✓'},
 ]
 
