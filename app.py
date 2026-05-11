@@ -429,32 +429,52 @@ def verify_password(stored_hash, attempt):
     return stored_hash == hashlib.sha256(attempt.encode()).hexdigest()
 
 
+def _slugify_name(name):
+    """Macht aus 'Najib Tchatikpi' → 'najib-tchatikpi'.
+    Behält nur a-z, 0-9, Bindestrich. Umlaute werden ersetzt."""
+    import re
+    s = (name or '').lower().strip()
+    # Umlaute & Sonderzeichen
+    s = s.replace('ä', 'ae').replace('ö', 'oe').replace('ü', 'ue').replace('ß', 'ss')
+    s = s.replace('é', 'e').replace('è', 'e').replace('ê', 'e').replace('à', 'a').replace('ç', 'c')
+    # Whitespace + Punkte zu Bindestrich
+    s = re.sub(r'[\s._]+', '-', s)
+    # Alles was nicht a-z0-9- ist → weg
+    s = re.sub(r'[^a-z0-9-]', '', s)
+    # Mehrfach-Bindestriche zusammenfassen
+    s = re.sub(r'-+', '-', s)
+    return s.strip('-')[:40] or 'partner'
+
+
 def get_or_create_lead_token(user_id):
-    """Liefert (oder erzeugt) einen eindeutigen Lead-Token pro User.
-    Token = 10 Zeichen URL-safe (a-z0-9). Persistiert in users.lead_token."""
+    """Liefert (oder erzeugt) einen sprechenden Lead-Token pro User.
+    Format: name-slug (najib-tchatikpi). Auto-Upgrade alter Random-Tokens.
+    Bei Kollision: -2, -3, etc."""
     db = get_db()
-    row = db.execute('SELECT lead_token FROM users WHERE id=?', (user_id,)).fetchone()
-    if row and row['lead_token']:
-        token = row['lead_token']
+    row = db.execute('SELECT lead_token, name FROM users WHERE id=?', (user_id,)).fetchone()
+    if not row:
         db.close()
-        return token
-    # Generieren — kollisionsfrei (max 5 Versuche)
-    import secrets
-    for _ in range(5):
-        candidate = secrets.token_urlsafe(8)[:10].lower().replace('_', '').replace('-', '')
-        # Mind. 8 Zeichen sicherstellen
-        while len(candidate) < 8:
-            candidate += secrets.token_urlsafe(4)[:2].lower().replace('_', '').replace('-', '')
-        candidate = candidate[:10]
-        existing = db.execute('SELECT id FROM users WHERE lead_token=?', (candidate,)).fetchone()
+        return f'u{user_id}'
+    current_token = row['lead_token']
+    name_slug = _slugify_name(row['name'])
+    # Schon ein name-slug-Format (enthält Bindestrich oder mind. 11 Zeichen)? → behalten
+    if current_token and ('-' in current_token or len(current_token) >= 11):
+        db.close()
+        return current_token
+    # Kein Token ODER alter Random-Token → Slug-Token versuchen
+    candidate = name_slug
+    suffix = 1
+    for _ in range(20):
+        existing = db.execute('SELECT id FROM users WHERE lead_token=? AND id != ?', (candidate, user_id)).fetchone()
         if not existing:
             db.execute('UPDATE users SET lead_token=? WHERE id=?', (candidate, user_id))
             db.commit()
             db.close()
             return candidate
+        suffix += 1
+        candidate = f'{name_slug}-{suffix}'
     db.close()
-    # Fallback (sehr unwahrscheinlich)
-    return f'u{user_id}'
+    return current_token or f'u{user_id}'
 
 
 def generate_random_password(length=10):
@@ -5122,22 +5142,23 @@ def public_lead_capture():
 
     # GET: Form anzeigen
     db = get_db()
-    # Optional ?ref=<wert> aus URL — kann Token sein (8-10 Zeichen alphanum)
+    # Optional ?ref=<wert> aus URL — Token (name-slug oder altes Random)
     # ODER Berater-Name (Backwards-kompatibel)
-    ref = request.args.get('ref', '').strip()
+    ref = request.args.get('ref', '').strip().lower()
     ref_token = ''
-    referred_by_prefill = ref
+    referred_by_prefill = request.args.get('ref', '').strip()
     matched_owner_display = ''
-    # Token-Erkennung: 8-10 Zeichen, nur a-z0-9
-    if ref and 6 <= len(ref) <= 12 and ref.replace(' ', '').isalnum() and ref == ref.lower():
-        # Wahrscheinlich ein Token — direkt nachschlagen
-        owner = db.execute(
-            'SELECT id, name FROM users WHERE lead_token = ? AND active = 1', (ref,)
-        ).fetchone()
-        if owner:
-            ref_token = ref
-            referred_by_prefill = owner['name']  # User sieht den Namen, nicht den Token
-            matched_owner_display = owner['name']
+    # Token-Erkennung: 3-50 Zeichen, nur a-z0-9-
+    if ref and 3 <= len(ref) <= 50:
+        import re
+        if re.match(r'^[a-z0-9-]+$', ref):
+            owner = db.execute(
+                'SELECT id, name FROM users WHERE lead_token = ? AND active = 1', (ref,)
+            ).fetchone()
+            if owner:
+                ref_token = ref
+                referred_by_prefill = ''  # nicht nötig — Banner zeigt's
+                matched_owner_display = owner['name']
     db.close()
     return render_template('public_lead.html',
                            referred_by=referred_by_prefill,

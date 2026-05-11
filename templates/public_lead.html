@@ -352,14 +352,30 @@ textarea.in { resize: vertical; min-height: 70px; }
             <label class="fl">Telefon (für schnelleren Rückruf)</label>
             <input class="in" type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
 
-            <label class="fl">Wie bist du auf uns aufmerksam geworden? <span style="color:#ef4444">*</span></label>
             {% if matched_owner_display %}
-            <!-- Token-Match: Berater bekannt → User sieht Name aber Routing ist gesichert -->
-            <input class="in" type="text" name="referred_by" value="{{ matched_owner_display }}" readonly
-                   style="background:rgba(212,168,67,0.12);color:#d4a843;cursor:default;font-weight:700">
+            <!-- Token-Match: Berater bekannt → keine Namens-Frage, nur „Über welche Plattform" -->
+            <div style="background:rgba(52,211,153,0.10);border:1px solid rgba(52,211,153,0.30);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+                <div style="font-size:13px;color:#34d399;line-height:1.45">
+                    ✓ Du wurdest direkt von <strong style="color:#fff">{{ matched_owner_display }}</strong> verlinkt — er bekommt deine Anfrage persönlich.
+                </div>
+            </div>
+            <label class="fl">Über welche Plattform bist du auf uns aufmerksam geworden? <span style="color:#ef4444">*</span></label>
+            <select class="in" name="referred_by" required style="cursor:pointer">
+                <option value="">— bitte wählen —</option>
+                <option value="Instagram">📸 Instagram</option>
+                <option value="TikTok">🎵 TikTok</option>
+                <option value="YouTube">▶ YouTube</option>
+                <option value="Persönlich empfohlen">🤝 Persönlich empfohlen</option>
+                <option value="WhatsApp">💬 WhatsApp</option>
+                <option value="Google-Suche">🔍 Google-Suche</option>
+                <option value="Podcast">🎙 Podcast</option>
+                <option value="Event / Vortrag">📅 Event / Vortrag</option>
+                <option value="LinkedIn">💼 LinkedIn</option>
+                <option value="Anderes">✨ Anderes</option>
+            </select>
             <input type="hidden" name="ref_token" value="{{ ref_token }}">
-            <div style="font-size:11px;color:#34d399;margin-top:4px;line-height:1.4">✓ Du wurdest direkt von <strong>{{ matched_owner_display }}</strong> verlinkt — er bekommt deine Anfrage persönlich.</div>
             {% else %}
+            <label class="fl">Wie bist du auf uns aufmerksam geworden? <span style="color:#ef4444">*</span></label>
             <input class="in" type="text" name="referred_by" value="{{ referred_by or '' }}" required minlength="2" placeholder="z.B. Instagram · Google · TikTok · oder Name eines Beraters">
             <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4">Pflichtfeld. Wenn dich jemand persönlich empfohlen hat, schreib seinen Namen — wir leiten dich direkt zu ihm.</div>
             {% endif %}
