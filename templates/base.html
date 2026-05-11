@@ -1149,15 +1149,38 @@
             {% set ftier = feature_tier or 1 %}
 
             {% if ftier <= 1 %}
-            <!-- ══════════════ STUFE 1 — MINIMAL (8 Items) ══════════════ -->
-            <a href="/onboarding/roadmap" class="nav-link {% if '/onboarding/roadmap' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.18),rgba(212,168,67,0.06));color:var(--gold);font-weight:800;margin-top:6px"><span class="nav-icon">🚀</span> Starter-Roadmap</a>
-            <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Heute machen</a>
-            <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path or request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
-            <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Termine</a>
-            <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
-            <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach</a>
-            <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
-            <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil</a>
+            <!-- ══════════════ STUFE 1 — KLAPP-GRUPPEN (3 Hauptthemen + Profil) ══════════════ -->
+            {% set p = request.path %}
+            {% set s1_start = ('/onboarding/roadmap' in p) or (p == '/aufgaben') %}
+            {% set s1_vk    = ('/namensliste' in p) or p.startswith('/leads') or ('/termine' in p) or ('/vertraege' in p) %}
+            {% set s1_learn = ('/assistent' in p) or ('/weiterbildung' in p) %}
+
+            <details class="nav-group" data-group="s1_start" {% if s1_start or not (s1_vk or s1_learn) %}open{% endif %}>
+                <summary>Start</summary>
+                <div class="nav-group-items">
+                    <a href="/onboarding/roadmap" class="nav-link {% if '/onboarding/roadmap' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.18),rgba(212,168,67,0.06));color:var(--gold);font-weight:800"><span class="nav-icon">🚀</span> Starter-Roadmap</a>
+                    <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Heute machen</a>
+                </div>
+            </details>
+
+            <details class="nav-group" data-group="s1_vk" {% if s1_vk %}open{% endif %}>
+                <summary>Vertrieb</summary>
+                <div class="nav-group-items">
+                    <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path or request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
+                    <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Termine</a>
+                    <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
+                </div>
+            </details>
+
+            <details class="nav-group" data-group="s1_learn" {% if s1_learn %}open{% endif %}>
+                <summary>Lernen</summary>
+                <div class="nav-group-items">
+                    <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach</a>
+                    <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
+                </div>
+            </details>
+
+            <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}" style="margin-top:6px"><span class="nav-icon">●</span> Profil</a>
             {% else %}
             <!-- ══════════════ STUFE 2+ — KLAPP-SECTIONS (Hauptthemen, aufklappbar) ══════════════ -->
             {% set p = request.path %}
