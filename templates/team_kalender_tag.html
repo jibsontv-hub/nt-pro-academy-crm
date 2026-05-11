@@ -1,377 +1,439 @@
 {% extends "base.html" %}
-{% block title %}{{ the_date.strftime('%d.%m.%Y') }} – Team-Tag{% endblock %}
-{% block page_title %}📅 {{ the_date.strftime('%A, %d.%m.%Y') }}{% endblock %}
+{% block title %}{{ the_date.strftime('%d.%m.%Y') }} – Tag{% endblock %}
+{% block page_title %}{% endblock %}
 
 {% block content %}
 
 <style>
-    .day-wrap { display: grid; grid-template-columns: 1fr 320px; gap: 16px; }
-    @media (max-width: 900px) { .day-wrap { grid-template-columns: 1fr; } }
+  /* ───── iOS-Calendar Look (Dark) ───── */
+  .day-wrap-ios { max-width: 760px; margin: 0 auto; padding: 0 4px 120px; }
 
-    .timeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; }
-    .timeline-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
-    .timeline-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
-    .timeline-sub { font-size: 12px; color: var(--text-muted); }
-    .timeline-nav { display: flex; gap: 6px; }
+  .day-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 10px 4px 18px; gap: 12px;
+  }
+  .day-head .dh-l { flex: 1; min-width: 0; }
+  .day-head .dh-date { font-size: 26px; font-weight: 900; letter-spacing: -0.6px; color: var(--text); line-height: 1.1; }
+  .day-head .dh-kw { font-size: 14px; color: var(--text-muted); margin-top: 4px; font-weight: 600; letter-spacing: -0.2px; }
+  .day-head .dh-r { display: flex; gap: 8px; align-items: center; }
+  .day-head .dh-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); font-size: 18px; font-weight: 700;
+    cursor: pointer; text-decoration: none; transition: all 0.15s;
+  }
+  .day-head .dh-btn:hover { background: var(--bg-2); transform: scale(1.05); }
+  .day-head .dh-add {
+    background: var(--surface); color: var(--text);
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border); font-size: 22px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .day-head .dh-add:hover { background: var(--gold); color: var(--navy); border-color: var(--gold); transform: scale(1.05); }
 
-    .timeline {
-        position: relative; display: grid;
-        grid-template-columns: 56px 1fr; gap: 0;
-        background: var(--bg-2); border-radius: 14px; overflow: hidden;
-    }
-    .hour-row { display: contents; }
-    .hour-label {
-        font-size: 12px; color: var(--text-muted); font-weight: 700;
-        text-align: right; padding: 12px 10px 0 0; border-top: 1px solid var(--border);
-        position: relative; min-height: 80px;
-    }
-    .hour-row:first-child .hour-label { border-top: none; }
-    .hour-slot {
-        border-top: 1px solid var(--border); position: relative; min-height: 80px;
-        cursor: pointer; transition: background 0.15s;
-    }
-    .hour-row:first-child .hour-slot { border-top: none; }
-    .hour-slot:hover { background: color-mix(in srgb, var(--gold) 8%, transparent); }
-    .hour-slot.now { background: color-mix(in srgb, var(--gold) 5%, transparent); }
-    .hour-now-line {
-        position: absolute; left: 0; right: 0; height: 2px;
-        background: var(--red); z-index: 5;
-    }
-    .hour-now-line::before {
-        content: ''; position: absolute; left: -6px; top: -4px;
-        width: 10px; height: 10px; border-radius: 50%; background: var(--red);
-    }
+  .day-nav { display: flex; gap: 6px; padding: 0 4px 14px; }
+  .day-nav a {
+    flex: 1; padding: 8px 12px; border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); font-size: 12px; font-weight: 700; text-decoration: none;
+    text-align: center; transition: all 0.15s;
+  }
+  .day-nav a:hover { background: var(--bg-2); }
 
-    .event-block {
-        position: absolute; top: 4px; bottom: 4px;
-        background: var(--accent, var(--gold)); color: #fff;
-        border-radius: 10px; padding: 8px 11px;
-        font-weight: 700; font-size: 13px; z-index: 3;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        cursor: pointer; transition: all 0.15s; overflow: hidden;
-        border-left: 3px solid rgba(0,0,0,0.18);
-    }
-    .event-block:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.2); z-index: 4; }
-    .event-block .et { font-size: 11px; opacity: 0.92; font-weight: 700; margin-bottom: 3px; }
-    .event-block .ec { font-size: 11px; opacity: 0.85; font-weight: 500; margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .event-attendees { display: inline-flex; align-items: center; margin-left: 4px; }
-    .att-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #fff; margin-left: -4px; font-size: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+  /* ─── iOS-Event-Rows ─── */
+  .ev-list { display: flex; flex-direction: column; }
+  .ev-row {
+    display: grid; grid-template-columns: 56px 5px 1fr auto;
+    align-items: stretch; gap: 14px; padding: 14px 4px;
+    text-decoration: none; color: inherit;
+    transition: background 0.15s; cursor: pointer;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  }
+  .ev-row:last-child { border-bottom: none; }
+  .ev-row:hover { background: color-mix(in srgb, var(--gold) 5%, transparent); border-radius: 8px; }
 
-    /* Strukturierte Tagesliste oben — alle Termine durchscrollbar lesbar */
-    .day-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-    .day-list-h { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.7px; font-weight: 800; margin: 0 0 8px; padding-left: 2px; }
-    .day-row {
-        display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center;
-        background: var(--bg-2); border: 1px solid var(--border);
-        border-left: 4px solid var(--accent, var(--gold));
-        border-radius: 12px; padding: 10px 14px; cursor: pointer;
-        transition: all 0.15s; text-decoration: none; color: inherit;
-    }
-    .day-row:hover { background: var(--surface); transform: translateX(2px); border-color: var(--gold); }
-    .day-row .dr-time { font-size: 14px; font-weight: 800; color: var(--accent, var(--gold)); letter-spacing: -0.3px; }
-    .day-row .dr-time small { font-size: 10px; color: var(--text-muted); display: block; font-weight: 600; margin-top: 2px; }
-    .day-row .dr-body { min-width: 0; }
-    .day-row .dr-title { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .day-row .dr-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .day-row .dr-status { padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
-    .day-row .dr-attendees { display: flex; align-items: center; }
+  .ev-time {
+    display: flex; flex-direction: column; align-items: flex-start;
+    justify-content: center; gap: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .ev-time .tt-start { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+  .ev-time .tt-end { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+  .ev-time.allday { font-size: 11px; color: var(--text-muted); font-weight: 500; align-self: center; }
 
-    .all-day-evts { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
-    .all-day-evt {
-        background: var(--bg-2); border-left: 3px solid var(--accent, var(--gold));
-        border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;
-        cursor: pointer; transition: background 0.15s;
-    }
-    .all-day-evt:hover { background: var(--surface); }
+  .ev-bar { background: var(--accent, var(--gold)); border-radius: 3px; min-height: 38px; align-self: center; }
 
-    .add-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; }
+  .ev-body { display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 3px; }
+  .ev-title {
+    font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.3px;
+    line-height: 1.25; display: flex; align-items: center; gap: 6px;
+  }
+  .ev-title .et-icon { font-size: 13px; opacity: 0.7; flex-shrink: 0; }
+  .ev-sub {
+    font-size: 13px; color: var(--text-muted); font-weight: 500;
+    line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ev-attendees-row { display: flex; align-items: center; gap: -2px; margin-top: 4px; }
+  .ev-attendees-row .ev-att-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 1.5px solid var(--bg); margin-left: -3px;
+    font-size: 8px; font-weight: 800; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ev-attendees-row .ev-att-dot:first-child { margin-left: 0; }
 
-    .att-pick-grid {
-        display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-        gap: 6px; max-height: 220px; overflow-y: auto;
-        padding: 8px; background: var(--bg-2); border-radius: 10px;
-    }
-    .att-pick-item {
-        display: flex; align-items: center; gap: 8px;
-        padding: 7px 10px; border-radius: 8px; cursor: pointer;
-        font-size: 12px; font-weight: 600; color: var(--text);
-        background: var(--surface); border: 1px solid var(--border);
-        transition: all 0.15s;
-    }
-    .att-pick-item.selected { background: var(--accent, var(--gold)); color: #fff; border-color: var(--accent, var(--gold)); }
-    .att-pick-item input { display: none; }
-    .att-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .ev-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: color-mix(in srgb, var(--text-muted) 30%, var(--bg-2));
+    color: var(--text); font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    align-self: center; flex-shrink: 0;
+    background-size: cover; background-position: center 25%;
+  }
+
+  .day-empty {
+    text-align: center; padding: 64px 20px;
+    color: var(--text-muted); font-size: 14px;
+  }
+  .day-empty .em-ic { font-size: 48px; opacity: 0.25; margin-bottom: 12px; }
+
+  /* ─── Floating + Button ─── */
+  .fab-add {
+    position: fixed; bottom: 24px; right: 24px; z-index: 100;
+    width: 60px; height: 60px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold), color-mix(in srgb, var(--gold) 80%, white));
+    color: var(--navy); border: none; font-size: 28px; font-weight: 600;
+    box-shadow: 0 10px 30px rgba(212,168,67,0.4), 0 4px 12px rgba(0,0,0,0.2);
+    cursor: pointer; transition: all 0.18s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fab-add:hover { transform: scale(1.08); box-shadow: 0 14px 40px rgba(212,168,67,0.5), 0 6px 18px rgba(0,0,0,0.25); }
+
+  /* ─── Bottom-Sheet Modal ─── */
+  .sheet-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(6px); z-index: 999;
+    display: none; align-items: flex-end; justify-content: center;
+  }
+  .sheet-overlay.open { display: flex; }
+  @media (min-width: 760px) { .sheet-overlay { align-items: center; } }
+
+  .sheet {
+    background: var(--surface); width: 100%; max-width: 560px;
+    border-radius: 22px 22px 0 0; padding: 0;
+    max-height: 92vh; overflow-y: auto;
+    animation: sheetUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @media (min-width: 760px) { .sheet { border-radius: 22px; max-height: 88vh; } }
+  @keyframes sheetUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .sheet-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px 6px; position: sticky; top: 0; background: var(--surface); z-index: 5;
+  }
+  .sheet-x { width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent;
+             color: var(--gold); font-size: 22px; font-weight: 600; cursor: pointer; }
+  .sheet-save {
+    background: transparent; border: 1px solid var(--gold); color: var(--gold);
+    padding: 8px 18px; border-radius: 99px; font-weight: 700; font-size: 14px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .sheet-save:hover { background: var(--gold); color: var(--navy); }
+
+  .sheet-title-input {
+    width: 100%; border: none; background: transparent;
+    font-size: 28px; font-weight: 800; padding: 18px 16px 22px;
+    color: var(--text); letter-spacing: -0.5px;
+    outline: none;
+  }
+  .sheet-title-input::placeholder { color: color-mix(in srgb, var(--text-muted) 55%, transparent); }
+
+  .sheet-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+  .sheet-row .sr-ic { font-size: 20px; color: var(--gold); width: 28px; text-align: center; flex-shrink: 0; }
+  .sheet-row .sr-label { flex: 1; font-size: 15px; color: var(--text); font-weight: 500; }
+  .sheet-row .sr-control { display: flex; align-items: center; gap: 8px; }
+
+  .sheet-toggle {
+    position: relative; width: 50px; height: 28px; border-radius: 99px;
+    background: color-mix(in srgb, var(--text-muted) 30%, var(--bg-2));
+    cursor: pointer; transition: background 0.18s; flex-shrink: 0;
+  }
+  .sheet-toggle::after {
+    content: ''; position: absolute; left: 3px; top: 3px;
+    width: 22px; height: 22px; border-radius: 50%; background: #fff;
+    transition: transform 0.18s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .sheet-toggle.on { background: #22c55e; }
+  .sheet-toggle.on::after { transform: translateX(22px); }
+  .sheet-toggle input { display: none; }
+
+  .sheet-chip {
+    background: var(--bg-2); padding: 7px 14px; border-radius: 8px;
+    font-size: 14px; font-weight: 600; color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .sheet-chip input { background: transparent; border: none; color: var(--text); font: inherit; outline: none; padding: 0; }
+  .sheet-chip input[type="date"] { width: 124px; }
+  .sheet-chip input[type="time"] { width: 64px; }
+
+  .sheet-pills { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px 18px; }
+  .sheet-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 99px;
+    background: color-mix(in srgb, var(--text-muted) 18%, var(--bg-2));
+    color: var(--gold); font-size: 13px; font-weight: 600;
+    border: none; cursor: pointer; transition: all 0.15s;
+  }
+  .sheet-pill:hover { background: color-mix(in srgb, var(--gold) 20%, var(--bg-2)); }
+  .sheet-pill.disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .sheet-att-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 6px; padding: 4px 0;
+  }
+  .sheet-att-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 10px; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--text);
+    background: var(--bg-2); border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .sheet-att-item.selected { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  .sheet-att-item input { display: none; }
+  .sheet-att-color { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+  .sheet-typ-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 6px; padding: 4px 0;
+  }
+  .sheet-typ-item {
+    padding: 9px 10px; border-radius: 10px; cursor: pointer;
+    font-size: 12px; font-weight: 600; color: var(--text);
+    background: var(--bg-2); border: 1px solid var(--border);
+    text-align: center; transition: all 0.15s;
+  }
+  .sheet-typ-item.selected { background: var(--gold); color: var(--navy); border-color: var(--gold); }
+  .sheet-typ-item input { display: none; }
 </style>
 
-<div class="day-wrap">
-    <!-- TIMELINE -->
-    <div class="timeline-card">
-        <div class="timeline-head">
-            <div>
-                <div class="timeline-title">{{ the_date.strftime('%d. %B %Y') | replace('January','Januar') | replace('February','Februar') | replace('March','März') | replace('April','April') | replace('May','Mai') | replace('June','Juni') | replace('July','Juli') | replace('August','August') | replace('September','September') | replace('October','Oktober') | replace('November','November') | replace('December','Dezember') }}</div>
-                <div class="timeline-sub">
-                    {% if is_sub_root %}⤵ Sub-Struktur · {% endif %}
-                    <strong style="color:var(--gold)">{{ root.name }}</strong> · {{ appointments | length }} Termin{% if appointments|length != 1 %}e{% endif %} · {{ members | length }} Partner sichtbar
-                </div>
-            </div>
-            <div class="timeline-nav">
-                <a href="/team-kalender/tag/{{ prev_d }}{% if is_sub_root %}?root={{ root.id }}{% endif %}" class="btn btn-secondary btn-sm">← Vortag</a>
-                <a href="/team-kalender/tag/{{ today_iso }}{% if is_sub_root %}?root={{ root.id }}{% endif %}" class="btn btn-secondary btn-sm">Heute</a>
-                <a href="/team-kalender/tag/{{ next_d }}{% if is_sub_root %}?root={{ root.id }}{% endif %}" class="btn btn-secondary btn-sm">Folgetag →</a>
-            </div>
-        </div>
+<div class="day-wrap-ios">
+  <!-- HEADER: Datum + KW + Buttons -->
+  <div class="day-head">
+    <div class="dh-l">
+      <div class="dh-date">{{ the_date.strftime('%A, %d. %B') | replace('Monday','Montag') | replace('Tuesday','Dienstag') | replace('Wednesday','Mittwoch') | replace('Thursday','Donnerstag') | replace('Friday','Freitag') | replace('Saturday','Samstag') | replace('Sunday','Sonntag') | replace('January','Januar') | replace('February','Februar') | replace('March','März') | replace('May','Mai') | replace('June','Juni') | replace('July','Juli') | replace('October','Oktober') | replace('December','Dezember') }}</div>
+      <div class="dh-kw">KW {{ the_date.isocalendar()[1] }} · {{ the_date.year }}{% if is_sub_root %} · <span style="color:var(--gold)">{{ root.name }}</span>{% endif %}</div>
+    </div>
+    <div class="dh-r">
+      <button class="dh-add" onclick="openSheet()" aria-label="Neuer Termin">+</button>
+    </div>
+  </div>
 
-        {% set timed = appointments | selectattr('termin_time') | list %}
-        {% set untimed = appointments | rejectattr('termin_time') | list %}
+  <!-- NAVIGATION: Vortag / Heute / Folgetag -->
+  <div class="day-nav">
+    <a href="/team-kalender/tag/{{ prev_d }}{% if is_sub_root %}?root={{ root.id }}{% endif %}">← Vortag</a>
+    <a href="/team-kalender/tag/{{ today_iso }}{% if is_sub_root %}?root={{ root.id }}{% endif %}">Heute</a>
+    <a href="/team-kalender/tag/{{ next_d }}{% if is_sub_root %}?root={{ root.id }}{% endif %}">Folgetag →</a>
+    <a href="/team-kalender{% if is_sub_root %}?root={{ root.id }}{% endif %}">Monat</a>
+  </div>
 
-        <!-- 📋 Tagesliste — strukturiert + lesbar (alle Termine als Cards) -->
-        {% if timed or untimed %}
-        <div class="day-list-h">📋 Tagesliste · {{ (timed|length) + (untimed|length) }} Termin{% if (timed|length)+(untimed|length) != 1 %}e{% endif %}</div>
-        <div class="day-list">
-            {% for e in timed %}
-            <a href="/termine" class="day-row" style="--accent:{{ e.color }}">
-                <div class="dr-time">{{ e.termin_time[:5] }}<small>{% if e.duration_min %}{{ e.duration_min }}min{% else %}—{% endif %}</small></div>
-                <div class="dr-body">
-                    <div class="dr-title">{% if e.typ == 'erstgespraech' %}🆕{% elif e.typ == 'abschluss' %}✓{% elif e.typ == 'recruiting' %}🎯{% elif e.typ == 'schulung' %}🎓{% elif e.typ == 'seminar' %}📚{% else %}👥{% endif %} {{ e.title or '–' }}</div>
-                    <div class="dr-meta">
-                        <span><strong style="color:{{ e.color }}">●</strong> {{ e.owner_name }}</span>
-                        {% if e.client_name %}<span>· {{ e.client_name }}</span>{% endif %}
-                        {% if e.attendees and e.attendees|length > 0 %}
-                        <span class="dr-attendees">
-                          {% for a in e.attendees[:3] %}<span class="att-dot" style="background:{{ a.color }};margin-left:-3px;border-color:var(--surface)" title="{{ a.name }}">{{ a.name[0] }}</span>{% endfor %}
-                          {% if e.attendees|length > 3 %}<span class="att-dot" style="background:#94a3b8;margin-left:-3px;border-color:var(--surface)">+{{ e.attendees|length - 3 }}</span>{% endif %}
-                        </span>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="dr-status" style="background:{{ e.color }}15;color:{{ e.color }}">{{ e.status or 'geplant' }}</div>
-            </a>
-            {% endfor %}
-            {% for e in untimed %}
-            <a href="/termine" class="day-row" style="--accent:{{ e.color }};opacity:0.85">
-                <div class="dr-time" style="font-size:11px">ganztags</div>
-                <div class="dr-body">
-                    <div class="dr-title">{% if e.typ == 'erstgespraech' %}🆕{% elif e.typ == 'abschluss' %}✓{% elif e.typ == 'recruiting' %}🎯{% elif e.typ == 'schulung' %}🎓{% elif e.typ == 'seminar' %}📚{% else %}👥{% endif %} {{ e.title or '–' }}</div>
-                    <div class="dr-meta"><span><strong style="color:{{ e.color }}">●</strong> {{ e.owner_name }}</span>{% if e.client_name %}<span>· {{ e.client_name }}</span>{% endif %}</div>
-                </div>
-                <div class="dr-status" style="background:{{ e.color }}15;color:{{ e.color }}">ohne Zeit</div>
-            </a>
-            {% endfor %}
+  <!-- EVENTS-LIST -->
+  {% set timed = appointments | selectattr('termin_time') | list %}
+  {% set untimed = appointments | rejectattr('termin_time') | list %}
+
+  {% if timed or untimed %}
+  <div class="ev-list">
+    {% for e in untimed %}
+    <a href="/termine" class="ev-row" style="--accent:{{ e.color }}">
+      <div class="ev-time allday">Ganztägig</div>
+      <div class="ev-bar"></div>
+      <div class="ev-body">
+        <div class="ev-title">
+          <span>{{ e.title or '—' }}</span>
+          {% if e.notizen and 'erinner' in (e.notizen|lower) %}<span class="et-icon">⏰</span>{% endif %}
         </div>
-        {% else %}
-        <div style="padding:24px;text-align:center;color:var(--text-muted);background:var(--bg-2);border-radius:12px;margin-bottom:14px">
-            Keine Termine an diesem Tag — klick auf einen Stunden-Slot um einen anzulegen.
+        {% if e.client_name %}<div class="ev-sub">{{ e.client_name }}</div>{% endif %}
+      </div>
+      <div class="ev-avatar"{% if e.owner_name %} title="{{ e.owner_name }}"{% endif %}>{{ (e.owner_name or '?')[0]|upper }}</div>
+    </a>
+    {% endfor %}
+
+    {% for e in timed %}
+    {% set _end_h = (e.termin_time[:2]|int + ((e.duration_min or 60) // 60)) %}
+    {% set _end_m = (e.termin_time[3:5]|int + ((e.duration_min or 60) % 60)) %}
+    {% if _end_m >= 60 %}{% set _end_h = _end_h + 1 %}{% set _end_m = _end_m - 60 %}{% endif %}
+    <a href="/termine" class="ev-row" style="--accent:{{ e.color }}">
+      <div class="ev-time">
+        <span class="tt-start">{{ e.termin_time[:5] }}</span>
+        <span class="tt-end">{{ '%02d:%02d'|format(_end_h % 24, _end_m) }}</span>
+      </div>
+      <div class="ev-bar"></div>
+      <div class="ev-body">
+        <div class="ev-title">
+          <span>{{ e.title or '—' }}</span>
+          {% if e.notizen and 'erinner' in (e.notizen|lower) %}<span class="et-icon">⏰</span>{% endif %}
+        </div>
+        {% if e.client_name %}<div class="ev-sub">{{ e.client_name }}</div>{% elif e.owner_name and not is_sub_root %}<div class="ev-sub">{{ e.owner_name }}</div>{% endif %}
+        {% if e.attendees and e.attendees|length > 0 %}
+        <div class="ev-attendees-row">
+          {% for a in e.attendees[:5] %}<span class="ev-att-dot" style="background:{{ a.color }}" title="{{ a.name }}">{{ a.name[0]|upper }}</span>{% endfor %}
+          {% if e.attendees|length > 5 %}<span class="ev-att-dot" style="background:#94a3b8">+{{ e.attendees|length - 5 }}</span>{% endif %}
         </div>
         {% endif %}
+      </div>
+      <div class="ev-avatar"{% if e.owner_photo %} style="background-image:url({{ e.owner_photo }})"{% endif %}{% if e.owner_name %} title="{{ e.owner_name }}"{% endif %}>{% if not e.owner_photo %}{{ (e.owner_name or '?')[0]|upper }}{% endif %}</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="day-empty">
+    <div class="em-ic">📅</div>
+    <div style="font-weight:700;color:var(--text);margin-bottom:4px;font-size:15px">Keine Termine an diesem Tag</div>
+    <div>Tipp auf das <strong style="color:var(--gold)">+</strong> rechts oben für einen neuen Termin.</div>
+  </div>
+  {% endif %}
+</div>
 
-        <!-- Stunden-Timeline 7-22 Uhr (visueller Überblick + Quick-Add) -->
-        <div class="day-list-h" style="margin-top:6px">⏰ Stunden-Timeline</div>
-        <div class="timeline" id="timeline">
-            {% for h in range(7, 23) %}
-            <div class="hour-row">
-                <div class="hour-label">{{ '%02d:00' | format(h) }}</div>
-                <div class="hour-slot" data-hour="{{ h }}" onclick="quickAddAt({{ h }})"></div>
-            </div>
-            {% endfor %}
+<!-- FAB für Mobile (Floating + Button) -->
+<button class="fab-add" onclick="openSheet()" aria-label="Neuer Termin">+</button>
+
+<!-- BOTTOM-SHEET MODAL: Neuer Termin (iOS-Style) -->
+<div class="sheet-overlay" id="sheetOv" onclick="if(event.target===this) closeSheet()">
+  <div class="sheet">
+    <form method="POST" action="/team-kalender/quick-add" id="sheetForm">
+      <input type="hidden" name="termin_date" id="sf_date" value="{{ datestr }}">
+      <input type="hidden" name="return_to" value="day">
+
+      <div class="sheet-head">
+        <button type="button" class="sheet-x" onclick="closeSheet()" aria-label="Schließen">✕</button>
+        <button type="submit" class="sheet-save">Speichern</button>
+      </div>
+
+      <input type="text" name="title" id="sf_title" class="sheet-title-input" placeholder="Titel" required maxlength="140" autocomplete="off">
+
+      <div class="sheet-row">
+        <span class="sr-ic">⏱</span>
+        <span class="sr-label">Ganztägig</span>
+        <div class="sheet-toggle" id="sf_allday_toggle" onclick="toggleAllday()"></div>
+        <input type="hidden" name="allday" id="sf_allday" value="0">
+      </div>
+
+      <div class="sheet-row" id="sf_start_row">
+        <span class="sr-ic">▶</span>
+        <span class="sr-label">Beginn</span>
+        <div class="sr-control">
+          <span class="sheet-chip"><input type="date" name="termin_date_pick" id="sf_date_pick" value="{{ datestr }}"></span>
+          <span class="sheet-chip" id="sf_time_chip"><input type="time" name="termin_time" id="sf_time"></span>
         </div>
-    </div>
+      </div>
 
-    <!-- ADD-PANEL (sticky right) -->
-    <div class="add-card">
-        <div style="font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:12px">+ Neuer Termin</div>
-        <form method="POST" action="/team-kalender/quick-add">
-            <input type="hidden" name="termin_date" value="{{ datestr }}">
-            <input type="hidden" name="return_to" value="day">
+      <div class="sheet-row" id="sf_end_row">
+        <span class="sr-ic">⏹</span>
+        <span class="sr-label">Dauer</span>
+        <div class="sr-control">
+          <select name="duration_min" id="sf_dur" class="sheet-chip" style="border:1px solid var(--border);padding:7px 12px">
+            <option value="30">30 min</option>
+            <option value="60" selected>1 Stunde</option>
+            <option value="90">1,5 Std</option>
+            <option value="120">2 Stunden</option>
+            <option value="180">3 Stunden</option>
+            <option value="240">4 Stunden</option>
+          </select>
+        </div>
+      </div>
 
-            <div class="form-group" style="margin-bottom:10px">
-                <label>Titel *</label>
-                <input type="text" name="title" id="addTitle" required maxlength="140" placeholder="z.B. Kundengespräch Müller">
-            </div>
+      <div class="sheet-row" style="display:block">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+          <span class="sr-ic">🏷</span>
+          <span class="sr-label">Typ</span>
+        </div>
+        <div class="sheet-typ-grid">
+          {% for typ_v, typ_lbl in [('kundentermin','👥 Kunde'), ('erstgespraech','🆕 Erstgespräch'), ('abschluss','✓ Abschluss'), ('recruiting','🎯 Recruiting'), ('schulung','🎓 Schulung'), ('seminar','📚 Seminar'), ('sonstiges','💼 Sonstiges')] %}
+          <label class="sheet-typ-item{% if loop.first %} selected{% endif %}">
+            <input type="radio" name="typ" value="{{ typ_v }}"{% if loop.first %} checked{% endif %} onchange="this.parentElement.parentElement.querySelectorAll('.sheet-typ-item').forEach(el=>el.classList.remove('selected'));this.parentElement.classList.add('selected')">
+            {{ typ_lbl }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-                <div class="form-group">
-                    <label>Uhrzeit</label>
-                    <input type="time" name="termin_time" id="addTime">
-                </div>
-                <div class="form-group">
-                    <label>Dauer (Min)</label>
-                    <select name="duration_min">
-                        <option value="30">30 min</option>
-                        <option value="60" selected>60 min</option>
-                        <option value="90">90 min</option>
-                        <option value="120">2 h</option>
-                    </select>
-                </div>
-            </div>
+      <div class="sheet-row" style="display:block">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+          <span class="sr-ic">👤</span>
+          <span class="sr-label">Kunde / Person (optional)</span>
+        </div>
+        <input type="text" name="client_name" id="sf_client" placeholder="z.B. Müller, Schmidt …"
+               style="width:100%;border:1px solid var(--border);background:var(--bg-2);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);outline:none">
+      </div>
 
-            <div class="form-group" style="margin-bottom:10px">
-                <label>Typ</label>
-                <select name="typ">
-                    <option value="kundentermin">👥 Kundentermin</option>
-                    <option value="erstgespraech">🆕 Erstgespräch</option>
-                    <option value="abschluss">✓ Abschluss</option>
-                    <option value="recruiting">🎯 Recruiting</option>
-                    <option value="schulung">🎓 Schulung</option>
-                    <option value="seminar">📚 Seminar</option>
-                    <option value="sonstiges">💼 Sonstiges</option>
-                </select>
-            </div>
-
-            <div class="form-group" style="margin-bottom:10px">
-                <label>Kunde / Person</label>
-                <input type="text" name="client_name" placeholder="optional">
-            </div>
-
-            {% if members and members | length > 1 %}
-            <div class="form-group" style="margin-bottom:14px">
-                <label>👥 Mit wem? (Multi-Auswahl)</label>
-                <div class="att-pick-grid">
-                    {% for m in members %}
-                    {% if m.id != current_user.id %}
-                    <label class="att-pick-item" onclick="toggleAtt(this, {{ m.id }})">
-                        <input type="checkbox" name="attendee_ids" value="{{ m.id }}">
-                        <span class="att-color" style="background:{{ m.color }}"></span>
-                        <span style="overflow:hidden;text-overflow:ellipsis">{{ m.name }}</span>
-                    </label>
-                    {% endif %}
-                    {% endfor %}
-                </div>
-                <span style="font-size:11px;color:var(--text-soft);margin-top:4px">Leer = alleine. Sonst gemeinsamer Termin.</span>
-            </div>
+      {% if members and members|length > 1 %}
+      <div class="sheet-row" style="display:block">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+          <span class="sr-ic">👥</span>
+          <span class="sr-label">Mit wem? (Multi-Select)</span>
+        </div>
+        <div class="sheet-att-grid">
+          {% for m in members %}
+            {% if m.id != current_user.id %}
+            <label class="sheet-att-item" onclick="toggleAtt(this)">
+              <input type="checkbox" name="attendee_ids" value="{{ m.id }}">
+              <span class="sheet-att-color" style="background:{{ m.color }}"></span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.name }}</span>
+            </label>
             {% endif %}
-
-            <button type="submit" class="btn btn-primary" style="width:100%">📅 Eintragen</button>
-        </form>
-
-        {% if root and root.id != current_user.id %}
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-            <a href="/team-kalender{% if is_sub_root %}?root={{ root.id }}{% endif %}" style="color:var(--gold);text-decoration:none;font-size:12px;font-weight:700">← Zurück zum Monats-Kalender</a>
+          {% endfor %}
         </div>
-        {% endif %}
-    </div>
+      </div>
+      {% endif %}
+
+      <!-- Future-feature pills (visuell vorhanden, noch nicht verdrahtet) -->
+      <div class="sheet-pills">
+        <button type="button" class="sheet-pill disabled" title="Bald verfügbar"><span>↻</span> Wiederholung</button>
+        <button type="button" class="sheet-pill disabled" title="Bald verfügbar"><span>📍</span> Ort</button>
+        <button type="button" class="sheet-pill disabled" title="Bald verfügbar"><span>🔗</span> URL</button>
+        <button type="button" class="sheet-pill" onclick="document.getElementById('sf_notes').focus()"><span>📝</span> Notiz</button>
+      </div>
+
+      <div class="sheet-row" style="display:block;padding-top:0" id="sf_notes_row">
+        <textarea name="notizen" id="sf_notes" rows="3" placeholder="Notiz (optional)"
+          style="width:100%;border:1px solid var(--border);background:var(--bg-2);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);outline:none;resize:vertical;font-family:inherit"></textarea>
+      </div>
+
+    </form>
+  </div>
 </div>
 
 <script>
-const APPTS = {{ appointments | tojson }};
-
-function toggleAtt(label, uid) {
-    const cb = label.querySelector('input');
-    cb.checked = !cb.checked;
-    label.classList.toggle('selected', cb.checked);
+function openSheet(initialHour) {
+  document.getElementById('sheetOv').classList.add('open');
+  if (initialHour != null) {
+    document.getElementById('sf_time').value = String(initialHour).padStart(2,'0') + ':00';
+  }
+  setTimeout(() => document.getElementById('sf_title').focus(), 200);
 }
-
-function quickAddAt(hour) {
-    document.getElementById('addTime').value = String(hour).padStart(2,'0') + ':00';
-    document.getElementById('addTitle').focus();
+function closeSheet() {
+  document.getElementById('sheetOv').classList.remove('open');
 }
-
-// Termin-Blöcke in Timeline platzieren mit Collision-Detection (überlappende → nebeneinander)
-const HOUR_PX = 80;
-const PX_PER_MIN = HOUR_PX / 60;
-
-function renderEvents() {
-    const tl = document.getElementById('timeline');
-    // Pre-process: berechne start/end in Minuten, sortiere nach start
-    const evs = APPTS.filter(e => e.termin_time).map(e => {
-        const [h, m] = e.termin_time.substring(0, 5).split(':').map(Number);
-        const start = h * 60 + m;
-        const dur = e.duration_min || 60;
-        return { ...e, _start: start, _end: start + dur, _h: h, _m: m, _dur: dur };
-    }).filter(e => e._h >= 7 && e._h <= 22).sort((a, b) => a._start - b._start);
-
-    // Gruppiere überlappende Events in Cluster, weise Spalten zu
-    const clusters = [];
-    let curr = [];
-    let currEnd = 0;
-    evs.forEach(e => {
-        if (curr.length === 0 || e._start < currEnd) {
-            curr.push(e);
-            currEnd = Math.max(currEnd, e._end);
-        } else {
-            clusters.push(curr);
-            curr = [e];
-            currEnd = e._end;
-        }
-    });
-    if (curr.length) clusters.push(curr);
-
-    clusters.forEach(cluster => {
-        // Greedy column assignment: jedes Event kriegt die niedrigste freie Spalte
-        const cols = [];  // array of "last end time per column"
-        cluster.forEach(e => {
-            let placed = false;
-            for (let i = 0; i < cols.length; i++) {
-                if (cols[i] <= e._start) {
-                    e._col = i; cols[i] = e._end; placed = true; break;
-                }
-            }
-            if (!placed) { e._col = cols.length; cols.push(e._end); }
-        });
-        const totalCols = cols.length;
-        cluster.forEach(e => {
-            const slot = tl.querySelector(`.hour-slot[data-hour="${e._h}"]`);
-            if (!slot) return;
-            const top = e._m * PX_PER_MIN;
-            const height = Math.max(36, e._dur * PX_PER_MIN - 4);
-            const block = document.createElement('div');
-            block.className = 'event-block';
-            block.style.setProperty('--accent', e.color);
-            block.style.background = e.color;
-            block.style.top = top + 'px';
-            block.style.height = height + 'px';
-            // Spalten-Layout: width 100%/totalCols, left = col * (100%/totalCols)
-            const widthPct = 100 / totalCols;
-            const leftPct = e._col * widthPct;
-            block.style.left = `calc(${leftPct}% + 4px)`;
-            block.style.width = `calc(${widthPct}% - 8px)`;
-            block.style.right = 'auto';
-            const typIcon = ({'kundentermin':'👥','erstgespraech':'🆕','abschluss':'✓','recruiting':'🎯','schulung':'🎓','seminar':'📚'})[e.typ] || '💼';
-            let attHtml = '';
-            if (e.attendees && e.attendees.length) {
-                attHtml = '<span class="event-attendees">';
-                e.attendees.slice(0, 4).forEach(a => {
-                    if (a.photo) {
-                        attHtml += `<span class="att-dot" style="background:url(${a.photo}) center/cover;" title="${a.name}"></span>`;
-                    } else {
-                        attHtml += `<span class="att-dot" style="background:${a.color}" title="${a.name}">${a.name[0]}</span>`;
-                    }
-                });
-                if (e.attendees.length > 4) attHtml += `<span class="att-dot" style="background:#94a3b8">+${e.attendees.length - 4}</span>`;
-                attHtml += '</span>';
-            }
-            const compact = totalCols >= 3;  // bei vielen Spalten kompakter rendern
-            block.innerHTML = compact ? `
-                <div class="et">${typIcon} ${e.termin_time.substring(0,5)}</div>
-                <div style="font-size:12px;line-height:1.2">${e.title || '–'}</div>
-            ` : `
-                <div class="et">${typIcon} ${e.termin_time.substring(0,5)} · ${e.owner_name}</div>
-                <div>${e.title || '–'}</div>
-                ${e.client_name ? `<div class="ec">${e.client_name}${attHtml}</div>` : (attHtml ? `<div class="ec">${attHtml}</div>` : '')}
-            `;
-            block.title = `${e.termin_time.substring(0,5)} · ${e.title || '–'} · ${e.owner_name}${e.client_name ? ' · ' + e.client_name : ''}`;
-            block.onclick = (ev) => { ev.stopPropagation(); window.location.href = '/termine'; };
-            slot.appendChild(block);
-        });
-    });
-
-    // Aktuelle Zeit-Linie (nur wenn heute)
-    const today = '{{ today_iso }}';
-    if ('{{ datestr }}' === today) {
-        const now = new Date();
-        const h = now.getHours(), m = now.getMinutes();
-        if (h >= 7 && h <= 22) {
-            const slot = tl.querySelector(`.hour-slot[data-hour="${h}"]`);
-            if (slot) {
-                slot.classList.add('now');
-                const line = document.createElement('div');
-                line.className = 'hour-now-line';
-                line.style.top = (m * PX_PER_MIN) + 'px';
-                slot.appendChild(line);
-            }
-        }
-    }
+function toggleAllday() {
+  const t = document.getElementById('sf_allday_toggle');
+  const i = document.getElementById('sf_allday');
+  const on = !t.classList.contains('on');
+  t.classList.toggle('on', on);
+  i.value = on ? '1' : '0';
+  document.getElementById('sf_time_chip').style.display = on ? 'none' : 'inline-flex';
+  document.getElementById('sf_dur').disabled = on;
 }
-renderEvents();
+function toggleAtt(label) {
+  const cb = label.querySelector('input');
+  cb.checked = !cb.checked;
+  label.classList.toggle('selected', cb.checked);
+}
+// ESC schließt Sheet
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 </script>
 
 {% endblock %}

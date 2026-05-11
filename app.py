@@ -8949,8 +8949,8 @@ def team_kalender_tag(datestr):
     photo_map = {m['id']: m['photo_path'] for m in members}
     members_list = [{'id': m['id'], 'name': m['name'], 'color': color_map[m['id']], 'photo': photo_map.get(m['id'])} for m in members]
 
-    appts = db.execute(f'''SELECT a.*, u.name as owner_name FROM appointments a
-                            JOIN users u ON a.owner_id=u.id
+    appts = db.execute(f'''SELECT a.*, u.name as owner_name, u.photo_path as owner_photo
+                            FROM appointments a JOIN users u ON a.owner_id=u.id
                             WHERE a.owner_id IN ({placeholders}) AND date(a.termin_date)=?
                             ORDER BY a.termin_time NULLS FIRST, a.id''', ids + [datestr]).fetchall()
     appts_list = []
