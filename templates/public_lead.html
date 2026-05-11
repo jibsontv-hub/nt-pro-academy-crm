@@ -353,19 +353,8 @@ textarea.in { resize: vertical; min-height: 70px; }
             <input class="in" type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
 
             <label class="fl">Wie bist du auf uns aufmerksam geworden?</label>
-            <select class="in" name="quelle" style="cursor:pointer">
-                <option value="">— bitte wählen —</option>
-                <option value="instagram">📸 Instagram</option>
-                <option value="tiktok">🎵 TikTok</option>
-                <option value="youtube">▶️ YouTube</option>
-                <option value="empfehlung">🤝 Empfehlung von Bekannten</option>
-                <option value="google">🔍 Google-Suche</option>
-                <option value="podcast">🎙 Podcast</option>
-                <option value="event">📅 Event / Vortrag</option>
-                <option value="werbung">📢 Werbung / Anzeige</option>
-                <option value="sonstiges">✨ Anders / Sonstiges</option>
-            </select>
-            <input type="hidden" name="referred_by" value="{{ referred_by or '' }}">
+            <input class="in" type="text" name="referred_by" value="{{ referred_by or '' }}" placeholder="z.B. Instagram · Google · oder Name (z.B. Najib Tchatikpi)">
+            <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4">Wenn dich jemand persönlich empfohlen hat, schreib seinen Namen — wir leiten dich direkt zu ihm.</div>
 
             <label class="fl">Deine Frage / Situation (optional)</label>
             <textarea class="in" name="message" placeholder="Erzähl in 1-2 Sätzen worum's geht…"></textarea>

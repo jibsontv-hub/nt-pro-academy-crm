@@ -4840,8 +4840,9 @@ def public_lead_capture():
         email = (request.form.get('email') or '').strip().lower()
         phone = (request.form.get('phone') or '').strip()
         message = (request.form.get('message') or '').strip()
+        # referred_by ist jetzt das kombinierte Feld: entweder Quelle (Instagram/Google/...)
+        # ODER ein Berater-Name (für Auto-Routing). Backend interpretiert beides.
         referred_by = (request.form.get('referred_by') or '').strip()
-        quelle = (request.form.get('quelle') or '').strip().lower()  # neue Quelle-Auswahl
         interesse = (request.form.get('interesse') or '').strip().lower()  # 'beratung' | 'karriere'
         privacy = request.form.get('privacy')
 
@@ -4855,13 +4856,15 @@ def public_lead_capture():
         # Auto-Zuordnung: wenn Empfehlungs-Code → diesem Berater zuordnen
         db = get_db()
         owner_id = None
+        matched_berater_name = None  # für Notiz-Tag
         if referred_by:
             ref_user = db.execute(
-                'SELECT id FROM users WHERE LOWER(email) = ? OR LOWER(name) LIKE ? AND active = 1',
+                'SELECT id, name FROM users WHERE (LOWER(email) = ? OR LOWER(name) LIKE ?) AND active = 1 LIMIT 1',
                 (referred_by.lower(), f'%{referred_by.lower()}%')
             ).fetchone()
             if ref_user:
                 owner_id = ref_user['id']
+                matched_berater_name = ref_user['name']
         if not owner_id:
             # Fallback: Admin
             admin = db.execute("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").fetchone()
@@ -4873,19 +4876,18 @@ def public_lead_capture():
             db.close()
             return render_template('public_lead.html', success=True, duplicate=True)
 
-        # Notiz inkl. Interesse + Quelle-Tag — sofort sichtbar im CRM
+        # Notiz inkl. Interesse + Quelle/Empfehlung-Tag — sofort sichtbar im CRM
         interesse_tag = ''
         if interesse == 'beratung':
             interesse_tag = '🎯 BERATUNG · '
         elif interesse == 'karriere':
             interesse_tag = '🚀 KARRIERE · '
-        quelle_emoji = {
-            'instagram': '📸 Instagram', 'tiktok': '🎵 TikTok', 'youtube': '▶ YouTube',
-            'empfehlung': '🤝 Empfehlung', 'google': '🔍 Google',
-            'podcast': '🎙 Podcast', 'event': '📅 Event', 'werbung': '📢 Werbung',
-            'sonstiges': '✨ Anders'
-        }.get(quelle, '')
-        quelle_tag = f' · Quelle: {quelle_emoji}' if quelle_emoji else ''
+        # Quelle-Tag: wenn Berater-Match → "Empfohlen von <Name>", sonst → "Quelle: <Eingabe>"
+        quelle_tag = ''
+        if matched_berater_name:
+            quelle_tag = f' · 🤝 Empfohlen von {matched_berater_name}'
+        elif referred_by:
+            quelle_tag = f' · Quelle: {referred_by[:60]}'
         notizen_full = f'{interesse_tag}Über Online-Form{quelle_tag}. {message}' if (interesse_tag or message or quelle_tag) else 'Über Online-Form.'
         # Lead-Liste-Typ: Beratung → vk (Vertrieb), Karriere → rk (Recruiting)
         liste_typ = 'rk' if interesse == 'karriere' else 'vk'
@@ -4930,10 +4932,9 @@ def public_lead_capture():
 
 # === PUBLIC BOOKING — Kalendly-Style Slot-Picker ===
 def _generate_booking_slots(owner_id, days_ahead=14):
-    """Generiert verfügbare 30-Min-Slots für die nächsten N Tage.
-    Berücksichtigt bereits gebuchte Termine des Owners."""
+    """Kalendly-Style: 30-Min-Slots Mo-Fr 9:00-17:30, Sa/So gesperrt.
+    Bestehende Owner-Termine sperren auch ±30 Min als Puffer."""
     db = get_db()
-    # Hole alle existierenden Termine des Owners im Zeitraum
     today = date.today()
     end_date = today + timedelta(days=days_ahead)
     booked_rows = db.execute('''
@@ -4942,23 +4943,39 @@ def _generate_booking_slots(owner_id, days_ahead=14):
               AND status IN ('geplant', 'bestätigt')
     ''', (owner_id, today.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))).fetchall()
     db.close()
+
+    # Booked-Set: jeder Termin sperrt sich SELBST + Slot davor + Slot danach (30 Min Puffer)
     booked_set = set()
     for r in booked_rows:
-        if r['termin_time']:
-            booked_set.add(f"{r['termin_date']}_{r['termin_time'][:5]}")
+        if not r['termin_time']:
+            continue
+        try:
+            tdt = datetime.strptime(f"{r['termin_date']} {r['termin_time'][:5]}", '%Y-%m-%d %H:%M')
+        except ValueError:
+            continue
+        # Termin-Slot + ±30 Min Puffer
+        for delta_min in (-30, 0, 30):
+            blocked = tdt + timedelta(minutes=delta_min)
+            booked_set.add(blocked.strftime('%Y-%m-%d_%H:%M'))
 
-    # Slot-Definition: Mo-Fr je 4 Slots, Sa 2 Slots, So nichts
-    weekday_slots = ['10:00', '14:00', '17:00', '19:00']
-    saturday_slots = ['10:00', '14:00']
+    # Slot-Definition: Mo-Fr 9:00-17:30 in 30-Min-Schritten (18 Slots/Tag)
+    SLOT_START_HOUR = 9
+    SLOT_END_HOUR = 18  # last slot starts 17:30, ends 18:00
+    weekday_slots = []
+    h = SLOT_START_HOUR
+    while h < SLOT_END_HOUR:
+        weekday_slots.append(f'{h:02d}:00')
+        weekday_slots.append(f'{h:02d}:30')
+        h += 1
+
     days = []
     for offset in range(0, days_ahead):
         d = today + timedelta(days=offset)
-        weekday = d.weekday()  # 0=Mo, 6=So
-        if weekday == 6:  # Sonntag
+        weekday = d.weekday()  # 0=Mo, 5=Sa, 6=So
+        if weekday >= 5:  # Sa + So gesperrt
             continue
-        slot_times = saturday_slots if weekday == 5 else weekday_slots
         slots = []
-        for t in slot_times:
+        for t in weekday_slots:
             # Heute: nur Slots in der Zukunft (mind. 2h Puffer)
             if offset == 0:
                 slot_dt = datetime.combine(d, datetime.strptime(t, '%H:%M').time())
@@ -7934,10 +7951,73 @@ def tracking():
 @app.route('/team-kalender')
 @login_required
 def team_kalender():
-    """Team-Kalender ab HREP+ — alle Termine der Struktur sichtbar.
-    Optional: ?root=<id> um in eine Sub-Struktur zu zoomen (nur wenn Upline)
-    Optional: ?partner=<id> um nur einen Partner zu filtern."""
+    """Team-Kalender mit Strang-Übersicht-Default.
+    - Wenn user direkte Geschäftspartner UNTER sich hat (Admin/HREP+) → Strang-Kachel-Übersicht
+    - ?root=<id>: Einzel-Kalender für einen Strang
+    - ?partner=<id>: Filter auf einen Partner innerhalb eines Strangs"""
     root_param = request.args.get('root')
+
+    # ─── Übersichts-Mode (Default für User mit direkten Partnern) ───
+    if not root_param:
+        db = get_db()
+        # Direkte Geschäftspartner unter current_user (= ein "Strang" pro Partner)
+        direct_partners = db.execute('''
+            SELECT id, name, photo_path, manual_career_level
+            FROM users WHERE parent_id = ? AND active = 1
+            ORDER BY name
+        ''', (current_user.id,)).fetchall()
+        if not direct_partners:
+            # Keine direkten Partner → klassischer Single-Kalender via Calendar-Root
+            root = get_team_calendar_root(current_user.id)
+            if not root:
+                flash('Team-Kalender ist ab HREP-Stufe verfügbar — du oder ein Upline-Partner muss HREP oder höher sein.', 'info')
+                db.close()
+                return redirect(url_for('dashboard'))
+            db.close()
+            # Fall-through zu Single-Kalender mit eigenem root
+            root_param = str(root['id'])
+        else:
+            # Strang-Übersicht: pro Partner Termin-Stats für nächste 14 Tage
+            today = date.today()
+            in_14d = today + timedelta(days=14)
+            strange = []
+            for p in direct_partners:
+                strang_ids = [p['id']] + get_all_descendants(p['id'])
+                ph = ','.join('?' * len(strang_ids))
+                # Nächste 5 Termine
+                upcoming = db.execute(f'''
+                    SELECT a.title, a.client_name, a.termin_date, a.termin_time, a.status, u.name as owner_name
+                    FROM appointments a JOIN users u ON a.owner_id = u.id
+                    WHERE a.owner_id IN ({ph})
+                      AND date(a.termin_date) >= date(?)
+                      AND date(a.termin_date) <= date(?)
+                    ORDER BY a.termin_date, a.termin_time
+                    LIMIT 5
+                ''', strang_ids + [today.isoformat(), in_14d.isoformat()]).fetchall()
+                # Counter
+                count_today = db.execute(f'''
+                    SELECT COUNT(*) c FROM appointments
+                    WHERE owner_id IN ({ph}) AND date(termin_date) = date(?)
+                ''', strang_ids + [today.isoformat()]).fetchone()['c']
+                count_week = db.execute(f'''
+                    SELECT COUNT(*) c FROM appointments
+                    WHERE owner_id IN ({ph})
+                      AND date(termin_date) >= date(?)
+                      AND date(termin_date) <= date(?)
+                ''', strang_ids + [today.isoformat(), in_14d.isoformat()]).fetchone()['c']
+                strange.append({
+                    'id': p['id'], 'name': p['name'], 'photo_path': p['photo_path'],
+                    'level': p['manual_career_level'] or 1,
+                    'team_size': len(strang_ids),  # inkl. partner selbst
+                    'count_today': count_today,
+                    'count_week': count_week,
+                    'upcoming': [dict(u) for u in upcoming],
+                })
+            db.close()
+            return render_template('team_kalender_uebersicht.html',
+                strange=strange, today_iso=today.isoformat())
+
+    # ─── Single-Strang-Mode (mit ?root=<id>) ───
     if root_param and root_param.isdigit():
         target_id = int(root_param)
         # Berechtigung: nur wenn current_user Upline ist (oder Admin oder selber)
