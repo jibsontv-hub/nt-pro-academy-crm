@@ -8464,7 +8464,31 @@ def team_kalender():
             today = date.today()
             in_14d = today + timedelta(days=14)
             strange = []
-            # ─── 1. „ALLE"-Slot oben: gesamte Downline + eigener Kalender ───
+            # ─── 0. „MEIN KALENDER"-Slot ganz oben: nur eigene Termine, keine Downline ───
+            mine_upcoming = db.execute('''
+                SELECT a.title, a.client_name, a.termin_date, a.termin_time, a.status, u.name as owner_name
+                FROM appointments a JOIN users u ON a.owner_id = u.id
+                WHERE a.owner_id = ?
+                  AND date(a.termin_date) >= date(?)
+                  AND date(a.termin_date) <= date(?)
+                ORDER BY a.termin_date, a.termin_time
+                LIMIT 5
+            ''', (current_user.id, today.isoformat(), in_14d.isoformat())).fetchall()
+            mine_today = db.execute('SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)=date(?)',
+                                    (current_user.id, today.isoformat())).fetchone()['c']
+            mine_week = db.execute('SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)>=date(?) AND date(termin_date)<=date(?)',
+                                   (current_user.id, today.isoformat(), in_14d.isoformat())).fetchone()['c']
+            # Eigener User-Photo holen
+            me_photo = db.execute('SELECT photo_path FROM users WHERE id=?', (current_user.id,)).fetchone()
+            strange.append({
+                'id': current_user.id, 'name': f'👤 Mein Kalender · {current_user.name}',
+                'photo_path': me_photo['photo_path'] if me_photo else None,
+                'level': 99, 'team_size': 1,
+                'count_today': mine_today, 'count_week': mine_week,
+                'upcoming': [dict(u) for u in mine_upcoming],
+                'is_mine': True,
+            })
+            # ─── 1. „ALLE"-Slot: gesamte Downline + eigener Kalender ───
             all_ids = [current_user.id] + get_all_descendants(current_user.id)
             ph_all = ','.join('?' * len(all_ids))
             all_upcoming = db.execute(f'''
@@ -8546,7 +8570,7 @@ def team_kalender():
                     mentor_week = db.execute('SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)>=date(?) AND date(termin_date)<=date(?)',
                                              (mentor['id'], today.isoformat(), in_14d.isoformat())).fetchone()['c']
                     strange.append({
-                        'id': mentor['id'], 'name': f'⬢ Mein Mentor: {mentor["name"]}',
+                        'id': mentor['id'], 'name': f'⬢ Strukturleiter · {mentor["name"]}',
                         'photo_path': mentor['photo_path'],
                         'level': mentor['manual_career_level'] or 1,
                         'team_size': 1,
