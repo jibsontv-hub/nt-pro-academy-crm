@@ -4717,6 +4717,7 @@ PUSH_CATEGORIES = [
     ('goal_achieved', '🎯 Ziel erreicht', 'Wenn du dein Wochenziel/Karriere-Stufe erreichst'),
     ('vorschlag', '💡 Vorschläge (nur Admin)', 'Wenn ein Partner einen Vorschlag einreicht'),
     ('broadcast', '📢 Broadcasts vom Admin', 'Wichtige Mitteilungen an alle'),
+    ('admin_alert', '🚨 System-Alerts (nur Admin)', '24/7-Monitor: App down, DB-Korruption, Backup-Failure'),
 ]
 
 
