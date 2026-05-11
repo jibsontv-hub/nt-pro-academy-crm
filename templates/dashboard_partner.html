@@ -183,10 +183,14 @@
 </div>
 {% endif %}
 
-<!-- 🔮 AUTO-FORECAST (nächste 30 Tage, basierend auf Vergangenheit) -->
+<!-- 🔮 AUTO-FORECAST — klappbar -->
 {% if forecast_30d and forecast_30d.has_data %}
-<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#3b82f6 6%,var(--surface)));border:1px solid color-mix(in srgb,#3b82f6 25%,var(--border))">
-    <div class="card-title" style="color:var(--blue)">🔮 Auto-Prognose · nächste 30 Tage</div>
+<details class="dash-collapse">
+<summary style="cursor:pointer;list-style:none;padding:12px 16px;background:color-mix(in srgb,#3b82f6 6%,var(--surface));border:1px solid color-mix(in srgb,#3b82f6 25%,var(--border));border-radius:14px;font-weight:800;color:var(--blue);font-size:13px;display:flex;align-items:center;justify-content:space-between">
+    <span>🔮 Auto-Prognose · nächste 30 Tage</span>
+    <span style="font-size:11px;color:var(--text-muted);font-weight:600">aufklappen ▾</span>
+</summary>
+<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#3b82f6 6%,var(--surface)));border:1px solid color-mix(in srgb,#3b82f6 25%,var(--border));margin-top:6px">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px">
         <div style="text-align:center;padding:14px;background:var(--bg-2);border-radius:14px">
             <div style="font-size:34px;font-weight:800;color:var(--blue);letter-spacing:-1px;line-height:1">
@@ -217,11 +221,21 @@
         💡 Hochgerechnet aus deinen letzten {{ forecast_30d.lookback_days }} Tagen — wird genauer mit mehr Daten
     </div>
 </div>
+</details>
 {% endif %}
 
-<!-- ⏰ Eingabeschluss + Seminar (kompakt) -->
+<!-- ⏰ Eingabeschluss + Seminar — klappbar wenn nicht urgent -->
 {% if deadlines %}
-<div class="revo-chips">
+<details class="dash-collapse" {% if deadlines.eingabe_today or deadlines.eingabe_urgent %}open{% endif %}>
+<summary style="cursor:pointer;list-style:none;padding:12px 16px;background:{% if deadlines.eingabe_today %}var(--red-soft){% elif deadlines.eingabe_urgent %}var(--orange-soft){% else %}var(--bg-2){% endif %};border:1px solid var(--border);border-radius:14px;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:space-between">
+    <span>⏰ Eingabeschluss & Grundseminar
+        {% if deadlines.eingabe_today %}<span style="color:var(--red);margin-left:6px">🔥 HEUTE</span>
+        {% elif deadlines.eingabe_urgent %}<span style="color:var(--orange);margin-left:6px">⚠ in {{ deadlines.eingabe_in_days }}T</span>
+        {% endif %}
+    </span>
+    <span style="font-size:11px;color:var(--text-muted);font-weight:600">{% if deadlines.eingabe_today or deadlines.eingabe_urgent %}einklappen ▴{% else %}aufklappen ▾{% endif %}</span>
+</summary>
+<div class="revo-chips" style="margin-top:6px">
     <div class="revo-chip" {% if deadlines.eingabe_today %}style="border-color:var(--red);background:var(--red-soft)"{% elif deadlines.eingabe_urgent %}style="border-color:var(--orange);background:var(--orange-soft)"{% endif %}>
         <div class="revo-chip-l">⏰ Eingabeschluss</div>
         <div class="revo-chip-v">{{ deadlines.eingabeschluss_str }}</div>
@@ -235,6 +249,7 @@
         <div class="revo-chip-d">in {{ deadlines.seminar_in_days }} Tagen</div>
     </div>
 </div>
+</details>
 {% endif %}
 
 <!-- ⚡ Quick-Actions -->
@@ -397,10 +412,14 @@
 </div>
 {% endif %}
 
-<!-- 🌐 STRANG-STATUS — Bin ich auf Kurs für die nächste Stufe? -->
+<!-- 🌐 STRANG-STATUS — klappbar (öffnet wenn nur 1 fehlt) -->
 {% if strang_status and strang_status.next_level and strang_status.needed_strands > 0 %}
-<div class="revo-section-h">⬢ Stränge · auf Kurs für {{ strang_status.next_level.short }}?</div>
-<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#d4a843 5%,var(--surface)));border:1px solid color-mix(in srgb,#d4a843 25%,var(--border))">
+<details class="dash-collapse" {% if strang_status.missing_count == 1 %}open{% endif %}>
+<summary style="cursor:pointer;list-style:none;padding:12px 16px;background:color-mix(in srgb,#d4a843 5%,var(--surface));border:1px solid color-mix(in srgb,#d4a843 25%,var(--border));border-radius:14px;font-weight:800;font-size:14px;color:var(--text);display:flex;align-items:center;justify-content:space-between">
+    <span>⬢ Stränge · auf Kurs für {{ strang_status.next_level.short }}? ({{ strang_status.qualified_count }}/{{ strang_status.needed_strands }})</span>
+    <span style="font-size:11px;color:var(--text-muted);font-weight:600">aufklappen ▾</span>
+</summary>
+<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#d4a843 5%,var(--surface)));border:1px solid color-mix(in srgb,#d4a843 25%,var(--border));margin-top:6px">
     <!-- Hero-Status -->
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px">
         <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;flex-shrink:0">
@@ -463,6 +482,7 @@
     </div>
     {% endif %}
 </div>
+</details>
 {% endif %}
 
 {% if direct_team %}

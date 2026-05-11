@@ -5524,26 +5524,177 @@ def public_booking():
     return render_template('booking.html', days=days, owner_name=owner_name, ref=ref)
 
 
+@app.route('/strukturbomben')
+@login_required
+def strukturbomben():
+    """Highlight-Feed: alle wichtigen Events der Struktur (Aufstiege, Großvertraege, neue Partner, Streaks)."""
+    db = get_db()
+    # Scope = current_user + komplette Downline
+    ids = [current_user.id] + get_all_descendants(current_user.id)
+    ph = ','.join('?' * len(ids))
+    bombs = []
+
+    # 🎯 Großverträge der letzten 30 Tage (≥3000 EH oder Volumen ≥ 10k)
+    big_contracts = db.execute(f'''
+        SELECT c.id, c.client_name, c.einheiten, c.volumen, c.abschluss_date, c.created_at,
+               u.id as uid, u.name as owner_name
+        FROM contracts c JOIN users u ON c.owner_id = u.id
+        WHERE c.owner_id IN ({ph})
+          AND c.status = 'abgeschlossen'
+          AND (c.einheiten >= 3000 OR c.volumen >= 10000)
+          AND date(COALESCE(c.abschluss_date, c.created_at)) >= date('now','-30 days')
+        ORDER BY date(COALESCE(c.abschluss_date, c.created_at)) DESC LIMIT 20
+    ''', ids).fetchall()
+    for c in big_contracts:
+        bombs.append({
+            'when': c['abschluss_date'] or c['created_at'],
+            'icon': '🎯', 'color': '#d4a843',
+            'title': f'Großvertrag: {int(c["einheiten"] or 0):,} EH'.replace(',', '.'),
+            'subtitle': f'{c["owner_name"]} · {c["client_name"] or "Kunde"} · {int(c["volumen"] or 0):,}€'.replace(',', '.'),
+            'link': f'/vertraege?focus={c["id"]}',
+            'kind': 'großvertrag',
+        })
+
+    # 🆕 Neue Partner (joined letzten 14 Tagen)
+    new_partners = db.execute(f'''
+        SELECT id, name, joined_date, parent_id,
+               (SELECT name FROM users WHERE id = u.parent_id) as mentor_name
+        FROM users u
+        WHERE id IN ({ph}) AND active = 1
+          AND date(joined_date) >= date('now','-14 days')
+          AND id != ?
+        ORDER BY joined_date DESC LIMIT 20
+    ''', ids + [current_user.id]).fetchall()
+    for p in new_partners:
+        bombs.append({
+            'when': p['joined_date'],
+            'icon': '🆕', 'color': '#22c55e',
+            'title': f'Neuer Partner: {p["name"]}',
+            'subtitle': f'Mentor: {p["mentor_name"] or "—"}',
+            'link': f'/partner/{p["id"]}/profil',
+            'kind': 'neuer_partner',
+        })
+
+    # 🔥 Streak-Stars (≥7 Tage)
+    streak_stars = db.execute(f'''
+        SELECT id, name, streak_days FROM users
+        WHERE id IN ({ph}) AND active = 1 AND COALESCE(streak_days,0) >= 7
+        ORDER BY streak_days DESC LIMIT 10
+    ''', ids).fetchall()
+    today_iso = date.today().isoformat()
+    for s in streak_stars:
+        bombs.append({
+            'when': today_iso,
+            'icon': '🔥', 'color': '#f97316',
+            'title': f'Streak-Star: {s["name"]} · {s["streak_days"]} Tage in Folge',
+            'subtitle': 'tägliche Aktivität ohne Unterbrechung',
+            'link': f'/partner/{s["id"]}/profil',
+            'kind': 'streak',
+        })
+
+    # 📈 Top-Performer der Woche (meiste abgeschlossene Verträge in 7 Tagen)
+    top_performers = db.execute(f'''
+        SELECT u.id, u.name, COUNT(c.id) as n_contracts, COALESCE(SUM(c.einheiten),0) as eh
+        FROM users u JOIN contracts c ON c.owner_id = u.id
+        WHERE u.id IN ({ph}) AND c.status = 'abgeschlossen'
+          AND date(COALESCE(c.abschluss_date, c.created_at)) >= date('now','-7 days')
+        GROUP BY u.id, u.name HAVING n_contracts >= 2
+        ORDER BY eh DESC LIMIT 5
+    ''', ids).fetchall()
+    for t in top_performers:
+        bombs.append({
+            'when': today_iso,
+            'icon': '📈', 'color': '#3b82f6',
+            'title': f'Top-Woche: {t["name"]}',
+            'subtitle': f'{t["n_contracts"]} Verträge · {int(t["eh"]):,} EH in 7 Tagen'.replace(',', '.'),
+            'link': f'/partner/{t["id"]}/profil',
+            'kind': 'top_performer',
+        })
+    db.close()
+    # Sort all by date desc
+    bombs.sort(key=lambda b: b['when'] or '', reverse=True)
+    return render_template('strukturbomben.html', bombs=bombs, total_team=len(ids))
+
+
+@app.route('/grundseminar')
+@login_required
+def grundseminar():
+    """Grundseminar-Teilnehmerliste — RK-Leads die als kommend markiert sind.
+    Admin/HREP+ können per ?scope=<id|me|all> filtern."""
+    deadlines = get_production_deadlines()
+    scope = (request.args.get('scope') or 'me').lower()
+    db = get_db()
+    directs = []
+    if current_user.has_admin_access or get_all_descendants(current_user.id):
+        directs = db.execute('SELECT id, name FROM users WHERE parent_id=? AND active=1 ORDER BY name', (current_user.id,)).fetchall()
+    if scope == 'all':
+        owner_ids = [current_user.id] + get_all_descendants(current_user.id)
+        scope_label = '🌐 Gesamte Struktur'
+    elif scope.isdigit():
+        sid = int(scope)
+        # Berechtigung: Admin oder Sub muss in eigener Downline liegen
+        if current_user.has_admin_access or sid in get_all_descendants(current_user.id):
+            owner_ids = [sid] + get_all_descendants(sid)
+            sname = db.execute('SELECT name FROM users WHERE id=?', (sid,)).fetchone()
+            scope_label = f'⬢ {sname["name"] if sname else "?"}'
+        else:
+            owner_ids = [current_user.id]
+            scope_label = f'👤 {current_user.name}'
+            scope = 'me'
+    else:
+        owner_ids = [current_user.id]
+        scope_label = f'👤 {current_user.name}'
+        scope = 'me'
+    ph = ','.join('?' * len(owner_ids))
+    teilnehmer = db.execute(f'''
+        SELECT l.id, l.name, l.email, l.phone, l.status, l.notizen, l.created_at, l.updated_at,
+               u.name as owner_name
+        FROM leads l LEFT JOIN users u ON l.owner_id = u.id
+        WHERE l.owner_id IN ({ph})
+          AND COALESCE(l.liste_typ,'vk') = 'rk'
+          AND l.status IN ('gewonnen', 'angemeldet')
+        ORDER BY COALESCE(l.updated_at, l.created_at) DESC LIMIT 200
+    ''', owner_ids).fetchall()
+    pending = db.execute(f'''
+        SELECT l.id, l.name, l.status, u.name as owner_name
+        FROM leads l LEFT JOIN users u ON l.owner_id = u.id
+        WHERE l.owner_id IN ({ph})
+          AND COALESCE(l.liste_typ,'vk') = 'rk'
+          AND COALESCE(l.status,'') NOT IN ('gewonnen','angemeldet','verloren','storno','tot','')
+        ORDER BY l.created_at DESC LIMIT 50
+    ''', owner_ids).fetchall()
+    db.close()
+    return render_template('grundseminar.html',
+        deadlines=deadlines, teilnehmer=teilnehmer, pending=pending,
+        directs=directs, scope=scope, scope_label=scope_label)
+
+
 @app.route('/admin/inbox')
 @login_required
 def admin_inbox():
-    """Bewerber-Inbox: alle öffentlichen Lead-Anmeldungen."""
+    """Bewerber/Customer-Lead-Inbox — filterbar nach typ=vk|rk|all."""
     if not current_user.has_admin_access:
         flash('Keine Berechtigung', 'error')
         return redirect(url_for('dashboard'))
+    typ = (request.args.get('typ') or 'all').lower()
+    if typ not in ('vk', 'rk', 'all'):
+        typ = 'all'
     db = get_db()
-    rows = db.execute('''
-        SELECT l.*,
-               u.name as owner_name,
-               u.instagram_handle as owner_ig,
-               u.tiktok_handle as owner_tt
-        FROM leads l
-        LEFT JOIN users u ON l.owner_id = u.id
+    base_sql = '''
+        SELECT l.*, u.name as owner_name, u.instagram_handle as owner_ig, u.tiktok_handle as owner_tt
+        FROM leads l LEFT JOIN users u ON l.owner_id = u.id
         WHERE l.source = 'public'
-        ORDER BY l.created_at DESC LIMIT 200
-    ''').fetchall()
+    '''
+    if typ == 'vk':
+        rows = db.execute(base_sql + " AND COALESCE(l.liste_typ,'vk') = 'vk' ORDER BY l.created_at DESC LIMIT 200").fetchall()
+    elif typ == 'rk':
+        rows = db.execute(base_sql + " AND COALESCE(l.liste_typ,'vk') = 'rk' ORDER BY l.created_at DESC LIMIT 200").fetchall()
+    else:
+        rows = db.execute(base_sql + " ORDER BY l.created_at DESC LIMIT 200").fetchall()
+    cnt_vk = db.execute("SELECT COUNT(*) c FROM leads WHERE source='public' AND COALESCE(liste_typ,'vk')='vk'").fetchone()['c']
+    cnt_rk = db.execute("SELECT COUNT(*) c FROM leads WHERE source='public' AND COALESCE(liste_typ,'vk')='rk'").fetchone()['c']
     db.close()
-    return render_template('admin_inbox.html', leads=rows)
+    return render_template('admin_inbox.html', leads=rows, typ=typ, cnt_vk=cnt_vk, cnt_rk=cnt_rk, cnt_all=cnt_vk + cnt_rk)
 
 
 @app.route('/passwort-aendern', methods=['GET', 'POST'])

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Grundseminar-Teilnehmer · Pro Academy{% endblock %}
+{% block page_title %}🎓 Grundseminar{% endblock %}
+
+{% block content %}
+
+{% if deadlines %}
+<div class="card" style="background:linear-gradient(135deg,var(--gold-soft),var(--surface));border-left:4px solid var(--gold)">
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="font-size:32px">🎓</div>
+        <div style="flex:1;min-width:200px">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);font-weight:800">Nächstes Grundseminar</div>
+            <div style="font-size:22px;font-weight:900;color:var(--gold);margin-top:2px">{{ deadlines.grundseminar_str }} · {{ deadlines.seminar_weekday }}</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:4px">
+                {% if deadlines.seminar_today %}🔥 HEUTE{% elif deadlines.seminar_in_days < 0 %}vorbei{% else %}in {{ deadlines.seminar_in_days }} Tag{% if deadlines.seminar_in_days != 1 %}en{% endif %}{% endif %}
+                · {{ deadlines.seminar_month_label }}-Periode
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if directs %}
+<div style="display:flex;gap:6px;margin:14px 0;flex-wrap:wrap">
+    <a href="?scope=me" style="padding:7px 14px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;background:{% if scope == 'me' %}var(--gold);color:#0f1c3f{% else %}var(--surface);color:var(--text-muted){% endif %};border:1px solid {% if scope == 'me' %}var(--gold){% else %}var(--border){% endif %}">👤 Nur du</a>
+    <a href="?scope=all" style="padding:7px 14px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;background:{% if scope == 'all' %}var(--gold);color:#0f1c3f{% else %}var(--surface);color:var(--text-muted){% endif %};border:1px solid {% if scope == 'all' %}var(--gold){% else %}var(--border){% endif %}">🌐 Gesamte Struktur</a>
+    {% for d in directs %}
+    <a href="?scope={{ d.id }}" style="padding:7px 14px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;background:{% if scope == d.id|string %}#3b82f6;color:#fff{% else %}var(--surface);color:var(--text-muted){% endif %};border:1px solid {% if scope == d.id|string %}#3b82f6{% else %}var(--border){% endif %}">⬢ {{ d.name }}</a>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-title">Angemeldet ({{ teilnehmer|length }}) · {{ scope_label }}</div>
+    {% if teilnehmer %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Kontakt</th><th>Status</th><th>Empfohlen von</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for t in teilnehmer %}
+                <tr>
+                    <td><strong>{{ t.name }}</strong></td>
+                    <td style="font-size:12px;color:var(--text-muted)">{{ t.email or t.phone or '—' }}</td>
+                    <td><span style="background:#22c55e15;color:#22c55e;padding:3px 8px;border-radius:99px;font-size:11px;font-weight:700">{{ t.status }}</span></td>
+                    <td style="font-size:12px;color:var(--text-muted)">{{ t.owner_name or '—' }}</td>
+                    <td><a href="/leads/{{ t.id }}/edit" class="btn btn-secondary btn-sm">✎</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="padding:32px;text-align:center;color:var(--text-muted)">
+        Noch keine Teilnehmer markiert. Setz einen RK-Lead-Status auf <code>gewonnen</code> oder <code>angemeldet</code> damit er hier erscheint.
+    </div>
+    {% endif %}
+</div>
+
+{% if pending %}
+<div class="card" style="margin-top:14px">
+    <div class="card-title" style="color:var(--text-muted)">In Bearbeitung — könnten noch dazu kommen ({{ pending|length }})</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0">
+        {% for p in pending %}
+        <a href="/leads/{{ p.id }}/edit" style="padding:6px 12px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text);font-size:12px">
+            {{ p.name }} <span style="color:var(--text-muted);font-size:10px">· {{ p.status or 'neu' }} · {{ p.owner_name or '—' }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

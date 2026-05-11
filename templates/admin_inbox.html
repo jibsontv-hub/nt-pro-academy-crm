@@ -19,9 +19,28 @@
     </div>
 </div>
 
+<!-- VK/RK-Filter Tabs -->
+<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <a href="?typ=all" style="padding:8px 16px;border-radius:99px;font-size:13px;font-weight:700;text-decoration:none;
+       background:{% if typ == 'all' %}var(--gold);color:#0f1c3f{% else %}var(--surface);color:var(--text-muted){% endif %};
+       border:1px solid {% if typ == 'all' %}var(--gold){% else %}var(--border){% endif %}">
+        Alle ({{ cnt_all }})
+    </a>
+    <a href="?typ=vk" style="padding:8px 16px;border-radius:99px;font-size:13px;font-weight:700;text-decoration:none;
+       background:{% if typ == 'vk' %}#22c55e;color:#fff{% else %}var(--surface);color:var(--text-muted){% endif %};
+       border:1px solid {% if typ == 'vk' %}#22c55e{% else %}var(--border){% endif %}">
+        🛒 Kunden-Leads ({{ cnt_vk }})
+    </a>
+    <a href="?typ=rk" style="padding:8px 16px;border-radius:99px;font-size:13px;font-weight:700;text-decoration:none;
+       background:{% if typ == 'rk' %}#3b82f6;color:#fff{% else %}var(--surface);color:var(--text-muted){% endif %};
+       border:1px solid {% if typ == 'rk' %}#3b82f6{% else %}var(--border){% endif %}">
+        👥 Bewerber-Leads ({{ cnt_rk }})
+    </a>
+</div>
+
 <div class="card">
     <div class="card-title">
-        Anmeldungen ({{ leads|length }})
+        {% if typ == 'vk' %}🛒 Kunden-Leads{% elif typ == 'rk' %}👥 Bewerber{% else %}Alle Anmeldungen{% endif %} ({{ leads|length }})
         <input type="text" id="searchInput" placeholder="🔍 Suchen..." onkeyup="filterTable()" style="padding:6px 10px;border:1px solid var(--border-strong);border-radius:6px;font-size:12px;width:180px;text-transform:none;letter-spacing:0">
     </div>
     {% if leads %}
