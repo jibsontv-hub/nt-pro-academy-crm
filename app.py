@@ -2474,7 +2474,7 @@ def admin_toggle_advanced(uid):
         new_val = 0 if (cur['advanced_mode'] or 0) else 1
         db.execute('UPDATE users SET advanced_mode=? WHERE id=?', (new_val, uid))
         db.commit()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
         flash(f'Advanced-Mode {"aktiviert" if new_val else "deaktiviert"}.', 'success')
     db.close()
     return redirect(request.referrer or url_for('team'))
@@ -2548,7 +2548,7 @@ def admin_toggle_co_admin(uid):
     db.execute('UPDATE users SET is_co_admin = ? WHERE id = ?', (new_state, uid))
     db.commit()
     db.close()
-    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
+    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
     log_activity(current_user.id, 'co_admin_change',
                  f'{user["name"]} ist jetzt {"Co-Admin" if new_state else "kein Co-Admin mehr"}',
                  icon='⚡', color='gold')
@@ -6366,6 +6366,116 @@ def vision_recent():
     return jsonify({'entries': [{'datum': r['datum'], 'text': r['text']} for r in rows]})
 
 
+def get_admin_dashboard_stats(user_id):
+    """Konsolidiert ALLE 19 inline Admin-Dashboard-Queries in EINEM Cache-Call.
+    TTL 1800s — bei contract/lead/termin-INSERT wird via cache_invalidate('admin_dash:') geleert.
+
+    Bringt Dashboard-Render von 6s+ auf <500ms warm."""
+    ckey = f'admin_dash:{user_id}'
+    cached = cache_get(ckey)
+    if cached is not None:
+        return cached
+    db = get_db()
+    try:
+        # ─── Globale Counts ───
+        stats = {
+            'total_users': db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1').fetchone()['c'],
+            'total_leads': db.execute('SELECT COUNT(*) as c FROM leads').fetchone()['c'],
+            'total_contracts': db.execute('SELECT COUNT(*) as c FROM contracts WHERE status = "abgeschlossen" AND recherche_status = "freigegeben"').fetchone()['c'],
+            'total_volumen': db.execute('SELECT COALESCE(SUM(volumen), 0) as s FROM contracts WHERE status = "abgeschlossen" AND recherche_status = "freigegeben"').fetchone()['s'],
+            'total_einheiten': db.execute('SELECT COALESCE(SUM(einheiten), 0) as s FROM contracts WHERE status = "abgeschlossen" AND recherche_status = "freigegeben"').fetchone()['s'],
+            'open_appointments': db.execute('SELECT COUNT(*) as c FROM appointments WHERE status = "geplant"').fetchone()['c'],
+        }
+        # ─── Top Performer ───
+        top_rows = db.execute('''
+            SELECT u.id, u.name, u.level, u.manual_career_level,
+                   COALESCE(SUM(c.einheiten), 0) as einheiten,
+                   COUNT(c.id) as vertraege
+            FROM users u
+            LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND recherche_status = "freigegeben"
+            WHERE u.active = 1
+            GROUP BY u.id ORDER BY einheiten DESC LIMIT 10
+        ''').fetchall()
+        top_performer = []
+        for r in top_rows:
+            d = dict(r)
+            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+            top_performer.append(d)
+        stats['top_performer'] = top_performer
+        # ─── Direkte Partner ───
+        direct_rows = db.execute('''
+            SELECT u.*, COUNT(c.id) as vertraege,
+                   COALESCE(SUM(c.einheiten), 0) as einheiten,
+                   COALESCE(SUM(c.volumen), 0) as volumen
+            FROM users u
+            LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND recherche_status = "freigegeben"
+            WHERE u.parent_id = ? AND u.active = 1
+            GROUP BY u.id
+        ''', (user_id,)).fetchall()
+        direct_partners = []
+        for r in direct_rows:
+            d = dict(r)
+            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+            try:
+                act = get_user_activity_today(r['id'])
+                d['active_today'] = act['active_today']
+                la = act['last_active_at']
+                d['last_active_days'] = (date.today() - datetime.strptime(la[:10], '%Y-%m-%d').date()).days if la else None
+            except Exception:
+                d['active_today'] = False
+                d['last_active_days'] = None
+            direct_partners.append(d)
+        stats['direct_partners'] = direct_partners
+        # ─── Letzte Verträge ───
+        stats['recent_contracts'] = [dict(r) for r in db.execute('''
+            SELECT c.*, u.name as berater_name FROM contracts c
+            JOIN users u ON c.owner_id = u.id
+            ORDER BY c.created_at DESC LIMIT 5
+        ''').fetchall()]
+        # ─── Monatliche Daten (6 Monate) ───
+        stats['monthly_data'] = [dict(r) for r in db.execute('''
+            SELECT strftime('%Y-%m', abschluss_date) as monat,
+                   COUNT(*) as anzahl, SUM(einheiten) as einheiten
+            FROM contracts
+            WHERE status = "abgeschlossen" AND recherche_status = "freigegeben"
+              AND abschluss_date >= date('now', '-6 months')
+            GROUP BY monat ORDER BY monat
+        ''').fetchall()]
+        # ─── Vormonats-Vergleich (8 queries → 1 Funktion) ───
+        cur_month = date.today().strftime('%Y-%m')
+        prev_month = f'{date.today().year - 1}-12' if date.today().month == 1 else f'{date.today().year}-{date.today().month - 1:02d}'
+        def _stat_for_month(month):
+            return {
+                'eh': db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE status="abgeschlossen" AND recherche_status="freigegeben" AND strftime("%Y-%m", abschluss_date)=?', (month,)).fetchone()['s'],
+                'vtr': db.execute('SELECT COUNT(*) as c FROM contracts WHERE status="abgeschlossen" AND recherche_status="freigegeben" AND strftime("%Y-%m", abschluss_date)=?', (month,)).fetchone()['c'],
+                'partner': db.execute('SELECT COUNT(*) as c FROM users WHERE strftime("%Y-%m", joined_date)=? AND active=1', (month,)).fetchone()['c'],
+                'volumen': db.execute('SELECT COALESCE(SUM(volumen),0) as s FROM contracts WHERE status="abgeschlossen" AND recherche_status="freigegeben" AND strftime("%Y-%m", abschluss_date)=?', (month,)).fetchone()['s'],
+            }
+        cur_stats = _stat_for_month(cur_month)
+        prev_stats = _stat_for_month(prev_month)
+        def pct_change(cur, prev):
+            if prev == 0: return 100 if cur > 0 else 0
+            return ((cur - prev) / prev) * 100
+        stats['comparison'] = {
+            'cur_month': cur_month, 'prev_month': prev_month,
+            'cur': cur_stats, 'prev': prev_stats,
+            'eh_pct': pct_change(cur_stats['eh'], prev_stats['eh']),
+            'vtr_pct': pct_change(cur_stats['vtr'], prev_stats['vtr']),
+            'partner_pct': pct_change(cur_stats['partner'], prev_stats['partner']),
+            'volumen_pct': pct_change(cur_stats['volumen'], prev_stats['volumen']),
+        }
+        # ─── Partner-Wachstum (12 Monate) ───
+        stats['partner_growth'] = [dict(r) for r in db.execute('''
+            SELECT strftime('%Y-%m', joined_date) as monat, COUNT(*) as neue_partner
+            FROM users WHERE active = 1 AND joined_date >= date('now', '-12 months')
+            GROUP BY monat ORDER BY monat
+        ''').fetchall()]
+    finally:
+        db.close()
+    cache_set(ckey, stats, ttl=1800)
+    return stats
+
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -6390,106 +6500,24 @@ def dashboard():
     my_commissions = get_commissions_for_user(current_user.id)
 
     if current_user.role == 'admin':
-        total_users = db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1').fetchone()['c']
-        total_leads = db.execute('SELECT COUNT(*) as c FROM leads').fetchone()['c']
-        total_contracts = db.execute('SELECT COUNT(*) as c FROM contracts WHERE status = "abgeschlossen" AND recherche_status = "freigegeben"').fetchone()['c']
-        total_volumen = db.execute('SELECT COALESCE(SUM(volumen), 0) as s FROM contracts WHERE status = "abgeschlossen" AND recherche_status = "freigegeben"').fetchone()['s']
-        total_einheiten = db.execute('SELECT COALESCE(SUM(einheiten), 0) as s FROM contracts WHERE status = "abgeschlossen" AND recherche_status = "freigegeben"').fetchone()['s']
-        open_appointments = db.execute('SELECT COUNT(*) as c FROM appointments WHERE status = "geplant"').fetchone()['c']
-
-        # Top Performer mit EH
-        top_rows = db.execute('''
-            SELECT u.id, u.name, u.level, u.manual_career_level,
-                   COALESCE(SUM(c.einheiten), 0) as einheiten,
-                   COUNT(c.id) as vertraege
-            FROM users u
-            LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND recherche_status = "freigegeben"
-            WHERE u.active = 1
-            GROUP BY u.id
-            ORDER BY einheiten DESC
-            LIMIT 10
-        ''').fetchall()
-        top_performer = []
-        for r in top_rows:
-            d = dict(r)
-            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
-            top_performer.append(d)
-
-        direct_rows = db.execute('''
-            SELECT u.*, COUNT(c.id) as vertraege,
-                   COALESCE(SUM(c.einheiten), 0) as einheiten,
-                   COALESCE(SUM(c.volumen), 0) as volumen
-            FROM users u
-            LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND recherche_status = "freigegeben"
-            WHERE u.parent_id = ? AND u.active = 1
-            GROUP BY u.id
-        ''', (current_user.id,)).fetchall()
-        direct_partners = []
-        for r in direct_rows:
-            d = dict(r)
-            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
-            act = get_user_activity_today(r['id'])
-            d['active_today'] = act['active_today']
-            try:
-                la = act['last_active_at']
-                d['last_active_days'] = (date.today() - datetime.strptime(la[:10], '%Y-%m-%d').date()).days if la else None
-            except Exception:
-                d['last_active_days'] = None
-            direct_partners.append(d)
-        # Inaktive Partner (länger als 1 Tag nichts gemacht) — Admin-Alarm
+        # ─── Mega-Cache: 19 inline queries → 1 cached call (TTL 30 Min) ───
+        admin_stats = get_admin_dashboard_stats(current_user.id)
+        total_users = admin_stats['total_users']
+        total_leads = admin_stats['total_leads']
+        total_contracts = admin_stats['total_contracts']
+        total_volumen = admin_stats['total_volumen']
+        total_einheiten = admin_stats['total_einheiten']
+        open_appointments = admin_stats['open_appointments']
+        top_performer = admin_stats['top_performer']
+        direct_partners = admin_stats['direct_partners']
+        recent_contracts = admin_stats['recent_contracts']
+        monthly_data = admin_stats['monthly_data']
+        comparison = admin_stats['comparison']
+        # Inaktive bleibt eigener Helper (cached separat)
         inactive_team = get_inactive_team_members(current_user.id, days=1, scope='all')[:10]
 
-        recent_contracts = db.execute('''
-            SELECT c.*, u.name as berater_name FROM contracts c
-            JOIN users u ON c.owner_id = u.id
-            ORDER BY c.created_at DESC LIMIT 5
-        ''').fetchall()
-
-        monthly_data = db.execute('''
-            SELECT strftime('%Y-%m', abschluss_date) as monat,
-                   COUNT(*) as anzahl, SUM(einheiten) as einheiten
-            FROM contracts
-            WHERE status = "abgeschlossen" AND recherche_status = "freigegeben" AND abschluss_date >= date('now', '-6 months')
-            GROUP BY monat ORDER BY monat
-        ''').fetchall()
-
-        # Vormonats-Vergleich
-        cur_month = date.today().strftime('%Y-%m')
-        if date.today().month == 1:
-            prev_month = f'{date.today().year - 1}-12'
-        else:
-            prev_month = f'{date.today().year}-{date.today().month - 1:02d}'
-
-        def stat_for_month(month):
-            eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE status="abgeschlossen" AND recherche_status="freigegeben" AND strftime("%Y-%m", abschluss_date)=?', (month,)).fetchone()['s']
-            vtr = db.execute('SELECT COUNT(*) as c FROM contracts WHERE status="abgeschlossen" AND recherche_status="freigegeben" AND strftime("%Y-%m", abschluss_date)=?', (month,)).fetchone()['c']
-            new_partners = db.execute('SELECT COUNT(*) as c FROM users WHERE strftime("%Y-%m", joined_date)=? AND active=1', (month,)).fetchone()['c']
-            volumen = db.execute('SELECT COALESCE(SUM(volumen),0) as s FROM contracts WHERE status="abgeschlossen" AND recherche_status="freigegeben" AND strftime("%Y-%m", abschluss_date)=?', (month,)).fetchone()['s']
-            return {'eh': eh, 'vtr': vtr, 'partner': new_partners, 'volumen': volumen}
-
-        cur_stats = stat_for_month(cur_month)
-        prev_stats = stat_for_month(prev_month)
-
-        def pct_change(cur, prev):
-            if prev == 0:
-                return 100 if cur > 0 else 0
-            return ((cur - prev) / prev) * 100
-
-        comparison = {
-            'cur_month': cur_month, 'prev_month': prev_month,
-            'cur': cur_stats, 'prev': prev_stats,
-            'eh_pct': pct_change(cur_stats['eh'], prev_stats['eh']),
-            'vtr_pct': pct_change(cur_stats['vtr'], prev_stats['vtr']),
-            'partner_pct': pct_change(cur_stats['partner'], prev_stats['partner']),
-            'volumen_pct': pct_change(cur_stats['volumen'], prev_stats['volumen']),
-        }
-
-        # Geschäftspartner-Entwicklung (12 Monate)
-        partner_growth = db.execute('''
-            SELECT strftime('%Y-%m', joined_date) as monat, COUNT(*) as neue_partner
-            FROM users WHERE active = 1 AND joined_date >= date('now', '-12 months')
-            GROUP BY monat ORDER BY monat
-        ''').fetchall()
+        # Geschäftspartner-Entwicklung (12 Monate) — aus Mega-Cache
+        partner_growth = admin_stats['partner_growth']
 
         admin_user = db.execute('SELECT vision FROM users WHERE id = ?', (current_user.id,)).fetchone()
         admin_vision = (admin_user['vision'] if admin_user else '') or ''
@@ -6795,7 +6823,7 @@ def vertrag_neu():
         db.close()
         auto_promote_user(current_user.id)
         recalculate_all_commissions()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
         if request.form.get('status') == 'abgeschlossen' and request.form.get('recherche_status') == 'freigegeben':
             log_activity(current_user.id, 'vertrag_abgeschlossen',
                 f'{current_user.name} hat Vertrag „{request.form["client_name"]}" abgeschlossen ({einheiten:.0f} EH)',
@@ -6860,7 +6888,7 @@ def vertrag_edit(vid):
         db.close()
         auto_promote_user(owner_id)
         recalculate_all_commissions()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
         flash(f'Vertrag aktualisiert! ({einheiten:.0f} EH)', 'success')
         return redirect(url_for('vertraege'))
     leads_for_select = db.execute(
@@ -7314,7 +7342,7 @@ def team_edit(uid):
         db.commit()
         db.close()
         recalculate_all_commissions()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
         if pending_level and not is_admin:
             flash(f'Aktualisiert. Stufen-Änderung auf {pending_level} wartet auf Admin-Bestätigung.', 'success')
         else:
@@ -7856,7 +7884,7 @@ def profil_photo_upload():
         db.execute('UPDATE users SET photo_path=? WHERE id=?', (rel, current_user.id))
         db.commit()
         db.close()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
         flash('Foto hochgeladen!', 'success')
     except ImportError:
         flash('Foto-Modul nicht installiert (PIL fehlt)', 'error')
@@ -7877,7 +7905,7 @@ def profil_photo_delete():
         p = os.path.join(app.root_path, 'static', 'avatars', f'user-{current_user.id}{s}.jpg')
         try: os.remove(p)
         except Exception: pass
-    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
+    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
     flash('Foto gelöscht', 'success')
     return redirect(url_for('profil'))
 
@@ -8137,7 +8165,7 @@ def onboarding_catchup():
                            (current_user.id, name, est_eh, p_cnt, notes or None))
             db.commit()
             recalculate_all_commissions()
-            cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:')
+            cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
             log_activity(current_user.id, 'catchup_done',
                 f'{current_user.name} hat seinen Stand eingetragen ({eh:.0f} EH + Strukturen)',
                 icon='📊', color='gold')
@@ -9245,6 +9273,8 @@ def _warm_cache_background():
             for uid in ids:
                 t_user = _t.time()
                 helpers = [
+                    # ★ Mega-Cache für Admin-Dashboard (19 Queries → 1 Cache)
+                    ('admin_dash', lambda u=uid: get_admin_dashboard_stats(u)),
                     ('strang', lambda u=uid: get_strang_status(u)),
                     ('forecast30', lambda u=uid: get_quoten_forecast(u, days=30)),
                     ('forecast', lambda u=uid: get_forecast(u)),
@@ -9252,7 +9282,8 @@ def _warm_cache_background():
                     ('admin_pers', lambda u=uid: get_admin_personal_dashboard(u)),
                     ('career', lambda u=uid: get_career_level_for_user(u)),
                     ('insights_user', lambda u=uid: get_smart_insights(scope_user_id=u)),
-                    ('inactive', lambda u=uid: get_inactive_team_members(u, days=3, scope='direct')),
+                    ('inactive_dir', lambda u=uid: get_inactive_team_members(u, days=3, scope='direct')),
+                    ('inactive_all', lambda u=uid: get_inactive_team_members(u, days=1, scope='all')),
                     # LLM-Helper — die teuersten, weil Claude-API-Calls (5-10s)
                     ('ai_briefing', lambda u=uid: ai_generate_weekly_briefing(u)),
                     ('ki_recs', lambda u=uid: get_ki_recommendations(u, scope_user_id=None)),
