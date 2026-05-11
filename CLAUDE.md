@@ -57,7 +57,7 @@ cd ~/nt-pro-academy-crm && git pull && touch /var/www/proacademy-business_de_wsg
 
 ## 🎨 UX-Prinzipien
 - **Stufe 1** = nur 8 flache Sidebar-Items (kein `<details>`-Klapp)
-- **Stufe 2+** = CAPS-Sections (LearningSuite-Style)
+- **Stufe 2+** = aufklappbare Hauptthemen via `<details class="nav-group" data-group="…">` + `<summary>` + `<div class="nav-group-items">`. Aktive Sektion ist SSR-`open`, User-Toggle persistiert in `localStorage` (`pa_sidebar_groups_v1`).
 - **Mobile**: kein `backdrop-filter` <768px, Animationen ≤0.6s, alle `<img>` mit `loading="lazy"`
 - **Theme-Catch-Alls** in `base.html` mappen Hex-Inline-Styles auf CSS-Vars im Dark-Mode
 
@@ -74,7 +74,7 @@ cd ~/nt-pro-academy-crm && git pull && touch /var/www/proacademy-business_de_wsg
 
 ## 🚫 Was NIE tun
 - Premium Navy/Gold gegen Grau tauschen
-- `<details>`-Sidebar für Stufe 2+ zurückbringen
+- Stufe-2+-Sidebar wieder flach machen — User will Hauptthemen + Aufklappen
 - DB-Write ohne `cache_invalidate()`
 - `send_push_to_user()` ohne `push_type=`
 - Permission-Checks in `/partner/<uid>/profil` wegoptimieren

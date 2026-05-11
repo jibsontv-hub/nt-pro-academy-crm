@@ -1159,105 +1159,161 @@
             <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
             <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil</a>
             {% else %}
-            <!-- ══════════════ STUFE 2+ — FLAT CAPS-SECTIONS (LearningSuite-Style) ══════════════ -->
+            <!-- ══════════════ STUFE 2+ — KLAPP-SECTIONS (Hauptthemen, aufklappbar) ══════════════ -->
+            {% set p = request.path %}
+            {% set sec_tag = (p == '/aufgaben') or ('/namensliste' in p) or p.startswith('/leads') or ('/vertraege' in p) or ('/termine' in p) %}
+            {% set sec_team = (p == '/team') or ('/partner/' in p) or (p == '/genehmigungen') or ('/team/inaktiv' in p) or ('/team-kalender' in p) or ('/struktur' in p) or ('/quoten' in p) %}
+            {% set sec_kar = ('/provisionen' in p) or ('/trophaeen' in p) or (p == '/news' or p.startswith('/news/')) or ('/tracking' in p) or ('/ranking' in p) or ('/ziele' in p) %}
+            {% set sec_coach = ('/assistent' in p) or ('/weiterbildung' in p and '/admin' not in p) or ('/coach/briefing' in p) or ('/feed' in p) %}
+            {% set sec_mehr = (p == '/vorschlag') or ('/webhook-setup' in p) or ('/onboarding' in p) or ('/profil' in p) or ('/push-settings' in p) or ('/einstellungen' in p) %}
 
-            <div class="nav-section">Tagesgeschäft</div>
-            <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Tagesaufgaben</a>
-            <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path or request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
-            <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
-            <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Termine</a>
+            <details class="nav-group" data-group="tag" {% if sec_tag %}open{% endif %}>
+                <summary>Tagesgeschäft</summary>
+                <div class="nav-group-items">
+                    <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Tagesaufgaben</a>
+                    <a href="/namensliste" class="nav-link {% if '/namensliste' in request.path or request.path.startswith('/leads') %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
+                    <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
+                    <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Termine</a>
+                </div>
+            </details>
 
-            <div class="nav-section">Mein Team</div>
-            <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Direkte Geschäftspartner</a>
-            <a href="/genehmigungen" class="nav-link {% if '/genehmigungen' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Neue Anmeldungen</a>
-            <a href="/team/inaktiv" class="nav-link {% if '/team/inaktiv' in request.path %}active{% endif %}"><span class="nav-icon">⚠</span> Wer ist inaktiv?</a>
-            {% if team_calendar_available %}
-            <a href="/team-kalender" class="nav-link {% if '/team-kalender' in request.path %}active{% endif %}"><span class="nav-icon">▦</span> Team-Kalender</a>
-            {% endif %}
-            {% if ftier >= 3 %}
-            <a href="/struktur" class="nav-link {% if '/struktur' in request.path %}active{% endif %}"><span class="nav-icon">⬢</span> Struktur-Baum</a>
-            <a href="/quoten" class="nav-link {% if '/quoten' in request.path %}active{% endif %}"><span class="nav-icon">◉</span> Quoten</a>
-            {% endif %}
+            <details class="nav-group" data-group="team" {% if sec_team %}open{% endif %}>
+                <summary>Mein Team</summary>
+                <div class="nav-group-items">
+                    <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Direkte Geschäftspartner</a>
+                    <a href="/genehmigungen" class="nav-link {% if '/genehmigungen' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Neue Anmeldungen</a>
+                    <a href="/team/inaktiv" class="nav-link {% if '/team/inaktiv' in request.path %}active{% endif %}"><span class="nav-icon">⚠</span> Wer ist inaktiv?</a>
+                    {% if team_calendar_available %}
+                    <a href="/team-kalender" class="nav-link {% if '/team-kalender' in request.path %}active{% endif %}"><span class="nav-icon">▦</span> Team-Kalender</a>
+                    {% endif %}
+                    {% if ftier >= 3 %}
+                    <a href="/struktur" class="nav-link {% if '/struktur' in request.path %}active{% endif %}"><span class="nav-icon">⬢</span> Struktur-Baum</a>
+                    <a href="/quoten" class="nav-link {% if '/quoten' in request.path %}active{% endif %}"><span class="nav-icon">◉</span> Quoten</a>
+                    {% endif %}
+                </div>
+            </details>
 
-            <div class="nav-section">Karriere</div>
-            <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
-            <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
-            <a href="/news" class="nav-link {% if '/news' in request.path %}active{% endif %}"><span class="nav-icon">📣</span> Struktur-News</a>
-            <a href="/tracking" class="nav-link {% if '/tracking' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Tracking & Quoten</a>
-            <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}"><span class="nav-icon">▲</span> Wochen-Ranking</a>
-            <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
+            <details class="nav-group" data-group="kar" {% if sec_kar %}open{% endif %}>
+                <summary>Karriere</summary>
+                <div class="nav-group-items">
+                    <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
+                    <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
+                    <a href="/news" class="nav-link {% if '/news' in request.path %}active{% endif %}"><span class="nav-icon">📣</span> Struktur-News</a>
+                    <a href="/tracking" class="nav-link {% if '/tracking' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Tracking & Quoten</a>
+                    <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}"><span class="nav-icon">▲</span> Wochen-Ranking</a>
+                    <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
+                </div>
+            </details>
 
-            <div class="nav-section">Coaching & Lernen</div>
-            <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach Chat</a>
-            <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
-            <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
-            <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
+            <details class="nav-group" data-group="coach" {% if sec_coach %}open{% endif %}>
+                <summary>Coaching & Lernen</summary>
+                <div class="nav-group-items">
+                    <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach Chat</a>
+                    <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
+                    <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
+                    <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
+                </div>
+            </details>
 
-            <div class="nav-section">Mehr</div>
-            <a href="/vorschlag" class="nav-link {% if request.path == '/vorschlag' %}active{% endif %}"><span class="nav-icon">＋</span> Vorschlag einreichen</a>
-            <a href="/webhook-setup" class="nav-link {% if '/webhook-setup' in request.path %}active{% endif %}"><span class="nav-icon">🔌</span> Webhook (Typeform)</a>
-            <a href="/onboarding/catchup" class="nav-link {% if '/onboarding' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Stand & Strukturen</a>
-            <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil & Vision</a>
-            <a href="/push-settings" class="nav-link {% if '/push-settings' in request.path %}active{% endif %}"><span class="nav-icon">▶</span> Push-Einstellungen</a>
-            <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path %}active{% endif %}"><span class="nav-icon">⚙</span> Einstellungen</a>
+            <details class="nav-group" data-group="mehr" {% if sec_mehr %}open{% endif %}>
+                <summary>Mehr</summary>
+                <div class="nav-group-items">
+                    <a href="/vorschlag" class="nav-link {% if request.path == '/vorschlag' %}active{% endif %}"><span class="nav-icon">＋</span> Vorschlag einreichen</a>
+                    <a href="/webhook-setup" class="nav-link {% if '/webhook-setup' in request.path %}active{% endif %}"><span class="nav-icon">🔌</span> Webhook (Typeform)</a>
+                    <a href="/onboarding/catchup" class="nav-link {% if '/onboarding' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Stand & Strukturen</a>
+                    <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil & Vision</a>
+                    <a href="/push-settings" class="nav-link {% if '/push-settings' in request.path %}active{% endif %}"><span class="nav-icon">▶</span> Push-Einstellungen</a>
+                    <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path %}active{% endif %}"><span class="nav-icon">⚙</span> Einstellungen</a>
+                </div>
+            </details>
             {% endif %}
 
             {% if current_user.has_admin_access %}
-            <div class="nav-section">Admin · Council</div>
-            <a href="/admin/tagesaktion" class="nav-link {% if '/admin/tagesaktion' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.12),rgba(212,168,67,0.04));color:var(--gold);font-weight:800">
-                <span class="nav-icon">🎯</span> Tagesaktion
-            </a>
-            <a href="/admin/content" class="nav-link {% if '/admin/content' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.12),rgba(212,168,67,0.04));color:var(--gold);font-weight:800">
-                <span class="nav-icon">📹</span> Content Engine
-            </a>
+            {% set p = request.path %}
+            {% set sec_council = ('/admin/tagesaktion' in p) or ('/admin/content' in p) %}
+            {% set sec_admin = (('/admin' in p) and not sec_council and not ('/admin/weiterbildung' in p)) %}
 
-            <div class="nav-section">Administration</div>
-            <a href="/admin/genehmigungen" class="nav-link {% if '/admin/genehmigungen' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
-                <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">✓</span> Genehmigungen</span>
-                {% if pending_count and pending_count > 0 %}
-                <span style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ pending_count }}</span>
-                {% endif %}
-            </a>
-            <a href="/admin/aufgaben" class="nav-link {% if '/admin/aufgaben' in request.path %}active{% endif %}">
-                <span class="nav-icon">⚙</span> Aufgaben-Slots
-            </a>
-            <a href="/admin/inbox" class="nav-link {% if '/admin/inbox' in request.path %}active{% endif %}">
-                <span class="nav-icon">📬</span> Bewerber-Inbox
-            </a>
-            <a href="/admin/vorschlaege" class="nav-link {% if '/admin/vorschlaege' in request.path %}active{% endif %}">
-                <span class="nav-icon">💡</span> Partner-Vorschläge
-            </a>
-            <a href="/admin/push" class="nav-link {% if '/admin/push' in request.path %}active{% endif %}">
-                <span class="nav-icon">▶</span> Push-Notifications
-            </a>
-            <a href="/admin/import" class="nav-link {% if '/admin/import' in request.path %}active{% endif %}">
-                <span class="nav-icon">↑</span> Partner-Import (CSV)
-            </a>
-            <a href="/admin/mail" class="nav-link {% if request.path == '/admin/mail' %}active{% endif %}">
-                <span class="nav-icon">📨</span> E-Mail senden
-            </a>
-            {% if current_user.role == 'admin' %}
-            <a href="/admin/weiterbildung" class="nav-link {% if '/admin/weiterbildung' in request.path %}active{% endif %}">
-                <span class="nav-icon">📚</span> Weiterbildungs-Link
-            </a>
-            <a href="/admin/email-settings" class="nav-link {% if '/admin/email-settings' in request.path %}active{% endif %}">
-                <span class="nav-icon">⚙</span> E-Mail-Server
-            </a>
-            <a href="/admin/ki-settings" class="nav-link {% if '/admin/ki-settings' in request.path %}active{% endif %}">
-                <span class="nav-icon">🧠</span> KI-Power (Claude)
-            </a>
-            <a href="/admin/audit" class="nav-link {% if '/admin/audit' in request.path %}active{% endif %}">
-                <span class="nav-icon">🔍</span> Audit-Log
-            </a>
-            {% endif %}
-            <a href="/admin/aktivitaet" class="nav-link {% if '/admin/aktivitaet' in request.path %}active{% endif %}">
-                <span class="nav-icon">◷</span> Aktivität
-            </a>
-            <a href="/admin/backup" class="nav-link" download>
-                <span class="nav-icon">↓</span> Backup herunterladen
-            </a>
+            <details class="nav-group" data-group="council" {% if sec_council %}open{% endif %}>
+                <summary>Admin · Council</summary>
+                <div class="nav-group-items">
+                    <a href="/admin/tagesaktion" class="nav-link {% if '/admin/tagesaktion' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.12),rgba(212,168,67,0.04));color:var(--gold);font-weight:800">
+                        <span class="nav-icon">🎯</span> Tagesaktion
+                    </a>
+                    <a href="/admin/content" class="nav-link {% if '/admin/content' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.12),rgba(212,168,67,0.04));color:var(--gold);font-weight:800">
+                        <span class="nav-icon">📹</span> Content Engine
+                    </a>
+                </div>
+            </details>
+
+            <details class="nav-group" data-group="admin" {% if sec_admin %}open{% endif %}>
+                <summary>Administration</summary>
+                <div class="nav-group-items">
+                    <a href="/admin/genehmigungen" class="nav-link {% if '/admin/genehmigungen' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
+                        <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">✓</span> Genehmigungen</span>
+                        {% if pending_count and pending_count > 0 %}
+                        <span style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ pending_count }}</span>
+                        {% endif %}
+                    </a>
+                    <a href="/admin/aufgaben" class="nav-link {% if '/admin/aufgaben' in request.path %}active{% endif %}">
+                        <span class="nav-icon">⚙</span> Aufgaben-Slots
+                    </a>
+                    <a href="/admin/inbox" class="nav-link {% if '/admin/inbox' in request.path %}active{% endif %}">
+                        <span class="nav-icon">📬</span> Bewerber-Inbox
+                    </a>
+                    <a href="/admin/vorschlaege" class="nav-link {% if '/admin/vorschlaege' in request.path %}active{% endif %}">
+                        <span class="nav-icon">💡</span> Partner-Vorschläge
+                    </a>
+                    <a href="/admin/push" class="nav-link {% if '/admin/push' in request.path %}active{% endif %}">
+                        <span class="nav-icon">▶</span> Push-Notifications
+                    </a>
+                    <a href="/admin/import" class="nav-link {% if '/admin/import' in request.path %}active{% endif %}">
+                        <span class="nav-icon">↑</span> Partner-Import (CSV)
+                    </a>
+                    <a href="/admin/mail" class="nav-link {% if request.path == '/admin/mail' %}active{% endif %}">
+                        <span class="nav-icon">📨</span> E-Mail senden
+                    </a>
+                    {% if current_user.role == 'admin' %}
+                    <a href="/admin/weiterbildung" class="nav-link {% if '/admin/weiterbildung' in request.path %}active{% endif %}">
+                        <span class="nav-icon">📚</span> Weiterbildungs-Link
+                    </a>
+                    <a href="/admin/email-settings" class="nav-link {% if '/admin/email-settings' in request.path %}active{% endif %}">
+                        <span class="nav-icon">⚙</span> E-Mail-Server
+                    </a>
+                    <a href="/admin/ki-settings" class="nav-link {% if '/admin/ki-settings' in request.path %}active{% endif %}">
+                        <span class="nav-icon">🧠</span> KI-Power (Claude)
+                    </a>
+                    <a href="/admin/audit" class="nav-link {% if '/admin/audit' in request.path %}active{% endif %}">
+                        <span class="nav-icon">🔍</span> Audit-Log
+                    </a>
+                    {% endif %}
+                    <a href="/admin/aktivitaet" class="nav-link {% if '/admin/aktivitaet' in request.path %}active{% endif %}">
+                        <span class="nav-icon">◷</span> Aktivität
+                    </a>
+                    <a href="/admin/backup" class="nav-link" download>
+                        <span class="nav-icon">↓</span> Backup herunterladen
+                    </a>
+                </div>
+            </details>
             {% endif %}
         </nav>
+        <script>
+        // Sidebar-Klapp-Persistenz: merkt sich pro User welche Sektion offen ist.
+        // Aktive Route bleibt SSR-aufgeklappt, User-Toggle überschreibt das.
+        (function(){
+            const KEY = 'pa_sidebar_groups_v1';
+            let state = {};
+            try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e){}
+            document.querySelectorAll('details.nav-group').forEach(d => {
+                const g = d.dataset.group;
+                if (!g) return;
+                if (state.hasOwnProperty(g)) d.open = !!state[g];
+                d.addEventListener('toggle', () => {
+                    state[g] = d.open;
+                    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e){}
+                });
+            });
+        })();
+        </script>
         <div class="sidebar-footer">
             <div class="user-name">{{ current_user.name }}</div>
             <div class="user-info">{{ current_user.email }}</div>
