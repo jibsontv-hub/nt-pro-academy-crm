@@ -26,11 +26,12 @@
 
 ## 🤖 Sub-Agenten (Vor jedem Push: `bash scripts/pre_push.sh`)
 **Agenten 1-5** Discovery/Research/Positioning/Design/Engineering — bei Features.
-**Agenten 6-9** automatisch via `pre_push.sh`:
+**Agenten 6-10** automatisch via `pre_push.sh` (alle 5 müssen grün sein):
 - **QA-Audit** (`scripts/qa_audit.py`) — alle Routes Status-Check
-- **Mobile-Agent** — Touch-Targets ≥44px, Breakpoints
 - **Human-Walkthrough** (`scripts/journey_test.py`) — Anonymous + Admin + API
 - **Vertriebs-Agent** (`scripts/vertrieb_test.py`) — Lead→Termin→Vertrag→Provision (27 Schritte)
+- **Email-E2E** (`scripts/email_e2e_test.py`) — echter Send-Verifier: SMTP-Konfig, Reset-Token, email_log status=ok, Whitelist-Enforcement
+- **UI-Audit** (`scripts/ui_audit.py`) — broken buttons, dead links, Session-Expiry, Emoji-Density (>15 unique = Warning), Inline-Style-Density (>100 = Refactor-Hint)
 
 ---
 
