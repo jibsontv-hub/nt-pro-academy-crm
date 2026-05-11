@@ -690,8 +690,9 @@ def is_smtp_configured():
 
 
 # === E-MAIL VERSAND ===
-def send_email(to, subject, body_text, body_html=None, sent_by=None):
-    """Sendet E-Mail über konfigurierten SMTP. Returns (ok, error_msg)."""
+def send_email(to, subject, body_text, body_html=None, sent_by=None, reply_to=None, bcc=None):
+    """Sendet E-Mail über konfigurierten SMTP. Returns (ok, error_msg).
+    reply_to: optional Reply-To-Adresse · bcc: zusätzlicher BCC-Empfänger."""
     smtp_host = get_setting('smtp_host')
     smtp_port = int(get_setting('smtp_port', '587'))
     smtp_user = get_setting('smtp_user')
@@ -706,6 +707,10 @@ def send_email(to, subject, body_text, body_html=None, sent_by=None):
     msg['Subject'] = subject
     msg['From'] = formataddr((sender_name, sender_email))
     msg['To'] = to
+    if reply_to:
+        msg['Reply-To'] = reply_to
+    if bcc:
+        msg['Bcc'] = bcc
     msg.attach(MIMEText(body_text, 'plain', 'utf-8'))
     if body_html:
         msg.attach(MIMEText(body_html, 'html', 'utf-8'))
@@ -5717,16 +5722,19 @@ def admin_inbox():
 @app.route('/passwort-vergessen', methods=['GET', 'POST'])
 def passwort_vergessen():
     """Self-Service Password-Reset: User trägt E-Mail (oder Telefon) ein,
-    bekommt Token-Link per Mail (oder 6-stelligen SMS-Code).
-    Anti-Enumeration: gibt immer dieselbe Erfolgsmeldung zurück."""
+    bekommt Token-Link per Mail. Bei SMS (kein Provider): Code per E-Mail.
+    Admin bekommt jede Reset-Anfrage als BCC zur Backup."""
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip().lower()
         phone = (request.form.get('phone') or '').strip()
         method = (request.form.get('method') or 'email').lower()
         if method not in ('email', 'sms'):
             method = 'email'
-        # Anti-Enumeration: immer dieselbe Antwort egal ob User existiert
-        success_msg = 'Falls die Daten bei uns hinterlegt sind, kommt gleich eine Anleitung.'
+        send_status = 'pending'
+        send_error = None
+        target_label = ''
+        admin_email = get_setting('smtp_from_email') or 'najib@ntpro.de'
+
         if method == 'email' and email:
             db = get_db()
             row = db.execute('SELECT id, name, email FROM users WHERE LOWER(email)=? AND active=1', (email,)).fetchone()
@@ -5736,31 +5744,39 @@ def passwort_vergessen():
                 db.execute('INSERT INTO password_resets (user_id, token, method, expires_at, ip) VALUES (?,?,?,?,?)',
                            (row['id'], token, 'email', expires, request.remote_addr or ''))
                 db.commit()
+                db.close()
                 base = (request.url_root or '').rstrip('/')
                 reset_url = f"{base}/passwort-zuruecksetzen/{token}"
-                if is_smtp_configured():
-                    try:
-                        text = (f"Hallo {row['name']},\n\n"
-                                f"Du hast einen Passwort-Reset für Pro Academy angefordert.\n"
-                                f"Klick zum Zurücksetzen (gültig 2 Stunden):\n\n{reset_url}\n\n"
-                                f"Wenn du das nicht warst, ignoriere diese Mail.\n\nProAcademy")
-                        html = (f'<p>Hallo {row["name"]},</p>'
-                                f'<p>Du hast einen Passwort-Reset für <strong>Pro Academy</strong> angefordert.</p>'
-                                f'<p><a href="{reset_url}" style="background:#d4a843;color:#0f1c3f;padding:12px 22px;'
-                                f'border-radius:8px;text-decoration:none;font-weight:800">→ Passwort jetzt zurücksetzen</a></p>'
-                                f'<p style="color:#64748b;font-size:12px">Link gilt 2 Stunden. War das nicht du? Einfach ignorieren.</p>')
-                        send_email(row['email'], '🔑 Passwort zurücksetzen — Pro Academy', text, body_html=html, sent_by=None)
-                    except Exception as ex:
-                        print(f'[reset] mail send failed: {ex}')
-                else:
-                    print(f'[reset] SMTP nicht konfiguriert — Reset-Link wäre: {reset_url}')
-            db.close()
+                text = (f"Hallo {row['name']},\n\n"
+                        f"Du hast einen Passwort-Reset für Pro Academy angefordert.\n"
+                        f"Klick zum Zurücksetzen (Link gültig 2 Stunden):\n\n{reset_url}\n\n"
+                        f"Wenn du das nicht warst, ignoriere diese Mail einfach.\n\nProAcademy")
+                html = (f'<p>Hallo {row["name"]},</p>'
+                        f'<p>Du hast einen Passwort-Reset für <strong>Pro Academy</strong> angefordert.</p>'
+                        f'<p style="margin:24px 0"><a href="{reset_url}" style="background:#d4a843;color:#0f1c3f;'
+                        f'padding:14px 26px;border-radius:10px;text-decoration:none;font-weight:800;display:inline-block">'
+                        f'→ Passwort jetzt zurücksetzen</a></p>'
+                        f'<p style="color:#64748b;font-size:13px">Link gilt 2 Stunden. Wenn der Button nicht klickbar ist, '
+                        f'kopier diese URL in den Browser:<br><code style="background:#f3f4f6;padding:4px 8px;border-radius:4px">{reset_url}</code></p>'
+                        f'<p style="color:#64748b;font-size:12px;margin-top:30px">War das nicht du? Einfach ignorieren — niemand kann ohne den Link dein Passwort ändern.</p>')
+                ok, err = send_email(row['email'], '🔑 Passwort zurücksetzen — Pro Academy', text,
+                                     body_html=html, sent_by=None,
+                                     reply_to=admin_email,
+                                     bcc=admin_email if row['email'].lower() != admin_email.lower() else None)
+                send_status = 'ok' if ok else 'fail'
+                send_error = err
+                target_label = row['email']
+            else:
+                db.close()
+                # Anti-Enumeration: tu so als ob alles OK
+                send_status = 'ok'
+                target_label = email
         elif method == 'sms' and phone:
-            # SMS-Pfad: Stub. Speichert 6-stelligen Code, sendet aber (noch) nicht echt.
+            # SMS-Pfad: Code per E-Mail an User schicken (kein SMS-Provider konfiguriert).
             db = get_db()
             phone_norm = ''.join(c for c in phone if c.isdigit() or c == '+')
-            row = db.execute('SELECT id, name, phone FROM users WHERE phone IS NOT NULL AND active=1').fetchall()
-            match = next((r for r in row if r['phone'] and ''.join(c for c in r['phone'] if c.isdigit() or c == '+') == phone_norm), None)
+            rows = db.execute('SELECT id, name, phone, email FROM users WHERE phone IS NOT NULL AND active=1').fetchall()
+            match = next((r for r in rows if r['phone'] and ''.join(c for c in r['phone'] if c.isdigit() or c == '+') == phone_norm), None)
             if match:
                 code = ''.join(secrets.choice('0123456789') for _ in range(6))
                 token = secrets.token_urlsafe(32)
@@ -5768,15 +5784,50 @@ def passwort_vergessen():
                 db.execute('INSERT INTO password_resets (user_id, token, method, sms_code, expires_at, ip) VALUES (?,?,?,?,?,?)',
                            (match['id'], token, 'sms', code, expires, request.remote_addr or ''))
                 db.commit()
-                # SMS-Provider nicht konfiguriert → log only. Nach Twilio/Vonage-Setup hier echte API call.
-                print(f'[reset-sms] STUB: User {match["name"]} ({phone_norm}) — Code: {code}, Token: {token}')
-                # Entry-URL für Code-Bestätigung
+                db.close()
                 base = (request.url_root or '').rstrip('/')
-                print(f'[reset-sms] STUB: Entry-URL: {base}/passwort-zuruecksetzen-sms?token={token}')
-            db.close()
-        flash(success_msg, 'info')
-        return render_template('passwort_vergessen.html', sent=True, method=method)
-    return render_template('passwort_vergessen.html', sent=False, method='email')
+                entry_url = f"{base}/passwort-zuruecksetzen-sms?token={token}"
+                if match['email']:
+                    text = (f"Hallo {match['name']},\n\n"
+                            f"Dein Code zum Passwort-Reset (gültig 15 Minuten):\n\n"
+                            f"   {code}\n\n"
+                            f"Trag den Code hier ein:\n{entry_url}\n\n"
+                            f"⚠ SMS-Versand ist aktuell deaktiviert — wir schicken dir den Code per E-Mail.\n"
+                            f"Wenn du das nicht warst, ignoriere diese Mail.\n\nProAcademy")
+                    html = (f'<p>Hallo {match["name"]},</p>'
+                            f'<p>Dein <strong>Code zum Passwort-Reset</strong> (gültig 15 Minuten):</p>'
+                            f'<div style="font-size:32px;font-weight:800;letter-spacing:8px;background:#f3f4f6;padding:18px 30px;'
+                            f'border-radius:12px;text-align:center;color:#0f1c3f;margin:18px 0">{code}</div>'
+                            f'<p><a href="{entry_url}" style="background:#d4a843;color:#0f1c3f;padding:12px 22px;'
+                            f'border-radius:8px;text-decoration:none;font-weight:800;display:inline-block">→ Code eingeben</a></p>'
+                            f'<p style="color:#64748b;font-size:12px;margin-top:24px">⚠ SMS-Versand ist aktuell deaktiviert — '
+                            f'du bekommst den Code per E-Mail. War das nicht du? Einfach ignorieren.</p>')
+                    ok, err = send_email(match['email'], f'📱 Reset-Code: {code} — Pro Academy', text,
+                                         body_html=html, sent_by=None,
+                                         reply_to=admin_email,
+                                         bcc=admin_email if match['email'].lower() != admin_email.lower() else None)
+                    send_status = 'ok' if ok else 'fail'
+                    send_error = err
+                    target_label = f'{match["email"]} (für Telefon-Reset)'
+                else:
+                    # Phone-only User: log + admin-Mail mit Code
+                    print(f'[reset-sms-no-email] User {match["name"]} ({phone_norm}) — Code: {code}, URL: {entry_url}')
+                    if admin_email:
+                        send_email(admin_email,
+                                   f'📱 SMS-Reset für {match["name"]}',
+                                   f'User {match["name"]} ({phone_norm}) hat SMS-Reset gemacht aber hat keine E-Mail.\nCode: {code}\nURL: {entry_url}',
+                                   sent_by=None)
+                    send_status = 'phone_only'
+                    target_label = phone_norm
+            else:
+                db.close()
+                send_status = 'ok'  # anti-enum
+                target_label = phone
+        return render_template('passwort_vergessen.html', sent=True, method=method,
+                               send_status=send_status, send_error=send_error,
+                               target_label=target_label)
+    return render_template('passwort_vergessen.html', sent=False, method=request.args.get('method','email'),
+                           send_status=None)
 
 
 @app.route('/passwort-zuruecksetzen/<token>', methods=['GET', 'POST'])

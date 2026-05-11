@@ -10,30 +10,67 @@
   .pw-tabs { display: flex; gap: 6px; margin-bottom: 18px; }
   .pw-tab { flex: 1; padding: 10px 14px; border-radius: 10px; text-align: center; font-weight: 700; font-size: 13px; cursor: pointer; border: 1px solid var(--border); background: var(--bg-2); color: var(--text-muted); text-decoration: none; }
   .pw-tab.active { background: var(--gold); color: var(--navy); border-color: var(--gold); }
-  .pw-success { padding: 22px; background: var(--blue-soft); border: 1px solid var(--blue); border-radius: 12px; color: var(--text); font-size: 14px; line-height: 1.55; }
-  .pw-success strong { color: var(--blue); }
+  .pw-result { padding: 20px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+  .pw-result.ok { background: color-mix(in srgb, #22c55e 12%, var(--surface)); border: 1px solid #22c55e; color: var(--text); }
+  .pw-result.fail { background: color-mix(in srgb, #ef4444 12%, var(--surface)); border: 1px solid #ef4444; color: var(--text); }
+  .pw-result.info { background: var(--blue-soft); border: 1px solid var(--blue); color: var(--text); }
+  .pw-result strong { color: var(--gold); }
+  .pw-spam { margin-top: 14px; padding: 12px 14px; background: color-mix(in srgb,#f97316 8%, var(--bg-2)); border-left: 3px solid #f97316; border-radius: 8px; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+  .pw-spam strong { color: #f97316; }
 </style>
 
 <div class="pw-card">
   {% if sent %}
-    <h2>📬 Geprüft.</h2>
-    <p class="lead">Falls die {% if method == 'sms' %}Nummer{% else %}E-Mail{% endif %} bei uns hinterlegt ist, kommt gleich {% if method == 'sms' %}eine SMS mit 6-stelligem Code{% else %}eine Mail mit Reset-Link{% endif %}.</p>
-    <div class="pw-success">
-      Schau in {% if method == 'sms' %}deine SMS{% else %}dein Postfach (auch Spam!){% endif %}.
-      {% if method == 'sms' %}
-      Wenn der Code nicht in 2 Min ankommt: <a href="?method=email" style="color:var(--gold);font-weight:700">probier per E-Mail</a>.
-      {% else %}
-      Wenn die Mail nicht in 5 Min ankommt: <a href="?method=sms" style="color:var(--gold);font-weight:700">probier per SMS</a>.
-      {% endif %}
+    {% if send_status == 'ok' %}
+      <h2>📬 Mail unterwegs!</h2>
+      <p class="lead">Wir haben dir gerade eine{% if method == 'sms' %}n Code per E-Mail{% else %} Anleitung{% endif %} an <strong style="color:var(--gold)">{{ target_label }}</strong> geschickt.</p>
+      <div class="pw-result ok">
+        ✓ <strong>Erfolgreich versendet.</strong><br>
+        {% if method == 'sms' %}
+          Trag den 6-stelligen Code aus der Mail in die nächste Seite ein. Code gilt 15 Minuten.
+        {% else %}
+          Klick den Reset-Button in der Mail. Link gilt 2 Stunden.
+        {% endif %}
+      </div>
+      <div class="pw-spam">
+        <strong>⚠ Bitte SPAM-Ordner checken!</strong> Manchmal landet die Mail dort. Such nach „<em>Pro Academy</em>" oder „<em>Reset</em>".
+      </div>
+    {% elif send_status == 'fail' %}
+      <h2>❌ Versand-Problem</h2>
+      <p class="lead">Die Mail konnte nicht zugestellt werden.</p>
+      <div class="pw-result fail">
+        ✗ <strong>Fehler beim Senden:</strong><br>
+        <code style="background:var(--bg);padding:6px 10px;border-radius:6px;font-size:12px;display:inline-block;margin-top:6px">{{ send_error or 'Unbekannter SMTP-Fehler' }}</code>
+        <br><br>Bitte deinen Admin/Upline kontaktieren — der Reset-Token ist im System angelegt aber die Mail blockiert.
+      </div>
+    {% elif send_status == 'phone_only' %}
+      <h2>📱 SMS-Reset</h2>
+      <p class="lead">Wir haben deinen Reset-Code generiert. Da SMS aktuell nicht versendet wird und du keine E-Mail hinterlegt hast, kontaktier bitte deinen Admin — er hat den Code im System.</p>
+      <div class="pw-result info">
+        Admin wurde benachrichtigt — er ruft dich gleich mit dem Code zurück.
+      </div>
+    {% else %}
+      <h2>📬 Geprüft.</h2>
+      <p class="lead">Falls die {% if method == 'sms' %}Nummer{% else %}E-Mail{% endif %} bei uns hinterlegt ist, kommt die Anleitung gleich an.</p>
+      <div class="pw-result info">
+        Wenn du in 5 Min nichts bekommst: SPAM checken oder andere Variante probieren.
+      </div>
+    {% endif %}
+
+    <div style="margin-top:18px;text-align:center;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <a href="?method={% if method == 'email' %}sms{% else %}email{% endif %}" style="font-size:12px;color:var(--text-muted);text-decoration:none;font-weight:700">
+        ↻ Per {% if method == 'email' %}SMS{% else %}E-Mail{% endif %} probieren
+      </a>
+      <span style="color:var(--text-muted)">·</span>
+      <a href="/login" style="color:var(--text-muted);text-decoration:none;font-size:13px">↩ Login</a>
     </div>
-    <div style="margin-top:18px;text-align:center"><a href="/login" style="color:var(--text-muted);text-decoration:none;font-size:13px">↩ zurück zum Login</a></div>
   {% else %}
     <h2>🔑 Passwort zurücksetzen</h2>
-    <p class="lead">Trag deine E-Mail oder Telefonnummer ein — wir schicken dir einen Reset-Link bzw. SMS-Code. Kein Admin nötig.</p>
+    <p class="lead">Trag deine E-Mail oder Telefonnummer ein — wir schicken dir einen Reset-Link bzw. Code. Kein Admin nötig.</p>
 
     <div class="pw-tabs">
       <a href="?method=email" class="pw-tab {% if method == 'email' %}active{% endif %}">📧 Per E-Mail</a>
-      <a href="?method=sms" class="pw-tab {% if method == 'sms' %}active{% endif %}">📱 Per SMS</a>
+      <a href="?method=sms" class="pw-tab {% if method == 'sms' %}active{% endif %}">📱 Per Telefon</a>
     </div>
 
     <form method="POST" autocomplete="off">
@@ -44,9 +81,9 @@
         <input type="tel" name="phone" placeholder="+49 …" required autofocus>
       </div>
       <p style="font-size:12px;color:var(--text-muted);margin:10px 0 18px;line-height:1.5">
-        ⚠️ <strong>Hinweis:</strong> SMS-Versand ist aktuell als <em>Stub</em> implementiert.
-        Bis ein SMS-Provider (z.B. Twilio/Vonage) konfiguriert ist, kann dir der Admin den Code nennen — der Code steht im Server-Log.
-        Für sofortigen Self-Service nutze die <a href="?method=email" style="color:var(--gold);font-weight:700">E-Mail-Variante</a>.
+        ℹ <strong>Hinweis:</strong> SMS-Versand ist aktuell deaktiviert — wir schicken dir den Code stattdessen
+        per <strong>E-Mail</strong> an die Adresse die du bei uns hinterlegt hast. Schneller geht's mit der
+        <a href="?method=email" style="color:var(--gold);font-weight:700">E-Mail-Variante</a> direkt.
       </p>
       {% else %}
       <div class="form-group">
