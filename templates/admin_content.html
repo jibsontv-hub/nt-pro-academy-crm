@@ -54,7 +54,15 @@
             {% endif %}
         </div>
         {% else %}
+        {% if 'partner' in auto_generating %}
+        <div style="color:#3b82f6;font-size:13px;padding:16px 0;display:flex;align-items:center;gap:10px">
+            <span style="display:inline-block;width:14px;height:14px;border:2px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></span>
+            ⚡ Generiere Partner-Idee für heute… (~15 Sek)
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">Lädt automatisch nach — oder Reload manuell</div>
+        {% else %}
         <div style="color:var(--text-muted);font-size:13px;padding:16px 0">Noch keine Partner-Idee. Klick oben „Partner-Idee generieren".</div>
+        {% endif %}
         {% endif %}
         {% if history_partner|length > 1 %}
         <details style="margin-top:14px">
@@ -97,7 +105,15 @@
             {% endif %}
         </div>
         {% else %}
+        {% if 'reichweite' in auto_generating %}
+        <div style="color:#d4a843;font-size:13px;padding:16px 0;display:flex;align-items:center;gap:10px">
+            <span style="display:inline-block;width:14px;height:14px;border:2px solid #d4a843;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></span>
+            ⚡ Generiere Reichweite-Idee für heute… (~15 Sek)
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">Lädt automatisch nach — oder Reload manuell</div>
+        {% else %}
         <div style="color:var(--text-muted);font-size:13px;padding:16px 0">Noch keine Reichweite-Idee. Klick oben „Reichweite-Idee generieren".</div>
+        {% endif %}
         {% endif %}
         {% if history_reichweite|length > 1 %}
         <details style="margin-top:14px">
@@ -115,6 +131,9 @@
     </div>
 </div>
 
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
 <script>
 async function markUsed(id) {
     const btn = document.getElementById('used-btn-' + id);
@@ -128,5 +147,10 @@ async function markUsed(id) {
         btn.disabled = false; btn.textContent = '✓ Verwendet';
     }
 }
+
+// Auto-Reload nach 25 Sek wenn Background-Generierung läuft
+{% if auto_generating %}
+setTimeout(function(){ location.reload(); }, 25000);
+{% endif %}
 </script>
 {% endblock %}

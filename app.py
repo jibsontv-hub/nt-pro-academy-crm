@@ -3413,6 +3413,8 @@ def init_db():
             ('push_prefs', "TEXT DEFAULT '{}'"),
             ('streak_days', "INTEGER DEFAULT 0"),
             ('streak_last_date', "TEXT"),
+            ('instagram_handle', "TEXT"),
+            ('tiktok_handle', "TEXT"),
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -3922,12 +3924,17 @@ def _get_coach_actions_uncached(user_id, max_actions=5):
     if today_term > 0:
         actions.append({'icon': '◷', 'priority': 'high', 'title': f'{today_term} Termin{"e" if today_term > 1 else ""} heute',
                         'detail': 'Vorbereiten + bestätigen', 'action_label': 'Termine', 'action_url': '/termine'})
-    # 4) Geburtstage diese Woche
+    # 4) Geburtstage diese Woche — STRANG-ISOLIERT (nur eigene Downline + deren Kunden)
     try:
-        birthday_rows = db.execute('''
-            SELECT name, phone, birthday FROM users WHERE active=1 AND birthday IS NOT NULL
-            UNION ALL SELECT name, phone, birthday FROM leads WHERE birthday IS NOT NULL
-        ''').fetchall()
+        own_ids = [user_id] + get_all_descendants(user_id)
+        ph_b = ','.join('?' * len(own_ids))
+        birthday_rows = db.execute(f'''
+            SELECT name, phone, birthday FROM users
+                WHERE id IN ({ph_b}) AND active=1 AND birthday IS NOT NULL
+            UNION ALL
+            SELECT name, phone, birthday FROM leads
+                WHERE owner_id IN ({ph_b}) AND birthday IS NOT NULL
+        ''', own_ids + own_ids).fetchall()
         for b in birthday_rows:
             try:
                 d = days_until_birthday(b['birthday'])
@@ -4915,13 +4922,16 @@ def profil():
         vision = request.form.get('vision', '').strip()
         phone = request.form.get('phone', '').strip()
         birthday = request.form.get('birthday', '').strip() or None
+        # Social-Media-Handles (mit @ normalisieren)
+        ig = (request.form.get('instagram_handle') or '').strip().lstrip('@')[:80] or None
+        tt = (request.form.get('tiktok_handle') or '').strip().lstrip('@')[:80] or None
         new_password = request.form.get('password', '').strip()
         if new_password:
-            db.execute('UPDATE users SET vision=?, phone=?, birthday=?, password=? WHERE id=?',
-                       (vision, phone, birthday, hash_password(new_password), current_user.id))
+            db.execute('UPDATE users SET vision=?, phone=?, birthday=?, instagram_handle=?, tiktok_handle=?, password=? WHERE id=?',
+                       (vision, phone, birthday, ig, tt, hash_password(new_password), current_user.id))
         else:
-            db.execute('UPDATE users SET vision=?, phone=?, birthday=? WHERE id=?',
-                       (vision, phone, birthday, current_user.id))
+            db.execute('UPDATE users SET vision=?, phone=?, birthday=?, instagram_handle=?, tiktok_handle=? WHERE id=?',
+                       (vision, phone, birthday, ig, tt, current_user.id))
         db.commit()
         db.close()
         flash('Profil aktualisiert!', 'success')
@@ -4958,9 +4968,11 @@ def public_lead_capture():
         privacy = request.form.get('privacy')
 
         if not name or not email or '@' not in email:
-            return render_template('public_lead.html', error='Bitte Name und gültige E-Mail eingeben.')
+            return render_template('public_lead.html', error='Bitte Name und gültige E-Mail eingeben.', referred_by=referred_by, today_iso=date.today().isoformat())
+        if not referred_by or len(referred_by) < 2:
+            return render_template('public_lead.html', error='Bitte angeben wie du auf uns aufmerksam geworden bist (Pflichtfeld).', referred_by=referred_by, today_iso=date.today().isoformat())
         if not privacy:
-            return render_template('public_lead.html', error='Bitte Datenschutzerklärung akzeptieren.')
+            return render_template('public_lead.html', error='Bitte Datenschutzerklärung akzeptieren.', referred_by=referred_by, today_iso=date.today().isoformat())
 
         record_login_attempt(block_key, success=False)  # Counter für IP
 
@@ -5015,10 +5027,12 @@ def public_lead_capture():
             try:
                 # Validiere Datum (YYYY-MM-DD)
                 _ = datetime.strptime(wunsch_datum, '%Y-%m-%d').date()
-                termin_title = f'📞 Lead-Erstgespräch: {name}'
-                termin_notes = f'Auto via /start. {phone or "(kein Tel.)"} · {email}'
+                termin_title = f'📞 Jibson & Team · Erstgespräch mit {name}'
+                # Quelle in die Notizen mit reinpacken (so steht „durch wen gekommen" am Termin)
+                quelle_note = f'Aufmerksam via: {referred_by}' if referred_by else 'Aufmerksam: (keine Angabe)'
+                termin_notes = f'{quelle_note}\n{phone or "(kein Tel.)"} · {email}\nAuto via /start.'
                 if message:
-                    termin_notes += f' · "{message[:150]}"'
+                    termin_notes += f'\n„{message[:200]}"'
                 db.execute('''INSERT INTO appointments
                               (owner_id, title, client_name, termin_date, termin_time,
                                typ, status, notizen)
@@ -5272,7 +5286,11 @@ def admin_inbox():
         return redirect(url_for('dashboard'))
     db = get_db()
     rows = db.execute('''
-        SELECT l.*, u.name as owner_name FROM leads l
+        SELECT l.*,
+               u.name as owner_name,
+               u.instagram_handle as owner_ig,
+               u.tiktok_handle as owner_tt
+        FROM leads l
         LEFT JOIN users u ON l.owner_id = u.id
         WHERE l.source = 'public'
         ORDER BY l.created_at DESC LIMIT 200
@@ -6391,8 +6409,8 @@ def dashboard():
         admin_vision = (admin_user['vision'] if admin_user else '') or ''
         admin_show_vision = session.pop('show_vision', False) and admin_vision.strip() != ''
         db.close()
-        # KI-Coach: Top-3 Anrufe für Quick-Card
-        coach_insights = get_smart_insights(scope_user_id=None)
+        # KI-Coach: Top-3 Anrufe für Quick-Card — strang-isoliert (eigene Downline)
+        coach_insights = get_smart_insights(scope_user_id=current_user.id)
         # Personalisierte Begrüßung
         greeting = get_greeting_for_user(current_user.name, career, next_level, own_eh, eh_to_next)
         # Monats- + Halbjahres-Daten + Karriere-Kriterien
@@ -8220,6 +8238,36 @@ def team_kalender():
                     'upcoming': [dict(u) for u in upcoming],
                     'is_all': False,
                 })
+            # ─── 3. Bidirektional: Mentor-Kachel (Upline read-only sichtbar) ───
+            me = db.execute('SELECT parent_id FROM users WHERE id=?', (current_user.id,)).fetchone()
+            if me and me['parent_id']:
+                mentor = db.execute('''
+                    SELECT id, name, photo_path, manual_career_level
+                    FROM users WHERE id=? AND active=1
+                ''', (me['parent_id'],)).fetchone()
+                if mentor:
+                    mentor_upcoming = db.execute('''
+                        SELECT a.title, a.client_name, a.termin_date, a.termin_time, a.status, u.name as owner_name
+                        FROM appointments a JOIN users u ON a.owner_id = u.id
+                        WHERE a.owner_id = ?
+                          AND date(a.termin_date) >= date(?)
+                          AND date(a.termin_date) <= date(?)
+                        ORDER BY a.termin_date, a.termin_time
+                        LIMIT 5
+                    ''', (mentor['id'], today.isoformat(), in_14d.isoformat())).fetchall()
+                    mentor_today = db.execute('SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)=date(?)',
+                                              (mentor['id'], today.isoformat())).fetchone()['c']
+                    mentor_week = db.execute('SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)>=date(?) AND date(termin_date)<=date(?)',
+                                             (mentor['id'], today.isoformat(), in_14d.isoformat())).fetchone()['c']
+                    strange.append({
+                        'id': mentor['id'], 'name': f'⬢ Mein Mentor: {mentor["name"]}',
+                        'photo_path': mentor['photo_path'],
+                        'level': mentor['manual_career_level'] or 1,
+                        'team_size': 1,
+                        'count_today': mentor_today, 'count_week': mentor_week,
+                        'upcoming': [dict(u) for u in mentor_upcoming],
+                        'is_mentor': True,
+                    })
             db.close()
             return render_template('team_kalender_uebersicht.html',
                 strange=strange, today_iso=today.isoformat())
@@ -8231,9 +8279,14 @@ def team_kalender():
                 'level': 99, 'short': 'ALLE'}
     elif root_param and root_param.isdigit():
         target_id = int(root_param)
-        # Berechtigung: nur wenn current_user Upline ist (oder Admin oder selber)
+        # Berechtigung: Admin · selber · Downline · ODER direkter Mentor (Upline read-only)
         descendants = get_all_descendants(current_user.id)
-        if not (current_user.has_admin_access or target_id == current_user.id or target_id in descendants):
+        # Direkter Mentor (parent_id) — read-only Mentor-Slot-Lookup erlaubt
+        db_p = get_db()
+        me_row = db_p.execute('SELECT parent_id FROM users WHERE id=?', (current_user.id,)).fetchone()
+        db_p.close()
+        is_my_mentor = bool(me_row and me_row['parent_id'] == target_id)
+        if not (current_user.has_admin_access or target_id == current_user.id or target_id in descendants or is_my_mentor):
             flash('Keine Berechtigung für diesen Sub-Kalender.', 'error')
             return redirect(url_for('team_kalender'))
         db = get_db()
@@ -9013,6 +9066,7 @@ def admin_content():
         return redirect(url_for('admin_content'))
 
     # GET: neueste pro Agent + History
+    today_iso = date.today().isoformat()
     latest_partner = db.execute('''SELECT * FROM content_ideas WHERE user_id=? AND agent_typ='partner'
                                    ORDER BY created_at DESC LIMIT 1''', (current_user.id,)).fetchone()
     latest_reichweite = db.execute('''SELECT * FROM content_ideas WHERE user_id=? AND agent_typ='reichweite'
@@ -9022,10 +9076,45 @@ def admin_content():
     history_reichweite = db.execute('''SELECT * FROM content_ideas WHERE user_id=? AND agent_typ='reichweite'
                                        ORDER BY created_at DESC LIMIT 30''', (current_user.id,)).fetchall()
     db.close()
+
+    # Auto-Suggest: wenn heute noch keine Idee → Background-Generierung
+    needs_partner = not latest_partner or (latest_partner['datum'] != today_iso)
+    needs_reichweite = not latest_reichweite or (latest_reichweite['datum'] != today_iso)
+    auto_generating = []
+
+    def _bg_generate(uid, agent_typ):
+        """Hintergrund-Generierung — Result landet in DB, User reloadet."""
+        try:
+            with app.app_context():
+                result = generate_content_idea(uid, agent_typ, '')
+                if result.get('success'):
+                    db_bg = get_db()
+                    db_bg.execute('''INSERT INTO content_ideas (user_id, datum, kontext, agent_typ,
+                                  content_type, hook, storyline, cta_or_caption, mechanik, full_output)
+                                  VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, ?)''',
+                               (uid, date.today().isoformat(), result['agent_typ'],
+                                result.get('content_type', ''), result.get('hook', ''),
+                                result.get('storyline', ''), result.get('cta_or_caption', ''),
+                                result.get('mechanik', ''), result['full_output']))
+                    db_bg.commit()
+                    db_bg.close()
+        except Exception as e:
+            print(f'[content_auto_suggest] {agent_typ}: {e}')
+
+    if is_ai_configured():
+        import threading as _t
+        if needs_partner:
+            _t.Thread(target=_bg_generate, args=(current_user.id, 'partner'), daemon=True).start()
+            auto_generating.append('partner')
+        if needs_reichweite:
+            _t.Thread(target=_bg_generate, args=(current_user.id, 'reichweite'), daemon=True).start()
+            auto_generating.append('reichweite')
+
     return render_template('admin_content.html',
                            latest_partner=latest_partner, latest_reichweite=latest_reichweite,
                            history_partner=history_partner, history_reichweite=history_reichweite,
-                           ai_configured=is_ai_configured())
+                           ai_configured=is_ai_configured(),
+                           auto_generating=auto_generating, today_iso=today_iso)
 
 
 @app.route('/admin/content/<int:cid>/used', methods=['POST'])

@@ -352,9 +352,9 @@ textarea.in { resize: vertical; min-height: 70px; }
             <label class="fl">Telefon (für schnelleren Rückruf)</label>
             <input class="in" type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
 
-            <label class="fl">Wie bist du auf uns aufmerksam geworden?</label>
-            <input class="in" type="text" name="referred_by" value="{{ referred_by or '' }}" placeholder="z.B. Instagram · Google · oder Name (z.B. Najib Tchatikpi)">
-            <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4">Wenn dich jemand persönlich empfohlen hat, schreib seinen Namen — wir leiten dich direkt zu ihm.</div>
+            <label class="fl">Wie bist du auf uns aufmerksam geworden? <span style="color:#ef4444">*</span></label>
+            <input class="in" type="text" name="referred_by" value="{{ referred_by or '' }}" required minlength="2" placeholder="z.B. Instagram · Google · TikTok · oder Name eines Beraters">
+            <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4">Pflichtfeld. Wenn dich jemand persönlich empfohlen hat, schreib seinen Namen — wir leiten dich direkt zu ihm.</div>
 
             <!-- ═════ TERMIN-WUNSCH (optional) ═════ -->
             <div style="margin-top:18px;padding:14px;background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.25);border-radius:10px">
