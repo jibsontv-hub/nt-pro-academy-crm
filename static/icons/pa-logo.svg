@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Schwarzer Background — Pro Academy Brand -->
+  <rect width="1024" height="1024" fill="#000000" rx="180"/>
+
+  <!-- PA-Symbol mittig, gold-akzentuiert -->
+  <!-- P (weiß) — linke Hälfte -->
+  <path d="M 280 250 L 280 750 L 380 750 L 380 580 L 470 580 C 560 580 620 530 620 440 C 620 350 560 250 470 250 L 280 250 Z M 380 350 L 460 350 C 500 350 520 380 520 415 C 520 450 500 480 460 480 L 380 480 L 380 350 Z" fill="#FFFFFF"/>
+
+  <!-- A (gold) — rechte Hälfte mit charakteristischem Diagonal-Cut -->
+  <path d="M 560 750 L 660 750 L 700 640 L 820 640 L 860 750 L 960 750 L 800 280 L 720 280 L 560 750 Z M 730 555 L 760 460 L 790 555 L 730 555 Z" fill="#D4A843"/>
+
+  <!-- Gold-Akzent-Linie zwischen P und A -->
+  <line x1="540" y1="280" x2="540" y2="720" stroke="#D4A843" stroke-width="3" opacity="0.4"/>
+</svg>

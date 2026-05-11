@@ -3198,6 +3198,40 @@ def init_db():
             UNIQUE(user_id, push_type, ref_key)
         );
 
+        CREATE TABLE IF NOT EXISTS daily_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            datum TEXT NOT NULL,
+            kontext TEXT,
+            psyche_output TEXT,
+            hardcore_output TEXT,
+            chairman_output TEXT,
+            target_partner_id INTEGER,
+            target_partner_name TEXT,
+            done_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_actions_user_date ON daily_actions(user_id, datum DESC);
+
+        CREATE TABLE IF NOT EXISTS content_ideas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            datum TEXT NOT NULL,
+            kontext TEXT,
+            agent_typ TEXT NOT NULL,    -- 'partner' | 'reichweite'
+            content_type TEXT,           -- bei reichweite: hot_take/how_to/bts/trend/mistake/listicle/story
+            hook TEXT,
+            storyline TEXT,
+            cta_or_caption TEXT,
+            mechanik TEXT,
+            full_output TEXT,
+            used_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_content_ideas_user_date ON content_ideas(user_id, datum DESC);
+
         CREATE TABLE IF NOT EXISTS recent_partner_views (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             visitor_id INTEGER NOT NULL,
@@ -3808,10 +3842,69 @@ def get_coach_actions(user_id, max_actions=5):
 def _get_coach_actions_uncached(user_id, max_actions=5):
     """Was soll ich JETZT tun? Konsolidierte Action-Liste für die Dashboard-Coach-Karte.
     Mischt: KI-Recs, inaktive Partner, hängende Recherchen, Geburtstage, anstehende Termine.
+    + HARD-TRIGGER (Najib's Specs): 0 EH 4W, 0 Termine, 0 calls → kritisch.
     Returns: list of {icon, title, detail, action_label, action_url, priority}"""
     actions = []
     db = get_db()
     today = date.today().isoformat()
+
+    # ─── HARD-TRIGGER (Najib's Specs für inaktive Partner) ──────────
+    week_ago = (date.today() - timedelta(days=7)).isoformat()
+    month_ago = (date.today() - timedelta(days=30)).isoformat()
+
+    # 0 EH in letzten 4 Wochen → KRITISCH (mit Strukturhöher-CTA)
+    eh_30d = db.execute('''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
+                           WHERE owner_id=? AND status='abgeschlossen'
+                           AND recherche_status='freigegeben' AND date(abschluss_date) >= date(?)''',
+                        (user_id, month_ago)).fetchone()['s']
+    if eh_30d == 0:
+        # Strukturhöher finden
+        parent = db.execute('SELECT name FROM users WHERE id=(SELECT parent_id FROM users WHERE id=?)', (user_id,)).fetchone()
+        parent_name = parent['name'] if parent else 'deinem Mentor'
+        actions.append({
+            'icon': '🚨', 'priority': 'critical',
+            'title': '4 Wochen 0 EH — KRITISCH',
+            'detail': f'Ruf {parent_name} JETZT an. Nicht morgen.',
+            'action_label': 'Anrufen', 'action_url': '/team',
+        })
+    # 0 Termine reingekommen letzte Woche → kritisch
+    new_appts = db.execute('''SELECT COUNT(*) as c FROM appointments
+                              WHERE owner_id=? AND date(created_at) >= date(?)''',
+                           (user_id, week_ago)).fetchone()['c']
+    if new_appts == 0:
+        actions.append({
+            'icon': '📭', 'priority': 'critical',
+            'title': '0 Termine diese Woche',
+            'detail': 'Namensliste raus. 5 Anrufe heute. Mind. 1 Termin diese Woche.',
+            'action_label': 'Namensliste', 'action_url': '/namensliste',
+        })
+    # 1-Monats-Check: 250 EH + 3 GPs (Onboarding-Ziel)
+    user_row = db.execute('SELECT joined_date FROM users WHERE id=?', (user_id,)).fetchone()
+    if user_row and user_row['joined_date']:
+        try:
+            joined = datetime.strptime(user_row['joined_date'][:10], '%Y-%m-%d').date()
+            days_in = (date.today() - joined).days
+            if 25 <= days_in <= 35:  # ~1 Monat im Geschäft
+                # 1-Monats-Ziele checken
+                gps_in_month = db.execute('SELECT COUNT(*) as c FROM users WHERE parent_id=? AND active=1', (user_id,)).fetchone()['c']
+                if eh_30d < 250:
+                    actions.append({
+                        'icon': '🎯', 'priority': 'high',
+                        'title': f'1-Monats-Ziel: {int(eh_30d)}/250 EH',
+                        'detail': f'Noch {int(250-eh_30d)} EH bis safe. {35-days_in}T Zeit.',
+                        'action_label': 'Verträge', 'action_url': '/vertraege',
+                    })
+                if gps_in_month < 3:
+                    actions.append({
+                        'icon': '🤝', 'priority': 'high',
+                        'title': f'1-Monats-Ziel: {gps_in_month}/3 Geschäftspartner',
+                        'detail': f'Noch {3-gps_in_month} GPs einbinden. Recruiting-Liste durchgehen.',
+                        'action_label': 'Recruiting', 'action_url': '/namensliste?typ=rk',
+                    })
+        except Exception:
+            pass
+    # ─── Standard-Trigger ──────────────────────────────────────────
+
     # 1) Hängende Recherchen
     pending_r = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (user_id,)).fetchone()['c']
     if pending_r >= 3:
@@ -4856,6 +4949,8 @@ def public_lead_capture():
         email = (request.form.get('email') or '').strip().lower()
         phone = (request.form.get('phone') or '').strip()
         message = (request.form.get('message') or '').strip()
+        wunsch_datum = (request.form.get('wunsch_datum') or '').strip()
+        wunsch_zeit = (request.form.get('wunsch_zeit') or '').strip()
         # referred_by ist jetzt das kombinierte Feld: entweder Quelle (Instagram/Google/...)
         # ODER ein Berater-Name (für Auto-Routing). Backend interpretiert beides.
         referred_by = (request.form.get('referred_by') or '').strip()
@@ -4913,11 +5008,42 @@ def public_lead_capture():
                        (owner_id, name, email, phone, notizen_full,
                         message, referred_by, liste_typ))
         new_id = cur.lastrowid
+
+        # ─── PUNKT B: Termin-Wunsch → Auto-Termin im Kalender des Beraters ───
+        termin_extra = ''
+        if wunsch_datum and len(wunsch_datum) == 10:
+            try:
+                # Validiere Datum (YYYY-MM-DD)
+                _ = datetime.strptime(wunsch_datum, '%Y-%m-%d').date()
+                termin_title = f'📞 Lead-Erstgespräch: {name}'
+                termin_notes = f'Auto via /start. {phone or "(kein Tel.)"} · {email}'
+                if message:
+                    termin_notes += f' · "{message[:150]}"'
+                db.execute('''INSERT INTO appointments
+                              (owner_id, title, client_name, termin_date, termin_time,
+                               typ, status, notizen)
+                              VALUES (?, ?, ?, ?, ?, 'kundentermin', 'geplant', ?)''',
+                           (owner_id, termin_title, name, wunsch_datum, wunsch_zeit or '14:00', termin_notes))
+                termin_extra = f' + Termin {wunsch_datum} {wunsch_zeit or "14:00"}'
+            except Exception as e:
+                print(f'[public_lead] Termin-Auto-Insert fehlgeschlagen: {e}')
+
         db.commit()
         db.close()
 
+        # Push an Berater bei Termin-Wunsch
+        if termin_extra:
+            try:
+                send_push_to_user(owner_id,
+                    title=f'📅 Neuer Lead WILL Termin: {name}',
+                    body=f'{wunsch_datum} {wunsch_zeit or "14:00"} · ruf zurück, bestätige',
+                    url='/termine', urgent=True, tag='public_lead_termin',
+                    push_type='lead_won')
+            except Exception:
+                pass
+
         log_activity(owner_id, 'public_lead',
-                    f'🌐 Neue öffentliche Anmeldung: {name} ({email})',
+                    f'🌐 Neue öffentliche Anmeldung: {name} ({email}){termin_extra}',
                     icon='🌐', color='gold')
 
         # E-Mails verschicken (wenn SMTP konfiguriert)
@@ -4943,7 +5069,7 @@ def public_lead_capture():
     # Optional Referral aus URL (?ref=email)
     ref = request.args.get('ref', '').strip()
     db.close()
-    return render_template('public_lead.html', referred_by=ref)
+    return render_template('public_lead.html', referred_by=ref, today_iso=date.today().isoformat())
 
 
 # === PUBLIC BOOKING — Kalendly-Style Slot-Picker ===
@@ -5764,8 +5890,45 @@ ONBOARDING_ROADMAP_TASKS = [
     {'day': 6, 'code': 'namensliste_30', 'title': '30 Kontakte in Namensliste', 'detail': 'Weiter ausbauen — Ziel: 100', 'url': '/namensliste', 'icon': '◎'},
     {'day': 6, 'code': 'first_vertrag', 'title': 'Ersten Vertrag eintragen', 'detail': 'Auch wenn klein — der erste Schritt zählt', 'url': '/vertraege/neu', 'icon': '€'},
     # Tag 7: Reflektion
-    {'day': 7, 'code': 'reflektion', 'title': 'Wochen-Reflektion mit Coach', 'detail': 'Frag Coach: was lief gut, was nicht?', 'url': '/assistent', 'icon': '◆'},
-    {'day': 7, 'code': 'plan_next_week', 'title': 'Nächste Woche planen', 'detail': '5 konkrete Aktionen für KW2 aufschreiben', 'url': '/aufgaben', 'icon': '✓'},
+    {'day': 7, 'code': 'reflektion', 'title': 'Wochen-Reflektion mit Strukturhöher', 'detail': 'Was lief gut, was nicht? Persönlich, nicht in App.', 'url': '/team', 'icon': '⬢'},
+    {'day': 7, 'code': 'plan_next_week', 'title': 'Nächste Woche planen mit Mentor', 'detail': '5 konkrete Aktionen für KW2 — gemeinsam', 'url': '/team', 'icon': '✓'},
+
+    # ═══════ WOCHE 2 — VERTIEFEN ═══════
+    {'day': 14, 'code': 'eh_50', 'title': '50 EH safe', 'detail': 'Erste Verträge live — auch klein', 'url': '/vertraege', 'icon': '€'},
+    {'day': 14, 'code': 'rk_10', 'title': '10 RK-Kontakte (Recruiting)', 'detail': 'Wer kommt mit ins Team?', 'url': '/namensliste?typ=rk', 'icon': '◇'},
+    {'day': 14, 'code': 'mentor_call_2', 'title': '2× Mentor-Call diese Woche', 'detail': 'Nicht App fragen — Mensch fragen', 'url': '/team', 'icon': '☎'},
+
+    # ═══════ WOCHE 3 — STEIGERUNG ═══════
+    {'day': 21, 'code': 'eh_120', 'title': '120 EH zwischenstand', 'detail': 'Auf Kurs für 250 EH im 1. Monat', 'url': '/vertraege', 'icon': '€'},
+    {'day': 21, 'code': 'first_gp', 'title': 'Ersten Geschäftspartner einbinden', 'detail': 'Mentor-Walking — gemeinsam mit Strukturhöher', 'url': '/team/neu', 'icon': '🤝'},
+
+    # ═══════ WOCHE 4 — 1-MONATS-ZIEL ═══════
+    {'day': 28, 'code': 'eh_250', 'title': '🎯 250 EH im 1. Monat (HARD-Ziel)', 'detail': 'Najib-Ziel — die safe-Zone für Stufe-Aufstieg', 'url': '/vertraege', 'icon': '🏆'},
+    {'day': 28, 'code': 'gps_3', 'title': '🎯 3 Geschäftspartner eingebunden', 'detail': 'Ohne sie keine Stufenwechsel', 'url': '/team', 'icon': '🤝'},
+    {'day': 28, 'code': 'monatsbilanz_mentor', 'title': 'Monats-Bilanz mit Strukturhöher', 'detail': 'Was war gut, was muss Monat 2 anders?', 'url': '/team', 'icon': '⬢'},
+
+    # ═══════ MONAT 2 — TEAM AUFBAUEN ═══════
+    {'day': 42, 'code': 'first_partner_termin', 'title': '1. Partner-Termin gemeinsam', 'detail': 'Du nimmst deinen GP zu seinem 1. Termin mit', 'url': '/termine', 'icon': '◷'},
+    {'day': 42, 'code': 'eh_500', 'title': '500 EH erreicht (kumuliert)', 'detail': 'Stetig wachsen — kein Burnout', 'url': '/vertraege', 'icon': '€'},
+    {'day': 56, 'code': 'mentor_weekly', 'title': 'Wöchentlicher Mentor-Slot fix', 'detail': '1× pro Woche fester Termin mit Strukturhöher', 'url': '/team', 'icon': '⬢'},
+    {'day': 56, 'code': 'gp_5', 'title': '5 GPs aktiv', 'detail': 'Aufbau für LREP-Stufe', 'url': '/team', 'icon': '🤝'},
+
+    # ═══════ MONAT 3 — LREP-VORBEREITUNG ═══════
+    {'day': 70, 'code': 'eh_800', 'title': '800 EH (LREP-Schwelle nähert sich)', 'detail': 'Stetig — Mentor-Check 1×/Woche', 'url': '/vertraege', 'icon': '€'},
+    {'day': 84, 'code': 'first_recruit_solo', 'title': 'Erster GP solo eingebunden', 'detail': 'Ohne Mentor — du machst es allein', 'url': '/team/neu', 'icon': '🚀'},
+    {'day': 90, 'code': 'lrep_check', 'title': 'LREP-Bereitschaft mit Mentor checken', 'detail': 'Bist du soweit? Was fehlt noch?', 'url': '/team', 'icon': '⬢'},
+
+    # ═══════ MONAT 4 — KARRIERE-PLAN ═══════
+    {'day': 112, 'code': 'lrep_or_plan', 'title': 'LREP erreicht ODER Plan B mit Mentor', 'detail': 'Falls noch nicht: konkreter Plan was fehlt', 'url': '/team', 'icon': '🏆'},
+    {'day': 112, 'code': 'gp_eigenes_team', 'title': 'Mein erster GP rekrutiert eigenen GP', 'detail': 'Multiplikation startet — coach deinen Partner', 'url': '/team', 'icon': '⬢'},
+
+    # ═══════ MONAT 5 — SKALIEREN ═══════
+    {'day': 140, 'code': 'eh_1500', 'title': '1500 EH kumuliert', 'detail': 'HREP rückt näher — Vollgas mit Team', 'url': '/vertraege', 'icon': '€'},
+    {'day': 140, 'code': 'team_meeting', 'title': '1. eigenes Team-Meeting', 'detail': 'Du führst — alle deine GPs zusammen', 'url': '/team', 'icon': '👥'},
+
+    # ═══════ MONAT 6 — STUFE 2 STABIL ═══════
+    {'day': 180, 'code': 'lrep_stable', 'title': '🏆 LREP stabil + Plan für HREP', 'detail': '6-Monats-Bilanz mit Strukturhöher', 'url': '/team', 'icon': '🏆'},
+    {'day': 180, 'code': 'mentor_others', 'title': 'Du mentorest selbst', 'detail': 'Dein 1. GP wird LREP — du bist die Hilfe', 'url': '/team', 'icon': '⬢'},
 ]
 
 
@@ -7997,6 +8160,33 @@ def team_kalender():
             today = date.today()
             in_14d = today + timedelta(days=14)
             strange = []
+            # ─── 1. „ALLE"-Slot oben: gesamte Downline + eigener Kalender ───
+            all_ids = [current_user.id] + get_all_descendants(current_user.id)
+            ph_all = ','.join('?' * len(all_ids))
+            all_upcoming = db.execute(f'''
+                SELECT a.title, a.client_name, a.termin_date, a.termin_time, a.status, u.name as owner_name
+                FROM appointments a JOIN users u ON a.owner_id = u.id
+                WHERE a.owner_id IN ({ph_all})
+                  AND date(a.termin_date) >= date(?)
+                  AND date(a.termin_date) <= date(?)
+                ORDER BY a.termin_date, a.termin_time
+                LIMIT 5
+            ''', all_ids + [today.isoformat(), in_14d.isoformat()]).fetchall()
+            all_today = db.execute(f'''SELECT COUNT(*) c FROM appointments
+                WHERE owner_id IN ({ph_all}) AND date(termin_date) = date(?)''',
+                all_ids + [today.isoformat()]).fetchone()['c']
+            all_week = db.execute(f'''SELECT COUNT(*) c FROM appointments
+                WHERE owner_id IN ({ph_all})
+                  AND date(termin_date) >= date(?) AND date(termin_date) <= date(?)''',
+                all_ids + [today.isoformat(), in_14d.isoformat()]).fetchone()['c']
+            strange.append({
+                'id': 'all', 'name': '🌐 ALLE', 'photo_path': None,
+                'level': 99, 'team_size': len(all_ids),
+                'count_today': all_today, 'count_week': all_week,
+                'upcoming': [dict(u) for u in all_upcoming],
+                'is_all': True,
+            })
+            # ─── 2. Pro direktem Geschäftspartner ein Strang ───
             for p in direct_partners:
                 strang_ids = [p['id']] + get_all_descendants(p['id'])
                 ph = ','.join('?' * len(strang_ids))
@@ -8028,13 +8218,18 @@ def team_kalender():
                     'count_today': count_today,
                     'count_week': count_week,
                     'upcoming': [dict(u) for u in upcoming],
+                    'is_all': False,
                 })
             db.close()
             return render_template('team_kalender_uebersicht.html',
                 strange=strange, today_iso=today.isoformat())
 
     # ─── Single-Strang-Mode (mit ?root=<id>) ───
-    if root_param and root_param.isdigit():
+    # Spezialfall: ?root=all → alle Termine der gesamten Downline + eigene
+    if root_param == 'all':
+        root = {'id': current_user.id, 'name': '🌐 Alle Termine (gesamte Downline)',
+                'level': 99, 'short': 'ALLE'}
+    elif root_param and root_param.isdigit():
         target_id = int(root_param)
         # Berechtigung: nur wenn current_user Upline ist (oder Admin oder selber)
         descendants = get_all_descendants(current_user.id)
@@ -8410,6 +8605,440 @@ def quota_setzen():
     db.close()
     flash('Quote gesetzt!', 'success')
     return redirect(url_for('quoten'))
+
+
+# ═══════════════════════════════════════════════════════════
+# MODUL A: TAGESAKTION (3-Agenten Council)
+# ═══════════════════════════════════════════════════════════
+
+def _build_team_snapshot_compact(admin_user_id):
+    """Baut Daten-Subset (Variante B): 5 inaktivste + 5 underperformer + 5 stars.
+    Returns formatierter String für Claude-Prompts."""
+    db = get_db()
+    descendants = get_all_descendants(admin_user_id)
+    if not descendants:
+        db.close()
+        return 'Keine Team-Mitglieder im Strang.'
+    placeholders = ','.join('?' * len(descendants))
+    today = date.today().isoformat()
+    week_ago = (date.today() - timedelta(days=7)).isoformat()
+    month_ago = (date.today() - timedelta(days=30)).isoformat()
+
+    # 5 inaktivste (längste keine Aktivität)
+    inaktiv = db.execute(f'''
+        SELECT u.id, u.name, u.manual_career_level,
+               (SELECT MAX(created_at) FROM activity_log WHERE user_id=u.id) as last_activity
+        FROM users u
+        WHERE u.id IN ({placeholders}) AND u.active=1
+        ORDER BY last_activity ASC NULLS FIRST
+        LIMIT 5
+    ''', descendants).fetchall()
+
+    # 5 underperformer (wenig EH letzte 30 Tage trotz Aktivität)
+    under = db.execute(f'''
+        SELECT u.id, u.name, u.manual_career_level,
+               COALESCE(SUM(c.einheiten), 0) as eh_30d
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id=u.id AND c.status='abgeschlossen'
+            AND c.recherche_status='freigegeben' AND date(c.abschluss_date) >= date(?)
+        WHERE u.id IN ({placeholders}) AND u.active=1
+        GROUP BY u.id
+        ORDER BY eh_30d ASC
+        LIMIT 5
+    ''', [month_ago] + descendants).fetchall()
+
+    # 5 stars (höchste EH letzte 30 Tage)
+    stars = db.execute(f'''
+        SELECT u.id, u.name, u.manual_career_level,
+               COALESCE(SUM(c.einheiten), 0) as eh_30d,
+               COUNT(c.id) as vertraege_30d
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id=u.id AND c.status='abgeschlossen'
+            AND c.recherche_status='freigegeben' AND date(c.abschluss_date) >= date(?)
+        WHERE u.id IN ({placeholders}) AND u.active=1
+        GROUP BY u.id
+        ORDER BY eh_30d DESC
+        LIMIT 5
+    ''', [month_ago] + descendants).fetchall()
+    db.close()
+
+    def fmt(rows, label, cols):
+        if not rows: return f'{label}: keine Daten'
+        lines = [f'{label}:']
+        for r in rows:
+            line = f'  - {r["name"]} (Stufe {r["manual_career_level"] or 1})'
+            for c in cols:
+                v = r[c] if c in r.keys() else None
+                if v is not None:
+                    line += f' · {c}={v}'
+            lines.append(line)
+        return '\n'.join(lines)
+
+    out = []
+    out.append(fmt(inaktiv, '5 INAKTIVSTE (kein Activity-Log)', ['last_activity']))
+    out.append(fmt(under, '5 UNDERPERFORMER (wenig EH letzte 30d)', ['eh_30d']))
+    out.append(fmt(stars, '5 STARS (top EH letzte 30d)', ['eh_30d', 'vertraege_30d']))
+    return '\n\n'.join(out)
+
+
+def _get_recent_actions_anti_dup(user_id, limit=5):
+    """Letzte 5 Tagesaktionen für Anti-Duplikat-Hinweis."""
+    db = get_db()
+    rows = db.execute('''SELECT chairman_output FROM daily_actions
+                         WHERE user_id=? ORDER BY created_at DESC LIMIT ?''',
+                      (user_id, limit)).fetchall()
+    db.close()
+    if not rows: return ''
+    return '\n\nLETZTE AKTIONEN (NICHT WIEDERHOLEN, andere Person/Aktion wählen):\n' + \
+           '\n---\n'.join(r['chairman_output'][:300] for r in rows if r['chairman_output'])
+
+
+SYSTEM_PSYCHOLOGE = """Du bist Führungs-Psychologe für Vertriebsteams (80+ Partner, Finanzberatung).
+Schaue auf die Team-Daten und den heutigen Kontext (User: Stufe 5, Ziel Stufe 6).
+Identifiziere EINE Person und EINE emotional richtige Aktion für heute.
+Was braucht diese Person psychologisch gerade.
+Output kompakt, deutsch, kein Coach-Sprech.
+
+Format:
+PERSON: <Name>
+PSYCHOLOGISCHE BEOBACHTUNG: <2-3 Sätze>
+EMPFOHLENE AKTION: <1-2 konkrete Sätze>"""
+
+SYSTEM_HARDCORE = """Du bist Performance-Operator. Zahlen, keine Gefühle.
+Wer underperformt, wer wird zu lange geschont, wo gehört Druck hin?
+Identifiziere EINE Person und EINE rationale Aktion (hartes Gespräch, Klartext, KPI-Reset).
+Output kompakt, deutsch, kein Soft-Talk.
+
+Format:
+PERSON: <Name>
+HARTE BEOBACHTUNG: <Zahlen-basiert, 2-3 Sätze>
+EMPFOHLENE AKTION: <Klartext, 1-2 Sätze>"""
+
+SYSTEM_CHAIRMAN = """Du bekommst Psychologe + Knallhart. Synthetisiere zu EINER konkreten Aktion.
+Output:
+HEUTE MACH: <1 Zeile, konkret>
+WER: <Name>
+WIE: <3-5 Sätze, taktisch>
+WARUM DIESE BALANCE: <1-2 Sätze>
+
+Umsetzbar in unter 30 Minuten. Kein Bullshit, kein Coach-Sprech."""
+
+
+def generate_daily_action(user_id, kontext=''):
+    """Generiert die heutige Tagesaktion via 3-Agenten-Council.
+    Returns dict {success, psyche, hardcore, chairman, target_name, error}."""
+    if not is_ai_configured():
+        return {'success': False, 'error': 'Anthropic API-Key nicht konfiguriert'}
+    team_data = _build_team_snapshot_compact(user_id)
+    anti_dup = _get_recent_actions_anti_dup(user_id, limit=5)
+
+    base_prompt = f'''TEAM-DATEN:
+{team_data}
+
+KONTEXT HEUTE:
+{kontext or '(kein zusätzlicher Kontext)'}
+{anti_dup}
+
+Output strikt im geforderten Format.'''
+
+    # Agent 1: Psychologe
+    psyche, err1 = claude_chat(base_prompt, system_prompt=SYSTEM_PSYCHOLOGE, max_tokens=600)
+    if err1: return {'success': False, 'error': f'Psychologe-Agent: {err1}'}
+
+    # Agent 2: Hardcore
+    hardcore, err2 = claude_chat(base_prompt, system_prompt=SYSTEM_HARDCORE, max_tokens=600)
+    if err2: return {'success': False, 'error': f'Hardcore-Agent: {err2}'}
+
+    # Agent 3: Chairman synthesizes
+    synth_prompt = f'''PSYCHOLOGE SAGT:
+{psyche}
+
+KNALLHARTER STRATEGE SAGT:
+{hardcore}
+
+KONTEXT HEUTE:
+{kontext or '(kein zusätzlicher Kontext)'}
+
+Synthetisiere zu EINER konkreten Aktion (Format wie System-Prompt).'''
+    chairman, err3 = claude_chat(synth_prompt, system_prompt=SYSTEM_CHAIRMAN, max_tokens=700)
+    if err3: return {'success': False, 'error': f'Chairman-Agent: {err3}'}
+
+    # Target-Name aus Chairman-Output extrahieren
+    target_name = ''
+    for line in chairman.split('\n'):
+        if line.upper().startswith('WER:'):
+            target_name = line.split(':', 1)[1].strip()[:120]
+            break
+
+    return {
+        'success': True,
+        'psyche': psyche,
+        'hardcore': hardcore,
+        'chairman': chairman,
+        'target_name': target_name,
+    }
+
+
+@app.route('/admin/tagesaktion', methods=['GET', 'POST'])
+@login_required
+def admin_tagesaktion():
+    """Tagesaktion-UI: 3-Agenten-Council generiert EINE konkrete Team-Aktion."""
+    if not current_user.has_admin_access:
+        flash('Nur für Admins.', 'error')
+        return redirect(url_for('dashboard'))
+
+    db = get_db()
+    if request.method == 'POST':
+        kontext = (request.form.get('kontext') or '').strip()
+        result = generate_daily_action(current_user.id, kontext)
+        if not result.get('success'):
+            flash(f'Fehler: {result.get("error", "?")}', 'error')
+            db.close()
+            return redirect(url_for('admin_tagesaktion'))
+        # Speichern
+        db.execute('''INSERT INTO daily_actions (user_id, datum, kontext,
+                      psyche_output, hardcore_output, chairman_output, target_partner_name)
+                      VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                   (current_user.id, date.today().isoformat(), kontext,
+                    result['psyche'], result['hardcore'], result['chairman'],
+                    result['target_name']))
+        db.commit()
+        flash('Tagesaktion generiert ✓', 'success')
+        db.close()
+        return redirect(url_for('admin_tagesaktion'))
+
+    # GET: heutige Aktion + History
+    today = date.today().isoformat()
+    today_action = db.execute('''SELECT * FROM daily_actions WHERE user_id=? AND datum=?
+                                 ORDER BY created_at DESC LIMIT 1''',
+                              (current_user.id, today)).fetchone()
+    history = db.execute('''SELECT * FROM daily_actions WHERE user_id=?
+                            ORDER BY created_at DESC LIMIT 30''',
+                         (current_user.id,)).fetchall()
+    db.close()
+    return render_template('admin_tagesaktion.html',
+                           today_action=today_action, history=history,
+                           ai_configured=is_ai_configured())
+
+
+@app.route('/admin/tagesaktion/<int:aid>/done', methods=['POST'])
+@login_required
+def admin_tagesaktion_done(aid):
+    if not current_user.has_admin_access:
+        return jsonify({'ok': False}), 403
+    db = get_db()
+    db.execute('UPDATE daily_actions SET done_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?',
+               (aid, current_user.id))
+    db.commit()
+    db.close()
+    return jsonify({'ok': True})
+
+
+# ═══════════════════════════════════════════════════════════
+# MODUL B: CONTENT ENGINE (Partner + Reichweite für JIBSON.TV)
+# ═══════════════════════════════════════════════════════════
+
+CONTENT_TYPES = [
+    ('hot_take', 'Hot Take / Bold Opinion', 'Reichweite-Play durch kontroverse Meinung'),
+    ('how_to', 'How-To Breakdown', 'Authority — beweise dass du es kannst'),
+    ('bts', 'BTS / Lifestyle', 'Connection — niedrig-Energie, dein Alltag in Köln, Gym, Ergo-Insights'),
+    ('trend', 'Trend-Hijack mit eigenem Take', 'Viral durch Trending-Audio + eigene Meinung'),
+    ('mistake', 'Mistake / Lesson Learned', 'Vulnerability — was hast du falsch gemacht'),
+    ('listicle', 'Listicle / Carousel', 'Lehrhaft — 3-7 Punkte zu einem Thema'),
+    ('story', 'Persönliche Story', 'Community-Bindung — 12-Jahre-Aufbau seit 16'),
+]
+CONTENT_TYPE_KEYS = [t[0] for t in CONTENT_TYPES]
+
+
+def _recent_content_types(user_id, limit=5):
+    """Letzte 5 content_types für den Reichweite-Agent (Anti-Repeat)."""
+    db = get_db()
+    rows = db.execute('''SELECT content_type FROM content_ideas
+                         WHERE user_id=? AND agent_typ='reichweite' AND content_type IS NOT NULL
+                         ORDER BY created_at DESC LIMIT ?''', (user_id, limit)).fetchall()
+    db.close()
+    return [r['content_type'] for r in rows if r['content_type']]
+
+
+def _recent_partner_hooks(user_id, limit=5):
+    """Letzte Partner-Agent-Hooks für Anti-Duplikat."""
+    db = get_db()
+    rows = db.execute('''SELECT hook FROM content_ideas
+                         WHERE user_id=? AND agent_typ='partner'
+                         ORDER BY created_at DESC LIMIT ?''', (user_id, limit)).fetchall()
+    db.close()
+    return [r['hook'][:200] for r in rows if r['hook']]
+
+
+SYSTEM_PARTNER = """Du bist Strategist für Recruiting-Content im Finanzberater-Business.
+Najibs Ziel: ambitionierte Menschen (20-35) anziehen, die finanziell unzufrieden sind oder
+mehr aus ihrem Leben rausholen wollen.
+Brand-Stil: direkt, ehrlich, ohne Hochglanz, Werte > Geld-Porno.
+
+Generiere EINE Video-Idee mit:
+HOOK: <1 Zeile>
+STORYLINE: <3-5 Sätze>
+CTA: <konkret am Ende>
+FORMAT: <Talking Head / BTS / Story>
+
+Output deutsch, knapp, umsetzbar."""
+
+SYSTEM_REICHWEITE = """Du bist Viral-Content-Stratege für JIBSON.TV (TikTok/Instagram, ~40k Follower).
+Ziel: maximale Reichweite und Connection.
+
+WICHTIG: Wähle EINEN dieser Content-Typen, NICHT die zuletzt verwendeten:
+1. hot_take — Hot Take / Bold Opinion
+2. how_to — How-To Breakdown
+3. bts — BTS / Lifestyle (Köln, Gym, Ergo-Alltag)
+4. trend — Trend-Hijack mit eigenem Take
+5. mistake — Mistake / Lesson Learned
+6. listicle — Listicle / Carousel
+7. story — Persönliche Story (12-Jahre-Aufbau seit 16)
+
+Generiere EINE Video-Idee mit:
+TYP: <einer der 7 keys>
+HOOK: <scroll-stop, 1 Zeile>
+STORYLINE: <3-5 Sätze>
+CAPTION: <Vorschlag>
+MECHANIK: <warum das funktioniert>
+
+Output deutsch, knapp, mutig — keine sicheren Ideen."""
+
+
+def _parse_content_output(text, agent_typ):
+    """Parst die strukturierten Outputs (HOOK/STORYLINE/etc.) in dict."""
+    fields = {'hook': '', 'storyline': '', 'cta_or_caption': '', 'mechanik': '', 'content_type': ''}
+    current = None
+    buffer = []
+    for line in text.split('\n'):
+        line = line.strip()
+        if not line: continue
+        upper = line.upper()
+        if upper.startswith('HOOK:'):
+            if current: fields[current] = '\n'.join(buffer).strip()
+            current, buffer = 'hook', [line.split(':', 1)[1].strip()]
+        elif upper.startswith('STORYLINE:'):
+            if current: fields[current] = '\n'.join(buffer).strip()
+            current, buffer = 'storyline', [line.split(':', 1)[1].strip()]
+        elif upper.startswith(('CTA:', 'CAPTION:')):
+            if current: fields[current] = '\n'.join(buffer).strip()
+            current, buffer = 'cta_or_caption', [line.split(':', 1)[1].strip()]
+        elif upper.startswith('MECHANIK:'):
+            if current: fields[current] = '\n'.join(buffer).strip()
+            current, buffer = 'mechanik', [line.split(':', 1)[1].strip()]
+        elif upper.startswith(('TYP:', 'FORMAT:')):
+            if current: fields[current] = '\n'.join(buffer).strip()
+            val = line.split(':', 1)[1].strip().lower()
+            # Map zu unseren CONTENT_TYPE_KEYS
+            for key in CONTENT_TYPE_KEYS:
+                if key in val:
+                    fields['content_type'] = key
+                    break
+            current, buffer = None, []
+        elif current:
+            buffer.append(line)
+    if current: fields[current] = '\n'.join(buffer).strip()
+    return fields
+
+
+def generate_content_idea(user_id, agent_typ, kontext=''):
+    """Generiert EINE Content-Idee via gewähltem Agent.
+    agent_typ: 'partner' oder 'reichweite'."""
+    if not is_ai_configured():
+        return {'success': False, 'error': 'Anthropic API-Key nicht konfiguriert'}
+
+    if agent_typ == 'partner':
+        recent_hooks = _recent_partner_hooks(user_id, limit=5)
+        anti_dup = ''
+        if recent_hooks:
+            anti_dup = '\n\nLETZTE 5 HOOKS (NICHT WIEDERHOLEN, gleiches Thema OK aber andere Hook):\n- ' + '\n- '.join(recent_hooks)
+        prompt = f'''KONTEXT (was passiert gerade in Najib's Leben):
+{kontext or '(kein zusätzlicher Kontext)'}{anti_dup}
+
+Generiere EINE Recruiting-Content-Idee im geforderten Format.'''
+        text, err = claude_chat(prompt, system_prompt=SYSTEM_PARTNER, max_tokens=800)
+    elif agent_typ == 'reichweite':
+        recent_types = _recent_content_types(user_id, limit=5)
+        avoid_msg = ''
+        if recent_types:
+            avoid_msg = f'\n\nZULETZT VERWENDET ({len(recent_types)}× — NICHT WÄHLEN): {", ".join(recent_types)}'
+        prompt = f'''KONTEXT (was passiert gerade in Najib's Leben):
+{kontext or '(kein zusätzlicher Kontext)'}{avoid_msg}
+
+Generiere EINE Viral-Content-Idee im geforderten Format. Wähle einen Typ den du NICHT zuletzt verwendet hast.'''
+        text, err = claude_chat(prompt, system_prompt=SYSTEM_REICHWEITE, max_tokens=800)
+    else:
+        return {'success': False, 'error': f'Unbekannter Agent: {agent_typ}'}
+
+    if err: return {'success': False, 'error': err}
+    parsed = _parse_content_output(text, agent_typ)
+    return {
+        'success': True, 'agent_typ': agent_typ,
+        'full_output': text,
+        **parsed,
+    }
+
+
+@app.route('/admin/content', methods=['GET', 'POST'])
+@login_required
+def admin_content():
+    """Content Engine: 2 Agenten generieren Video-Ideen für JIBSON.TV."""
+    if not current_user.has_admin_access:
+        flash('Nur für Admins.', 'error')
+        return redirect(url_for('dashboard'))
+
+    db = get_db()
+    if request.method == 'POST':
+        kontext = (request.form.get('kontext') or '').strip()
+        agent = (request.form.get('agent') or 'partner').strip()
+        if agent not in ('partner', 'reichweite'):
+            flash('Ungültiger Agent.', 'error')
+            db.close()
+            return redirect(url_for('admin_content'))
+        result = generate_content_idea(current_user.id, agent, kontext)
+        if not result.get('success'):
+            flash(f'Fehler: {result.get("error")}', 'error')
+            db.close()
+            return redirect(url_for('admin_content'))
+        db.execute('''INSERT INTO content_ideas (user_id, datum, kontext, agent_typ,
+                      content_type, hook, storyline, cta_or_caption, mechanik, full_output)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                   (current_user.id, date.today().isoformat(), kontext, result['agent_typ'],
+                    result.get('content_type', ''), result.get('hook', ''),
+                    result.get('storyline', ''), result.get('cta_or_caption', ''),
+                    result.get('mechanik', ''), result['full_output']))
+        db.commit()
+        flash(f'{agent.title()}-Idee generiert ✓', 'success')
+        db.close()
+        return redirect(url_for('admin_content'))
+
+    # GET: neueste pro Agent + History
+    latest_partner = db.execute('''SELECT * FROM content_ideas WHERE user_id=? AND agent_typ='partner'
+                                   ORDER BY created_at DESC LIMIT 1''', (current_user.id,)).fetchone()
+    latest_reichweite = db.execute('''SELECT * FROM content_ideas WHERE user_id=? AND agent_typ='reichweite'
+                                      ORDER BY created_at DESC LIMIT 1''', (current_user.id,)).fetchone()
+    history_partner = db.execute('''SELECT * FROM content_ideas WHERE user_id=? AND agent_typ='partner'
+                                    ORDER BY created_at DESC LIMIT 30''', (current_user.id,)).fetchall()
+    history_reichweite = db.execute('''SELECT * FROM content_ideas WHERE user_id=? AND agent_typ='reichweite'
+                                       ORDER BY created_at DESC LIMIT 30''', (current_user.id,)).fetchall()
+    db.close()
+    return render_template('admin_content.html',
+                           latest_partner=latest_partner, latest_reichweite=latest_reichweite,
+                           history_partner=history_partner, history_reichweite=history_reichweite,
+                           ai_configured=is_ai_configured())
+
+
+@app.route('/admin/content/<int:cid>/used', methods=['POST'])
+@login_required
+def admin_content_used(cid):
+    if not current_user.has_admin_access:
+        return jsonify({'ok': False}), 403
+    db = get_db()
+    db.execute('UPDATE content_ideas SET used_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?',
+               (cid, current_user.id))
+    db.commit()
+    db.close()
+    return jsonify({'ok': True})
 
 
 # DB-Initialisierung läuft IMMER beim Modul-Laden (auch bei gunicorn in Production)

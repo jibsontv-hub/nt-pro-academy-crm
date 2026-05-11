@@ -18,18 +18,21 @@
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">
     {% for s in strange %}
-    <a href="/team-kalender?root={{ s.id }}" class="strang-tile">
+    <a href="/team-kalender?root={{ s.id }}" class="strang-tile{% if s.is_all %} strang-tile-all{% endif %}"
+       {% if s.is_all %}style="grid-column:1/-1;background:linear-gradient(135deg,var(--surface),color-mix(in srgb,var(--gold) 8%,var(--surface)));border-color:var(--gold)"{% endif %}>
         <div class="strang-head">
             {% if s.photo_path %}
             <img src="{{ s.photo_path }}" alt="{{ s.name }}" class="strang-photo" loading="lazy">
+            {% elif s.is_all %}
+            <div class="strang-photo strang-photo-fallback" style="background:linear-gradient(135deg,var(--gold),color-mix(in srgb,var(--gold) 70%,white));color:var(--navy);font-size:24px">🌐</div>
             {% else %}
             <div class="strang-photo strang-photo-fallback">{{ s.name[0] | upper }}{% if s.name.split()|length > 1 %}{{ s.name.split()[-1][0] | upper }}{% endif %}</div>
             {% endif %}
             <div style="flex:1;min-width:0">
-                <div class="strang-name">{{ s.name }}</div>
+                <div class="strang-name"{% if s.is_all %} style="color:var(--gold);font-weight:900"{% endif %}>{{ s.name }}</div>
                 <div class="strang-meta">
-                    Stufe {{ s.level }} ·
-                    {{ s.team_size }} Person{% if s.team_size != 1 %}en{% endif %} im Strang
+                    {% if s.is_all %}Komplette Downline + eigene Termine{% else %}Stufe {{ s.level }}{% endif %} ·
+                    {{ s.team_size }} Person{% if s.team_size != 1 %}en{% endif %}{% if not s.is_all %} im Strang{% endif %}
                 </div>
             </div>
             <div class="strang-arrow">→</div>

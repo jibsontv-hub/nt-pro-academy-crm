@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Content Engine · JIBSON.TV{% endblock %}
+{% block page_title %}📹 Content Engine · JIBSON.TV{% endblock %}
+
+{% block content %}
+<div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.55">
+    Zwei Agenten — <strong style="color:var(--text)">Partner</strong> (Recruiting-Content) und
+    <strong style="color:var(--text)">Reichweite</strong> (Viral, 7 rotierende Typen) — generieren
+    täglich Video-Ideen für Instagram/TikTok.
+</div>
+
+{% if not ai_configured %}
+<div class="card" style="border-color:#ef4444;background:rgba(239,68,68,0.08)">
+    ⚠ Anthropic API-Key nicht konfiguriert. Setze ihn in /admin/ki-settings.
+</div>
+{% endif %}
+
+<!-- Kontext-Form (geteilt) -->
+<form method="POST" id="genForm" class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border:none">
+    <div style="font-size:11px;color:#d4a843;text-transform:uppercase;letter-spacing:1.5px;font-weight:800;margin-bottom:8px">⚡ Was passiert gerade in deinem Leben?</div>
+    <textarea name="kontext" rows="2" placeholder="z.B. 'Heute Gym, dann Calls mit Top-Partner Lukas. War gestern auf Event, viele Fragen zur Karriere bekommen.'"
+              style="width:100%;padding:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;font-family:inherit;resize:vertical"></textarea>
+    <input type="hidden" name="agent" id="agentInput" value="partner">
+    <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+        <button type="submit" onclick="document.getElementById('agentInput').value='partner'" class="btn" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border:none;padding:14px 20px;font-weight:800;font-size:13px;flex:1;min-width:200px">
+            🎯 Partner-Idee generieren
+        </button>
+        <button type="submit" onclick="document.getElementById('agentInput').value='reichweite'" class="btn" style="background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border:none;padding:14px 20px;font-weight:800;font-size:13px;flex:1;min-width:200px">
+            🚀 Reichweite-Idee generieren
+        </button>
+    </div>
+</form>
+
+<!-- 2 Cards Side-by-Side -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;margin-top:18px">
+
+    <!-- PARTNER-CARD -->
+    <div class="card" style="border-left:4px solid #3b82f6">
+        <div style="font-size:11px;color:#3b82f6;text-transform:uppercase;letter-spacing:1.5px;font-weight:800;margin-bottom:8px">🎯 Partner · Recruiting</div>
+        {% if latest_partner %}
+        <div style="font-size:18px;font-weight:800;line-height:1.3;color:var(--text);margin-bottom:10px">{{ latest_partner.hook or '?' }}</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;white-space:pre-wrap">{{ latest_partner.storyline }}</div>
+        {% if latest_partner.cta_or_caption %}
+        <div style="background:var(--bg);padding:10px 12px;border-radius:8px;font-size:12px;color:var(--text);margin-bottom:10px">
+            <strong style="color:var(--gold)">CTA:</strong> {{ latest_partner.cta_or_caption }}
+        </div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;font-size:11px;color:var(--text-muted)">
+            <span>{{ latest_partner.created_at[:16] }}</span>
+            {% if latest_partner.used_at %}
+            <span style="background:#34d399;color:#0f1c3f;padding:3px 10px;border-radius:99px;font-weight:700">✓ Verwendet</span>
+            {% else %}
+            <button onclick="markUsed({{ latest_partner.id }})" id="used-btn-{{ latest_partner.id }}" class="btn btn-secondary" style="padding:4px 12px;font-size:11px">✓ Verwendet</button>
+            {% endif %}
+        </div>
+        {% else %}
+        <div style="color:var(--text-muted);font-size:13px;padding:16px 0">Noch keine Partner-Idee. Klick oben „Partner-Idee generieren".</div>
+        {% endif %}
+        {% if history_partner|length > 1 %}
+        <details style="margin-top:14px">
+            <summary style="cursor:pointer;font-size:11px;color:var(--text-muted);font-weight:700">📚 History ({{ history_partner|length - 1 }})</summary>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+                {% for h in history_partner[1:] %}
+                <details style="background:var(--bg);padding:10px;border-radius:8px">
+                    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text)">{{ h.datum }} · {{ h.hook[:60] if h.hook else '?' }}</summary>
+                    <div style="white-space:pre-wrap;font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5">{{ h.full_output }}</div>
+                </details>
+                {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+    </div>
+
+    <!-- REICHWEITE-CARD -->
+    <div class="card" style="border-left:4px solid #d4a843">
+        <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:1.5px;font-weight:800;margin-bottom:8px">🚀 Reichweite · Viral</div>
+        {% if latest_reichweite %}
+        {% if latest_reichweite.content_type %}
+        <span style="display:inline-block;background:rgba(212,168,67,0.15);color:var(--gold);padding:3px 10px;border-radius:99px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">{{ latest_reichweite.content_type }}</span>
+        {% endif %}
+        <div style="font-size:18px;font-weight:800;line-height:1.3;color:var(--text);margin-bottom:10px">{{ latest_reichweite.hook or '?' }}</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;white-space:pre-wrap">{{ latest_reichweite.storyline }}</div>
+        {% if latest_reichweite.cta_or_caption %}
+        <div style="background:var(--bg);padding:10px 12px;border-radius:8px;font-size:12px;color:var(--text);margin-bottom:8px">
+            <strong style="color:var(--gold)">Caption:</strong> {{ latest_reichweite.cta_or_caption }}
+        </div>
+        {% endif %}
+        {% if latest_reichweite.mechanik %}
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;font-style:italic">💡 Warum: {{ latest_reichweite.mechanik }}</div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;font-size:11px;color:var(--text-muted)">
+            <span>{{ latest_reichweite.created_at[:16] }}</span>
+            {% if latest_reichweite.used_at %}
+            <span style="background:#34d399;color:#0f1c3f;padding:3px 10px;border-radius:99px;font-weight:700">✓ Verwendet</span>
+            {% else %}
+            <button onclick="markUsed({{ latest_reichweite.id }})" id="used-btn-{{ latest_reichweite.id }}" class="btn btn-secondary" style="padding:4px 12px;font-size:11px">✓ Verwendet</button>
+            {% endif %}
+        </div>
+        {% else %}
+        <div style="color:var(--text-muted);font-size:13px;padding:16px 0">Noch keine Reichweite-Idee. Klick oben „Reichweite-Idee generieren".</div>
+        {% endif %}
+        {% if history_reichweite|length > 1 %}
+        <details style="margin-top:14px">
+            <summary style="cursor:pointer;font-size:11px;color:var(--text-muted);font-weight:700">📚 History ({{ history_reichweite|length - 1 }})</summary>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+                {% for h in history_reichweite[1:] %}
+                <details style="background:var(--bg);padding:10px;border-radius:8px">
+                    <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text)">{{ h.datum }} · <span style="color:var(--gold);font-size:10px">{{ h.content_type }}</span> · {{ h.hook[:50] if h.hook else '?' }}</summary>
+                    <div style="white-space:pre-wrap;font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5">{{ h.full_output }}</div>
+                </details>
+                {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+async function markUsed(id) {
+    const btn = document.getElementById('used-btn-' + id);
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+        const r = await fetch('/admin/content/' + id + '/used', { method: 'POST' });
+        if (r.ok) location.reload();
+        else { btn.disabled = false; btn.textContent = '✓ Verwendet'; }
+    } catch(e) {
+        btn.disabled = false; btn.textContent = '✓ Verwendet';
+    }
+}
+</script>
+{% endblock %}

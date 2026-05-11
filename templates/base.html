@@ -1203,6 +1203,14 @@
             {% endif %}
 
             {% if current_user.has_admin_access %}
+            <div class="nav-section">Admin · Council</div>
+            <a href="/admin/tagesaktion" class="nav-link {% if '/admin/tagesaktion' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.12),rgba(212,168,67,0.04));color:var(--gold);font-weight:800">
+                <span class="nav-icon">🎯</span> Tagesaktion
+            </a>
+            <a href="/admin/content" class="nav-link {% if '/admin/content' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.12),rgba(212,168,67,0.04));color:var(--gold);font-weight:800">
+                <span class="nav-icon">📹</span> Content Engine
+            </a>
+
             <div class="nav-section">Administration</div>
             <a href="/admin/genehmigungen" class="nav-link {% if '/admin/genehmigungen' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
                 <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">✓</span> Genehmigungen</span>

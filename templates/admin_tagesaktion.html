@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Tagesaktion · Pro Academy{% endblock %}
+{% block page_title %}🎯 Tagesaktion · Council{% endblock %}
+
+{% block content %}
+<div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.55">
+    Drei Agenten — Psychologe, knallharter Stratege, Chairman — analysieren dein Team
+    und liefern dir <strong style="color:var(--text)">EINE</strong> konkrete Aktion für heute.
+    Umsetzbar in unter 30 Min.
+</div>
+
+{% if not ai_configured %}
+<div class="card" style="border-color:#ef4444;background:rgba(239,68,68,0.08)">
+    ⚠ Anthropic API-Key nicht konfiguriert. Setze ihn in /admin/ki-settings.
+</div>
+{% endif %}
+
+<!-- Generator-Form -->
+<form method="POST" class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border:none">
+    <div style="font-size:11px;color:#d4a843;text-transform:uppercase;letter-spacing:1.5px;font-weight:800;margin-bottom:8px">⚡ Heute generieren</div>
+    <textarea name="kontext" rows="2" placeholder="(optional) Was ist gerade los? z.B. 'Lukas hat 3 Wochen nichts gemacht, bin frustriert' oder 'Anna war gestern auf Event mit Kunde'"
+              style="width:100%;padding:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:10px;color:#fff;font-size:14px;font-family:inherit;resize:vertical"></textarea>
+    <button type="submit" class="btn btn-primary" style="margin-top:14px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border:none;padding:14px 28px;font-weight:800;font-size:14px">
+        🤖 Aktion generieren (3 Agenten · ~15 Sek)
+    </button>
+</form>
+
+<!-- Heutige Aktion (Chairman prominent) -->
+{% if today_action %}
+<div class="card" style="border:2px solid var(--gold);background:var(--surface);margin-top:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <div>
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:1.5px;font-weight:800">🏛 Chairman · Heute</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">{{ today_action.created_at[:16] }}</div>
+        </div>
+        {% if today_action.done_at %}
+        <span style="background:#34d399;color:#0f1c3f;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:800">✓ Erledigt</span>
+        {% else %}
+        <button onclick="markDone({{ today_action.id }})" id="done-btn-{{ today_action.id }}" class="btn btn-secondary" style="padding:6px 14px;font-size:12px">✓ Als erledigt markieren</button>
+        {% endif %}
+    </div>
+    <div style="white-space:pre-wrap;font-size:14px;line-height:1.65;color:var(--text)">{{ today_action.chairman_output }}</div>
+
+    <!-- Collapsibles für die 2 Vorgänger-Agenten -->
+    <details style="margin-top:18px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-weight:700;padding:8px 0">🧠 Psychologe-Perspektive</summary>
+        <div style="white-space:pre-wrap;font-size:13px;line-height:1.6;color:var(--text-muted);padding:12px;background:var(--bg);border-radius:8px;margin-top:6px">{{ today_action.psyche_output }}</div>
+    </details>
+    <details style="margin-top:6px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--text-muted);font-weight:700;padding:8px 0">⚔ Knallharter Stratege</summary>
+        <div style="white-space:pre-wrap;font-size:13px;line-height:1.6;color:var(--text-muted);padding:12px;background:var(--bg);border-radius:8px;margin-top:6px">{{ today_action.hardcore_output }}</div>
+    </details>
+</div>
+{% else %}
+<div class="card" style="margin-top:18px;text-align:center;padding:40px 20px;color:var(--text-muted)">
+    <div style="font-size:48px;margin-bottom:12px">🎯</div>
+    <div style="font-weight:700;color:var(--text)">Noch keine Aktion für heute</div>
+    <div style="font-size:13px;margin-top:6px">Klick oben auf „Aktion generieren" — Council überlegt sich die beste Move.</div>
+</div>
+{% endif %}
+
+<!-- History -->
+{% if history|length > 1 %}
+<div class="revo-section-h" style="margin-top:32px">📅 History · letzte 30</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+    {% for h in history[1:] %}
+    <details class="card" style="padding:12px 16px">
+        <summary style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <div>
+                <span style="font-weight:700;color:var(--text)">{{ h.datum }}</span>
+                {% if h.target_partner_name %}<span style="color:var(--text-muted);font-size:12px;margin-left:8px">→ {{ h.target_partner_name }}</span>{% endif %}
+            </div>
+            {% if h.done_at %}
+            <span style="background:rgba(52,211,153,0.15);color:#34d399;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700">✓ Erledigt</span>
+            {% endif %}
+        </summary>
+        <div style="white-space:pre-wrap;font-size:12px;line-height:1.55;color:var(--text-muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">{{ h.chairman_output }}</div>
+    </details>
+    {% endfor %}
+</div>
+{% endif %}
+
+<script>
+async function markDone(actionId) {
+    const btn = document.getElementById('done-btn-' + actionId);
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+        const r = await fetch('/admin/tagesaktion/' + actionId + '/done', { method: 'POST' });
+        if (r.ok) location.reload();
+        else { btn.disabled = false; btn.textContent = '✓ Als erledigt markieren'; alert('Fehler.'); }
+    } catch(e) {
+        btn.disabled = false; btn.textContent = '✓ Als erledigt markieren';
+    }
+}
+</script>
+{% endblock %}

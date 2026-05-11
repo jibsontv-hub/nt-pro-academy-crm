@@ -305,10 +305,10 @@ textarea.in { resize: vertical; min-height: 70px; }
                 Mehr braucht's nicht.
             </p>
             <div class="founder">
-                <img src="/static/icons/najib-founder.jpg" alt="Najib Tchatikpi" class="founder-photo" loading="lazy" decoding="async" onerror="this.src='/static/icons/coach-figure-200.jpg'">
+                <img src="/static/icons/najib-founder.jpg" alt="Jibson · JIBSON.TV" class="founder-photo" loading="lazy" decoding="async" onerror="this.src='/static/icons/coach-figure-200.jpg'">
                 <div class="founder-text">
-                    <div class="founder-name">Najib Tchatikpi</div>
-                    <div class="founder-role">Berater & Gründer · Pro Academy</div>
+                    <div class="founder-name">Jibson</div>
+                    <div class="founder-role">JIBSON.TV · Gründer Pro Academy</div>
                 </div>
             </div>
         </div>
@@ -355,6 +355,24 @@ textarea.in { resize: vertical; min-height: 70px; }
             <label class="fl">Wie bist du auf uns aufmerksam geworden?</label>
             <input class="in" type="text" name="referred_by" value="{{ referred_by or '' }}" placeholder="z.B. Instagram · Google · oder Name (z.B. Najib Tchatikpi)">
             <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4">Wenn dich jemand persönlich empfohlen hat, schreib seinen Namen — wir leiten dich direkt zu ihm.</div>
+
+            <!-- ═════ TERMIN-WUNSCH (optional) ═════ -->
+            <div style="margin-top:18px;padding:14px;background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.25);border-radius:10px">
+                <label class="fl" style="margin-top:0">📅 Termin-Wunsch (optional)</label>
+                <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;line-height:1.4">Wann sollen wir dich zurückrufen? — Termin landet sofort im Kalender deines Beraters.</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <input class="in" type="date" name="wunsch_datum" min="{{ today_iso or '' }}">
+                    <select class="in" name="wunsch_zeit" style="cursor:pointer">
+                        <option value="">— Tageszeit wählen —</option>
+                        <option value="09:00">Morgens (09:00)</option>
+                        <option value="11:00">Vormittag (11:00)</option>
+                        <option value="14:00">Mittag (14:00)</option>
+                        <option value="16:00">Nachmittag (16:00)</option>
+                        <option value="18:00">Abends (18:00)</option>
+                        <option value="20:00">Spätabend (20:00)</option>
+                    </select>
+                </div>
+            </div>
 
             <label class="fl">Deine Frage / Situation (optional)</label>
             <textarea class="in" name="message" placeholder="Erzähl in 1-2 Sätzen worum's geht…"></textarea>
@@ -451,9 +469,9 @@ textarea.in { resize: vertical; min-height: 70px; }
             <span style="color:#d4a843">Wer wachsen will, ist hier richtig.</span>"
         </p>
         <div class="vision-author">
-            <img src="/static/icons/najib-founder.jpg" alt="Najib Tchatikpi" class="vision-photo" loading="lazy" decoding="async" onerror="this.src='/static/icons/coach-figure-200.jpg'">
+            <img src="/static/icons/najib-founder.jpg" alt="Jibson · JIBSON.TV" class="vision-photo" loading="lazy" decoding="async" onerror="this.src='/static/icons/coach-figure-200.jpg'">
             <div class="vision-author-text">
-                <div class="vision-author-name">Najib Tchatikpi</div>
+                <div class="vision-author-name">Jibson · JIBSON.TV</div>
                 <div class="vision-author-role">Gründer Pro Academy</div>
             </div>
         </div>
