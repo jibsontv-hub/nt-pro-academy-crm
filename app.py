@@ -372,55 +372,118 @@ def auto_backup_if_needed():
 # === In-Memory Cache mit TTL ===
 import time
 import threading
+import pickle
+import hashlib
 _CACHE = {}
 _CACHE_LOCK = threading.Lock()
 _CACHE_REFRESH_INFLIGHT = set()  # verhindert Mehrfach-Refreshes für gleichen Key
 
+# Filesystem-Cache (L2) — cross-worker shared auf PA's Multi-Worker-Setup
+# In-Memory ist worker-local → ohne FS hätten wir sporadische Cold-Hits
+_FS_CACHE_DIR = '/tmp/proacademy-cache'
+try:
+    os.makedirs(_FS_CACHE_DIR, exist_ok=True)
+except Exception:
+    pass
+
+
+def _fs_cache_path(key):
+    h = hashlib.md5(key.encode()).hexdigest()
+    return os.path.join(_FS_CACHE_DIR, h + '.pkl')
+
+
+def _fs_cache_read(key):
+    try:
+        with open(_fs_cache_path(key), 'rb') as f:
+            return pickle.load(f)
+    except Exception:
+        return None
+
+
+def _fs_cache_write(key, entry):
+    try:
+        # Atomic write via temp + rename
+        path = _fs_cache_path(key)
+        tmp = path + f'.tmp.{os.getpid()}'
+        with open(tmp, 'wb') as f:
+            pickle.dump(entry, f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, path)
+    except Exception:
+        pass
+
 def cache_get(key, allow_stale=False):
-    """Standard: returnt None wenn expired.
-    allow_stale=True: returnt (value, is_stale) tuple — auch expired Werte (bis stale_until)."""
+    """L1 (RAM) → L2 (FS, cross-worker) → None.
+    allow_stale=True: returnt (value, is_stale) — auch expired bis stale_until."""
+    now = time.time()
+    # L1: RAM-Lookup
     with _CACHE_LOCK:
         entry = _CACHE.get(key)
-        if not entry:
-            return (None, False) if allow_stale else None
-        now = time.time()
-        is_fresh = now <= entry['expires']
-        is_stale_ok = now <= entry.get('stale_until', entry['expires'])
-        if not is_fresh and not is_stale_ok:
-            del _CACHE[key]
-            return (None, False) if allow_stale else None
-        if not is_fresh and not allow_stale:
-            del _CACHE[key]
-            return None
-        return (entry['value'], not is_fresh) if allow_stale else entry['value']
+    # L2-Fallback: Filesystem-Cache (cross-worker)
+    if not entry:
+        entry = _fs_cache_read(key)
+        if entry:
+            # Memory-Cache mit-bauen (für nächste Aufrufe in diesem Worker)
+            with _CACHE_LOCK:
+                _CACHE[key] = entry
+    if not entry:
+        return (None, False) if allow_stale else None
+    is_fresh = now <= entry['expires']
+    is_stale_ok = now <= entry.get('stale_until', entry['expires'])
+    if not is_fresh and not is_stale_ok:
+        with _CACHE_LOCK:
+            _CACHE.pop(key, None)
+        try: os.remove(_fs_cache_path(key))
+        except Exception: pass
+        return (None, False) if allow_stale else None
+    if not is_fresh and not allow_stale:
+        return None
+    return (entry['value'], not is_fresh) if allow_stale else entry['value']
 
 
 def cache_set(key, value, ttl_seconds=60, ttl=None, stale_extra=None):
-    """Setzt Wert in Cache.
-    ttl/ttl_seconds: Frische-Periode in Sekunden.
-    stale_extra: zusätzliche Sekunden in denen 'stale' Wert noch returned werden darf
-                 (Stale-While-Revalidate). Default: 2× ttl."""
+    """Setzt in L1 (RAM) + L2 (FS, cross-worker).
+    SWR: stale_extra = 2× TTL default."""
     if ttl is not None:
         ttl_seconds = ttl
     if stale_extra is None:
-        stale_extra = ttl_seconds * 2  # SWR: stale-window = 2× TTL
+        stale_extra = ttl_seconds * 2
     now = time.time()
+    entry = {
+        'value': value,
+        'expires': now + ttl_seconds,
+        'stale_until': now + ttl_seconds + stale_extra,
+    }
     with _CACHE_LOCK:
-        _CACHE[key] = {
-            'value': value,
-            'expires': now + ttl_seconds,
-            'stale_until': now + ttl_seconds + stale_extra,
-        }
+        _CACHE[key] = entry
+    _fs_cache_write(key, entry)
 
 
 def cache_invalidate(prefix=None):
+    """Löscht aus L1 + L2."""
     with _CACHE_LOCK:
         if prefix is None:
             _CACHE.clear()
+            keys = []
         else:
-            for k in list(_CACHE.keys()):
-                if k.startswith(prefix):
-                    del _CACHE[k]
+            keys = [k for k in _CACHE.keys() if k.startswith(prefix)]
+            for k in keys:
+                del _CACHE[k]
+    # FS: bei prefix-Invalidierung können wir nicht ohne Volltext-Suche key-by-key —
+    # wir müssten alle Files öffnen und Key prüfen. Quick: clear-all wenn prefix=None,
+    # sonst Memory only (FS expired natürlich nach TTL).
+    if prefix is None:
+        try:
+            for f in os.listdir(_FS_CACHE_DIR):
+                if f.endswith('.pkl'):
+                    try: os.remove(os.path.join(_FS_CACHE_DIR, f))
+                    except Exception: pass
+        except Exception:
+            pass
+    else:
+        # Auch L2 für die bekannten Keys löschen (memory-tracked Keys)
+        for k in keys:
+            try: os.remove(_fs_cache_path(k))
+            except Exception: pass
 
 
 def cache_swr(key, fetch_fn, ttl=300):
