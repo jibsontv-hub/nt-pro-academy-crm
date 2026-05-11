@@ -50,7 +50,11 @@ def add_cache_headers(response):
                 response.headers['Cache-Control'] = 'public, max-age=3600'
         # HTML: kein langes Cachen, aber Validators erlaubt
         elif response.content_type and 'text/html' in response.content_type:
-            response.headers.setdefault('Cache-Control', 'private, max-age=0, must-revalidate')
+            # /dashboard darf 30s Browser-Cache (Reload = instant)
+            if request.path == '/dashboard':
+                response.headers.setdefault('Cache-Control', 'private, max-age=30, must-revalidate')
+            else:
+                response.headers.setdefault('Cache-Control', 'private, max-age=0, must-revalidate')
         # Security-Headers für alle Responses
         response.headers.setdefault('X-Content-Type-Options', 'nosniff')
         response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
@@ -370,23 +374,44 @@ import time
 import threading
 _CACHE = {}
 _CACHE_LOCK = threading.Lock()
+_CACHE_REFRESH_INFLIGHT = set()  # verhindert Mehrfach-Refreshes für gleichen Key
 
-def cache_get(key):
+def cache_get(key, allow_stale=False):
+    """Standard: returnt None wenn expired.
+    allow_stale=True: returnt (value, is_stale) tuple — auch expired Werte (bis stale_until)."""
     with _CACHE_LOCK:
         entry = _CACHE.get(key)
         if not entry:
-            return None
-        if time.time() > entry['expires']:
+            return (None, False) if allow_stale else None
+        now = time.time()
+        is_fresh = now <= entry['expires']
+        is_stale_ok = now <= entry.get('stale_until', entry['expires'])
+        if not is_fresh and not is_stale_ok:
+            del _CACHE[key]
+            return (None, False) if allow_stale else None
+        if not is_fresh and not allow_stale:
             del _CACHE[key]
             return None
-        return entry['value']
+        return (entry['value'], not is_fresh) if allow_stale else entry['value']
 
-def cache_set(key, value, ttl_seconds=60, ttl=None):
-    """Setzt Wert in Cache. Akzeptiert ttl_seconds oder ttl als Alias."""
+
+def cache_set(key, value, ttl_seconds=60, ttl=None, stale_extra=None):
+    """Setzt Wert in Cache.
+    ttl/ttl_seconds: Frische-Periode in Sekunden.
+    stale_extra: zusätzliche Sekunden in denen 'stale' Wert noch returned werden darf
+                 (Stale-While-Revalidate). Default: 2× ttl."""
     if ttl is not None:
         ttl_seconds = ttl
+    if stale_extra is None:
+        stale_extra = ttl_seconds * 2  # SWR: stale-window = 2× TTL
+    now = time.time()
     with _CACHE_LOCK:
-        _CACHE[key] = {'value': value, 'expires': time.time() + ttl_seconds}
+        _CACHE[key] = {
+            'value': value,
+            'expires': now + ttl_seconds,
+            'stale_until': now + ttl_seconds + stale_extra,
+        }
+
 
 def cache_invalidate(prefix=None):
     with _CACHE_LOCK:
@@ -396,6 +421,33 @@ def cache_invalidate(prefix=None):
             for k in list(_CACHE.keys()):
                 if k.startswith(prefix):
                     del _CACHE[k]
+
+
+def cache_swr(key, fetch_fn, ttl=300):
+    """Stale-While-Revalidate Helper: returnt sofort (auch stale), refresht im Background.
+    fetch_fn() wird nur einmal gleichzeitig pro Key aufgerufen."""
+    cached, is_stale = cache_get(key, allow_stale=True)
+    # Cache-Hit (frisch oder stale)
+    if cached is not None:
+        if is_stale and key not in _CACHE_REFRESH_INFLIGHT:
+            # Background-Refresh triggern
+            with _CACHE_LOCK:
+                _CACHE_REFRESH_INFLIGHT.add(key)
+            def _bg():
+                try:
+                    fresh = fetch_fn()
+                    cache_set(key, fresh, ttl=ttl)
+                except Exception as e:
+                    print(f'[swr-refresh] {key}: {e}')
+                finally:
+                    with _CACHE_LOCK:
+                        _CACHE_REFRESH_INFLIGHT.discard(key)
+            threading.Thread(target=_bg, daemon=True, name=f'swr-{key[:30]}').start()
+        return cached
+    # Cache komplett leer → synchron holen
+    fresh = fetch_fn()
+    cache_set(key, fresh, ttl=ttl)
+    return fresh
 
 
 def cached(key_fn, ttl=60):
@@ -6403,14 +6455,16 @@ def vision_recent():
 
 
 def get_admin_dashboard_stats(user_id):
-    """Konsolidiert ALLE 19 inline Admin-Dashboard-Queries in EINEM Cache-Call.
-    TTL 1800s — bei contract/lead/termin-INSERT wird via cache_invalidate('admin_dash:') geleert.
-
-    Bringt Dashboard-Render von 6s+ auf <500ms warm."""
+    """Konsolidiert ALLE 19 inline Admin-Dashboard-Queries.
+    SWR-Cache: returnt sofort (auch stale), refresht im Background.
+    Bei contract/lead/termin-INSERT wird via cache_invalidate('admin_dash:') geleert.
+    Effekt: Dashboard NIE mehr Cold-Hit nach erstem Erfolg."""
     ckey = f'admin_dash:{user_id}'
-    cached = cache_get(ckey)
-    if cached is not None:
-        return cached
+    return cache_swr(ckey, lambda: _build_admin_dashboard_stats(user_id), ttl=1800)
+
+
+def _build_admin_dashboard_stats(user_id):
+    """Macht die echten 19 Queries — wird von cache_swr aufgerufen."""
     db = get_db()
     try:
         # ─── Globale Counts ───
@@ -6508,8 +6562,7 @@ def get_admin_dashboard_stats(user_id):
         ''').fetchall()]
     finally:
         db.close()
-    cache_set(ckey, stats, ttl=1800)
-    return stats
+    return stats  # cache_set erfolgt durch cache_swr-Wrapper
 
 
 @app.route('/dashboard')
