@@ -24,68 +24,76 @@
 
 .filter-btn {
     padding: 8px 14px; background: var(--bg-2); border: 1px solid var(--border);
-    color: var(--text-muted); border-radius: 99px; font-size: 12px; font-weight: 700;
+    color: var(--text-muted); border-radius: 8px; font-size: 13px; font-weight: 600;
     cursor: pointer; transition: all 0.15s; font-family: inherit; text-decoration: none;
-    display: inline-flex; align-items: center; gap: 6px;
+    display: inline-flex; align-items: center; gap: 8px;
 }
 .filter-btn:hover { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
-.filter-btn.active { background: var(--gold); color: #0f1c3f; border-color: var(--gold); font-weight: 800; }
+.filter-btn.active { background: var(--text); color: var(--surface); border-color: var(--text); font-weight: 700; }
+.filter-btn .fc { font-size: 11px; font-weight: 700; opacity: 0.7; letter-spacing: -0.2px; }
+.filter-btn.active .fc { opacity: 0.9; }
+
+/* Neutrale KPI-Cards — kein Bunt, klare Lesbarkeit */
+.kpi-card-clean {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+}
+.kpi-label-clean { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; }
+.kpi-value-clean { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -0.6px; line-height: 1.1; margin-top: 6px; }
+.kpi-sub-clean { font-size: 12px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
 </style>
 
 <!-- Tab-Switcher VK / RK -->
 <div class="tab-bar">
     <a href="?typ=vk" class="{% if typ == 'vk' %}active{% endif %}">
-        <span style="font-size:16px">▷</span>
-        <span>Vertrieb (VK)</span>
+        <span>Vertrieb</span>
         <span class="count">{{ vk_count }}</span>
     </a>
     <a href="?typ=rk" class="{% if typ == 'rk' %}active{% endif %}">
-        <span style="font-size:16px">◇</span>
-        <span>Recruiting (RK)</span>
+        <span>Recruiting</span>
         <span class="count">{{ rk_count }}</span>
     </a>
     <a href="?typ=all" class="{% if typ == 'all' %}active{% endif %}">
-        <span style="font-size:16px">≡</span>
         <span>Alle</span>
         <span class="count">{{ vk_count + rk_count }}</span>
     </a>
 </div>
 
-<!-- Quoten -->
+<!-- Quoten — neutral Outline-Style statt farbige Cards -->
 <div class="kpi-grid">
-    <div class="kpi-card gold">
-        <div class="kpi-label">{% if typ == 'rk' %}Recruiting-Kontakte{% elif typ == 'vk' %}Vertriebs-Kontakte{% else %}Gesamt{% endif %}</div>
-        <div class="kpi-value"><span class="counter" data-target="{{ total }}">0</span></div>
-        <div class="kpi-sub">In der Liste</div>
+    <div class="kpi-card-clean">
+        <div class="kpi-label-clean">{% if typ == 'rk' %}Recruiting-Kontakte{% elif typ == 'vk' %}Vertriebs-Kontakte{% else %}Gesamt{% endif %}</div>
+        <div class="kpi-value-clean"><span class="counter" data-target="{{ total }}">0</span></div>
+        <div class="kpi-sub-clean">In der Liste</div>
     </div>
-    <div class="kpi-card blue">
-        <div class="kpi-label">Noch nicht kontaktiert</div>
-        <div class="kpi-value"><span class="counter" data-target="{{ by_status.get('neu', 0) }}">0</span></div>
-        <div class="kpi-sub">Frische Potenziale</div>
+    <div class="kpi-card-clean">
+        <div class="kpi-label-clean">Noch nicht kontaktiert</div>
+        <div class="kpi-value-clean"><span class="counter" data-target="{{ by_status.get('neu', 0) }}">0</span></div>
+        <div class="kpi-sub-clean">Frische Potenziale</div>
     </div>
-    <div class="kpi-card purple">
-        <div class="kpi-label">Kontakt-Quote</div>
-        <div class="kpi-value"><span class="counter" data-target="{{ contact_quote }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span></div>
-        <div class="kpi-sub">{{ contacted }} von {{ total }} kontaktiert</div>
+    <div class="kpi-card-clean">
+        <div class="kpi-label-clean">Kontakt-Quote</div>
+        <div class="kpi-value-clean"><span class="counter" data-target="{{ contact_quote }}" data-decimals="1">0</span><span style="font-size:16px;color:var(--text-muted);font-weight:500">%</span></div>
+        <div class="kpi-sub-clean">{{ contacted }} von {{ total }} kontaktiert</div>
     </div>
-    <div class="kpi-card green">
-        <div class="kpi-label">{% if typ == 'rk' %}Recruiting-Quote{% else %}Abschluss-Quote{% endif %}</div>
-        <div class="kpi-value"><span class="counter" data-target="{{ quote }}" data-decimals="1">0</span><span style="font-size:18px;color:var(--text-muted)">%</span></div>
-        <div class="kpi-sub">{{ won }} {% if typ == 'rk' %}gewonnene Partner{% else %}Abschlüsse{% endif %}</div>
+    <div class="kpi-card-clean">
+        <div class="kpi-label-clean">{% if typ == 'rk' %}Recruiting-Quote{% else %}Abschluss-Quote{% endif %}</div>
+        <div class="kpi-value-clean"><span class="counter" data-target="{{ quote }}" data-decimals="1">0</span><span style="font-size:16px;color:var(--text-muted);font-weight:500">%</span></div>
+        <div class="kpi-sub-clean">{{ won }} {% if typ == 'rk' %}gewonnen{% else %}Abschlüsse{% endif %}</div>
     </div>
 </div>
 
-<!-- Status-Filter -->
+<!-- Status-Filter — nur Text + Counter, keine Symbole -->
 <div class="card">
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-        <a href="?typ={{ typ }}" class="filter-btn {% if not status_filter %}active{% endif %}">Alle ({{ total }})</a>
-        <a href="?typ={{ typ }}&status=neu" class="filter-btn {% if status_filter == 'neu' %}active{% endif %}">○ Neu ({{ by_status.get('neu', 0) }})</a>
-        <a href="?typ={{ typ }}&status=kontakt" class="filter-btn {% if status_filter == 'kontakt' %}active{% endif %}">▶ Kontakt ({{ by_status.get('kontakt', 0) }})</a>
-        <a href="?typ={{ typ }}&status=angebot" class="filter-btn {% if status_filter == 'angebot' %}active{% endif %}">≡ Angebot ({{ by_status.get('angebot', 0) }})</a>
-        <a href="?typ={{ typ }}&status=gewonnen" class="filter-btn {% if status_filter == 'gewonnen' %}active{% endif %}">✓ Gewonnen ({{ by_status.get('gewonnen', 0) }})</a>
-        <a href="?typ={{ typ }}&status=verloren" class="filter-btn {% if status_filter == 'verloren' %}active{% endif %}">× Verloren ({{ by_status.get('verloren', 0) }})</a>
+        <a href="?typ={{ typ }}" class="filter-btn {% if not status_filter %}active{% endif %}">Alle <span class="fc">{{ total }}</span></a>
+        <a href="?typ={{ typ }}&status=neu" class="filter-btn {% if status_filter == 'neu' %}active{% endif %}">Neu <span class="fc">{{ by_status.get('neu', 0) }}</span></a>
+        <a href="?typ={{ typ }}&status=kontakt" class="filter-btn {% if status_filter == 'kontakt' %}active{% endif %}">Kontakt <span class="fc">{{ by_status.get('kontakt', 0) }}</span></a>
+        <a href="?typ={{ typ }}&status=angebot" class="filter-btn {% if status_filter == 'angebot' %}active{% endif %}">Angebot <span class="fc">{{ by_status.get('angebot', 0) }}</span></a>
+        <a href="?typ={{ typ }}&status=gewonnen" class="filter-btn {% if status_filter == 'gewonnen' %}active{% endif %}">Gewonnen <span class="fc">{{ by_status.get('gewonnen', 0) }}</span></a>
+        <a href="?typ={{ typ }}&status=verloren" class="filter-btn {% if status_filter == 'verloren' %}active{% endif %}">Verloren <span class="fc">{{ by_status.get('verloren', 0) }}</span></a>
         <input type="text" id="searchInput" placeholder="Suchen…" onkeyup="filterTable()"
-               style="margin-left:auto;padding:8px 14px;border:1px solid var(--border);border-radius:99px;font-size:13px;min-width:200px;background:var(--bg-2)">
+               style="margin-left:auto;padding:8px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;min-width:200px;background:var(--bg-2)">
     </div>
 
     <div class="table-wrap">
@@ -107,7 +115,7 @@
                         <a href="/leads/{{ l.id }}/edit" style="color:var(--text);text-decoration:none;font-weight:700">
                             {{ l.name }}
                         </a>
-                        {% if l.birthday %}<div style="font-size:11px;color:var(--text-muted)">🎂 {{ l.birthday }}</div>{% endif %}
+                        {% if l.birthday %}<div style="font-size:11px;color:var(--text-muted)">Geb. {{ l.birthday }}</div>{% endif %}
                     </td>
                     <td>
                         {% if l.phone %}
@@ -123,16 +131,15 @@
                     </td>
                     <td style="white-space:nowrap;text-align:right">
                         {% if l.phone %}
-                        <a href="https://wa.me/{{ l.phone | replace(' ','') | replace('+','') | replace('-','') }}" target="_blank" class="btn btn-secondary btn-sm" title="WhatsApp">▶</a>
+                        <a href="https://wa.me/{{ l.phone | replace(' ','') | replace('+','') | replace('-','') }}" target="_blank" class="btn btn-secondary btn-sm" title="WhatsApp">WA</a>
                         {% endif %}
-                        <a href="/leads/{{ l.id }}/edit" class="btn btn-secondary btn-sm">→</a>
+                        <a href="/leads/{{ l.id }}/edit" class="btn btn-secondary btn-sm">Öffnen</a>
                     </td>
                 </tr>
                 {% else %}
                 <tr><td colspan="6" style="text-align:center;color:var(--text-soft);padding:48px">
-                    <div style="font-size:28px;margin-bottom:10px">○</div>
-                    {% if typ == 'rk' %}RK-Liste leer. Wen sprichst du als nächstes an?{% else %}Leer. Wer fehlt hier?{% endif %}<br>
-                    <a href="/leads/neu?typ={{ typ if typ != 'all' else 'vk' }}" style="color:var(--gold);font-weight:700">+ Ersten Kontakt anlegen</a>
+                    {% if typ == 'rk' %}Recruiting-Liste leer. Wen sprichst du als nächstes an?{% else %}Liste leer. Wer fehlt hier?{% endif %}<br>
+                    <a href="/leads/neu?typ={{ typ if typ != 'all' else 'vk' }}" style="color:var(--gold);font-weight:700;margin-top:10px;display:inline-block">+ Ersten Kontakt anlegen</a>
                 </td></tr>
                 {% endfor %}
             </tbody>
@@ -141,16 +148,13 @@
 </div>
 
 {% if total == 0 and typ != 'all' %}
-<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#d4a843 6%,var(--surface)));border:1px solid color-mix(in srgb,#d4a843 25%,var(--border))">
-    <div style="display:flex;gap:14px;align-items:center;font-size:13px;color:var(--text)">
-        <span style="font-size:24px">💡</span>
-        <div>
-            {% if typ == 'rk' %}
-            <strong>Recruiting-Liste:</strong> Hier kommen alle rein die du als <strong>neuen Geschäftspartner</strong> ansprechen willst. Familie, Freunde, Karriere-Wechsler, Bekannte mit Vertriebs-Erfahrung.
-            {% else %}
-            <strong>Vertriebs-Liste:</strong> Hier kommen alle <strong>potenziellen Kunden</strong> rein. Familie, Freunde, Kollegen, Bekannte. <strong>Faustregel: 3 Termine = 1 Abschluss</strong>
-            {% endif %}
-        </div>
+<div class="card" style="border-left:3px solid var(--gold)">
+    <div style="font-size:13px;color:var(--text);line-height:1.55">
+        {% if typ == 'rk' %}
+        <strong>Recruiting-Liste:</strong> Hier kommen alle rein die du als <strong>neuen Geschäftspartner</strong> ansprechen willst. Familie, Freunde, Karriere-Wechsler, Bekannte mit Vertriebs-Erfahrung.
+        {% else %}
+        <strong>Vertriebs-Liste:</strong> Hier kommen alle <strong>potenziellen Kunden</strong> rein. Familie, Freunde, Kollegen, Bekannte. <strong>Faustregel: 3 Termine = 1 Abschluss</strong>
+        {% endif %}
     </div>
 </div>
 {% endif %}

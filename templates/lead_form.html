@@ -7,20 +7,16 @@
 <style>
 .typ-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
 .typ-opt {
-    cursor: pointer; padding: 18px 14px; border-radius: 14px;
-    background: var(--bg-2); border: 2px solid var(--border);
-    transition: all 0.15s; text-align: center;
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    cursor: pointer; padding: 16px 14px; border-radius: 10px;
+    background: var(--bg-2); border: 1px solid var(--border);
+    transition: all 0.15s; text-align: left;
+    display: flex; flex-direction: column; gap: 4px;
 }
 .typ-opt input { display: none; }
-.typ-opt:hover { border-color: var(--gold); }
-.typ-opt.selected {
-    background: linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--gold) 8%, var(--surface)));
-    border-color: var(--gold);
-}
-.typ-opt .ic { font-size: 24px; color: var(--gold); font-weight: 800; line-height: 1; }
-.typ-opt .lbl { font-weight: 800; font-size: 14px; color: var(--text); }
-.typ-opt .desc { font-size: 11px; color: var(--text-muted); }
+.typ-opt:hover { border-color: var(--text-muted); background: var(--surface); }
+.typ-opt.selected { background: var(--surface); border-color: var(--gold); border-width: 1.5px; }
+.typ-opt .lbl { font-weight: 700; font-size: 14px; color: var(--text); }
+.typ-opt .desc { font-size: 12px; color: var(--text-muted); }
 </style>
 
 <div class="card" style="max-width:780px">
@@ -30,14 +26,12 @@
         <div class="typ-toggle">
             <label class="typ-opt {% if pre_typ == 'vk' %}selected{% endif %}" onclick="setTyp(this, 'vk')">
                 <input type="radio" name="liste_typ" value="vk" {% if pre_typ == 'vk' %}checked{% endif %}>
-                <div class="ic">▷</div>
-                <div class="lbl">Vertrieb (VK)</div>
+                <div class="lbl">Vertrieb</div>
                 <div class="desc">Potenzieller Kunde</div>
             </label>
             <label class="typ-opt {% if pre_typ == 'rk' %}selected{% endif %}" onclick="setTyp(this, 'rk')">
                 <input type="radio" name="liste_typ" value="rk" {% if pre_typ == 'rk' %}checked{% endif %}>
-                <div class="ic">◇</div>
-                <div class="lbl">Recruiting (RK)</div>
+                <div class="lbl">Recruiting</div>
                 <div class="desc">Potenzieller Geschäftspartner</div>
             </label>
         </div>
@@ -64,7 +58,7 @@
             <div class="form-group" id="produktField">
                 <label>Produkt-Interesse</label>
                 <select name="produkt">
-                    <option value="Ergo Rente Chance (ETF & Fonds)" {% if not lead or lead.produkt == 'Ergo Rente Chance (ETF & Fonds)' %}selected{% endif %}>★ Ergo Rente Chance (ETF & Fonds)</option>
+                    <option value="Ergo Rente Chance (ETF & Fonds)" {% if not lead or lead.produkt == 'Ergo Rente Chance (ETF & Fonds)' %}selected{% endif %}>Ergo Rente Chance (ETF & Fonds) — empfohlen</option>
                     <option value="" disabled>──────────────</option>
                     {% for p in ['Rente', 'ETF-Sparplan', 'Fonds', 'Basis-Rente', 'Riester-Rente', 'bAV', 'Lebensversicherung', 'Sonstiges'] %}
                     <option value="{{ p }}" {% if lead and lead.produkt == p %}selected{% endif %}>{{ p }}</option>
@@ -75,12 +69,12 @@
             <div class="form-group">
                 <label>Status</label>
                 <select name="status">
-                    <option value="neu" {% if not lead or lead.status == 'neu' %}selected{% endif %}>○ Neu — noch nicht kontaktiert</option>
-                    <option value="kontakt" {% if lead and lead.status == 'kontakt' %}selected{% endif %}>▶ Kontakt aufgenommen</option>
-                    <option value="angebot" {% if lead and lead.status == 'angebot' %}selected{% endif %}>≡ Angebot/Termin geplant</option>
-                    <option value="gewonnen" {% if lead and lead.status == 'gewonnen' %}selected{% endif %}>✓ Gewonnen / Abgeschlossen</option>
-                    <option value="verloren" {% if lead and lead.status == 'verloren' %}selected{% endif %}>× Verloren / Kein Interesse</option>
-                    <option value="rekrutierung" {% if lead and lead.status == 'rekrutierung' %}selected{% endif %}>◇ Rekrutierung läuft</option>
+                    <option value="neu" {% if not lead or lead.status == 'neu' %}selected{% endif %}>Neu — noch nicht kontaktiert</option>
+                    <option value="kontakt" {% if lead and lead.status == 'kontakt' %}selected{% endif %}>Kontakt aufgenommen</option>
+                    <option value="angebot" {% if lead and lead.status == 'angebot' %}selected{% endif %}>Angebot / Termin geplant</option>
+                    <option value="gewonnen" {% if lead and lead.status == 'gewonnen' %}selected{% endif %}>Gewonnen / Abgeschlossen</option>
+                    <option value="verloren" {% if lead and lead.status == 'verloren' %}selected{% endif %}>Verloren / Kein Interesse</option>
+                    <option value="rekrutierung" {% if lead and lead.status == 'rekrutierung' %}selected{% endif %}>Rekrutierung läuft</option>
                 </select>
             </div>
 
@@ -95,7 +89,7 @@
             <a href="/namensliste?typ={{ pre_typ }}" class="btn btn-secondary">Abbrechen</a>
             {% if lead %}
             <form method="POST" action="/leads/{{ lead.id }}/delete" style="margin-left:auto" onsubmit="return confirm('Kontakt löschen?')">
-                <button type="submit" class="btn btn-danger btn-sm">× Löschen</button>
+                <button type="submit" class="btn btn-danger btn-sm">Löschen</button>
             </form>
             {% endif %}
         </div>

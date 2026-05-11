@@ -292,7 +292,7 @@ Pro Academy"""
 Pro Academy · Automatische Erinnerung 3 Tage vor Produktionsschluss
 </td></tr></table></body></html>"""
 
-        ok, _ = send_email(r['email'], subject, text, body_html=html, sent_by=None)
+        ok, _ = send_email(r['email'], subject, text, body_html=html, sent_by=None, category='reminder')
         if ok:
             sent += 1
 
@@ -339,7 +339,7 @@ Plan dir die Zeit ein — das ist DEIN Hebel als Direktionsrepräsentant.
 
 Coach"""
 
-    send_email(admin['email'], '🎯 Zeit für ZVGs nach Produktionsschluss', text, sent_by=None)
+    send_email(admin['email'], 'Zeit für ZVGs nach Produktionsschluss', text, sent_by=None, category='reminder')
     set_setting(period_key, '1')
     log_activity(None, 'zvg_reminder', '🎯 ZVG-Reminder an Admin versendet', icon='🎯', color='gold')
     return 1
@@ -690,15 +690,48 @@ def is_smtp_configured():
 
 
 # === E-MAIL VERSAND ===
-def send_email(to, subject, body_text, body_html=None, sent_by=None, reply_to=None, bcc=None):
+MAIL_CATEGORIES_DEFAULT = 'signup,password_init,password_reset,admin_test'
+MAIL_CATEGORY_LABELS = {
+    'signup': 'Anmeldung',
+    'password_init': 'Passwortvergabe',
+    'password_reset': 'Passwort vergessen',
+    'admin_test': 'Test-Mail (Admin)',
+    'reminder': 'Erinnerung (deaktiviert)',
+    'termin': 'Termin-Bestätigung (deaktiviert)',
+    'admin_broadcast': 'Admin-Broadcast (deaktiviert)',
+    'other': 'Sonstige (deaktiviert)',
+}
+
+def _mail_category_allowed(category):
+    raw = get_setting('mail_categories_allowed', MAIL_CATEGORIES_DEFAULT)
+    allowed = {c.strip() for c in (raw or '').split(',') if c.strip()}
+    return (category or 'other') in allowed
+
+
+def send_email(to, subject, body_text, body_html=None, sent_by=None, reply_to=None, bcc=None, category='other'):
     """Sendet E-Mail über konfigurierten SMTP. Returns (ok, error_msg).
-    reply_to: optional Reply-To-Adresse · bcc: zusätzlicher BCC-Empfänger."""
+    reply_to: optional Reply-To-Adresse · bcc: zusätzlicher BCC-Empfänger.
+    category: filterbar via app_settings.mail_categories_allowed.
+    Default-Whitelist: signup, password_init, password_reset, admin_test —
+    alles andere wird blockiert (in email_log status='blocked' geloggt)."""
     smtp_host = get_setting('smtp_host')
     smtp_port = int(get_setting('smtp_port', '587'))
     smtp_user = get_setting('smtp_user')
     smtp_password = get_setting('smtp_password')
     sender_name = get_setting('smtp_from_name', 'Pro Academy')
     sender_email = get_setting('smtp_from_email', smtp_user)
+
+    # Kategorie-Whitelist: nicht-whitelisted Mails werden blockiert
+    if not _mail_category_allowed(category):
+        try:
+            db = get_db()
+            db.execute('INSERT INTO email_log (sent_by, recipient, subject, status, error) VALUES (?, ?, ?, ?, ?)',
+                       (sent_by, to, f'[BLOCKED:{category}] {subject}', 'blocked', f'Kategorie "{category}" nicht in mail_categories_allowed'))
+            db.commit()
+            db.close()
+        except Exception:
+            pass
+        return False, f'Kategorie "{category}" deaktiviert (Whitelist: {get_setting("mail_categories_allowed", MAIL_CATEGORIES_DEFAULT)})'
 
     if not all([smtp_host, smtp_user, smtp_password]):
         return False, 'SMTP nicht konfiguriert. Geh zu Einstellungen → E-Mail-Versand.'
@@ -1366,7 +1399,7 @@ Diese E-Mail wurde automatisch versendet. Wenn du dich nicht angemeldet hast, ig
 Bei Fragen: einfach auf diese Mail antworten.
 </td></tr></table></body></html>"""
 
-    return send_email(lead_email, subject, text, body_html=html, sent_by=None)
+    return send_email(lead_email, subject, text, body_html=html, sent_by=None, category='signup')
 
 
 def send_welcome_email(user_email, user_name, password, sender_name='dein Upline'):
@@ -1444,15 +1477,15 @@ Lass uns starten! 💪
 Pro Academy · Control Hub · Diese E-Mail wurde automatisch beim Anlegen deines Accounts versendet.
 </td></tr></table></body></html>"""
 
-    return send_email(user_email, subject, text, body_html=html, sent_by=None)
+    return send_email(user_email, subject, text, body_html=html, sent_by=None, category='password_init')
 
 
-def send_bulk_emails(recipients, subject, body_text, body_html=None, sent_by=None):
+def send_bulk_emails(recipients, subject, body_text, body_html=None, sent_by=None, category='admin_broadcast'):
     """Sendet E-Mail an mehrere Empfänger. Returns (success_count, fail_list)."""
     success = 0
     fails = []
     for r in recipients:
-        ok, err = send_email(r, subject, body_text, body_html, sent_by)
+        ok, err = send_email(r, subject, body_text, body_html, sent_by, category=category)
         if ok:
             success += 1
         else:
@@ -2879,10 +2912,10 @@ def admin_email_test():
         flash('Bitte E-Mail-Adresse angeben', 'error')
         return redirect(url_for('admin_email_settings'))
     ok, err = send_email(to_email,
-                         '✅ Test-E-Mail von Pro Academy',
-                         f'Hallo!\n\nDies ist eine Test-E-Mail von deinem Control Hub.\nWenn du das siehst, ist alles richtig konfiguriert! 🎉\n\nGesendet: {datetime.now().strftime("%d.%m.%Y %H:%M")}',
-                         body_html=f'<h2 style="color:#0f1c3f">✅ Test erfolgreich!</h2><p>Dies ist eine Test-E-Mail von deinem <strong>Pro Academy Control Hub</strong>.</p><p>Wenn du das siehst, ist alles richtig konfiguriert! 🎉</p><p style="color:#94a3b8;font-size:12px">Gesendet: {datetime.now().strftime("%d.%m.%Y %H:%M")}</p>',
-                         sent_by=current_user.id)
+                         'Test-E-Mail von Pro Academy',
+                         f'Hallo!\n\nDies ist eine Test-E-Mail von deinem Control Hub.\nWenn du das siehst, ist alles richtig konfiguriert.\n\nGesendet: {datetime.now().strftime("%d.%m.%Y %H:%M")}',
+                         body_html=f'<h2 style="color:#0f1c3f">Test erfolgreich</h2><p>Dies ist eine Test-E-Mail von deinem <strong>Pro Academy Control Hub</strong>.</p><p>Wenn du das siehst, ist alles richtig konfiguriert.</p><p style="color:#94a3b8;font-size:12px">Gesendet: {datetime.now().strftime("%d.%m.%Y %H:%M")}</p>',
+                         sent_by=current_user.id, category='admin_test')
     if ok:
         flash(f'✅ Test-E-Mail erfolgreich an {to_email} gesendet!', 'success')
     else:
@@ -2923,9 +2956,9 @@ def admin_eingabe_reminder_now():
         total = (r['open_count'] or 0) + (r['pending_research'] or 0)
         first_name = r['name'].split()[0] if r['name'] else ''
         ok, _ = send_email(r['email'],
-                          f'⏰ Eingabeschluss {eingabe_str} — {total} Vertrag{"" if total==1 else "äge"} klären!',
+                          f'Eingabeschluss {eingabe_str} — {total} Vertrag{"" if total==1 else "äge"} klären',
                           f'Hi {first_name},\n\nbis Eingabeschluss am {eingabe_str} hast du noch {r["open_count"] or 0} offene Verträge und {r["pending_research"] or 0} hängende Recherchen.\n\nLogin: {CANONICAL_URL}\n\nCoach',
-                          sent_by=current_user.id)
+                          sent_by=current_user.id, category='reminder')
         if ok: sent += 1
     flash(f'✅ {sent} Reminder verschickt', 'success')
     return redirect(url_for('admin_mail'))
@@ -5322,7 +5355,7 @@ def public_lead_capture():
             if admin_email:
                 try:
                     notify_text = f"Neue Anmeldung über öffentliche Form:\n\nName: {name}\nE-Mail: {email}\nTelefon: {phone}\n\nNachricht:\n{message or '(keine)'}\n\nEmpfohlen von: {referred_by or '–'}\n\n→ Direkt bearbeiten: http://localhost:5001/admin/inbox"
-                    send_email(admin_email, f'🌐 Neue Anmeldung: {name}', notify_text, sent_by=None)
+                    send_email(admin_email, f'Neue Anmeldung: {name}', notify_text, sent_by=None, category='signup')
                 except Exception:
                     pass
 
@@ -5533,9 +5566,9 @@ def public_booking():
         if is_smtp_configured():
             try:
                 send_email(email,
-                           f'✓ Termin bestätigt: {slot_date} um {slot_time}',
+                           f'Termin bestätigt: {slot_date} um {slot_time}',
                            f'Hi {name.split()[0]},\n\nvielen Dank für deine Buchung!\n\nDein Termin: {slot_date} um {slot_time} Uhr\nMit: {owner_name}\n\nIch melde mich kurz vorher mit Details.\n\nBis bald!\n{owner_name}',
-                           sent_by=None)
+                           sent_by=None, category='termin')
             except Exception:
                 pass
 
@@ -5759,9 +5792,9 @@ def passwort_vergessen():
                         f'<p style="color:#64748b;font-size:13px">Link gilt 2 Stunden. Wenn der Button nicht klickbar ist, '
                         f'kopier diese URL in den Browser:<br><code style="background:#f3f4f6;padding:4px 8px;border-radius:4px">{reset_url}</code></p>'
                         f'<p style="color:#64748b;font-size:12px;margin-top:30px">War das nicht du? Einfach ignorieren — niemand kann ohne den Link dein Passwort ändern.</p>')
-                ok, err = send_email(row['email'], '🔑 Passwort zurücksetzen — Pro Academy', text,
+                ok, err = send_email(row['email'], 'Passwort zurücksetzen — Pro Academy', text,
                                      body_html=html, sent_by=None,
-                                     reply_to=admin_email,
+                                     reply_to=admin_email, category='password_reset',
                                      bcc=admin_email if row['email'].lower() != admin_email.lower() else None)
                 send_status = 'ok' if ok else 'fail'
                 send_error = err
@@ -5802,9 +5835,9 @@ def passwort_vergessen():
                             f'border-radius:8px;text-decoration:none;font-weight:800;display:inline-block">→ Code eingeben</a></p>'
                             f'<p style="color:#64748b;font-size:12px;margin-top:24px">⚠ SMS-Versand ist aktuell deaktiviert — '
                             f'du bekommst den Code per E-Mail. War das nicht du? Einfach ignorieren.</p>')
-                    ok, err = send_email(match['email'], f'📱 Reset-Code: {code} — Pro Academy', text,
+                    ok, err = send_email(match['email'], f'Reset-Code: {code} — Pro Academy', text,
                                          body_html=html, sent_by=None,
-                                         reply_to=admin_email,
+                                         reply_to=admin_email, category='password_reset',
                                          bcc=admin_email if match['email'].lower() != admin_email.lower() else None)
                     send_status = 'ok' if ok else 'fail'
                     send_error = err
@@ -5814,9 +5847,9 @@ def passwort_vergessen():
                     print(f'[reset-sms-no-email] User {match["name"]} ({phone_norm}) — Code: {code}, URL: {entry_url}')
                     if admin_email:
                         send_email(admin_email,
-                                   f'📱 SMS-Reset für {match["name"]}',
+                                   f'SMS-Reset für {match["name"]}',
                                    f'User {match["name"]} ({phone_norm}) hat SMS-Reset gemacht aber hat keine E-Mail.\nCode: {code}\nURL: {entry_url}',
-                                   sent_by=None)
+                                   sent_by=None, category='password_reset')
                     send_status = 'phone_only'
                     target_label = phone_norm
             else:
@@ -7487,6 +7520,58 @@ def termin_neu():
         flash('Termin angelegt!', 'success')
         return redirect(url_for('termine'))
     return render_template('termin_form.html', termin=None)
+
+
+@app.route('/termine/<int:tid>')
+@login_required
+def termin_detail(tid):
+    """Read-only Detail-Ansicht für einen einzelnen Termin (verlinkt aus Tagesliste)."""
+    db = get_db()
+    t = db.execute('''SELECT a.*, u.name as owner_name, u.photo_path as owner_photo, u.email as owner_email, u.phone as owner_phone
+                      FROM appointments a JOIN users u ON a.owner_id = u.id WHERE a.id = ?''', (tid,)).fetchone()
+    if not t:
+        db.close()
+        flash('Termin nicht gefunden.', 'error')
+        return redirect(url_for('termine'))
+    # Berechtigung: Owner, Admin oder im Strang
+    descendants = get_all_descendants(current_user.id)
+    if not (current_user.has_admin_access or t['owner_id'] == current_user.id or t['owner_id'] in descendants):
+        # Auch erlaubt wenn current_user Attendee ist
+        is_att = False
+        try:
+            if t['attendee_ids']:
+                att_ids = [int(x) for x in json.loads(t['attendee_ids']) if str(x).isdigit()]
+                is_att = current_user.id in att_ids
+        except Exception:
+            pass
+        if not is_att:
+            db.close()
+            flash('Keine Berechtigung für diesen Termin.', 'error')
+            return redirect(url_for('termine'))
+    # Attendees auflösen
+    attendees = []
+    try:
+        if t['attendee_ids']:
+            att_ids = [int(x) for x in json.loads(t['attendee_ids']) if str(x).isdigit()]
+            if att_ids:
+                ph = ','.join('?' * len(att_ids))
+                rows = db.execute(f'SELECT id, name, photo_path, email, phone FROM users WHERE id IN ({ph})', att_ids).fetchall()
+                attendees = [dict(r) for r in rows]
+    except Exception:
+        pass
+    db.close()
+    # Berechne End-Zeit
+    end_time = None
+    if t['termin_time']:
+        try:
+            sh, sm = int(t['termin_time'][:2]), int(t['termin_time'][3:5])
+            dur = t['duration_min'] or 60
+            tot = sh * 60 + sm + dur
+            end_time = f'{(tot // 60) % 24:02d}:{tot % 60:02d}'
+        except Exception:
+            pass
+    return render_template('termin_detail.html', t=t, attendees=attendees, end_time=end_time,
+                           can_edit=(current_user.has_admin_access or t['owner_id'] == current_user.id))
 
 
 @app.route('/termine/<int:tid>/edit', methods=['GET', 'POST'])

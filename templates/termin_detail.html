@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ t.title or 'Termin' }} · Pro Academy{% endblock %}
+{% block page_title %}{% endblock %}
+
+{% block content %}
+
+<style>
+  .td-wrap { max-width: 720px; margin: 0 auto; padding: 0 4px 80px; }
+  .td-back { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+             background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+             color: var(--text-muted); font-size: 13px; font-weight: 600; text-decoration: none;
+             margin-bottom: 18px; transition: all 0.15s; }
+  .td-back:hover { background: var(--bg-2); color: var(--text); }
+
+  .td-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px 24px; }
+  .td-title { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); line-height: 1.2; margin: 0 0 6px; }
+  .td-status-badge { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .td-row {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 16px 0; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+  .td-row:first-of-type { border-top: 1px solid var(--border); margin-top: 18px; }
+  .td-row .tr-icon { width: 28px; font-size: 16px; color: var(--text-muted); text-align: center; flex-shrink: 0; padding-top: 2px; }
+  .td-row .tr-label { width: 110px; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; padding-top: 4px; flex-shrink: 0; }
+  .td-row .tr-value { flex: 1; font-size: 15px; color: var(--text); font-weight: 500; line-height: 1.5; }
+  .td-row .tr-value strong { font-weight: 700; }
+
+  .td-person { display: inline-flex; align-items: center; gap: 10px; padding: 6px 12px 6px 4px;
+               background: var(--bg-2); border: 1px solid var(--border); border-radius: 99px;
+               text-decoration: none; color: var(--text); font-size: 13px; font-weight: 600; }
+  .td-person:hover { background: var(--surface); }
+  .td-avatar { width: 28px; height: 28px; border-radius: 50%; background-size: cover; background-position: center 25%;
+               background-color: color-mix(in srgb, var(--text-muted) 20%, var(--bg-2));
+               color: var(--text); font-size: 12px; font-weight: 700;
+               display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  .td-attendees { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .td-actions { display: flex; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
+  .td-actions .btn { font-weight: 700; }
+
+  .td-notes { background: var(--bg-2); border-radius: 10px; padding: 14px 16px; white-space: pre-wrap;
+              font-size: 14px; line-height: 1.55; color: var(--text); border-left: 3px solid var(--gold); }
+</style>
+
+<div class="td-wrap">
+  <a href="javascript:history.length>1?history.back():window.location='/team-kalender'" class="td-back">← Zurück</a>
+
+  <div class="td-card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
+      <h1 class="td-title">{{ t.title or 'Termin' }}</h1>
+      <span class="td-status-badge" style="background:color-mix(in srgb,var(--gold) 14%,var(--bg-2));color:var(--gold)">{{ t.status or 'geplant' }}</span>
+    </div>
+
+    {% if t.client_name %}
+    <div style="font-size:14px;color:var(--text-muted);margin-top:4px">{{ t.client_name }}</div>
+    {% endif %}
+
+    <div class="td-row">
+      <div class="tr-icon">📅</div>
+      <div class="tr-label">Datum</div>
+      <div class="tr-value">
+        <strong>{{ t.termin_date }}</strong>
+        {% if t.termin_time %}<br><span style="color:var(--text-muted);font-size:13px">{{ t.termin_time[:5] }}{% if end_time %} – {{ end_time }}{% endif %}{% if t.duration_min %} · {{ t.duration_min }} Min{% endif %}</span>{% else %}<br><span style="color:var(--text-muted);font-size:13px">ganztägig</span>{% endif %}
+      </div>
+    </div>
+
+    <div class="td-row">
+      <div class="tr-icon">🏷</div>
+      <div class="tr-label">Typ</div>
+      <div class="tr-value">{{ t.typ or 'kundentermin' }}</div>
+    </div>
+
+    <div class="td-row">
+      <div class="tr-icon">👤</div>
+      <div class="tr-label">Eigentümer</div>
+      <div class="tr-value">
+        <a href="/partner/{{ t.owner_id }}/profil" class="td-person">
+          <span class="td-avatar"{% if t.owner_photo %} style="background-image:url({{ t.owner_photo }})"{% endif %}>{% if not t.owner_photo %}{{ (t.owner_name or '?')[0]|upper }}{% endif %}</span>
+          <span>{{ t.owner_name }}</span>
+        </a>
+        {% if t.owner_phone %}<a href="tel:{{ t.owner_phone }}" style="color:var(--text-muted);text-decoration:none;font-size:12px;margin-left:8px">{{ t.owner_phone }}</a>{% endif %}
+      </div>
+    </div>
+
+    {% if attendees %}
+    <div class="td-row">
+      <div class="tr-icon">👥</div>
+      <div class="tr-label">Mit</div>
+      <div class="tr-value">
+        <div class="td-attendees">
+          {% for a in attendees %}
+          <a href="/partner/{{ a.id }}/profil" class="td-person">
+            <span class="td-avatar"{% if a.photo_path %} style="background-image:url({{ a.photo_path }})"{% endif %}>{% if not a.photo_path %}{{ a.name[0]|upper }}{% endif %}</span>
+            <span>{{ a.name }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if t.notizen %}
+    <div class="td-row">
+      <div class="tr-icon">📝</div>
+      <div class="tr-label">Notiz</div>
+      <div class="tr-value">
+        <div class="td-notes">{{ t.notizen }}</div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if can_edit %}
+    <div class="td-actions">
+      <a href="/termine/{{ t.id }}/edit" class="btn btn-primary">Bearbeiten</a>
+      <form method="POST" action="/termine/{{ t.id }}/delete" style="margin-left:auto" onsubmit="return confirm('Termin wirklich löschen?')">
+        <button type="submit" class="btn btn-danger btn-sm">Löschen</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

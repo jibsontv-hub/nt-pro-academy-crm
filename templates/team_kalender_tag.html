@@ -248,7 +248,7 @@
   {% if timed or untimed %}
   <div class="ev-list">
     {% for e in untimed %}
-    <a href="/termine" class="ev-row" style="--accent:{{ e.color }}">
+    <a href="/termine/{{ e.id }}" class="ev-row" style="--accent:{{ e.color }}">
       <div class="ev-time allday">Ganztägig</div>
       <div class="ev-bar"></div>
       <div class="ev-body">
@@ -266,7 +266,7 @@
     {% set _end_h = (e.termin_time[:2]|int + ((e.duration_min or 60) // 60)) %}
     {% set _end_m = (e.termin_time[3:5]|int + ((e.duration_min or 60) % 60)) %}
     {% if _end_m >= 60 %}{% set _end_h = _end_h + 1 %}{% set _end_m = _end_m - 60 %}{% endif %}
-    <a href="/termine" class="ev-row" style="--accent:{{ e.color }}">
+    <a href="/termine/{{ e.id }}" class="ev-row" style="--accent:{{ e.color }}">
       <div class="ev-time">
         <span class="tt-start">{{ e.termin_time[:5] }}</span>
         <span class="tt-end">{{ '%02d:%02d'|format(_end_h % 24, _end_m) }}</span>
