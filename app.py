@@ -442,13 +442,16 @@ def cache_get(key, allow_stale=False):
 
 def cache_set(key, value, ttl_seconds=60, ttl=None, stale_extra=None):
     """Setzt in L1 (RAM) + L2 (FS, cross-worker).
-    SWR: stale_extra = 2× TTL default."""
+    SWR: stale_extra = 2× TTL default.
+    `_key` wird ins Entry eingebettet damit prefix-Invalidate die L2-Files
+    auch findet die *andere* Worker geschrieben haben."""
     if ttl is not None:
         ttl_seconds = ttl
     if stale_extra is None:
         stale_extra = ttl_seconds * 2
     now = time.time()
     entry = {
+        '_key': key,
         'value': value,
         'expires': now + ttl_seconds,
         'stale_until': now + ttl_seconds + stale_extra,
@@ -459,7 +462,9 @@ def cache_set(key, value, ttl_seconds=60, ttl=None, stale_extra=None):
 
 
 def cache_invalidate(prefix=None):
-    """Löscht aus L1 + L2."""
+    """Löscht aus L1 + L2 — auch cross-worker via embedded _key in L2-Files.
+    Ohne den FS-Scan würde Worker A Stränge invalidieren aber die L2-Pickle
+    von Worker B blieb 30 Min liegen → User sieht stale Daten."""
     with _CACHE_LOCK:
         if prefix is None:
             _CACHE.clear()
@@ -468,9 +473,6 @@ def cache_invalidate(prefix=None):
             keys = [k for k in _CACHE.keys() if k.startswith(prefix)]
             for k in keys:
                 del _CACHE[k]
-    # FS: bei prefix-Invalidierung können wir nicht ohne Volltext-Suche key-by-key —
-    # wir müssten alle Files öffnen und Key prüfen. Quick: clear-all wenn prefix=None,
-    # sonst Memory only (FS expired natürlich nach TTL).
     if prefix is None:
         try:
             for f in os.listdir(_FS_CACHE_DIR):
@@ -480,10 +482,28 @@ def cache_invalidate(prefix=None):
         except Exception:
             pass
     else:
-        # Auch L2 für die bekannten Keys löschen (memory-tracked Keys)
+        # 1) Bekannte Memory-Keys aus L2 löschen (cheap path)
         for k in keys:
             try: os.remove(_fs_cache_path(k))
             except Exception: pass
+        # 2) Cross-worker: alle L2-Files scannen, _key prüfen, bei Match löschen.
+        # Wird nur bei Writes aufgerufen — nicht hot path.
+        try:
+            for f in os.listdir(_FS_CACHE_DIR):
+                if not f.endswith('.pkl'):
+                    continue
+                fp = os.path.join(_FS_CACHE_DIR, f)
+                try:
+                    with open(fp, 'rb') as fh:
+                        e = pickle.load(fh)
+                except Exception:
+                    continue
+                k2 = e.get('_key', '') if isinstance(e, dict) else ''
+                if k2 and k2.startswith(prefix):
+                    try: os.remove(fp)
+                    except Exception: pass
+        except Exception:
+            pass
 
 
 def cache_swr(key, fetch_fn, ttl=300):
