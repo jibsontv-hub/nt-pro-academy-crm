@@ -353,8 +353,16 @@ textarea.in { resize: vertical; min-height: 70px; }
             <input class="in" type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
 
             <label class="fl">Wie bist du auf uns aufmerksam geworden? <span style="color:#ef4444">*</span></label>
+            {% if matched_owner_display %}
+            <!-- Token-Match: Berater bekannt → User sieht Name aber Routing ist gesichert -->
+            <input class="in" type="text" name="referred_by" value="{{ matched_owner_display }}" readonly
+                   style="background:rgba(212,168,67,0.12);color:#d4a843;cursor:default;font-weight:700">
+            <input type="hidden" name="ref_token" value="{{ ref_token }}">
+            <div style="font-size:11px;color:#34d399;margin-top:4px;line-height:1.4">✓ Du wurdest direkt von <strong>{{ matched_owner_display }}</strong> verlinkt — er bekommt deine Anfrage persönlich.</div>
+            {% else %}
             <input class="in" type="text" name="referred_by" value="{{ referred_by or '' }}" required minlength="2" placeholder="z.B. Instagram · Google · TikTok · oder Name eines Beraters">
             <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4">Pflichtfeld. Wenn dich jemand persönlich empfohlen hat, schreib seinen Namen — wir leiten dich direkt zu ihm.</div>
+            {% endif %}
 
             <!-- ═════ TERMIN-WUNSCH (optional) ═════ -->
             <div style="margin-top:18px;padding:14px;background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.25);border-radius:10px">

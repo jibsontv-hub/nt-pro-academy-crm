@@ -429,6 +429,34 @@ def verify_password(stored_hash, attempt):
     return stored_hash == hashlib.sha256(attempt.encode()).hexdigest()
 
 
+def get_or_create_lead_token(user_id):
+    """Liefert (oder erzeugt) einen eindeutigen Lead-Token pro User.
+    Token = 10 Zeichen URL-safe (a-z0-9). Persistiert in users.lead_token."""
+    db = get_db()
+    row = db.execute('SELECT lead_token FROM users WHERE id=?', (user_id,)).fetchone()
+    if row and row['lead_token']:
+        token = row['lead_token']
+        db.close()
+        return token
+    # Generieren — kollisionsfrei (max 5 Versuche)
+    import secrets
+    for _ in range(5):
+        candidate = secrets.token_urlsafe(8)[:10].lower().replace('_', '').replace('-', '')
+        # Mind. 8 Zeichen sicherstellen
+        while len(candidate) < 8:
+            candidate += secrets.token_urlsafe(4)[:2].lower().replace('_', '').replace('-', '')
+        candidate = candidate[:10]
+        existing = db.execute('SELECT id FROM users WHERE lead_token=?', (candidate,)).fetchone()
+        if not existing:
+            db.execute('UPDATE users SET lead_token=? WHERE id=?', (candidate, user_id))
+            db.commit()
+            db.close()
+            return candidate
+    db.close()
+    # Fallback (sehr unwahrscheinlich)
+    return f'u{user_id}'
+
+
 def generate_random_password(length=10):
     """Sicheres Zufallspasswort für CSV-Import & Reset."""
     alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
@@ -3415,6 +3443,7 @@ def init_db():
             ('streak_last_date', "TEXT"),
             ('instagram_handle', "TEXT"),
             ('tiktok_handle', "TEXT"),
+            ('lead_token', "TEXT"),  # eindeutiger Lead-Link-Token (?ref=<token>)
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -4938,7 +4967,10 @@ def profil():
         return redirect(url_for('profil'))
     user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     db.close()
-    return render_template('profil.html', user=user)
+    # Token sicherstellen (bei jedem GET — generiert nur wenn None)
+    lead_token = get_or_create_lead_token(current_user.id)
+    lead_link = f"{CANONICAL_URL.rstrip('/')}/start?ref={lead_token}"
+    return render_template('profil.html', user=user, lead_link=lead_link, lead_token=lead_token)
 
 
 # === PUBLIC LEAD-CAPTURE (kein Login) ===
@@ -4961,9 +4993,10 @@ def public_lead_capture():
         message = (request.form.get('message') or '').strip()
         wunsch_datum = (request.form.get('wunsch_datum') or '').strip()
         wunsch_zeit = (request.form.get('wunsch_zeit') or '').strip()
-        # referred_by ist jetzt das kombinierte Feld: entweder Quelle (Instagram/Google/...)
-        # ODER ein Berater-Name (für Auto-Routing). Backend interpretiert beides.
+        # referred_by: Free-Text Quelle (Instagram/Google/...) oder Berater-Name
+        # ref_token: persistenter Token aus dem Lead-Link (?ref=<token>) — Token-Match hat Vorrang
         referred_by = (request.form.get('referred_by') or '').strip()
+        ref_token = (request.form.get('ref_token') or '').strip()
         interesse = (request.form.get('interesse') or '').strip().lower()  # 'beratung' | 'karriere'
         privacy = request.form.get('privacy')
 
@@ -4976,11 +5009,20 @@ def public_lead_capture():
 
         record_login_attempt(block_key, success=False)  # Counter für IP
 
-        # Auto-Zuordnung: wenn Empfehlungs-Code → diesem Berater zuordnen
+        # Auto-Zuordnung: 1) Token-Lookup hat Vorrang  2) Name-Match  3) Admin-Fallback
         db = get_db()
         owner_id = None
         matched_berater_name = None  # für Notiz-Tag
-        if referred_by:
+        # Schritt 1: Token-Match (URL-Param vom Lead-Link, fälschungssicher)
+        if ref_token and ref_token.replace(' ', '').isalnum():
+            tok_user = db.execute(
+                'SELECT id, name FROM users WHERE lead_token = ? AND active = 1', (ref_token,)
+            ).fetchone()
+            if tok_user:
+                owner_id = tok_user['id']
+                matched_berater_name = tok_user['name']
+        # Schritt 2: Name/Email-Match nur wenn Token nicht gefunden
+        if not owner_id and referred_by:
             ref_user = db.execute(
                 'SELECT id, name FROM users WHERE (LOWER(email) = ? OR LOWER(name) LIKE ?) AND active = 1 LIMIT 1',
                 (referred_by.lower(), f'%{referred_by.lower()}%')
@@ -5080,10 +5122,28 @@ def public_lead_capture():
 
     # GET: Form anzeigen
     db = get_db()
-    # Optional Referral aus URL (?ref=email)
+    # Optional ?ref=<wert> aus URL — kann Token sein (8-10 Zeichen alphanum)
+    # ODER Berater-Name (Backwards-kompatibel)
     ref = request.args.get('ref', '').strip()
+    ref_token = ''
+    referred_by_prefill = ref
+    matched_owner_display = ''
+    # Token-Erkennung: 8-10 Zeichen, nur a-z0-9
+    if ref and 6 <= len(ref) <= 12 and ref.replace(' ', '').isalnum() and ref == ref.lower():
+        # Wahrscheinlich ein Token — direkt nachschlagen
+        owner = db.execute(
+            'SELECT id, name FROM users WHERE lead_token = ? AND active = 1', (ref,)
+        ).fetchone()
+        if owner:
+            ref_token = ref
+            referred_by_prefill = owner['name']  # User sieht den Namen, nicht den Token
+            matched_owner_display = owner['name']
     db.close()
-    return render_template('public_lead.html', referred_by=ref, today_iso=date.today().isoformat())
+    return render_template('public_lead.html',
+                           referred_by=referred_by_prefill,
+                           ref_token=ref_token,
+                           matched_owner_display=matched_owner_display,
+                           today_iso=date.today().isoformat())
 
 
 # === PUBLIC BOOKING — Kalendly-Style Slot-Picker ===

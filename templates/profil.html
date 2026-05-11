@@ -5,6 +5,26 @@
 {% block content %}
 <div style="max-width:720px">
 
+    <!-- 🔗 DEIN PERSÖNLICHER LEAD-LINK -->
+    {% if lead_link %}
+    <div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border:none;margin-bottom:14px">
+        <div style="font-size:11px;color:#d4a843;text-transform:uppercase;letter-spacing:1.5px;font-weight:800;margin-bottom:8px">🔗 Dein persönlicher Lead-Link</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-bottom:14px;line-height:1.5">
+            Teile diesen Link auf Instagram, TikTok, in Stories oder per WhatsApp.
+            <strong style="color:#fff">Jeder Lead, der über diesen Link kommt, wird automatisch DIR zugewiesen.</strong>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:rgba(0,0,0,0.3);padding:12px 14px;border-radius:10px">
+            <input type="text" id="leadLinkInput" value="{{ lead_link }}" readonly
+                   style="flex:1;min-width:200px;padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:13px;font-family:'JetBrains Mono','Courier New',monospace">
+            <button type="button" onclick="copyLeadLink()" id="copyBtn"
+                    style="padding:10px 20px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:13px;font-family:inherit;white-space:nowrap">📋 Kopieren</button>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,0.55)">
+            Kurzform: <code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;color:#d4a843">/start?ref={{ lead_token }}</code>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- 📷 PROFILFOTO -->
     <div class="card">
         <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
@@ -174,4 +194,30 @@
     {% endif %}
 
 </div>
+
+<script>
+function copyLeadLink() {
+    const input = document.getElementById('leadLinkInput');
+    const btn = document.getElementById('copyBtn');
+    if (!input) return;
+    input.select();
+    input.setSelectionRange(0, 99999);
+    try {
+        navigator.clipboard.writeText(input.value).then(() => {
+            const orig = btn.textContent;
+            btn.textContent = '✓ Kopiert!';
+            btn.style.background = 'linear-gradient(135deg,#34d399,#10b981)';
+            setTimeout(() => { btn.textContent = orig; btn.style.background = 'linear-gradient(135deg,#d4a843,#f0c970)'; }, 2000);
+        }).catch(() => {
+            document.execCommand('copy');
+            btn.textContent = '✓ Kopiert!';
+            setTimeout(() => { btn.textContent = '📋 Kopieren'; }, 2000);
+        });
+    } catch(e) {
+        document.execCommand('copy');
+        btn.textContent = '✓ Kopiert!';
+        setTimeout(() => { btn.textContent = '📋 Kopieren'; }, 2000);
+    }
+}
+</script>
 {% endblock %}
