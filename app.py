@@ -2369,7 +2369,7 @@ def get_recent_partner_views(visitor_id, limit=3):
         db.close()
         result = [{'id': r['id'], 'name': r['name'],
                    'photo_path': r['photo_path'], 'viewed_at': r['viewed_at']} for r in rows]
-        cache_set(ckey, result, ttl=120)
+        cache_set(ckey, result, ttl=600)
         return result
     except Exception as e:
         print(f'[get_recent_partner_views] {e}')
@@ -2400,7 +2400,7 @@ def inject_career():
                     alerts = insights['urgent_count']
                 except Exception:
                     alerts = 0
-                cache_set(ai_key, alerts, ttl=300)
+                cache_set(ai_key, alerts, ttl=1800)
             ctx['coach_alerts'] = alerts
             # Team-Kalender verfügbar? (ab HREP+ in der Kette)
             try:
@@ -3634,7 +3634,7 @@ def get_struktur_news(user_id, days=7, limit=8):
     except Exception as ex:
         print(f"[get_struktur_news] failed: {ex}")
         result = None
-    cache_set(ckey, result, ttl=300)
+    cache_set(ckey, result, ttl=1800)
     return result
 
 
@@ -3778,7 +3778,7 @@ def get_strang_status(user_id):
     except Exception as e:
         print(f'[strang] failed: {e}')
         result = None
-    cache_set(ckey, result, ttl=120)
+    cache_set(ckey, result, ttl=1800)
     return result
 
 
@@ -3886,7 +3886,7 @@ def get_coach_actions(user_id, max_actions=5):
     except Exception as ex:
         print(f"[get_coach_actions] failed: {ex}")
         result = None
-    cache_set(ckey, result, ttl=120)
+    cache_set(ckey, result, ttl=1800)
     return result
 
 
@@ -4178,7 +4178,7 @@ def get_quoten_forecast(user_id, days=30):
     except Exception as ex:
         print(f"[get_quoten_forecast] failed: {ex}")
         result = None
-    cache_set(ckey, result, ttl=300)
+    cache_set(ckey, result, ttl=1800)
     return result
 
 
@@ -4805,11 +4805,13 @@ def _maybe_run_daily_pushes_lazy():
 
 @app.route('/sw.js')
 def service_worker():
-    """Service Worker MUSS unter root-scope ausgeliefert werden, nicht unter /static/."""
+    """Service Worker MUSS unter root-scope ausgeliefert werden, nicht unter /static/.
+    Cache: 5 Min mit must-revalidate → spart Requests aber Updates kommen zügig."""
     from flask import send_from_directory as _sfd
     resp = _sfd(os.path.join(app.root_path, 'static'), 'sw.js', mimetype='application/javascript')
     resp.headers['Service-Worker-Allowed'] = '/'
-    resp.headers['Cache-Control'] = 'no-cache'
+    # 5 Min Browser-Cache + must-revalidate für Updates
+    resp.headers['Cache-Control'] = 'public, max-age=300, must-revalidate'
     return resp
 
 
@@ -4915,8 +4917,9 @@ def push_test():
 
 @app.route('/manifest.json')
 def web_app_manifest():
-    """PWA Manifest — Android Home-Screen + Browser-Hint 'App installieren'."""
-    return jsonify({
+    """PWA Manifest — Android Home-Screen + Browser-Hint 'App installieren'.
+    Cache: 1 Tag — Manifest ändert sich selten."""
+    resp = jsonify({
         'name': 'Pro Academy',
         'short_name': 'Pro Academy',
         'description': 'Lernen. Wachsen. Erfolgreich sein. · Karriere, Provisionen & Coaching',
@@ -4941,6 +4944,8 @@ def web_app_manifest():
             {'name': 'Tagesaufgaben', 'url': '/aufgaben', 'icons': [{'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192'}]},
         ],
     })
+    resp.headers['Cache-Control'] = 'public, max-age=86400'  # 1 Tag — Manifest ändert sich selten
+    return resp
 
 
 @app.route('/api/health')
@@ -6118,7 +6123,7 @@ def get_admin_personal_dashboard(user_id):
     except Exception as ex:
         print(f"[get_admin_personal_dashboard] failed: {ex}")
         result = None
-    cache_set(ckey, result, ttl=180)
+    cache_set(ckey, result, ttl=1800)
     return result
 
 

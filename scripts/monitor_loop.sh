@@ -32,6 +32,14 @@ FULL_AUDIT_INTERVAL=$((6 * 3600))  # 6 Stunden
 echo "[$(date)] Monitor-Loop gestartet — health 15min · full-audit 6h" | tee -a $HEALTH_LOG
 
 while true; do
+    # ─── 15-Min Cache-Refresh (Dashboard < 500ms) ─────────
+    # Triggert _warm_cache_background() für Top-Users — verhindert Cold-Hits
+    python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+from app import _warm_cache_background
+_warm_cache_background()
+" 2>&1 | grep -E '(warm|fertig|FERTIG|FEHLER)' | head -3 >> $HEALTH_LOG
+
     # ─── 15-Min Health-Check ──────────────────────────────
     python3 $HEALTH_SCRIPT
     HEALTH_RC=$?
