@@ -4374,12 +4374,9 @@ def _user_wants_push(user_id, push_type):
         return True
 
 
-def send_push_to_user(user_id, title, body, url='/dashboard', urgent=False, tag=None, push_type=None):
-    """Sendet eine Push-Notification an alle registrierten Geräte des Users.
-    push_type: optional — wenn gesetzt, wird User-Präferenz geprüft.
-    Returns: (sent_count, failed_count)"""
-    if push_type and not _user_wants_push(user_id, push_type):
-        return (0, 0)
+def _push_send_sync(user_id, title, body, url, urgent, tag, push_type):
+    """Echte Push-Logik — wird vom Background-Thread aufgerufen.
+    Synchron ggü. FCM/APNS, daher hier 5s timeout pro Subscription."""
     try:
         from pywebpush import webpush, WebPushException
     except ImportError:
@@ -4391,8 +4388,8 @@ def send_push_to_user(user_id, title, body, url='/dashboard', urgent=False, tag=
     payload = json.dumps({
         'title': title, 'body': body, 'url': url, 'urgent': urgent,
         'tag': tag or f'user-{user_id}',
-        'icon': '/static/icons/icon-192.png',
-        'badge': '/static/icons/favicon-32.png',
+        'icon': '/static/icons/pa-icon-192.png',
+        'badge': '/static/icons/pa-favicon-32.png',
     })
     for sub in subs:
         try:
@@ -4404,6 +4401,7 @@ def send_push_to_user(user_id, title, body, url='/dashboard', urgent=False, tag=
                 data=payload,
                 vapid_private_key=VAPID_PRIVATE,
                 vapid_claims={'sub': VAPID_CONTACT},
+                timeout=5,  # FCM/APNS-Call max 5s pro Gerät
             )
             sent += 1
         except WebPushException as e:
@@ -4420,6 +4418,23 @@ def send_push_to_user(user_id, title, body, url='/dashboard', urgent=False, tag=
         except Exception:
             failed += 1
     return (sent, failed)
+
+
+def send_push_to_user(user_id, title, body, url='/dashboard', urgent=False, tag=None, push_type=None):
+    """Sendet Push-Notification ASYNC (Background-Thread) — Save-Routes blockieren NIE.
+    push_type: optional — wenn gesetzt, wird User-Präferenz geprüft.
+    Returns: (1, 0) als optimistisches Ack — echtes Ergebnis liegt im Background."""
+    if push_type and not _user_wants_push(user_id, push_type):
+        return (0, 0)
+    # Hintergrund-Thread: Push-Call darf 30s+ dauern, aber Save-Route ist sofort fertig
+    import threading as _t
+    _t.Thread(
+        target=_push_send_sync,
+        args=(user_id, title, body, url, urgent, tag, push_type),
+        daemon=True,
+        name=f'push-u{user_id}'
+    ).start()
+    return (1, 0)  # optimistisch — UI muss nicht warten
 
 
 def _push_already_sent(user_id, push_type, ref_key=''):

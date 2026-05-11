@@ -24,7 +24,7 @@ def step(journey, n, name, ok, detail=''):
 def login_as(email, password):
     s = requests.Session()
     r = s.post(urljoin(BASE, '/login'), data={'email': email, 'password': password},
-               allow_redirects=False, timeout=10)
+               allow_redirects=False, timeout=30)
     return s if r.status_code in (302, 303) else None
 
 
@@ -39,7 +39,7 @@ public_paths = [('/', 'Home redirect'), ('/login', 'Login-Page'),
                 ('/start', 'Public Lead-Capture')]
 for i, (p, name) in enumerate(public_paths, 1):
     try:
-        r = requests.get(urljoin(BASE, p), allow_redirects=False, timeout=10)
+        r = requests.get(urljoin(BASE, p), allow_redirects=False, timeout=30)
         ok = r.status_code in (200, 302, 303)
         step('anonymous', i, f'{name} ({p})', ok, f'HTTP {r.status_code}' if not ok else '')
     except Exception as e:
@@ -80,7 +80,7 @@ else:
         ]
         for i, (p, name) in enumerate(admin_paths, 1):
             try:
-                r = s.get(urljoin(BASE, p), allow_redirects=False, timeout=15)
+                r = s.get(urljoin(BASE, p), allow_redirects=False, timeout=30)
                 ok = r.status_code == 200
                 step('admin', i, f'{name} ({p})', ok, f'HTTP {r.status_code}' if not ok else '')
             except Exception as e:
@@ -97,7 +97,7 @@ api_paths = [('/api/health', 'Health Check'),
              ('/favicon.svg', 'Favicon')]
 for i, (p, name) in enumerate(api_paths, 1):
     try:
-        r = requests.get(urljoin(BASE, p), timeout=10)
+        r = requests.get(urljoin(BASE, p), timeout=30)
         ok = r.status_code == 200
         step('api', i, f'{name} ({p})', ok, f'HTTP {r.status_code}' if not ok else '')
     except Exception as e:

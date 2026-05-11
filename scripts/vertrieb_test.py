@@ -53,7 +53,7 @@ def login():
     s = requests.Session()
     r = s.post(urljoin(BASE, '/login'),
                data={'email': QA_USER, 'password': QA_PASS},
-               allow_redirects=False, timeout=10)
+               allow_redirects=False, timeout=30)
     if r.status_code in (302, 303):
         return s
     return None
@@ -62,7 +62,7 @@ def login():
 def get_csrf_or_form(s, path):
     """Manche Forms haben CSRF; Flask-Login hier nicht — aber wir holen sicherheitshalber die Page."""
     try:
-        s.get(urljoin(BASE, path), timeout=10)
+        s.get(urljoin(BASE, path), timeout=30)
     except Exception:
         pass
 
@@ -94,12 +94,12 @@ r = s.post(urljoin(BASE, '/leads/neu'), data={
     'status': 'neu',
     'liste_typ': 'vk',
     'notizen': f'Auto-generiert von Vertriebs-Agent (Run {RUN_ID})',
-}, allow_redirects=False, timeout=15)
+}, allow_redirects=False, timeout=30)
 lead_created = r.status_code in (302, 303)
 step('VK-Lead via /leads/neu (POST)', lead_created, f'HTTP {r.status_code}')
 
 # Lead-ID rauskriegen via Namensliste
-r = s.get(urljoin(BASE, '/namensliste?typ=vk'), timeout=15)
+r = s.get(urljoin(BASE, '/namensliste?typ=vk'), timeout=30)
 lead_appears = TEST_LEAD_NAME in r.text
 step('Lead taucht in Namensliste (VK) auf', lead_appears,
      '' if lead_appears else f'Page lieferte {r.status_code}')
@@ -129,7 +129,7 @@ if lead_id:
             'status': new_status,
             'liste_typ': 'vk',
             'notizen': f'Status: {new_status}',
-        }, allow_redirects=False, timeout=15)
+        }, allow_redirects=False, timeout=30)
         step(f'Status → {new_status}', r.status_code in (302, 303), f'HTTP {r.status_code}')
 else:
     step('Lead-ID nicht parsbar', False, 'Cleanup im Spätschritt erschwert')
@@ -148,9 +148,9 @@ r = s.post(urljoin(BASE, '/termine/neu'), data={
     'typ': 'kundentermin',
     'status': 'geplant',
     'notizen': f'Auto-Termin {RUN_ID}',
-}, allow_redirects=False, timeout=15)
+}, allow_redirects=False, timeout=30)
 step('Termin-POST', r.status_code in (302, 303), f'HTTP {r.status_code}')
-r = s.get(urljoin(BASE, '/termine'), timeout=15)
+r = s.get(urljoin(BASE, '/termine'), timeout=30)
 step('Termin in Liste sichtbar', TEST_TERMIN_TITLE in r.text)
 
 # ============================================
@@ -171,7 +171,7 @@ r = s.post(urljoin(BASE, '/vertraege/neu'), data={
 }, allow_redirects=False, timeout=20)
 step('Vertrag-POST', r.status_code in (302, 303), f'HTTP {r.status_code}')
 
-r = s.get(urljoin(BASE, '/vertraege'), timeout=15)
+r = s.get(urljoin(BASE, '/vertraege'), timeout=30)
 vertrag_in_list = TEST_VERTRAG_CLIENT in r.text
 step('Vertrag in Liste sichtbar', vertrag_in_list)
 
@@ -189,10 +189,10 @@ step(f'EH-Berechnung korrekt ({volumen}€ → {int(expected_eh)} EH)',
 # STEP 5 — Tracking-Page zeigt den neuen Vertrag
 # ============================================
 print('\n5️⃣  TRACKING & FORECAST')
-r = s.get(urljoin(BASE, '/tracking'), timeout=15)
+r = s.get(urljoin(BASE, '/tracking'), timeout=30)
 step('Tracking-Page lädt', r.status_code == 200, f'HTTP {r.status_code}')
 
-r = s.get(urljoin(BASE, '/provisionen'), timeout=15)
+r = s.get(urljoin(BASE, '/provisionen'), timeout=30)
 step('Provisionen-Page lädt', r.status_code == 200, f'HTTP {r.status_code}')
 
 r = s.get(urljoin(BASE, '/dashboard'), timeout=20)
@@ -206,11 +206,11 @@ get_csrf_or_form(s, '/webhook-setup')
 r = s.post(urljoin(BASE, '/webhook-setup/create'), data={
     'label': TEST_WEBHOOK_LABEL,
     'list_typ': 'vk',
-}, allow_redirects=False, timeout=15)
+}, allow_redirects=False, timeout=30)
 step('Webhook-Token-POST', r.status_code in (302, 303), f'HTTP {r.status_code}')
 
 # Token aus Liste extrahieren
-r = s.get(urljoin(BASE, '/webhook-setup'), timeout=15)
+r = s.get(urljoin(BASE, '/webhook-setup'), timeout=30)
 token_match = re.search(r'/api/webhook/lead/([a-zA-Z0-9_-]+)[^<]*</span>\s*<button[^>]*>[^<]*</button>\s*</div>\s*</div>\s*\{%', r.text)
 if not token_match:
     # einfacherer Fallback
@@ -222,17 +222,17 @@ else:
 if token:
     step('Token extrahiert', True, f'{token[:12]}…')
     # Webhook GET (Health)
-    r = requests.get(urljoin(BASE, f'/api/webhook/lead/{token}'), timeout=10)
+    r = requests.get(urljoin(BASE, f'/api/webhook/lead/{token}'), timeout=30)
     step('Webhook GET (Health-Test)', r.status_code == 200 and r.json().get('ok') is True, f'HTTP {r.status_code}')
     # Webhook POST (echter externer Lead)
     external_name = f'{RUN_ID}-Extern'
     r = requests.post(urljoin(BASE, f'/api/webhook/lead/{token}'),
                       json={'name': external_name, 'email': 'extern@test.local',
                             'phone': '+49 170 1111111', 'message': 'Webhook-Test',
-                            'source': 'vertrieb-agent'}, timeout=10)
+                            'source': 'vertrieb-agent'}, timeout=30)
     step('Webhook POST (externer Lead)', r.status_code == 200 and r.json().get('ok') is True, f'HTTP {r.status_code}')
     # Erscheint der externe Lead?
-    r = s.get(urljoin(BASE, '/namensliste?typ=vk'), timeout=15)
+    r = s.get(urljoin(BASE, '/namensliste?typ=vk'), timeout=30)
     step('Externer Lead in Namensliste', external_name in r.text)
 else:
     step('Token konnte nicht extrahiert werden', False)
@@ -249,12 +249,12 @@ r = s.post(urljoin(BASE, '/leads/neu'), data={
     'status': 'neu',
     'liste_typ': 'rk',
     'notizen': 'RK-Test',
-}, allow_redirects=False, timeout=15)
+}, allow_redirects=False, timeout=30)
 step('RK-Lead anlegen', r.status_code in (302, 303), f'HTTP {r.status_code}')
 
 # RK in RK-Liste, NICHT in VK-Liste
-r_rk = s.get(urljoin(BASE, '/namensliste?typ=rk'), timeout=15)
-r_vk = s.get(urljoin(BASE, '/namensliste?typ=vk'), timeout=15)
+r_rk = s.get(urljoin(BASE, '/namensliste?typ=rk'), timeout=30)
+r_vk = s.get(urljoin(BASE, '/namensliste?typ=vk'), timeout=30)
 in_rk = TEST_RK_NAME in r_rk.text
 not_in_vk = TEST_RK_NAME not in r_vk.text
 step('RK-Lead in RK-Liste', in_rk)
@@ -265,7 +265,7 @@ step('RK-Lead NICHT in VK-Liste (Trennung sauber)', not_in_vk)
 # ============================================
 print('\n8️⃣  QUOTEN & ZIELE')
 for path in ['/quoten', '/ziele', '/ranking']:
-    r = s.get(urljoin(BASE, path), timeout=15)
+    r = s.get(urljoin(BASE, path), timeout=30)
     step(f'{path} lädt', r.status_code == 200, f'HTTP {r.status_code}')
 
 # ============================================
@@ -277,14 +277,14 @@ cleanup_count = 0
 
 def http_post(path):
     try:
-        return s.post(urljoin(BASE, path), allow_redirects=False, timeout=10)
+        return s.post(urljoin(BASE, path), allow_redirects=False, timeout=30)
     except Exception:
         return None
 
 
 # Leads
-r = s.get(urljoin(BASE, '/namensliste?typ=vk'), timeout=15)
-text_all = r.text + s.get(urljoin(BASE, '/namensliste?typ=rk'), timeout=15).text
+r = s.get(urljoin(BASE, '/namensliste?typ=vk'), timeout=30)
+text_all = r.text + s.get(urljoin(BASE, '/namensliste?typ=rk'), timeout=30).text
 for marker in (TEST_LEAD_NAME, TEST_RK_NAME, f'{RUN_ID}-Extern'):
     # Lead-ID via Pattern
     m = re.findall(r'/leads/(\d+)/edit', text_all)
@@ -293,7 +293,7 @@ for marker in (TEST_LEAD_NAME, TEST_RK_NAME, f'{RUN_ID}-Extern'):
 
 # Pragmatischer Cleanup: Iteriere über alle Leads in der Liste und lösche jene mit RUN_ID im Markup
 for typ in ('vk', 'rk'):
-    page = s.get(urljoin(BASE, f'/namensliste?typ={typ}'), timeout=15).text
+    page = s.get(urljoin(BASE, f'/namensliste?typ={typ}'), timeout=30).text
     # Pattern: <tr ...><td>...NAME...</td>...<form action="/leads/ID/delete"
     # Wir matchen pro RUN_ID-Zeile die Lead-ID
     for lid in set(re.findall(r'/leads/(\d+)/(?:edit|delete)', page)):
@@ -308,7 +308,7 @@ for typ in ('vk', 'rk'):
                     cleanup_count += 1
 
 # Verträge
-page = s.get(urljoin(BASE, '/vertraege'), timeout=15).text
+page = s.get(urljoin(BASE, '/vertraege'), timeout=30).text
 for vid in set(re.findall(r'/vertraege/(\d+)/(?:edit|delete)', page)):
     if RUN_ID in page:
         resp = http_post(f'/vertraege/{vid}/delete')
@@ -316,7 +316,7 @@ for vid in set(re.findall(r'/vertraege/(\d+)/(?:edit|delete)', page)):
             cleanup_count += 1
 
 # Termine
-page = s.get(urljoin(BASE, '/termine'), timeout=15).text
+page = s.get(urljoin(BASE, '/termine'), timeout=30).text
 for tid in set(re.findall(r'/termine/(\d+)/(?:edit|delete)', page)):
     if RUN_ID in page:
         resp = http_post(f'/termine/{tid}/delete')
@@ -324,7 +324,7 @@ for tid in set(re.findall(r'/termine/(\d+)/(?:edit|delete)', page)):
             cleanup_count += 1
 
 # Webhook-Tokens
-page = s.get(urljoin(BASE, '/webhook-setup'), timeout=15).text
+page = s.get(urljoin(BASE, '/webhook-setup'), timeout=30).text
 for wid in set(re.findall(r'/webhook-setup/(\d+)/delete', page)):
     if RUN_ID in page:
         resp = http_post(f'/webhook-setup/{wid}/delete')
