@@ -129,26 +129,85 @@ def check_error_log():
         return True, f'log-check skipped: {str(e)[:50]}'
 
 
-def send_alert(failures):
-    """Push-Alert an alle Admin-User wenn Health-Check fehlschlägt."""
+# ─── Repair-Mapping: failure_name → repair_type für auto_repair.py ──
+# Wenn None → nicht-heilbar, immer Push an Admin
+REPAIR_TYPE_MAP = {
+    'HTTP /login':      'app_hung',
+    'HTTP /api/health': 'app_hung',
+    'DB integrity':     'db_integrity',
+    'Backup-Age':       'backup_old',
+    'Disk-Space':       'disk_low',
+    'Error-Log':         None,  # nicht auto-heilbar — Code-Bugs
+}
+
+
+def send_alert(title, body, tag='health-alert'):
+    """Push an alle Admin-User. Modus A: nur wenn manuelle Aktion nötig."""
     try:
         sys.path.insert(0, PROJECT_DIR)
         from app import send_push_to_user, get_db
         db = get_db()
         admins = db.execute("SELECT id, name FROM users WHERE role='admin' AND active=1").fetchall()
         db.close()
-        title = '🚨 Pro Academy: Health-Check FAIL'
-        body = ' · '.join(f'{name}: {detail}' for name, _, detail in failures[:3])
         if len(body) > 200:
             body = body[:200] + '…'
         for a in admins:
             try:
                 send_push_to_user(a['id'], title, body, url='/dashboard',
-                                  urgent=True, tag='health-alert', push_type='admin_alert')
+                                  urgent=True, tag=tag, push_type='admin_alert')
             except Exception as e:
                 log('WARN', f'Push an Admin {a["id"]} fehlgeschlagen: {e}')
     except Exception as e:
         log('ERROR', f'Alert-System selbst kaputt: {e}')
+
+
+def handle_failures(failures):
+    """Modus A — Stilles Heal:
+    - Auto-Repair erfolgreich → KEINE Push (nur Log)
+    - Auto-Repair fehlgeschlagen → Push „MANUAL ACTION nötig"
+    - Nicht-heilbar (z.B. Code-Bug) → Push „Code-Fix nötig"
+    """
+    sys.path.insert(0, PROJECT_DIR)
+    try:
+        from auto_repair import attempt_repair
+    except ImportError:
+        # Fallback: direkter Path
+        try:
+            sys.path.insert(0, os.path.join(PROJECT_DIR, 'scripts'))
+            from auto_repair import attempt_repair
+        except Exception as e:
+            log('ERROR', f'auto_repair-Import fehlgeschlagen: {e}')
+            send_alert('🚨 Pro Academy: Health-Check FAIL (Auto-Repair offline)',
+                       ' · '.join(f'{n}: {d}' for n, _, d in failures[:3]))
+            return
+
+    healed = []
+    manual = []
+    for name, _, detail in failures:
+        repair_type = REPAIR_TYPE_MAP.get(name)
+        if not repair_type:
+            # Nicht-heilbar (z.B. Error-Log)
+            manual.append((name, detail, 'kein Auto-Repair definiert'))
+            continue
+        result = attempt_repair(repair_type, detail)
+        if result.get('success'):
+            healed.append((name, detail, result.get('message', '')))
+            log('AUTO-HEAL', f'{name}: {result["message"]}')
+        else:
+            manual.append((name, detail, result.get('message', 'Repair fehlgeschlagen')))
+
+    # MODUS A: nur Push wenn manual nötig
+    if manual:
+        title = f'🔧 Pro Academy: {len(manual)} Bug(s) brauchen Aufmerksamkeit'
+        body_parts = []
+        for n, d, repair_msg in manual[:3]:
+            body_parts.append(f'{n}: {d[:60]} (Auto-Heal: {repair_msg[:60]})')
+        body = ' · '.join(body_parts)
+        send_alert(title, body, tag='manual-action')
+    elif healed:
+        # Stilles Heal — nur Log, keine Push
+        log('SILENT-HEAL', f'{len(healed)} Failures still gefixt: ' +
+                          ', '.join(f'{n}({m[:30]})' for n, _, m in healed))
 
 
 # ─── Main ───────────────────────────────────────────────────────────
@@ -171,8 +230,8 @@ def main():
             failures.append((name, ok, detail))
 
     if failures:
-        log('ALERT', f'{len(failures)} CHECKS FAILED — sende Push an Admins')
-        send_alert(failures)
+        log('FAIL-DETECT', f'{len(failures)} CHECKS FAILED — Auto-Repair-Engine starten')
+        handle_failures(failures)
         return 1
     else:
         log('OK', 'alle 6 Checks grün')
