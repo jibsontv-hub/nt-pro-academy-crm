@@ -1387,11 +1387,17 @@ def get_grundseminar_date(eingabeschluss):
 
 
 def get_production_deadlines():
-    """Liefert Eingabeschluss + Grundseminar — TAG-GENAU + UNABHÄNGIG voneinander.
-    - Eingabeschluss: nächster bevorstehender (wenn aktueller Monat vorbei → nächster Monat)
-    - Grundseminar: nächstes bevorstehendes (wenn aktueller Monat vorbei → nächster Monat)
-    Beide werden SEPARAT berechnet, da sie unterschiedliche Daten haben.
-    """
+    """Cached für 1h — Deadlines ändern sich nur tageweise."""
+    ckey = 'deadlines:global'
+    cached = cache_get(ckey)
+    if cached is not None: return cached
+    result = _get_production_deadlines_uncached()
+    cache_set(ckey, result, ttl=3600)
+    return result
+
+
+def _get_production_deadlines_uncached():
+    """Liefert Eingabeschluss + Grundseminar — TAG-GENAU + UNABHÄNGIG voneinander."""
     today = date.today()
     monate = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
     weekdays = ['Mo','Di','Mi','Do','Fr','Sa','So']
@@ -1441,6 +1447,16 @@ def get_production_deadlines():
 
 
 def get_period_stats(scope_user_id=None):
+    """Cached für 30 Min."""
+    ckey = f'period_stats:{scope_user_id or "global"}'
+    cached = cache_get(ckey)
+    if cached is not None: return cached
+    result = _get_period_stats_uncached(scope_user_id)
+    cache_set(ckey, result, ttl=1800)
+    return result
+
+
+def _get_period_stats_uncached(scope_user_id=None):
     """Liefert Monats- und Halbjahres-Statistiken für Header."""
     db = get_db()
     today = date.today()
@@ -1634,6 +1650,16 @@ def evaluate_career_rule(rule, ctx):
 
 
 def get_career_criteria_status(user_id):
+    """Cached für 30 Min."""
+    ckey = f'career_crit:{user_id}'
+    cached = cache_get(ckey)
+    if cached is not None: return cached
+    result = _get_career_criteria_status_uncached(user_id)
+    cache_set(ckey, result, ttl=1800)
+    return result
+
+
+def _get_career_criteria_status_uncached(user_id):
     """Detaillierter Status zu Kriterien für die nächste Stufe (mit echten Regeln)."""
     db = get_db()
     user = db.execute('SELECT manual_career_level FROM users WHERE id = ?', (user_id,)).fetchone()
@@ -5785,6 +5811,16 @@ def get_forecast(user_id):
 
 
 def detect_anomalies(scope_user_id=None):
+    """Cached für 30 Min."""
+    ckey = f'anomalies:{scope_user_id or "global"}'
+    cached = cache_get(ckey)
+    if cached is not None: return cached
+    result = _detect_anomalies_uncached(scope_user_id)
+    cache_set(ckey, result, ttl=1800)
+    return result
+
+
+def _detect_anomalies_uncached(scope_user_id=None):
     """Anomalie-Detection: wer hat plötzlich >50% Einbruch?"""
     db = get_db()
     if scope_user_id:
