@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Neues Passwort · Pro Academy{% endblock %}
+{% block page_title %}🔑 Neues Passwort setzen{% endblock %}
+{% block content %}
+
+<div style="max-width:480px;margin:32px auto;padding:32px 28px;background:var(--surface);border:1px solid var(--border);border-radius:18px">
+  <h2 style="margin:0 0 8px;font-size:22px;font-weight:800;letter-spacing:-0.4px">Hi {{ user_name }} 👋</h2>
+  <p style="font-size:13px;color:var(--text-muted);margin:0 0 22px;line-height:1.55">Wähl dein neues Passwort — mindestens 6 Zeichen.</p>
+
+  <form method="POST" autocomplete="off">
+    <div class="form-group">
+      <label>Neues Passwort</label>
+      <input type="password" name="password" required minlength="6" autocomplete="new-password" autofocus>
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Bestätigen</label>
+      <input type="password" name="confirm" required minlength="6" autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;margin-top:18px">✓ Passwort speichern + einloggen</button>
+  </form>
+
+  <div style="margin-top:18px;text-align:center">
+    <a href="/login" style="color:var(--text-muted);text-decoration:none;font-size:13px">↩ Doch wieder zum Login</a>
+  </div>
+</div>
+
+{% endblock %}

@@ -16,18 +16,18 @@
 
     .timeline {
         position: relative; display: grid;
-        grid-template-columns: 50px 1fr; gap: 0;
+        grid-template-columns: 56px 1fr; gap: 0;
         background: var(--bg-2); border-radius: 14px; overflow: hidden;
     }
     .hour-row { display: contents; }
     .hour-label {
-        font-size: 11px; color: var(--text-muted); font-weight: 700;
-        text-align: right; padding: 14px 8px 0 0; border-top: 1px solid var(--border);
-        position: relative; min-height: 56px;
+        font-size: 12px; color: var(--text-muted); font-weight: 700;
+        text-align: right; padding: 12px 10px 0 0; border-top: 1px solid var(--border);
+        position: relative; min-height: 80px;
     }
     .hour-row:first-child .hour-label { border-top: none; }
     .hour-slot {
-        border-top: 1px solid var(--border); position: relative; min-height: 56px;
+        border-top: 1px solid var(--border); position: relative; min-height: 80px;
         cursor: pointer; transition: background 0.15s;
     }
     .hour-row:first-child .hour-slot { border-top: none; }
@@ -43,23 +43,43 @@
     }
 
     .event-block {
-        position: absolute; left: 6px; right: 6px;
+        position: absolute; top: 4px; bottom: 4px;
         background: var(--accent, var(--gold)); color: #fff;
-        border-radius: 10px; padding: 8px 12px;
+        border-radius: 10px; padding: 8px 11px;
         font-weight: 700; font-size: 13px; z-index: 3;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         cursor: pointer; transition: all 0.15s; overflow: hidden;
+        border-left: 3px solid rgba(0,0,0,0.18);
     }
-    .event-block:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.2); }
-    .event-block .et { font-size: 11px; opacity: 0.85; font-weight: 600; margin-bottom: 2px; }
-    .event-block .ec { font-size: 11px; opacity: 0.8; font-weight: 500; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
-    .event-attendees { display: inline-flex; align-items: center; margin-left: 6px; }
+    .event-block:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.2); z-index: 4; }
+    .event-block .et { font-size: 11px; opacity: 0.92; font-weight: 700; margin-bottom: 3px; }
+    .event-block .ec { font-size: 11px; opacity: 0.85; font-weight: 500; margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .event-attendees { display: inline-flex; align-items: center; margin-left: 4px; }
     .att-dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #fff; margin-left: -4px; font-size: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+
+    /* Strukturierte Tagesliste oben — alle Termine durchscrollbar lesbar */
+    .day-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .day-list-h { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.7px; font-weight: 800; margin: 0 0 8px; padding-left: 2px; }
+    .day-row {
+        display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center;
+        background: var(--bg-2); border: 1px solid var(--border);
+        border-left: 4px solid var(--accent, var(--gold));
+        border-radius: 12px; padding: 10px 14px; cursor: pointer;
+        transition: all 0.15s; text-decoration: none; color: inherit;
+    }
+    .day-row:hover { background: var(--surface); transform: translateX(2px); border-color: var(--gold); }
+    .day-row .dr-time { font-size: 14px; font-weight: 800; color: var(--accent, var(--gold)); letter-spacing: -0.3px; }
+    .day-row .dr-time small { font-size: 10px; color: var(--text-muted); display: block; font-weight: 600; margin-top: 2px; }
+    .day-row .dr-body { min-width: 0; }
+    .day-row .dr-title { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .day-row .dr-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .day-row .dr-status { padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+    .day-row .dr-attendees { display: flex; align-items: center; }
 
     .all-day-evts { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
     .all-day-evt {
         background: var(--bg-2); border-left: 3px solid var(--accent, var(--gold));
-        border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 10px;
+        border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;
         cursor: pointer; transition: background 0.15s;
     }
     .all-day-evt:hover { background: var(--surface); }
@@ -101,25 +121,51 @@
             </div>
         </div>
 
-        <!-- Termine ohne Uhrzeit (all-day) -->
         {% set timed = appointments | selectattr('termin_time') | list %}
         {% set untimed = appointments | rejectattr('termin_time') | list %}
-        {% if untimed %}
-        <div class="all-day-evts">
-            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:4px">Ohne Uhrzeit</div>
-            {% for e in untimed %}
-            <div class="all-day-evt" style="--accent:{{ e.color }}" onclick="document.getElementById('addTitle').value='Bzgl. {{ e.title }}'">
-                <span style="font-size:18px">{% if e.typ == 'erstgespraech' %}🆕{% elif e.typ == 'abschluss' %}✓{% elif e.typ == 'recruiting' %}🎯{% elif e.typ == 'schulung' %}🎓{% elif e.typ == 'seminar' %}📚{% else %}👥{% endif %}</span>
-                <div style="flex:1;min-width:0">
-                    <div style="font-size:13px;font-weight:700">{{ e.title }}</div>
-                    <div style="font-size:11px;color:var(--text-muted)">{{ e.owner_name }}{% if e.client_name %} · {{ e.client_name }}{% endif %}</div>
+
+        <!-- 📋 Tagesliste — strukturiert + lesbar (alle Termine als Cards) -->
+        {% if timed or untimed %}
+        <div class="day-list-h">📋 Tagesliste · {{ (timed|length) + (untimed|length) }} Termin{% if (timed|length)+(untimed|length) != 1 %}e{% endif %}</div>
+        <div class="day-list">
+            {% for e in timed %}
+            <a href="/termine" class="day-row" style="--accent:{{ e.color }}">
+                <div class="dr-time">{{ e.termin_time[:5] }}<small>{% if e.duration_min %}{{ e.duration_min }}min{% else %}—{% endif %}</small></div>
+                <div class="dr-body">
+                    <div class="dr-title">{% if e.typ == 'erstgespraech' %}🆕{% elif e.typ == 'abschluss' %}✓{% elif e.typ == 'recruiting' %}🎯{% elif e.typ == 'schulung' %}🎓{% elif e.typ == 'seminar' %}📚{% else %}👥{% endif %} {{ e.title or '–' }}</div>
+                    <div class="dr-meta">
+                        <span><strong style="color:{{ e.color }}">●</strong> {{ e.owner_name }}</span>
+                        {% if e.client_name %}<span>· {{ e.client_name }}</span>{% endif %}
+                        {% if e.attendees and e.attendees|length > 0 %}
+                        <span class="dr-attendees">
+                          {% for a in e.attendees[:3] %}<span class="att-dot" style="background:{{ a.color }};margin-left:-3px;border-color:var(--surface)" title="{{ a.name }}">{{ a.name[0] }}</span>{% endfor %}
+                          {% if e.attendees|length > 3 %}<span class="att-dot" style="background:#94a3b8;margin-left:-3px;border-color:var(--surface)">+{{ e.attendees|length - 3 }}</span>{% endif %}
+                        </span>
+                        {% endif %}
+                    </div>
                 </div>
-            </div>
+                <div class="dr-status" style="background:{{ e.color }}15;color:{{ e.color }}">{{ e.status or 'geplant' }}</div>
+            </a>
             {% endfor %}
+            {% for e in untimed %}
+            <a href="/termine" class="day-row" style="--accent:{{ e.color }};opacity:0.85">
+                <div class="dr-time" style="font-size:11px">ganztags</div>
+                <div class="dr-body">
+                    <div class="dr-title">{% if e.typ == 'erstgespraech' %}🆕{% elif e.typ == 'abschluss' %}✓{% elif e.typ == 'recruiting' %}🎯{% elif e.typ == 'schulung' %}🎓{% elif e.typ == 'seminar' %}📚{% else %}👥{% endif %} {{ e.title or '–' }}</div>
+                    <div class="dr-meta"><span><strong style="color:{{ e.color }}">●</strong> {{ e.owner_name }}</span>{% if e.client_name %}<span>· {{ e.client_name }}</span>{% endif %}</div>
+                </div>
+                <div class="dr-status" style="background:{{ e.color }}15;color:{{ e.color }}">ohne Zeit</div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="padding:24px;text-align:center;color:var(--text-muted);background:var(--bg-2);border-radius:12px;margin-bottom:14px">
+            Keine Termine an diesem Tag — klick auf einen Stunden-Slot um einen anzulegen.
         </div>
         {% endif %}
 
-        <!-- Stunden-Timeline 7-22 Uhr -->
+        <!-- Stunden-Timeline 7-22 Uhr (visueller Überblick + Quick-Add) -->
+        <div class="day-list-h" style="margin-top:6px">⏰ Stunden-Timeline</div>
         <div class="timeline" id="timeline">
             {% for h in range(7, 23) %}
             <div class="hour-row">
@@ -219,47 +265,93 @@ function quickAddAt(hour) {
     document.getElementById('addTitle').focus();
 }
 
-// Termin-Blöcke in Timeline platzieren
+// Termin-Blöcke in Timeline platzieren mit Collision-Detection (überlappende → nebeneinander)
+const HOUR_PX = 80;
+const PX_PER_MIN = HOUR_PX / 60;
+
 function renderEvents() {
     const tl = document.getElementById('timeline');
-    const slots = tl.querySelectorAll('.hour-slot');
-    APPTS.forEach(e => {
-        if (!e.termin_time) return;
-        const t = e.termin_time.substring(0, 5);
-        const [h, m] = t.split(':').map(Number);
-        if (h < 7 || h > 22) return;
-        const slot = tl.querySelector(`.hour-slot[data-hour="${h}"]`);
-        if (!slot) return;
+    // Pre-process: berechne start/end in Minuten, sortiere nach start
+    const evs = APPTS.filter(e => e.termin_time).map(e => {
+        const [h, m] = e.termin_time.substring(0, 5).split(':').map(Number);
+        const start = h * 60 + m;
         const dur = e.duration_min || 60;
-        const pxPerMin = 56 / 60;
-        const top = m * pxPerMin;
-        const height = Math.max(28, dur * pxPerMin - 4);
-        const block = document.createElement('div');
-        block.className = 'event-block';
-        block.style.setProperty('--accent', e.color);
-        block.style.top = top + 'px';
-        block.style.height = height + 'px';
-        const typIcon = ({'kundentermin':'👥','erstgespraech':'🆕','abschluss':'✓','recruiting':'🎯','schulung':'🎓','seminar':'📚'})[e.typ] || '💼';
-        let attHtml = '';
-        if (e.attendees && e.attendees.length) {
-            attHtml = '<span class="event-attendees">';
-            e.attendees.slice(0, 4).forEach(a => {
-                if (a.photo) {
-                    attHtml += `<span class="att-dot" style="background:url(${a.photo}) center/cover;" title="${a.name}"></span>`;
-                } else {
-                    attHtml += `<span class="att-dot" style="background:${a.color}" title="${a.name}">${a.name[0]}</span>`;
-                }
-            });
-            if (e.attendees.length > 4) attHtml += `<span class="att-dot" style="background:#94a3b8">+${e.attendees.length - 4}</span>`;
-            attHtml += '</span>';
+        return { ...e, _start: start, _end: start + dur, _h: h, _m: m, _dur: dur };
+    }).filter(e => e._h >= 7 && e._h <= 22).sort((a, b) => a._start - b._start);
+
+    // Gruppiere überlappende Events in Cluster, weise Spalten zu
+    const clusters = [];
+    let curr = [];
+    let currEnd = 0;
+    evs.forEach(e => {
+        if (curr.length === 0 || e._start < currEnd) {
+            curr.push(e);
+            currEnd = Math.max(currEnd, e._end);
+        } else {
+            clusters.push(curr);
+            curr = [e];
+            currEnd = e._end;
         }
-        block.innerHTML = `
-            <div class="et">${typIcon} ${t} · ${e.owner_name}</div>
-            <div>${e.title || '–'}</div>
-            ${e.client_name ? `<div class="ec">${e.client_name}${attHtml}</div>` : (attHtml ? `<div class="ec">${attHtml}</div>` : '')}
-        `;
-        block.onclick = (ev) => { ev.stopPropagation(); window.location.href = '/termine'; };
-        slot.appendChild(block);
+    });
+    if (curr.length) clusters.push(curr);
+
+    clusters.forEach(cluster => {
+        // Greedy column assignment: jedes Event kriegt die niedrigste freie Spalte
+        const cols = [];  // array of "last end time per column"
+        cluster.forEach(e => {
+            let placed = false;
+            for (let i = 0; i < cols.length; i++) {
+                if (cols[i] <= e._start) {
+                    e._col = i; cols[i] = e._end; placed = true; break;
+                }
+            }
+            if (!placed) { e._col = cols.length; cols.push(e._end); }
+        });
+        const totalCols = cols.length;
+        cluster.forEach(e => {
+            const slot = tl.querySelector(`.hour-slot[data-hour="${e._h}"]`);
+            if (!slot) return;
+            const top = e._m * PX_PER_MIN;
+            const height = Math.max(36, e._dur * PX_PER_MIN - 4);
+            const block = document.createElement('div');
+            block.className = 'event-block';
+            block.style.setProperty('--accent', e.color);
+            block.style.background = e.color;
+            block.style.top = top + 'px';
+            block.style.height = height + 'px';
+            // Spalten-Layout: width 100%/totalCols, left = col * (100%/totalCols)
+            const widthPct = 100 / totalCols;
+            const leftPct = e._col * widthPct;
+            block.style.left = `calc(${leftPct}% + 4px)`;
+            block.style.width = `calc(${widthPct}% - 8px)`;
+            block.style.right = 'auto';
+            const typIcon = ({'kundentermin':'👥','erstgespraech':'🆕','abschluss':'✓','recruiting':'🎯','schulung':'🎓','seminar':'📚'})[e.typ] || '💼';
+            let attHtml = '';
+            if (e.attendees && e.attendees.length) {
+                attHtml = '<span class="event-attendees">';
+                e.attendees.slice(0, 4).forEach(a => {
+                    if (a.photo) {
+                        attHtml += `<span class="att-dot" style="background:url(${a.photo}) center/cover;" title="${a.name}"></span>`;
+                    } else {
+                        attHtml += `<span class="att-dot" style="background:${a.color}" title="${a.name}">${a.name[0]}</span>`;
+                    }
+                });
+                if (e.attendees.length > 4) attHtml += `<span class="att-dot" style="background:#94a3b8">+${e.attendees.length - 4}</span>`;
+                attHtml += '</span>';
+            }
+            const compact = totalCols >= 3;  // bei vielen Spalten kompakter rendern
+            block.innerHTML = compact ? `
+                <div class="et">${typIcon} ${e.termin_time.substring(0,5)}</div>
+                <div style="font-size:12px;line-height:1.2">${e.title || '–'}</div>
+            ` : `
+                <div class="et">${typIcon} ${e.termin_time.substring(0,5)} · ${e.owner_name}</div>
+                <div>${e.title || '–'}</div>
+                ${e.client_name ? `<div class="ec">${e.client_name}${attHtml}</div>` : (attHtml ? `<div class="ec">${attHtml}</div>` : '')}
+            `;
+            block.title = `${e.termin_time.substring(0,5)} · ${e.title || '–'} · ${e.owner_name}${e.client_name ? ' · ' + e.client_name : ''}`;
+            block.onclick = (ev) => { ev.stopPropagation(); window.location.href = '/termine'; };
+            slot.appendChild(block);
+        });
     });
 
     // Aktuelle Zeit-Linie (nur wenn heute)
@@ -273,7 +365,7 @@ function renderEvents() {
                 slot.classList.add('now');
                 const line = document.createElement('div');
                 line.className = 'hour-now-line';
-                line.style.top = (m * 56/60) + 'px';
+                line.style.top = (m * PX_PER_MIN) + 'px';
                 slot.appendChild(line);
             }
         }

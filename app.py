@@ -3388,6 +3388,19 @@ def init_db():
             FOREIGN KEY (owner_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            method TEXT NOT NULL DEFAULT 'email',
+            sms_code TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            expires_at TEXT NOT NULL,
+            used_at TEXT,
+            ip TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS vision_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -4296,9 +4309,13 @@ _CALENDAR_COLORS = [
 
 def get_team_calendar_data(root_user_id, year, month):
     """Alle Termine im Team (root + alle Downlines) für gegebenen Monat.
+    Spezialfall root_user_id == '__global__': alle aktiven User systemweit.
     Returns: dict {appointments, members_with_colors}"""
     db = get_db()
-    ids = [root_user_id] + get_all_descendants(root_user_id)
+    if root_user_id == '__global__':
+        ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE active=1').fetchall()]
+    else:
+        ids = [root_user_id] + get_all_descendants(root_user_id)
     placeholders = ','.join('?' * len(ids))
     members = db.execute(f'SELECT id, name, photo_path FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
     color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}
@@ -5695,6 +5712,150 @@ def admin_inbox():
     cnt_rk = db.execute("SELECT COUNT(*) c FROM leads WHERE source='public' AND COALESCE(liste_typ,'vk')='rk'").fetchone()['c']
     db.close()
     return render_template('admin_inbox.html', leads=rows, typ=typ, cnt_vk=cnt_vk, cnt_rk=cnt_rk, cnt_all=cnt_vk + cnt_rk)
+
+
+@app.route('/passwort-vergessen', methods=['GET', 'POST'])
+def passwort_vergessen():
+    """Self-Service Password-Reset: User trägt E-Mail (oder Telefon) ein,
+    bekommt Token-Link per Mail (oder 6-stelligen SMS-Code).
+    Anti-Enumeration: gibt immer dieselbe Erfolgsmeldung zurück."""
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        phone = (request.form.get('phone') or '').strip()
+        method = (request.form.get('method') or 'email').lower()
+        if method not in ('email', 'sms'):
+            method = 'email'
+        # Anti-Enumeration: immer dieselbe Antwort egal ob User existiert
+        success_msg = 'Falls die Daten bei uns hinterlegt sind, kommt gleich eine Anleitung.'
+        if method == 'email' and email:
+            db = get_db()
+            row = db.execute('SELECT id, name, email FROM users WHERE LOWER(email)=? AND active=1', (email,)).fetchone()
+            if row:
+                token = secrets.token_urlsafe(32)
+                expires = (datetime.now() + timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
+                db.execute('INSERT INTO password_resets (user_id, token, method, expires_at, ip) VALUES (?,?,?,?,?)',
+                           (row['id'], token, 'email', expires, request.remote_addr or ''))
+                db.commit()
+                base = (request.url_root or '').rstrip('/')
+                reset_url = f"{base}/passwort-zuruecksetzen/{token}"
+                if is_smtp_configured():
+                    try:
+                        text = (f"Hallo {row['name']},\n\n"
+                                f"Du hast einen Passwort-Reset für Pro Academy angefordert.\n"
+                                f"Klick zum Zurücksetzen (gültig 2 Stunden):\n\n{reset_url}\n\n"
+                                f"Wenn du das nicht warst, ignoriere diese Mail.\n\nProAcademy")
+                        html = (f'<p>Hallo {row["name"]},</p>'
+                                f'<p>Du hast einen Passwort-Reset für <strong>Pro Academy</strong> angefordert.</p>'
+                                f'<p><a href="{reset_url}" style="background:#d4a843;color:#0f1c3f;padding:12px 22px;'
+                                f'border-radius:8px;text-decoration:none;font-weight:800">→ Passwort jetzt zurücksetzen</a></p>'
+                                f'<p style="color:#64748b;font-size:12px">Link gilt 2 Stunden. War das nicht du? Einfach ignorieren.</p>')
+                        send_email(row['email'], '🔑 Passwort zurücksetzen — Pro Academy', text, body_html=html, sent_by=None)
+                    except Exception as ex:
+                        print(f'[reset] mail send failed: {ex}')
+                else:
+                    print(f'[reset] SMTP nicht konfiguriert — Reset-Link wäre: {reset_url}')
+            db.close()
+        elif method == 'sms' and phone:
+            # SMS-Pfad: Stub. Speichert 6-stelligen Code, sendet aber (noch) nicht echt.
+            db = get_db()
+            phone_norm = ''.join(c for c in phone if c.isdigit() or c == '+')
+            row = db.execute('SELECT id, name, phone FROM users WHERE phone IS NOT NULL AND active=1').fetchall()
+            match = next((r for r in row if r['phone'] and ''.join(c for c in r['phone'] if c.isdigit() or c == '+') == phone_norm), None)
+            if match:
+                code = ''.join(secrets.choice('0123456789') for _ in range(6))
+                token = secrets.token_urlsafe(32)
+                expires = (datetime.now() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+                db.execute('INSERT INTO password_resets (user_id, token, method, sms_code, expires_at, ip) VALUES (?,?,?,?,?,?)',
+                           (match['id'], token, 'sms', code, expires, request.remote_addr or ''))
+                db.commit()
+                # SMS-Provider nicht konfiguriert → log only. Nach Twilio/Vonage-Setup hier echte API call.
+                print(f'[reset-sms] STUB: User {match["name"]} ({phone_norm}) — Code: {code}, Token: {token}')
+                # Entry-URL für Code-Bestätigung
+                base = (request.url_root or '').rstrip('/')
+                print(f'[reset-sms] STUB: Entry-URL: {base}/passwort-zuruecksetzen-sms?token={token}')
+            db.close()
+        flash(success_msg, 'info')
+        return render_template('passwort_vergessen.html', sent=True, method=method)
+    return render_template('passwort_vergessen.html', sent=False, method='email')
+
+
+@app.route('/passwort-zuruecksetzen/<token>', methods=['GET', 'POST'])
+def passwort_zuruecksetzen(token):
+    """Reset-Page mit Token aus E-Mail-Link."""
+    db = get_db()
+    row = db.execute('''SELECT pr.*, u.name as user_name, u.email as user_email
+                        FROM password_resets pr JOIN users u ON pr.user_id = u.id
+                        WHERE pr.token=? AND pr.used_at IS NULL''', (token,)).fetchone()
+    if not row:
+        db.close()
+        flash('Reset-Link ungültig oder bereits benutzt.', 'error')
+        return redirect(url_for('login'))
+    # Expiration check
+    try:
+        exp = datetime.strptime(row['expires_at'], '%Y-%m-%d %H:%M:%S')
+    except Exception:
+        exp = datetime.now() - timedelta(seconds=1)
+    if datetime.now() > exp:
+        db.close()
+        flash('Reset-Link abgelaufen — fordere einen neuen an.', 'error')
+        return redirect(url_for('passwort_vergessen'))
+    if request.method == 'POST':
+        new_pw = (request.form.get('password') or '').strip()
+        confirm = (request.form.get('confirm') or '').strip()
+        if len(new_pw) < 6:
+            flash('Passwort muss mindestens 6 Zeichen haben', 'error')
+            db.close()
+            return render_template('passwort_zuruecksetzen.html', token=token, user_name=row['user_name'])
+        if new_pw != confirm:
+            flash('Passwörter stimmen nicht überein', 'error')
+            db.close()
+            return render_template('passwort_zuruecksetzen.html', token=token, user_name=row['user_name'])
+        db.execute('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?',
+                   (hash_password(new_pw), row['user_id']))
+        db.execute('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?', (row['id'],))
+        db.commit()
+        db.close()
+        flash('✅ Passwort erfolgreich zurückgesetzt — du kannst dich jetzt einloggen.', 'success')
+        return redirect(url_for('login'))
+    db.close()
+    return render_template('passwort_zuruecksetzen.html', token=token, user_name=row['user_name'])
+
+
+@app.route('/passwort-zuruecksetzen-sms', methods=['GET', 'POST'])
+def passwort_zuruecksetzen_sms():
+    """SMS-Pfad: User gibt Token (aus URL) + 6-stelligen Code (aus SMS) ein."""
+    token = request.args.get('token') or request.form.get('token') or ''
+    if request.method == 'POST':
+        code = (request.form.get('code') or '').strip()
+        new_pw = (request.form.get('password') or '').strip()
+        confirm = (request.form.get('confirm') or '').strip()
+        db = get_db()
+        row = db.execute('SELECT * FROM password_resets WHERE token=? AND method=? AND used_at IS NULL',
+                         (token, 'sms')).fetchone()
+        if not row or row['sms_code'] != code:
+            db.close()
+            flash('Code falsch oder abgelaufen.', 'error')
+            return render_template('passwort_zuruecksetzen_sms.html', token=token)
+        try:
+            exp = datetime.strptime(row['expires_at'], '%Y-%m-%d %H:%M:%S')
+        except Exception:
+            exp = datetime.now() - timedelta(seconds=1)
+        if datetime.now() > exp:
+            db.close()
+            flash('Code abgelaufen — fordere einen neuen an.', 'error')
+            return redirect(url_for('passwort_vergessen'))
+        if len(new_pw) < 6 or new_pw != confirm:
+            db.close()
+            flash('Passwort muss min. 6 Zeichen haben und übereinstimmen.', 'error')
+            return render_template('passwort_zuruecksetzen_sms.html', token=token)
+        db.execute('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?',
+                   (hash_password(new_pw), row['user_id']))
+        db.execute('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?', (row['id'],))
+        db.commit()
+        db.close()
+        flash('✅ Passwort erfolgreich zurückgesetzt.', 'success')
+        return redirect(url_for('login'))
+    return render_template('passwort_zuruecksetzen_sms.html', token=token)
 
 
 @app.route('/passwort-aendern', methods=['GET', 'POST'])
@@ -8615,118 +8776,67 @@ def team_kalender():
             today = date.today()
             in_14d = today + timedelta(days=14)
             strange = []
-            # ─── 0. „MEIN KALENDER"-Slot ganz oben: nur eigene Termine, keine Downline ───
-            mine_upcoming = db.execute('''
-                SELECT a.title, a.client_name, a.termin_date, a.termin_time, a.status, u.name as owner_name
-                FROM appointments a JOIN users u ON a.owner_id = u.id
-                WHERE a.owner_id = ?
-                  AND date(a.termin_date) >= date(?)
-                  AND date(a.termin_date) <= date(?)
-                ORDER BY a.termin_date, a.termin_time
-                LIMIT 5
-            ''', (current_user.id, today.isoformat(), in_14d.isoformat())).fetchall()
-            mine_today = db.execute('SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)=date(?)',
-                                    (current_user.id, today.isoformat())).fetchone()['c']
-            mine_week = db.execute('SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)>=date(?) AND date(termin_date)<=date(?)',
-                                   (current_user.id, today.isoformat(), in_14d.isoformat())).fetchone()['c']
-            # Eigener User-Photo holen
+            # Helper: stats für eine ID-Liste
+            def _slot_stats(ids_list):
+                ph_l = ','.join('?' * len(ids_list))
+                upc = db.execute(f'''
+                    SELECT a.title, a.client_name, a.termin_date, a.termin_time, a.status, u.name as owner_name
+                    FROM appointments a JOIN users u ON a.owner_id = u.id
+                    WHERE a.owner_id IN ({ph_l}) AND date(a.termin_date) BETWEEN date(?) AND date(?)
+                    ORDER BY a.termin_date, a.termin_time LIMIT 5
+                ''', ids_list + [today.isoformat(), in_14d.isoformat()]).fetchall()
+                t = db.execute(f"SELECT COUNT(*) c FROM appointments WHERE owner_id IN ({ph_l}) AND date(termin_date)=date(?)",
+                               ids_list + [today.isoformat()]).fetchone()['c']
+                w = db.execute(f"SELECT COUNT(*) c FROM appointments WHERE owner_id IN ({ph_l}) AND date(termin_date) BETWEEN date(?) AND date(?)",
+                               ids_list + [today.isoformat(), in_14d.isoformat()]).fetchone()['c']
+                return t, w, [dict(u) for u in upc]
+
+            # ─── 1. 👤 MEIN KALENDER (nur eigene Termine) ───
+            mt, mw, mu = _slot_stats([current_user.id])
             me_photo = db.execute('SELECT photo_path FROM users WHERE id=?', (current_user.id,)).fetchone()
             strange.append({
                 'id': current_user.id, 'name': f'👤 Mein Kalender · {current_user.name}',
                 'photo_path': me_photo['photo_path'] if me_photo else None,
                 'level': 99, 'team_size': 1,
-                'count_today': mine_today, 'count_week': mine_week,
-                'upcoming': [dict(u) for u in mine_upcoming],
+                'count_today': mt, 'count_week': mw, 'upcoming': mu,
                 'is_mine': True,
             })
-            # ─── 1. „ALLE"-Slot: gesamte Downline + eigener Kalender ───
+
+            # ─── 2. 👥 TEAM-KALENDER (du + komplette Downline) ───
             all_ids = [current_user.id] + get_all_descendants(current_user.id)
-            ph_all = ','.join('?' * len(all_ids))
-            all_upcoming = db.execute(f'''
-                SELECT a.title, a.client_name, a.termin_date, a.termin_time, a.status, u.name as owner_name
-                FROM appointments a JOIN users u ON a.owner_id = u.id
-                WHERE a.owner_id IN ({ph_all})
-                  AND date(a.termin_date) >= date(?)
-                  AND date(a.termin_date) <= date(?)
-                ORDER BY a.termin_date, a.termin_time
-                LIMIT 5
-            ''', all_ids + [today.isoformat(), in_14d.isoformat()]).fetchall()
-            all_today = db.execute(f'''SELECT COUNT(*) c FROM appointments
-                WHERE owner_id IN ({ph_all}) AND date(termin_date) = date(?)''',
-                all_ids + [today.isoformat()]).fetchone()['c']
-            all_week = db.execute(f'''SELECT COUNT(*) c FROM appointments
-                WHERE owner_id IN ({ph_all})
-                  AND date(termin_date) >= date(?) AND date(termin_date) <= date(?)''',
-                all_ids + [today.isoformat(), in_14d.isoformat()]).fetchone()['c']
+            tt, tw, tu = _slot_stats(all_ids)
             strange.append({
-                'id': 'all', 'name': '🌐 ALLE', 'photo_path': None,
-                'level': 99, 'team_size': len(all_ids),
-                'count_today': all_today, 'count_week': all_week,
-                'upcoming': [dict(u) for u in all_upcoming],
+                'id': 'all', 'name': '👥 Team-Kalender · alle Termine deiner Struktur',
+                'photo_path': None, 'level': 99, 'team_size': len(all_ids),
+                'count_today': tt, 'count_week': tw, 'upcoming': tu,
                 'is_all': True,
             })
-            # ─── 2. Pro direktem Geschäftspartner ein Strang ───
-            for p in direct_partners:
-                strang_ids = [p['id']] + get_all_descendants(p['id'])
-                ph = ','.join('?' * len(strang_ids))
-                # Nächste 5 Termine
-                upcoming = db.execute(f'''
-                    SELECT a.title, a.client_name, a.termin_date, a.termin_time, a.status, u.name as owner_name
-                    FROM appointments a JOIN users u ON a.owner_id = u.id
-                    WHERE a.owner_id IN ({ph})
-                      AND date(a.termin_date) >= date(?)
-                      AND date(a.termin_date) <= date(?)
-                    ORDER BY a.termin_date, a.termin_time
-                    LIMIT 5
-                ''', strang_ids + [today.isoformat(), in_14d.isoformat()]).fetchall()
-                # Counter
-                count_today = db.execute(f'''
-                    SELECT COUNT(*) c FROM appointments
-                    WHERE owner_id IN ({ph}) AND date(termin_date) = date(?)
-                ''', strang_ids + [today.isoformat()]).fetchone()['c']
-                count_week = db.execute(f'''
-                    SELECT COUNT(*) c FROM appointments
-                    WHERE owner_id IN ({ph})
-                      AND date(termin_date) >= date(?)
-                      AND date(termin_date) <= date(?)
-                ''', strang_ids + [today.isoformat(), in_14d.isoformat()]).fetchone()['c']
-                strange.append({
-                    'id': p['id'], 'name': p['name'], 'photo_path': p['photo_path'],
-                    'level': p['manual_career_level'] or 1,
-                    'team_size': len(strang_ids),  # inkl. partner selbst
-                    'count_today': count_today,
-                    'count_week': count_week,
-                    'upcoming': [dict(u) for u in upcoming],
-                    'is_all': False,
-                })
-            # ─── 3. Bidirektional: Mentor-Kachel (Upline read-only sichtbar) ───
+
+            # ─── 3. 🌐 ALLE TERMINE (nur Admin — global, nicht nur eigene Downline) ───
+            if current_user.has_admin_access:
+                global_ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE active=1').fetchall()]
+                if set(global_ids) != set(all_ids):  # nur zeigen wenn es sich vom Team unterscheidet
+                    gt, gw, gu = _slot_stats(global_ids)
+                    strange.append({
+                        'id': 'global', 'name': '🌐 Alle Termine · gesamtes System',
+                        'photo_path': None, 'level': 99, 'team_size': len(global_ids),
+                        'count_today': gt, 'count_week': gw, 'upcoming': gu,
+                        'is_global': True,
+                    })
+
+            # ─── 4. ⬢ STRUKTURLEITER (Upline read-only, nur falls vorhanden) ───
             me = db.execute('SELECT parent_id FROM users WHERE id=?', (current_user.id,)).fetchone()
             if me and me['parent_id']:
-                mentor = db.execute('''
-                    SELECT id, name, photo_path, manual_career_level
-                    FROM users WHERE id=? AND active=1
-                ''', (me['parent_id'],)).fetchone()
+                mentor = db.execute('SELECT id, name, photo_path, manual_career_level FROM users WHERE id=? AND active=1',
+                                   (me['parent_id'],)).fetchone()
                 if mentor:
-                    mentor_upcoming = db.execute('''
-                        SELECT a.title, a.client_name, a.termin_date, a.termin_time, a.status, u.name as owner_name
-                        FROM appointments a JOIN users u ON a.owner_id = u.id
-                        WHERE a.owner_id = ?
-                          AND date(a.termin_date) >= date(?)
-                          AND date(a.termin_date) <= date(?)
-                        ORDER BY a.termin_date, a.termin_time
-                        LIMIT 5
-                    ''', (mentor['id'], today.isoformat(), in_14d.isoformat())).fetchall()
-                    mentor_today = db.execute('SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)=date(?)',
-                                              (mentor['id'], today.isoformat())).fetchone()['c']
-                    mentor_week = db.execute('SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)>=date(?) AND date(termin_date)<=date(?)',
-                                             (mentor['id'], today.isoformat(), in_14d.isoformat())).fetchone()['c']
+                    sl_t, sl_w, sl_u = _slot_stats([mentor['id']])
                     strange.append({
                         'id': mentor['id'], 'name': f'⬢ Strukturleiter · {mentor["name"]}',
                         'photo_path': mentor['photo_path'],
                         'level': mentor['manual_career_level'] or 1,
                         'team_size': 1,
-                        'count_today': mentor_today, 'count_week': mentor_week,
-                        'upcoming': [dict(u) for u in mentor_upcoming],
+                        'count_today': sl_t, 'count_week': sl_w, 'upcoming': sl_u,
                         'is_mentor': True,
                     })
             db.close()
@@ -8734,10 +8844,17 @@ def team_kalender():
                 strange=strange, today_iso=today.isoformat())
 
     # ─── Single-Strang-Mode (mit ?root=<id>) ───
-    # Spezialfall: ?root=all → alle Termine der gesamten Downline + eigene
+    # Spezialfall: ?root=all → eigene Struktur (du + Downline)
+    # Spezialfall: ?root=global → alle aktiven User (nur Admin)
     if root_param == 'all':
-        root = {'id': current_user.id, 'name': '🌐 Alle Termine (gesamte Downline)',
-                'level': 99, 'short': 'ALLE'}
+        root = {'id': current_user.id, 'name': '👥 Team-Kalender · alle Termine deiner Struktur',
+                'level': 99, 'short': 'TEAM'}
+    elif root_param == 'global':
+        if not current_user.has_admin_access:
+            flash('Globaler Kalender nur für Admins.', 'error')
+            return redirect(url_for('team_kalender'))
+        root = {'id': '__global__', 'name': '🌐 Alle Termine · gesamtes System',
+                'level': 99, 'short': 'GLOBAL'}
     elif root_param and root_param.isdigit():
         target_id = int(root_param)
         # Berechtigung: Admin · selber · Downline · ODER direkter Mentor (Upline read-only)
@@ -8801,7 +8918,13 @@ def team_kalender_tag(datestr):
     except ValueError:
         return redirect(url_for('team_kalender'))
     root_param = request.args.get('root')
-    if root_param and root_param.isdigit():
+    if root_param == 'global':
+        if not current_user.has_admin_access:
+            return redirect(url_for('team_kalender'))
+        root = {'id': '__global__', 'name': '🌐 Alle Termine · gesamtes System', 'level': 99, 'short': 'GLOBAL'}
+    elif root_param == 'all':
+        root = {'id': current_user.id, 'name': '👥 Team-Kalender', 'level': 99, 'short': 'TEAM'}
+    elif root_param and root_param.isdigit():
         target_id = int(root_param)
         descendants = get_all_descendants(current_user.id)
         if not (current_user.has_admin_access or target_id == current_user.id or target_id in descendants):
@@ -8816,7 +8939,10 @@ def team_kalender_tag(datestr):
         return redirect(url_for('dashboard'))
 
     db = get_db()
-    ids = [root['id']] + get_all_descendants(root['id'])
+    if root['id'] == '__global__':
+        ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE active=1').fetchall()]
+    else:
+        ids = [root['id']] + get_all_descendants(root['id'])
     placeholders = ','.join('?' * len(ids))
     members = db.execute(f'SELECT id, name, photo_path FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
     color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}

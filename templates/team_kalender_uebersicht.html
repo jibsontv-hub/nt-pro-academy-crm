@@ -4,8 +4,7 @@
 
 {% block content %}
 <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;line-height:1.55">
-    Jeder deiner direkten Geschäftspartner ist ein eigener Strang.
-    <strong style="color:var(--text)">Kein Strang sieht den anderen.</strong> Klick auf eine Kachel → kompletter Kalender für diesen Strang.
+    Wähle eine Ansicht: <strong style="color:var(--text)">Mein Kalender</strong> (nur eigene), <strong style="color:var(--text)">Team-Kalender</strong> (du + komplette Downline){% if current_user.has_admin_access %}, <strong style="color:var(--text)">Alle Termine</strong> (systemweit){% endif %}{% set ns = namespace(has_mentor=false) %}{% for s in strange %}{% if s.is_mentor %}{% set ns.has_mentor = true %}{% endif %}{% endfor %}{% if ns.has_mentor %} oder <strong style="color:var(--text)">Strukturleiter</strong> (read-only){% endif %}.
 </div>
 
 {% if not strange %}
@@ -18,8 +17,9 @@
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">
     {% for s in strange %}
-    <a href="/team-kalender?root={{ s.id }}" class="strang-tile{% if s.is_all %} strang-tile-all{% endif %}{% if s.is_mentor %} strang-tile-mentor{% endif %}{% if s.is_mine %} strang-tile-mine{% endif %}"
+    <a href="/team-kalender?root={{ s.id }}" class="strang-tile{% if s.is_all %} strang-tile-all{% endif %}{% if s.is_mentor %} strang-tile-mentor{% endif %}{% if s.is_mine %} strang-tile-mine{% endif %}{% if s.is_global %} strang-tile-global{% endif %}"
        {% if s.is_mine %}style="grid-column:1/-1;background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#22c55e 7%,var(--surface)));border:2px solid #22c55e"
+       {% elif s.is_global %}style="grid-column:1/-1;background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#a855f7 7%,var(--surface)));border:2px solid #a855f7"
        {% elif s.is_all %}style="grid-column:1/-1;background:linear-gradient(135deg,var(--surface),color-mix(in srgb,var(--gold) 8%,var(--surface)));border-color:var(--gold)"
        {% elif s.is_mentor %}style="grid-column:1/-1;background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#3b82f6 7%,var(--surface)));border:2px dashed #3b82f6"
        {% endif %}>
@@ -28,20 +28,23 @@
             <img src="{{ s.photo_path }}" alt="{{ s.name }}" class="strang-photo" loading="lazy">
             {% elif s.is_mine %}
             <div class="strang-photo strang-photo-fallback" style="background:linear-gradient(135deg,#22c55e,#4ade80);color:#fff;font-size:24px">👤</div>
+            {% elif s.is_global %}
+            <div class="strang-photo strang-photo-fallback" style="background:linear-gradient(135deg,#a855f7,#c084fc);color:#fff;font-size:24px">🌐</div>
             {% elif s.is_all %}
-            <div class="strang-photo strang-photo-fallback" style="background:linear-gradient(135deg,var(--gold),color-mix(in srgb,var(--gold) 70%,white));color:var(--navy);font-size:24px">🌐</div>
+            <div class="strang-photo strang-photo-fallback" style="background:linear-gradient(135deg,var(--gold),color-mix(in srgb,var(--gold) 70%,white));color:var(--navy);font-size:24px">👥</div>
             {% elif s.is_mentor %}
             <div class="strang-photo strang-photo-fallback" style="background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#fff;font-size:24px">⬢</div>
             {% else %}
             <div class="strang-photo strang-photo-fallback">{{ s.name[0] | upper }}{% if s.name.split()|length > 1 %}{{ s.name.split()[-1][0] | upper }}{% endif %}</div>
             {% endif %}
             <div style="flex:1;min-width:0">
-                <div class="strang-name"{% if s.is_mine %} style="color:#22c55e;font-weight:900"{% elif s.is_all %} style="color:var(--gold);font-weight:900"{% elif s.is_mentor %} style="color:#3b82f6;font-weight:900"{% endif %}>{{ s.name }}</div>
+                <div class="strang-name"{% if s.is_mine %} style="color:#22c55e;font-weight:900"{% elif s.is_global %} style="color:#a855f7;font-weight:900"{% elif s.is_all %} style="color:var(--gold);font-weight:900"{% elif s.is_mentor %} style="color:#3b82f6;font-weight:900"{% endif %}>{{ s.name }}</div>
                 <div class="strang-meta">
-                    {% if s.is_mine %}Nur deine eigenen Termine — kein Strang gemischt
-                    {% elif s.is_all %}Komplette Downline + eigene Termine
-                    {% elif s.is_mentor %}Stufe {{ s.level }} · sieh wann er Zeit hat (read-only · für Termin-Anfragen)
-                    {% else %}Stufe {{ s.level }} · {{ s.team_size }} Person{% if s.team_size != 1 %}en{% endif %} im Strang{% endif %}
+                    {% if s.is_mine %}Nur deine eigenen Termine
+                    {% elif s.is_global %}{{ s.team_size }} aktive User systemweit · Admin-Sicht
+                    {% elif s.is_all %}{{ s.team_size }} Person{% if s.team_size != 1 %}en{% endif %} · du + komplette Downline
+                    {% elif s.is_mentor %}Stufe {{ s.level }} · read-only · für Termin-Anfragen
+                    {% else %}Stufe {{ s.level }} · {{ s.team_size }} Person{% if s.team_size != 1 %}en{% endif %}{% endif %}
                 </div>
             </div>
             <div class="strang-arrow">→</div>

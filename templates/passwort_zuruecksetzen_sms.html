@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Code eingeben · Pro Academy{% endblock %}
+{% block page_title %}📱 SMS-Code eingeben{% endblock %}
+{% block content %}
+
+<div style="max-width:420px;margin:32px auto;padding:32px 28px;background:var(--surface);border:1px solid var(--border);border-radius:18px">
+  <h2 style="margin:0 0 8px;font-size:22px;font-weight:800;letter-spacing:-0.4px">📱 SMS-Code</h2>
+  <p style="font-size:13px;color:var(--text-muted);margin:0 0 22px;line-height:1.55">Trag den 6-stelligen Code aus der SMS ein und wähl ein neues Passwort.</p>
+
+  <form method="POST" autocomplete="off">
+    <input type="hidden" name="token" value="{{ token }}">
+    <div class="form-group">
+      <label>6-stelliger Code aus der SMS</label>
+      <input type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus
+             style="letter-spacing:6px;font-size:20px;text-align:center;font-weight:800">
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Neues Passwort</label>
+      <input type="password" name="password" required minlength="6" autocomplete="new-password">
+    </div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Bestätigen</label>
+      <input type="password" name="confirm" required minlength="6" autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;margin-top:18px">✓ Passwort speichern</button>
+  </form>
+
+  <div style="margin-top:18px;text-align:center;display:flex;justify-content:space-between;gap:10px">
+    <a href="/passwort-vergessen?method=sms" style="color:var(--text-muted);text-decoration:none;font-size:12px">↻ Neuer Code</a>
+    <a href="/login" style="color:var(--text-muted);text-decoration:none;font-size:12px">↩ Login</a>
+  </div>
+</div>
+
+{% endblock %}

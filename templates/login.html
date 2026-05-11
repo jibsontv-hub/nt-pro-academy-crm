@@ -177,7 +177,7 @@
             </form>
 
             <div style="margin-top:14px;text-align:center">
-                <a href="#" onclick="document.getElementById('forgotModal').style.display='flex';return false" style="font-size:12px;color:#6b7280;text-decoration:none">🔑 Passwort vergessen?</a>
+                <a href="/passwort-vergessen" style="font-size:13px;color:#d4a843;text-decoration:none;font-weight:700">🔑 Passwort vergessen? Self-Service starten →</a>
             </div>
 
             <div style="text-align:center;margin-top:16px;padding:14px;background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.25);border-radius:12px">
@@ -187,26 +187,6 @@
             </div>
             <div class="hint" style="margin-top:14px">· <a href="/datenschutz" target="_blank" style="color:#9ca3af">Datenschutz</a> · <a href="/start" style="color:#9ca3af">Mehr Infos</a></div>
 
-            <!-- "Passwort vergessen?" Modal -->
-            <div id="forgotModal" style="display:none;position:fixed;inset:0;background:rgba(15,28,63,0.7);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(6px)" onclick="if(event.target===this) this.style.display='none'">
-                <div style="background:#fff;border-radius:14px;padding:36px;max-width:440px;width:90%;text-align:center;box-shadow:0 25px 80px rgba(0,0,0,0.3)">
-                    <div style="font-size:38px;margin-bottom:8px">🔑</div>
-                    <h2 style="font-size:20px;font-weight:800;color:#0f1c3f;margin-bottom:14px">Passwort vergessen?</h2>
-                    <p style="font-size:14px;color:#6b7280;line-height:1.6;margin-bottom:18px">
-                        Aus Sicherheitsgründen kann das Passwort nur durch den <strong style="color:#0f1c3f">Admin oder deine Upline</strong> zurückgesetzt werden.
-                    </p>
-                    <div style="background:#faf6ec;border:1px solid #e8d59a;border-radius:8px;padding:14px;margin-bottom:18px;text-align:left;font-size:13px;color:#7a5c1a">
-                        <strong>Was du tun musst:</strong><br>
-                        1. Schreibe oder rufe deinen Upline an<br>
-                        2. Bitte um „Passwort zurücksetzen"<br>
-                        3. Du bekommst neues Passwort sofort mitgeteilt<br>
-                        4. Beim Login: sofort selbst ein neues setzen unter „Mein Profil"
-                    </div>
-                    <button onclick="document.getElementById('forgotModal').style.display='none'" style="background:#0f1c3f;color:#fff;border:none;padding:11px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">
-                        Verstanden
-                    </button>
-                </div>
-            </div>
         </div>
     </div>
 </body>
