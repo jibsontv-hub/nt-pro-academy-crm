@@ -3458,6 +3458,7 @@ def init_db():
             token TEXT NOT NULL UNIQUE,
             method TEXT NOT NULL DEFAULT 'email',
             sms_code TEXT,
+            sms_attempts INTEGER DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             expires_at TEXT NOT NULL,
             used_at TEXT,
@@ -3666,6 +3667,12 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_commissions_user ON commissions(user_id);
             CREATE INDEX IF NOT EXISTS idx_push_log_lookup ON push_log(user_id, push_type, ref_key);
             CREATE INDEX IF NOT EXISTS idx_vision_user_date ON vision_entries(user_id, datum);
+            -- Lead-Token (per-Partner Werbe-URLs) + Self-Service-Reset + Newsletter
+            CREATE INDEX IF NOT EXISTS idx_users_lead_token ON users(lead_token) WHERE lead_token IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+            CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id, used_at);
+            CREATE INDEX IF NOT EXISTS idx_newsletter_kat_pub ON newsletter_items(kategorie, published_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_deploy_log_date ON deploy_log(deployed_at DESC);
         ''')
     except Exception as e:
         print(f"Index creation warning: {e}")
@@ -5697,6 +5704,64 @@ def strukturbomben():
     return render_template('strukturbomben.html', bombs=bombs, total_team=len(ids))
 
 
+@app.route('/admin/switch/<int:target_id>', methods=['POST'])
+@login_required
+def switch_user(target_id):
+    """Impersonate als Geschäftspartner — Admin oder Upliner mit target in eigener Downline.
+    Speichert Original-User-ID in session damit man zurück-switchen kann.
+    Audit-Log: jeder Switch wird protokolliert."""
+    descendants = get_all_descendants(current_user.id)
+    if not (current_user.has_admin_access or target_id in descendants):
+        flash('Keine Berechtigung — nur Admin oder Downline-Upliner.', 'error')
+        return redirect(url_for('dashboard'))
+    if target_id == current_user.id:
+        return redirect(url_for('dashboard'))
+    db = get_db()
+    target = db.execute('SELECT * FROM users WHERE id=? AND active=1', (target_id,)).fetchone()
+    db.close()
+    if not target:
+        flash('Geschäftspartner nicht gefunden oder inaktiv.', 'error')
+        return redirect(url_for('dashboard'))
+    # Original-ID merken VOR logout (nur beim ersten Switch — nested switches behalten den ersten)
+    original_id = session.get('impersonator_id') or current_user.id
+    original_name = session.get('impersonator_name') or current_user.name
+    log_activity(original_id, 'switch_in',
+                 f'⇄ Switch in Kontext von {target["name"]}', icon='⇄', color='gold')
+    logout_user()
+    login_user(User(target), remember=False)
+    session['impersonator_id'] = original_id
+    session['impersonator_name'] = original_name
+    session.permanent = True
+    flash(f'Du arbeitest jetzt als {target["name"]}. Klick „Zurück" im Banner oben um wieder zu dir zu wechseln.', 'info')
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/switch-back', methods=['POST'])
+@login_required
+def switch_back():
+    """Zurück zum Original-User aus Impersonation."""
+    original_id = session.get('impersonator_id')
+    if not original_id or original_id == current_user.id:
+        return redirect(url_for('dashboard'))
+    db = get_db()
+    orig = db.execute('SELECT * FROM users WHERE id=?', (original_id,)).fetchone()
+    db.close()
+    if not orig:
+        # Original nicht mehr da — komplett ausloggen
+        session.pop('impersonator_id', None)
+        session.pop('impersonator_name', None)
+        return redirect(url_for('logout'))
+    impersonated_name = current_user.name
+    log_activity(original_id, 'switch_back',
+                 f'⇄ Zurück von {impersonated_name}', icon='⇄', color='gold')
+    logout_user()
+    login_user(User(orig), remember=True)
+    session.pop('impersonator_id', None)
+    session.pop('impersonator_name', None)
+    flash(f'Zurück in deinem eigenen Account.', 'success')
+    return redirect(url_for('dashboard'))
+
+
 @app.route('/api/deploy', methods=['POST'])
 def api_deploy():
     """GitHub-Webhook-Receiver: pullt main + reload WSGI bei jedem Push.
@@ -5923,12 +5988,45 @@ def admin_inbox():
     return render_template('admin_inbox.html', leads=rows, typ=typ, cnt_vk=cnt_vk, cnt_rk=cnt_rk, cnt_all=cnt_vk + cnt_rk)
 
 
+# In-Memory Rate-Limit-Tracker für Reset-Endpoint
+_RESET_RL = {}  # {ip_or_email: [timestamp, timestamp, ...]}
+_RESET_RL_WINDOW = 300   # 5 Minuten
+_RESET_RL_MAX = 3        # max 3 requests pro window
+
+def _reset_rate_limit_ok(key):
+    """Returns True if request erlaubt, False bei rate-limit-hit. Cleanup-Side-Effekt."""
+    import time as _t
+    now = _t.time()
+    window_start = now - _RESET_RL_WINDOW
+    timestamps = [t for t in _RESET_RL.get(key, []) if t > window_start]
+    if len(timestamps) >= _RESET_RL_MAX:
+        _RESET_RL[key] = timestamps
+        return False
+    timestamps.append(now)
+    _RESET_RL[key] = timestamps
+    # Garbage-Collect: alte Einträge löschen
+    if len(_RESET_RL) > 2000:
+        for k in list(_RESET_RL.keys()):
+            if not any(t > window_start for t in _RESET_RL[k]):
+                _RESET_RL.pop(k, None)
+    return True
+
+
 @app.route('/passwort-vergessen', methods=['GET', 'POST'])
 def passwort_vergessen():
     """Self-Service Password-Reset: User trägt E-Mail (oder Telefon) ein,
     bekommt Token-Link per Mail. Bei SMS (kein Provider): Code per E-Mail.
-    Admin bekommt jede Reset-Anfrage als BCC zur Backup."""
+    Admin bekommt jede Reset-Anfrage als BCC zur Backup.
+    Rate-Limit: max 3 Requests/5min pro IP+Identifier."""
     if request.method == 'POST':
+        # Rate-Limit Check (vor Anti-Enum, damit wir nicht zur Enumeration einladen)
+        ip = request.remote_addr or 'unknown'
+        identifier = (request.form.get('email') or request.form.get('phone') or '').strip().lower()
+        rl_key = f'{ip}|{identifier}'
+        if not _reset_rate_limit_ok(rl_key):
+            flash('Zu viele Reset-Versuche. Bitte 5 Minuten warten und nochmal versuchen.', 'error')
+            return render_template('passwort_vergessen.html', sent=False, method=request.form.get('method', 'email'),
+                                   send_status=None)
         email = (request.form.get('email') or '').strip().lower()
         phone = (request.form.get('phone') or '').strip()
         method = (request.form.get('method') or 'email').lower()
@@ -6078,7 +6176,9 @@ def passwort_zuruecksetzen(token):
 
 @app.route('/passwort-zuruecksetzen-sms', methods=['GET', 'POST'])
 def passwort_zuruecksetzen_sms():
-    """SMS-Pfad: User gibt Token (aus URL) + 6-stelligen Code (aus SMS) ein."""
+    """SMS-Pfad: 6-stelliger Code (aus SMS) + Token (aus URL).
+    Brute-Force-Schutz: nach 5 falschen Versuchen wird der Token invalidiert."""
+    SMS_MAX_ATTEMPTS = 5
     token = request.args.get('token') or request.form.get('token') or ''
     if request.method == 'POST':
         code = (request.form.get('code') or '').strip()
@@ -6087,9 +6187,23 @@ def passwort_zuruecksetzen_sms():
         db = get_db()
         row = db.execute('SELECT * FROM password_resets WHERE token=? AND method=? AND used_at IS NULL',
                          (token, 'sms')).fetchone()
-        if not row or row['sms_code'] != code:
+        if not row:
             db.close()
             flash('Code falsch oder abgelaufen.', 'error')
+            return render_template('passwort_zuruecksetzen_sms.html', token=token)
+        # Brute-Force-Schutz: max 5 Versuche bevor Token invalidiert wird
+        attempts = row['sms_attempts'] or 0
+        if attempts >= SMS_MAX_ATTEMPTS:
+            db.execute('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?', (row['id'],))
+            db.commit(); db.close()
+            flash(f'Zu viele Fehlversuche — Token gesperrt. Fordere einen neuen Code an.', 'error')
+            return redirect(url_for('passwort_vergessen'))
+        if row['sms_code'] != code:
+            db.execute('UPDATE password_resets SET sms_attempts = sms_attempts + 1 WHERE id = ?', (row['id'],))
+            db.commit()
+            remaining = SMS_MAX_ATTEMPTS - (attempts + 1)
+            db.close()
+            flash(f'Code falsch. Noch {remaining} Versuch{"e" if remaining != 1 else ""} bevor der Token gesperrt wird.', 'error')
             return render_template('passwort_zuruecksetzen_sms.html', token=token)
         try:
             exp = datetime.strptime(row['expires_at'], '%Y-%m-%d %H:%M:%S')

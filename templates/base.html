@@ -1543,6 +1543,14 @@
     {% endif %}
 
     <div class="main">
+        {% if session.get('impersonator_id') %}
+        <div style="background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;font-weight:700;font-size:13px;border-bottom:1px solid #b8902e">
+            <div>⇄ Du arbeitest als <strong>{{ current_user.name }}</strong> · Original: {{ session.get('impersonator_name', '?') }}</div>
+            <form method="POST" action="/admin/switch-back" style="margin:0">
+                <button type="submit" style="background:#0f1c3f;color:#fff;border:none;padding:7px 16px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">↩ Zurück zu mir</button>
+            </form>
+        </div>
+        {% endif %}
         <div class="topbar">
             <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menü">☰</button>
             <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>

@@ -4,6 +4,11 @@
 {% block topbar_actions %}
 <a href="/partner/{{ target.id }}" class="btn btn-secondary btn-sm">▤ Was war heute?</a>
 <a href="/team-kalender?root={{ target.id }}" class="btn btn-secondary btn-sm">▦ Sub-Kalender</a>
+{% if target.id != current_user.id %}
+<form method="POST" action="/admin/switch/{{ target.id }}" style="display:inline" onsubmit="return confirm('Im Kontext von {{ target.name }} arbeiten? Du kannst jederzeit zurück.')">
+  <button type="submit" class="btn btn-secondary btn-sm" title="Als {{ target.name }} arbeiten">⇄ Als {{ target.name.split()[0] }} arbeiten</button>
+</form>
+{% endif %}
 {% if current_user.has_admin_access or target.id == current_user.id %}
 <a href="/team/{{ target.id }}/edit" class="btn btn-primary btn-sm">✎ Bearbeiten</a>
 {% endif %}

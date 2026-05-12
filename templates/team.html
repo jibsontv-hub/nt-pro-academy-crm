@@ -50,6 +50,11 @@
                     <td class="money">{{ "{:,.0f}".format(m.volumen).replace(",", ".") }} €</td>
                     <td style="white-space:nowrap">
                         <a href="/coaching/{{ m.id }}" class="btn btn-primary btn-sm" title="Coaching-Karte" style="background:var(--gold);color:#fff">🎯</a>
+                        {% if m.id != current_user.id %}
+                        <form method="POST" action="/admin/switch/{{ m.id }}" style="display:inline" onsubmit="return confirm('Im Kontext von {{ m.name }} arbeiten? Du kannst jederzeit zurück.')">
+                            <button type="submit" class="btn btn-secondary btn-sm" title="Als {{ m.name }} arbeiten">⇄</button>
+                        </form>
+                        {% endif %}
                         <a href="/team/{{ m.id }}/edit" class="btn btn-secondary btn-sm" title="Bearbeiten">✎</a>
                         {% if current_user.has_admin_access and m.id != current_user.id %}
                         <form method="POST" action="/admin/team/{{ m.id }}/reset-password" style="display:inline" onsubmit="return confirm('Passwort für {{ m.name }} zurücksetzen?')">
