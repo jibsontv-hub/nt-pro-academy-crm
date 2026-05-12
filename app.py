@@ -9921,20 +9921,33 @@ def genehmigung_bestaetigen(uid):
             url='/dashboard', urgent=True, tag='aktiviert')
     except Exception:
         pass
-    # Bestätigungs-Mail an den freigeschalteten User (jetzt erlaubt — bei Aktivierung)
+    # Bestätigungs-Mail an den freigeschalteten User mit Magic-Link für 1-Klick-Login
     if target.get('email') and is_smtp_configured():
         try:
             base = (request.url_root or 'https://proacademy-business.de/').rstrip('/')
+            # Magic-Link-Token für 1-Klick-Onboarding (gültig 7 Tage da das ein Welcome-Link ist)
+            magic_token = secrets.token_urlsafe(32)
+            magic_expires = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+            db_ml = get_db()
+            db_ml.execute('INSERT INTO magic_link_tokens (user_id, token, expires_at, ip) VALUES (?,?,?,?)',
+                          (uid, magic_token, magic_expires, 'admin_confirm'))
+            db_ml.commit()
+            db_ml.close()
+            magic_url = f'{base}/login/magic/{magic_token}'
             text = (f"Hallo {target['name']},\n\nherzlich willkommen in unserer Struktur!\n"
-                    f"Dein Account wurde gerade freigeschaltet — du kannst dich ab sofort einloggen:\n\n{base}/login\n\n"
-                    f"Falls du dein Passwort nicht mehr weißt: {base}/passwort-vergessen\n\n"
+                    f"Dein Account ist freigeschaltet.\n\n"
+                    f"→ Direkt einloggen (1-Klick, kein Passwort tippen, gültig 7 Tage):\n{magic_url}\n\n"
+                    f"Oder klassisch mit deiner E-Mail + Passwort: {base}/login\n"
+                    f"Passwort vergessen? {base}/passwort-vergessen\n\n"
                     f"Bis bald,\nDein Pro-Academy-Team")
             html = (f'<p>Hallo {target["name"]},</p><p>herzlich willkommen in unserer Struktur!</p>'
-                    f'<p>Dein Account wurde freigeschaltet — du kannst dich ab sofort einloggen:</p>'
-                    f'<p><a href="{base}/login" style="background:#d4a843;color:#0f1c3f;padding:12px 22px;'
-                    f'border-radius:8px;text-decoration:none;font-weight:800;display:inline-block">→ Jetzt einloggen</a></p>'
-                    f'<p style="color:#64748b;font-size:12px;margin-top:24px">Passwort vergessen? <a href="{base}/passwort-vergessen">Hier zurücksetzen</a></p>')
-            send_email(target['email'], 'Willkommen bei Pro Academy — Account freigeschaltet',
+                    f'<p>Dein Account ist freigeschaltet — direkt mit 1 Klick einloggen:</p>'
+                    f'<p style="margin:24px 0"><a href="{magic_url}" style="background:#d4a843;color:#0f1c3f;'
+                    f'padding:14px 26px;border-radius:10px;text-decoration:none;font-weight:800;display:inline-block">'
+                    f'→ Jetzt einloggen (1 Klick)</a></p>'
+                    f'<p style="color:#64748b;font-size:13px">Link gilt 7 Tage. Danach klassisch via E-Mail+Passwort: '
+                    f'<a href="{base}/login">{base}/login</a></p>')
+            send_email(target['email'], 'Willkommen bei Pro Academy — du kannst loslegen',
                        text, body_html=html, sent_by=current_user.id, category='signup')
         except Exception as e:
             print(f'[bestaetigen-mail] {e}')
