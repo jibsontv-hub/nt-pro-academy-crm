@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Daily Check-in · Pro Academy{% endblock %}
+{% block page_title %}Daily Check-in{% endblock %}
+{% block content %}
+
+<style>
+  .ck-wrap { max-width: 640px; margin: 0 auto; }
+  .ck-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 14px; }
+  .ck-h { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; color: var(--text); margin: 0 0 6px; }
+  .ck-sub { font-size: 13px; color: var(--text-muted); margin: 0 0 22px; line-height: 1.5; }
+  .ck-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .ck-num-input {
+    width: 100%; padding: 16px 18px; font-size: 28px; font-weight: 800;
+    text-align: center; border: 1.5px solid var(--border); border-radius: 12px;
+    background: var(--bg-2); color: var(--text); outline: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .ck-num-input:focus { border-color: var(--gold); }
+  .ck-label { font-size: 11px; color: var(--text-muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; text-align: center; }
+  .ck-streak {
+    display: inline-block; padding: 4px 12px; background: color-mix(in srgb, var(--gold) 15%, var(--bg-2));
+    color: var(--gold); border-radius: 99px; font-size: 12px; font-weight: 800;
+  }
+  .ck-stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .ck-stat { background: var(--bg-2); padding: 12px 14px; border-radius: 10px; }
+  .ck-stat .label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+  .ck-stat .value { font-size: 18px; font-weight: 800; color: var(--text); margin-top: 2px; }
+  .ck-stat .delta { font-size: 11px; font-weight: 700; }
+  .delta-up { color: #22c55e; }
+  .delta-flat { color: var(--text-muted); }
+  .delta-down { color: #f97316; }
+  .ck-history { display: flex; flex-direction: column; gap: 6px; }
+  .ck-h-row { display: grid; grid-template-columns: 80px 1fr 1fr; gap: 10px; padding: 8px 12px; background: var(--bg-2); border-radius: 8px; font-size: 13px; }
+  .ck-h-date { color: var(--text-muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="ck-wrap">
+
+  <div class="ck-card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 class="ck-h">Heute, {{ today_iso }}</h2>
+        <p class="ck-sub">3 Sekunden ehrliches Eintragen. Streak halten.</p>
+      </div>
+      {% if streak > 0 %}
+      <div class="ck-streak">🔥 {{ streak }} Tag{% if streak != 1 %}e{% endif %} in Folge</div>
+      {% endif %}
+    </div>
+
+    <form method="POST" autocomplete="off">
+      <div class="ck-row">
+        <div>
+          <div class="ck-label">Anrufe heute</div>
+          <input type="number" name="anrufe" class="ck-num-input" min="0" max="200"
+                 value="{{ today.anrufe if today else 0 }}" inputmode="numeric" autofocus>
+        </div>
+        <div>
+          <div class="ck-label">Termine gelegt</div>
+          <input type="number" name="termine" class="ck-num-input" min="0" max="50"
+                 value="{{ today.termine if today else 0 }}" inputmode="numeric">
+        </div>
+      </div>
+
+      <textarea name="notiz" placeholder="Notiz (optional) — was lief gut, was fehlt morgen?"
+        style="width:100%;border:1px solid var(--border);background:var(--bg-2);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);outline:none;resize:vertical;font-family:inherit;min-height:60px">{{ today.notiz if today and today.notiz else '' }}</textarea>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;margin-top:14px;font-size:15px;padding:14px">
+        {% if today %}↻ Aktualisieren{% else %}✓ Speichern{% endif %}
+      </button>
+    </form>
+  </div>
+
+  <div class="ck-card">
+    <h3 class="ck-h" style="font-size:16px;margin-bottom:14px">Diese Woche vs. Vorwoche</h3>
+    <div class="ck-stat-row">
+      <div class="ck-stat">
+        <div class="label">Anrufe (7 Tage)</div>
+        <div class="value">{{ sum_anrufe_7 }}</div>
+        <div class="delta {% if sum_anrufe_7 > sum_anrufe_prev %}delta-up{% elif sum_anrufe_7 < sum_anrufe_prev %}delta-down{% else %}delta-flat{% endif %}">
+          {% if sum_anrufe_7 > sum_anrufe_prev %}↑ +{{ sum_anrufe_7 - sum_anrufe_prev }}{% elif sum_anrufe_7 < sum_anrufe_prev %}↓ {{ sum_anrufe_7 - sum_anrufe_prev }}{% else %}→ gleich{% endif %} vs Vorwoche ({{ sum_anrufe_prev }})
+        </div>
+      </div>
+      <div class="ck-stat">
+        <div class="label">Termine (7 Tage)</div>
+        <div class="value">{{ sum_termine_7 }}</div>
+        <div class="delta {% if sum_termine_7 > sum_termine_prev %}delta-up{% elif sum_termine_7 < sum_termine_prev %}delta-down{% else %}delta-flat{% endif %}">
+          {% if sum_termine_7 > sum_termine_prev %}↑ +{{ sum_termine_7 - sum_termine_prev }}{% elif sum_termine_7 < sum_termine_prev %}↓ {{ sum_termine_7 - sum_termine_prev }}{% else %}→ gleich{% endif %} vs Vorwoche ({{ sum_termine_prev }})
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if last30 %}
+  <div class="ck-card">
+    <h3 class="ck-h" style="font-size:16px;margin-bottom:14px">Letzte 14 Check-ins</h3>
+    <div class="ck-history">
+      <div class="ck-h-row" style="font-weight:800;color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:0.4px;background:transparent">
+        <span>Datum</span><span>Anrufe</span><span>Termine</span>
+      </div>
+      {% for r in last30 %}
+      <div class="ck-h-row">
+        <span class="ck-h-date">{{ r.datum[5:] }}.</span>
+        <span><strong>{{ r.anrufe }}</strong></span>
+        <span><strong>{{ r.termine }}</strong></span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}

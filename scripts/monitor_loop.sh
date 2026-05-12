@@ -28,8 +28,9 @@ cd $PROJECT
 
 LAST_FULL_AUDIT=0
 FULL_AUDIT_INTERVAL=$((6 * 3600))  # 6 Stunden
+LAST_DAILY_PUSH_DATE=""  # ISO-Datum des letzten Daily-Push (1× pro Tag)
 
-echo "[$(date)] Monitor-Loop gestartet — auto-pull · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
+echo "[$(date)] Monitor-Loop gestartet — auto-pull · daily-push · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
 
 while true; do
     # ─── 0. Auto-Pull (Fallback wenn GitHub-Webhook fail) ───
@@ -54,6 +55,15 @@ import sys; sys.path.insert(0, '$PROJECT')
 from app import _warm_cache_background
 _warm_cache_background()
 " 2>&1 | grep -E '(warm|fertig|FERTIG|FEHLER)' | head -3 >> $HEALTH_LOG
+
+    # ─── 1b. Daily-Push (1× pro Tag, zwischen 8-10 Uhr) ─────────
+    CURRENT_HOUR=$(date +%H)
+    CURRENT_DATE=$(date +%Y-%m-%d)
+    if [ "$CURRENT_HOUR" -ge 8 ] && [ "$CURRENT_HOUR" -lt 10 ] && [ "$LAST_DAILY_PUSH_DATE" != "$CURRENT_DATE" ]; then
+        echo "[$(date)] Daily-Push wird ausgelöst (1× pro Tag)" | tee -a $HEALTH_LOG
+        python3 $PROJECT/scripts/daily_push.py 2>&1 | tail -10 >> $HEALTH_LOG
+        LAST_DAILY_PUSH_DATE=$CURRENT_DATE
+    fi
 
     # ─── 15-Min Health-Check ──────────────────────────────
     python3 $HEALTH_SCRIPT

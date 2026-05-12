@@ -1176,7 +1176,7 @@
             {% set q_focus = request.args.get('focus') or '' %}
             {% set is_rk_list1 = ('/namensliste' in p and q_typ == 'rk') %}
             {% set is_vk_list1 = ('/namensliste' in p and not is_rk_list1) %}
-            {% set s1_start = ('/onboarding/roadmap' in p) or (p == '/aufgaben') %}
+            {% set s1_start = ('/onboarding/roadmap' in p) or (p == '/aufgaben') or ('/daily-checkin' in p) %}
             {% set s1_vk    = is_vk_list1 or (p == '/termine' or p.startswith('/termine/')) or ('/vertraege' in p) or (('/tracking' in p) and q_focus == 'vk') %}
             {% set s1_rk    = is_rk_list1 or ('/grundseminar' in p) or ('/team-kalender' in p) %}
             {% set s1_team  = (p == '/team') or ('/partner/' in p) or ('/team/inaktiv' in p) or ('/struktur' in p) %}
@@ -1189,6 +1189,7 @@
                 <div class="nav-group-items">
                     <a href="/onboarding/roadmap" class="nav-link {% if '/onboarding/roadmap' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.18),rgba(212,168,67,0.06));color:var(--gold);font-weight:800"><span class="nav-icon">🚀</span> Starter-Roadmap</a>
                     <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Heute machen</a>
+                    <a href="/daily-checkin" class="nav-link {% if '/daily-checkin' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Daily Check-in</a>
                 </div>
             </details>
 
@@ -1260,6 +1261,7 @@
                 <summary>🛒 Verkauf</summary>
                 <div class="nav-group-items">
                     <a href="/aufgaben" class="nav-link {% if request.path == '/aufgaben' %}active{% endif %}"><span class="nav-icon">✓</span> Tagesaufgaben</a>
+                    <a href="/daily-checkin" class="nav-link {% if '/daily-checkin' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Daily Check-in</a>
                     <a href="/namensliste?typ=vk" class="nav-link {% if is_vk_list %}active{% endif %}"><span class="nav-icon">◎</span> Namensliste</a>
                     <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Beratungstermine</a>
                     <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>

@@ -3428,6 +3428,18 @@ def init_db():
             FOREIGN KEY (owner_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS daily_checkins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            datum TEXT NOT NULL,
+            anrufe INTEGER DEFAULT 0,
+            termine INTEGER DEFAULT 0,
+            notiz TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, datum),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS deploy_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sha TEXT,
@@ -3673,6 +3685,7 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id, used_at);
             CREATE INDEX IF NOT EXISTS idx_newsletter_kat_pub ON newsletter_items(kategorie, published_at DESC);
             CREATE INDEX IF NOT EXISTS idx_deploy_log_date ON deploy_log(deployed_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_daily_checkins_user_date ON daily_checkins(user_id, datum DESC);
         ''')
     except Exception as e:
         print(f"Index creation warning: {e}")
@@ -5875,6 +5888,60 @@ def admin_deploy_manual():
     except Exception as e:
         flash(f'Deploy-Exception: {e}', 'error')
     return redirect(url_for('admin_deploy'))
+
+
+@app.route('/daily-checkin', methods=['GET', 'POST'])
+@login_required
+def daily_checkin():
+    """Täglicher Check-in: User trägt Anrufe + Termine ein.
+    Wird vom täglichen Push-Reminder verlinkt. Streak + Vorwoche-Vergleich."""
+    today_iso = date.today().isoformat()
+    db = get_db()
+
+    if request.method == 'POST':
+        try:
+            anrufe = int(request.form.get('anrufe', 0) or 0)
+            termine = int(request.form.get('termine', 0) or 0)
+        except (ValueError, TypeError):
+            anrufe, termine = 0, 0
+        notiz = (request.form.get('notiz') or '').strip()[:500]
+        # Upsert (UNIQUE auf user_id, datum)
+        db.execute('''INSERT INTO daily_checkins (user_id, datum, anrufe, termine, notiz)
+                      VALUES (?, ?, ?, ?, ?)
+                      ON CONFLICT(user_id, datum) DO UPDATE SET
+                        anrufe=excluded.anrufe, termine=excluded.termine, notiz=excluded.notiz,
+                        created_at=CURRENT_TIMESTAMP''',
+                  (current_user.id, today_iso, anrufe, termine, notiz))
+        db.commit()
+        flash(f'Check-in gespeichert: {anrufe} Anrufe, {termine} Termine.', 'success')
+        log_activity(current_user.id, 'daily_checkin',
+                     f'Check-in: {anrufe} Anrufe · {termine} Termine',
+                     icon='✓', color='gold')
+
+    # Heute: bereits eingetragen?
+    today_row = db.execute('SELECT * FROM daily_checkins WHERE user_id=? AND datum=?',
+                          (current_user.id, today_iso)).fetchone()
+    # Streak: aufeinanderfolgende Tage mit Check-in (rückwärts ab heute)
+    last30 = db.execute('''SELECT datum, anrufe, termine FROM daily_checkins
+                           WHERE user_id=? AND datum >= date('now', '-30 days')
+                           ORDER BY datum DESC''', (current_user.id,)).fetchall()
+    streak = 0
+    cur_date = date.today()
+    dates_set = {r['datum'] for r in last30}
+    while cur_date.isoformat() in dates_set:
+        streak += 1
+        cur_date -= timedelta(days=1)
+    # Wochen-Vergleich (letzte 7 Tage vs Vorwoche)
+    sum_anrufe_7 = sum(r['anrufe'] or 0 for r in last30 if r['datum'] >= (date.today() - timedelta(days=6)).isoformat())
+    sum_termine_7 = sum(r['termine'] or 0 for r in last30 if r['datum'] >= (date.today() - timedelta(days=6)).isoformat())
+    sum_anrufe_prev = sum(r['anrufe'] or 0 for r in last30 if (date.today() - timedelta(days=13)).isoformat() <= r['datum'] <= (date.today() - timedelta(days=7)).isoformat())
+    sum_termine_prev = sum(r['termine'] or 0 for r in last30 if (date.today() - timedelta(days=13)).isoformat() <= r['datum'] <= (date.today() - timedelta(days=7)).isoformat())
+    db.close()
+    return render_template('daily_checkin.html',
+        today=today_row, streak=streak, last30=last30[:14],
+        sum_anrufe_7=sum_anrufe_7, sum_termine_7=sum_termine_7,
+        sum_anrufe_prev=sum_anrufe_prev, sum_termine_prev=sum_termine_prev,
+        today_iso=today_iso)
 
 
 @app.route('/newsletter')
