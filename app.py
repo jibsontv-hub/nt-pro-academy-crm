@@ -4378,9 +4378,18 @@ _CALENDAR_COLORS = [
 ]
 
 
-def get_team_calendar_data(root_user_id, year, month):
+def strang_color(partner_id):
+    """Deterministische Farbe pro Direkt-Partner-Strang (für Upline-Sicht)."""
+    if not isinstance(partner_id, int):
+        return _CALENDAR_COLORS[0]
+    return _CALENDAR_COLORS[partner_id % len(_CALENDAR_COLORS)]
+
+
+def get_team_calendar_data(root_user_id, year, month, mono_color=None):
     """Alle Termine im Team (root + alle Downlines) für gegebenen Monat.
     Spezialfall root_user_id == '__global__': alle aktiven User systemweit.
+    mono_color: wenn gesetzt, alle Termine bekommen DIESE EINE Farbe (Upline-Sicht
+    eines Direkt-Strangs — Najib will Niesa's Strang in einer Farbe sehen).
     Returns: dict {appointments, members_with_colors}"""
     db = get_db()
     if root_user_id == '__global__':
@@ -4389,7 +4398,10 @@ def get_team_calendar_data(root_user_id, year, month):
         ids = [root_user_id] + get_all_descendants(root_user_id)
     placeholders = ','.join('?' * len(ids))
     members = db.execute(f'SELECT id, name, photo_path FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
-    color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}
+    if mono_color:
+        color_map = {m['id']: mono_color for m in members}
+    else:
+        color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}
     photo_map = {m['id']: m['photo_path'] for m in members}
     members_list = [{'id': m['id'], 'name': m['name'], 'color': color_map[m['id']], 'photo': photo_map.get(m['id'])} for m in members]
 
@@ -9238,6 +9250,7 @@ def team_kalender():
                         'is_global': True,
                     })
                 # Pro direktem Partner ein Strang-Slot mit dessen kompletter Downline
+                # Jeder Strang hat seine EIGENE Farbe (deterministisch via partner_id)
                 for p in direct_partners:
                     p_ids = [p['id']] + get_all_descendants(p['id'])
                     pt, pw, pu = _slot_stats(p_ids)
@@ -9248,6 +9261,7 @@ def team_kalender():
                         'team_size': len(p_ids),
                         'count_today': pt, 'count_week': pw, 'upcoming': pu,
                         'is_partner': True,
+                        'strang_color': strang_color(p['id']),
                     })
             else:
                 # ════════ DOWNLINE-VIEW (alle außer Najib) ════════
@@ -9325,7 +9339,18 @@ def team_kalender():
         year, month = today.year, today.month
     if month < 1: month, year = 12, year - 1
     if month > 12: month, year = 1, year + 1
-    data = get_team_calendar_data(root['id'], year, month)
+
+    # Mono-Color: wenn current_user die Upline ist (Najib öffnet Niesa's Strang),
+    # bekommen alle Termine in dem Strang DIE EINE Farbe der direkten Struktur
+    mono = None
+    if isinstance(root['id'], int):
+        db_chk = get_db()
+        target_row = db_chk.execute('SELECT parent_id FROM users WHERE id=?', (root['id'],)).fetchone()
+        db_chk.close()
+        # current_user ist parent von root → Najib-Sicht auf eine direkte Struktur
+        if target_row and target_row['parent_id'] == current_user.id and root['id'] != current_user.id:
+            mono = strang_color(root['id'])
+    data = get_team_calendar_data(root['id'], year, month, mono_color=mono)
     # Filter nach einem Partner
     partner_filter = request.args.get('partner')
     if partner_filter and partner_filter.isdigit():
@@ -9383,7 +9408,16 @@ def team_kalender_tag(datestr):
         ids = [root['id']] + get_all_descendants(root['id'])
     placeholders = ','.join('?' * len(ids))
     members = db.execute(f'SELECT id, name, photo_path FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
-    color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}
+    # Mono-Color für Tagesansicht: Najib öffnet Niesa-Strang → alle Termine in EINER Farbe
+    mono_day = None
+    if isinstance(root['id'], int):
+        target_row = db.execute('SELECT parent_id FROM users WHERE id=?', (root['id'],)).fetchone()
+        if target_row and target_row['parent_id'] == current_user.id and root['id'] != current_user.id:
+            mono_day = strang_color(root['id'])
+    if mono_day:
+        color_map = {m['id']: mono_day for m in members}
+    else:
+        color_map = {m['id']: _CALENDAR_COLORS[i % len(_CALENDAR_COLORS)] for i, m in enumerate(members)}
     photo_map = {m['id']: m['photo_path'] for m in members}
     members_list = [{'id': m['id'], 'name': m['name'], 'color': color_map[m['id']], 'photo': photo_map.get(m['id'])} for m in members]
 

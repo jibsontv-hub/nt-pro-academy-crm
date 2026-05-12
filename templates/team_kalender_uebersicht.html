@@ -26,6 +26,7 @@
        {% elif s.is_global %}style="grid-column:1/-1;background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#a855f7 7%,var(--surface)));border:2px solid #a855f7"
        {% elif s.is_all %}style="grid-column:1/-1;background:linear-gradient(135deg,var(--surface),color-mix(in srgb,var(--gold) 8%,var(--surface)));border-color:var(--gold)"
        {% elif s.is_mentor %}style="grid-column:1/-1;background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#3b82f6 7%,var(--surface)));border:2px dashed #3b82f6"
+       {% elif s.is_partner and s.strang_color %}style="border-left:4px solid {{ s.strang_color }};background:linear-gradient(135deg,var(--surface),color-mix(in srgb,{{ s.strang_color }} 6%,var(--surface)))"
        {% endif %}>
         <div class="strang-head">
             {% if s.photo_path %}
