@@ -616,8 +616,29 @@
         [data-theme="dark"] [style*="background: #f6f7fb"],
         [data-theme="dark"] [style*="background:#fbfcfe"],
         [data-theme="dark"] [style*="background:#f8fafc"],
-        [data-theme="dark"] [style*="background:#f5f5f7"] {
+        [data-theme="dark"] [style*="background: #f8fafc"],
+        [data-theme="dark"] [style*="background:#f5f5f7"],
+        [data-theme="dark"] [style*="background:#f3f4f6"],
+        [data-theme="dark"] [style*="background: #f3f4f6"],
+        [data-theme="dark"] [style*="background:#f9fafb"],
+        [data-theme="dark"] [style*="background: #f9fafb"],
+        [data-theme="dark"] [style*="background:#f5f5f5"],
+        [data-theme="dark"] [style*="background: #f5f5f5"],
+        [data-theme="dark"] [style*="background:#fafafa"],
+        [data-theme="dark"] [style*="background: #fafafa"],
+        [data-theme="dark"] [style*="background:#e5e7eb"],
+        [data-theme="dark"] [style*="background: #e5e7eb"],
+        [data-theme="dark"] [style*="background:#f1f5f9"],
+        [data-theme="dark"] [style*="background: #f1f5f9"] {
             background: var(--bg-2) !important;
+        }
+        /* Schwarzer/dunkler Text auf hardcodierten Light-BGs im Dark-Mode */
+        [data-theme="dark"] [style*="color:#000"]:not([style*="rgba"]),
+        [data-theme="dark"] [style*="color: #000"]:not([style*="rgba"]),
+        [data-theme="dark"] [style*="color:#000000"],
+        [data-theme="dark"] [style*="color:black"],
+        [data-theme="dark"] [style*="color: black"] {
+            color: var(--text) !important;
         }
         [data-theme="dark"] [style*="color:#0f1c3f"],
         [data-theme="dark"] [style*="color: #0f1c3f"],
@@ -1257,7 +1278,8 @@
                 <div class="nav-group-items">
                     <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
                     <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
-                    <a href="/news" class="nav-link {% if '/news' in request.path %}active{% endif %}"><span class="nav-icon">📣</span> Struktur-News</a>
+                    <a href="/news" class="nav-link {% if '/news' in request.path and '/newsletter' not in request.path %}active{% endif %}"><span class="nav-icon">📣</span> Struktur-News</a>
+                    <a href="/newsletter" class="nav-link {% if '/newsletter' in request.path %}active{% endif %}"><span class="nav-icon">📰</span> Branchen-News</a>
                     <a href="/tracking" class="nav-link {% if '/tracking' in p and q_focus != 'vk' %}active{% endif %}"><span class="nav-icon">▥</span> Tracking gesamt</a>
                     <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}"><span class="nav-icon">▲</span> Wochen-Ranking</a>
                     <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>

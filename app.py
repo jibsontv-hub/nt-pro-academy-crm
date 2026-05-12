@@ -3426,6 +3426,20 @@ def init_db():
             FOREIGN KEY (owner_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS newsletter_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kategorie TEXT NOT NULL,
+            titel TEXT NOT NULL,
+            zusammenfassung TEXT,
+            quelle TEXT,
+            quelle_url TEXT,
+            relevanz INTEGER DEFAULT 5,
+            published_at TEXT,
+            fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            seen_count INTEGER DEFAULT 0,
+            UNIQUE(quelle_url)
+        );
+
         CREATE TABLE IF NOT EXISTS password_resets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -5669,6 +5683,48 @@ def strukturbomben():
     # Sort all by date desc
     bombs.sort(key=lambda b: b['when'] or '', reverse=True)
     return render_template('strukturbomben.html', bombs=bombs, total_team=len(ids))
+
+
+@app.route('/newsletter')
+@login_required
+def newsletter():
+    """Branchen-News-Feed: Finanz/Versicherung/Rente/Arbeitsmarkt — alles
+    was wir im Vertriebsgespräch nutzen können. Wird vom newsletter_agent.py
+    befüllt (cron-style oder via /admin/newsletter/refresh)."""
+    db = get_db()
+    kategorie = request.args.get('kategorie') or 'all'
+    if kategorie == 'all':
+        items = db.execute('''SELECT * FROM newsletter_items
+                              ORDER BY COALESCE(published_at, fetched_at) DESC LIMIT 100''').fetchall()
+    else:
+        items = db.execute('''SELECT * FROM newsletter_items WHERE kategorie=?
+                              ORDER BY COALESCE(published_at, fetched_at) DESC LIMIT 100''',
+                          (kategorie,)).fetchall()
+    cats = db.execute('SELECT kategorie, COUNT(*) c FROM newsletter_items GROUP BY kategorie').fetchall()
+    cat_counts = {r['kategorie']: r['c'] for r in cats}
+    cat_counts['all'] = sum(cat_counts.values())
+    db.close()
+    return render_template('newsletter.html', items=items, kategorie=kategorie, cat_counts=cat_counts)
+
+
+@app.route('/admin/newsletter/refresh', methods=['POST'])
+@login_required
+def admin_newsletter_refresh():
+    """Triggert den Newsletter-Agent — fetcht aktuelle News von den Quellen."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('newsletter'))
+    import subprocess
+    try:
+        result = subprocess.run(['python3', 'scripts/newsletter_agent.py'],
+                              capture_output=True, text=True, timeout=60,
+                              cwd=os.path.dirname(os.path.abspath(__file__)))
+        out = (result.stdout or '') + (result.stderr or '')
+        # Letzte Zeile mit "neu" extrahieren
+        flash(f'Newsletter-Refresh fertig. Output: {out[-200:]}', 'success' if result.returncode == 0 else 'error')
+    except Exception as e:
+        flash(f'Refresh-Fehler: {e}', 'error')
+    return redirect(url_for('newsletter'))
 
 
 @app.route('/grundseminar')
@@ -8908,11 +8964,10 @@ def team_kalender():
             # Fall-through zu Single-Kalender mit eigenem root
             root_param = str(root['id'])
         else:
-            # Strang-Übersicht: pro Partner Termin-Stats für nächste 14 Tage
+            # Übersicht: pro Rolle unterschiedlich
             today = date.today()
             in_14d = today + timedelta(days=14)
             strange = []
-            # Helper: stats für eine ID-Liste
             def _slot_stats(ids_list):
                 ph_l = ','.join('?' * len(ids_list))
                 upc = db.execute(f'''
@@ -8927,54 +8982,71 @@ def team_kalender():
                                ids_list + [today.isoformat(), in_14d.isoformat()]).fetchone()['c']
                 return t, w, [dict(u) for u in upc]
 
-            # ─── 1. 👤 MEIN KALENDER (nur eigene Termine) ───
-            mt, mw, mu = _slot_stats([current_user.id])
-            me_photo = db.execute('SELECT photo_path FROM users WHERE id=?', (current_user.id,)).fetchone()
-            strange.append({
-                'id': current_user.id, 'name': f'👤 Mein Kalender · {current_user.name}',
-                'photo_path': me_photo['photo_path'] if me_photo else None,
-                'level': 99, 'team_size': 1,
-                'count_today': mt, 'count_week': mw, 'upcoming': mu,
-                'is_mine': True,
-            })
+            me_row = db.execute('SELECT parent_id, photo_path FROM users WHERE id=?', (current_user.id,)).fetchone()
+            is_top_admin = current_user.has_admin_access
 
-            # ─── 2. 👥 TEAM-KALENDER (du + komplette Downline) ───
-            all_ids = [current_user.id] + get_all_descendants(current_user.id)
-            tt, tw, tu = _slot_stats(all_ids)
-            strange.append({
-                'id': 'all', 'name': '👥 Team-Kalender · alle Termine deiner Struktur',
-                'photo_path': None, 'level': 99, 'team_size': len(all_ids),
-                'count_today': tt, 'count_week': tw, 'upcoming': tu,
-                'is_all': True,
-            })
-
-            # ─── 3. 🌐 ALLE TERMINE (nur Admin — global, nicht nur eigene Downline) ───
-            if current_user.has_admin_access:
+            if is_top_admin:
+                # ════════ ADMIN-VIEW (Najib) ════════
+                # Eine Kachel pro direktem Geschäftspartner — jede mit komplettem Strang-Kalender
+                # Plus: Mein Kalender oben + Alle Termine global
+                mt, mw, mu = _slot_stats([current_user.id])
+                strange.append({
+                    'id': current_user.id, 'name': f'Mein Kalender · {current_user.name}',
+                    'photo_path': me_row['photo_path'] if me_row else None,
+                    'level': 99, 'team_size': 1,
+                    'count_today': mt, 'count_week': mw, 'upcoming': mu,
+                    'is_mine': True,
+                })
+                all_ids = [current_user.id] + get_all_descendants(current_user.id)
                 global_ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE active=1').fetchall()]
-                if set(global_ids) != set(all_ids):  # nur zeigen wenn es sich vom Team unterscheidet
+                if set(global_ids) != set(all_ids):
                     gt, gw, gu = _slot_stats(global_ids)
                     strange.append({
-                        'id': 'global', 'name': '🌐 Alle Termine · gesamtes System',
+                        'id': 'global', 'name': 'Alle Termine · gesamtes System',
                         'photo_path': None, 'level': 99, 'team_size': len(global_ids),
                         'count_today': gt, 'count_week': gw, 'upcoming': gu,
                         'is_global': True,
                     })
-
-            # ─── 4. ⬢ STRUKTURLEITER (Upline read-only, nur falls vorhanden) ───
-            me = db.execute('SELECT parent_id FROM users WHERE id=?', (current_user.id,)).fetchone()
-            if me and me['parent_id']:
-                mentor = db.execute('SELECT id, name, photo_path, manual_career_level FROM users WHERE id=? AND active=1',
-                                   (me['parent_id'],)).fetchone()
-                if mentor:
-                    sl_t, sl_w, sl_u = _slot_stats([mentor['id']])
+                # Pro direktem Partner ein Strang-Slot mit dessen kompletter Downline
+                for p in direct_partners:
+                    p_ids = [p['id']] + get_all_descendants(p['id'])
+                    pt, pw, pu = _slot_stats(p_ids)
                     strange.append({
-                        'id': mentor['id'], 'name': f'⬢ Strukturleiter · {mentor["name"]}',
-                        'photo_path': mentor['photo_path'],
-                        'level': mentor['manual_career_level'] or 1,
-                        'team_size': 1,
-                        'count_today': sl_t, 'count_week': sl_w, 'upcoming': sl_u,
-                        'is_mentor': True,
+                        'id': p['id'], 'name': p['name'],
+                        'photo_path': p['photo_path'],
+                        'level': p['manual_career_level'] or 1,
+                        'team_size': len(p_ids),
+                        'count_today': pt, 'count_week': pw, 'upcoming': pu,
+                        'is_partner': True,
                     })
+            else:
+                # ════════ DOWNLINE-VIEW (alle außer Najib) ════════
+                # Genau EIN Kombi-Kalender: eigene + Downline + Upline-Termine
+                # Plus: Strukturleiter-Slot unten (read-only, separat zugreifbar)
+                team_ids = [current_user.id] + get_all_descendants(current_user.id)
+                if me_row and me_row['parent_id']:
+                    team_ids.append(me_row['parent_id'])  # Upline drin (nur deren eigene Termine)
+                tt, tw, tu = _slot_stats(team_ids)
+                strange.append({
+                    'id': 'all', 'name': 'Team-Kalender · alle Termine',
+                    'photo_path': None, 'level': 99, 'team_size': len(team_ids),
+                    'count_today': tt, 'count_week': tw, 'upcoming': tu,
+                    'is_all': True,
+                })
+                # Strukturleiter-Slot (Upline read-only) — UNTEN
+                if me_row and me_row['parent_id']:
+                    mentor = db.execute('SELECT id, name, photo_path, manual_career_level FROM users WHERE id=? AND active=1',
+                                       (me_row['parent_id'],)).fetchone()
+                    if mentor:
+                        sl_t, sl_w, sl_u = _slot_stats([mentor['id']])
+                        strange.append({
+                            'id': mentor['id'], 'name': f'Strukturleiter · {mentor["name"]}',
+                            'photo_path': mentor['photo_path'],
+                            'level': mentor['manual_career_level'] or 1,
+                            'team_size': 1,
+                            'count_today': sl_t, 'count_week': sl_w, 'upcoming': sl_u,
+                            'is_mentor': True,
+                        })
             db.close()
             return render_template('team_kalender_uebersicht.html',
                 strange=strange, today_iso=today.isoformat())

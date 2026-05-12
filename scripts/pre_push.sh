@@ -24,8 +24,8 @@ REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 echo ""
 echo "╔════════════════════════════════════════════════════╗"
 echo "║  🔬 NT Pro Academy — Pre-Push-Verify               ║"
-echo "║  5 Sub-Agents · QA · Journey · Vertrieb · Mail-E2E ║"
-echo "║                · UI-Audit                          ║"
+echo "║  6 Agents: QA · Journey · Vertrieb · Mail · UI     ║"
+echo "║          · Improvement (read-only)                 ║"
 echo "╚════════════════════════════════════════════════════╝"
 echo ""
 
@@ -107,10 +107,18 @@ E_RC=$?
 # ── AGENT 5 — UI-Audit (NEU) ───────────────────────────────────────
 echo ""
 echo "┌─────────────────────────────────────────┐"
-echo "│  🎨 AGENT 5/5 — UI-Audit (Buttons/Links)│"
+echo "│  🎨 AGENT 5/6 — UI-Audit (Buttons/Theme)│"
 echo "└─────────────────────────────────────────┘"
 QA_USER="$QA_USER" QA_PASS="$QA_PASS" python3 scripts/ui_audit.py "$BASE_URL"
 UI_RC=$?
+
+# ── AGENT 6 — Improvement (read-only, nur Security blockt Push) ────
+echo ""
+echo "┌─────────────────────────────────────────┐"
+echo "│  🔧 AGENT 6/6 — Improvement (Optimizer) │"
+echo "└─────────────────────────────────────────┘"
+python3 scripts/improve_audit.py
+I_RC=$?
 
 # ── Report ─────────────────────────────────────────────────────────
 echo ""
@@ -122,12 +130,14 @@ printf "║  👤 Human-Walkthrough:  Exit %-3d                  ║\n" $J_RC
 printf "║  🎯 Vertriebs-Agent:    Exit %-3d                  ║\n" $V_RC
 printf "║  📧 Email-E2E-Agent:    Exit %-3d                  ║\n" $E_RC
 printf "║  🎨 UI-Audit-Agent:     Exit %-3d                  ║\n" $UI_RC
+printf "║  🔧 Improvement-Agent:  Exit %-3d (Security-only)   ║\n" $I_RC
 echo "╚════════════════════════════════════════════════════╝"
 
-TOTAL=$((QA_RC + J_RC + V_RC + E_RC + UI_RC))
+# Improvement zählt nur bei Security (rc=1) als hart
+TOTAL=$((QA_RC + J_RC + V_RC + E_RC + UI_RC + I_RC))
 if [ "$TOTAL" = "0" ]; then
     echo ""
-    echo "🟢  ALLE 5 AGENTEN GRÜN — bereit zum Push."
+    echo "🟢  ALLE 6 AGENTEN GRÜN — bereit zum Push."
     echo ""
     exit 0
 else

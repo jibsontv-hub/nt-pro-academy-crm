@@ -4,7 +4,11 @@
 
 {% block content %}
 <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;line-height:1.55">
-    Wähle eine Ansicht: <strong style="color:var(--text)">Mein Kalender</strong> (nur eigene), <strong style="color:var(--text)">Team-Kalender</strong> (du + komplette Downline){% if current_user.has_admin_access %}, <strong style="color:var(--text)">Alle Termine</strong> (systemweit){% endif %}{% set ns = namespace(has_mentor=false) %}{% for s in strange %}{% if s.is_mentor %}{% set ns.has_mentor = true %}{% endif %}{% endfor %}{% if ns.has_mentor %} oder <strong style="color:var(--text)">Strukturleiter</strong> (read-only){% endif %}.
+    {% if current_user.has_admin_access %}
+    <strong style="color:var(--text)">Mein Kalender</strong> (eigene Termine), <strong style="color:var(--text)">Alle Termine</strong> (systemweit) und <strong style="color:var(--text)">je eine Kachel pro direktem Geschäftspartner</strong> mit dessen komplettem Strang-Kalender.
+    {% else %}
+    Dein <strong style="color:var(--text)">Team-Kalender</strong> zeigt alle Termine deiner Struktur (eigene + Downline + Strukturleiter). Unten: <strong style="color:var(--text)">Strukturleiter-Slot</strong> für Termine direkt mit ihm.
+    {% endif %}
 </div>
 
 {% if not strange %}

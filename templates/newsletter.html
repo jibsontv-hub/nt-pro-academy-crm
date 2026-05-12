@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Newsletter · Pro Academy{% endblock %}
+{% block page_title %}Branchen-News{% endblock %}
+{% block topbar_actions %}
+{% if current_user.has_admin_access %}
+<form method="POST" action="/admin/newsletter/refresh" style="display:inline">
+  <button type="submit" class="btn btn-secondary btn-sm">↻ Neu laden</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block content %}
+
+<style>
+  .nl-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .nl-tab {
+    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    text-decoration: none; background: var(--bg-2); color: var(--text-muted);
+    border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 8px;
+  }
+  .nl-tab:hover { background: var(--surface); color: var(--text); }
+  .nl-tab.active { background: var(--text); color: var(--surface); border-color: var(--text); }
+  .nl-tab .c { font-size: 11px; opacity: 0.7; font-weight: 700; }
+
+  .nl-list { display: flex; flex-direction: column; gap: 10px; }
+  .nl-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    border-radius: 10px; padding: 14px 18px;
+    text-decoration: none; color: inherit;
+    transition: all 0.15s;
+    display: block;
+  }
+  .nl-item:hover { border-color: var(--gold); background: var(--bg-2); transform: translateX(2px); }
+  .nl-meta { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+  .nl-cat { padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--gold) 12%, var(--bg-2)); color: var(--gold); }
+  .nl-title { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; line-height: 1.3; }
+  .nl-summary { font-size: 13px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+  .nl-rel-bar { display: inline-block; height: 4px; background: var(--gold); border-radius: 2px; vertical-align: middle; margin-left: 6px; }
+</style>
+
+<div class="nl-tabs">
+  {% for c in [('all', 'Alle'), ('Leitzins','Leitzins'), ('Rente','Rente'), ('Arbeitsmarkt','Arbeitsmarkt'), ('Versicherung','Versicherung'), ('Wirtschaft','Wirtschaft')] %}
+  <a href="?kategorie={{ c[0] }}" class="nl-tab {% if kategorie == c[0] %}active{% endif %}">
+    {{ c[1] }} <span class="c">{{ cat_counts.get(c[0], 0) }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% if items %}
+<div class="nl-list">
+  {% for i in items %}
+  <a href="{{ i.quelle_url }}" target="_blank" rel="noopener" class="nl-item">
+    <div class="nl-meta">
+      <span class="nl-cat">{{ i.kategorie }}</span>
+      <span>· {{ i.quelle }}</span>
+      {% if i.published_at %}<span>· {{ i.published_at[:10] }}</span>{% endif %}
+      {% if i.relevanz and i.relevanz > 6 %}<span style="color:var(--gold)">· hoch relevant</span>{% endif %}
+    </div>
+    <div class="nl-title">{{ i.titel }}</div>
+    {% if i.zusammenfassung %}<div class="nl-summary">{{ i.zusammenfassung }}</div>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:48px 20px;color:var(--text-muted)">
+  <div style="font-weight:700;color:var(--text);margin-bottom:6px">Noch keine News</div>
+  <div style="font-size:13px">
+    Newsletter-Agent läuft noch nicht oder hat keine Quellen erreicht.
+    {% if current_user.has_admin_access %}
+    <br><br>
+    <form method="POST" action="/admin/newsletter/refresh" style="display:inline">
+      <button type="submit" class="btn btn-primary">↻ Jetzt fetchen</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

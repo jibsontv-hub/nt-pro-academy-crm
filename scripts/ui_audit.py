@@ -125,7 +125,6 @@ def audit_page(sess, route):
         add(route, 'BUG', f'{len(bad_btns)} toter Button — kein onclick/submit/form/JS-Bind. Beispiel: {sample}…')
 
     # ─── Dead Links (Sample): suche href die nicht existieren ───
-    # Wir prüfen 5 random hrefs pro Page
     hrefs = re.findall(r'href="([^"#?]+)(?:\?[^"]*)?"', html)
     internal = [h for h in hrefs if h.startswith('/') and not h.startswith('//') and not any(h.startswith(p) for p in ('/static/', '/api/', '/sw.js', '/manifest'))]
     sampled = list(set(internal))[:5]
@@ -136,6 +135,54 @@ def audit_page(sess, route):
                 add(route, 'BUG', f'Dead-Link: {href} → HTTP {head.status_code}')
         except Exception:
             pass
+
+    # ─── Theme/Contrast-Check: hardcoded helle Farben/weißer Text ohne CSS-Var ───
+    # Im Dark-Mode haben hardcoded #fff/white-Hintergründe oder schwarzer Text
+    # weiße Stellen oder unlesbare Kontraste. CSS-Variablen (--surface, --text)
+    # adapten automatisch — alles andere ist potenziell broken.
+    theme_issues = []
+    # Suche style="background:#fff" / "background:white" / "background-color:#fff" / "color:#000"
+    bad_patterns = [
+        (r'style="[^"]*background(?:-color)?\s*:\s*#?(?:ffffff|fff|white)\b[^"]*"',
+         'hardcoded weißer Hintergrund (im Dark-Mode = white-on-dark surface)'),
+        (r'style="[^"]*\bcolor\s*:\s*#?(?:000000|000|black)\b[^"]*"',
+         'hardcoded schwarzer Text (im Dark-Mode unlesbar auf dark surface)'),
+        (r'style="[^"]*background(?:-color)?\s*:\s*#?(?:f3f4f6|f9fafb|fafbfc|f5f5f5|fafafa|e5e7eb)\b[^"]*"',
+         'hardcoded helles Grau-Background (Dark-Mode-Bruch)'),
+    ]
+    for pat, msg in bad_patterns:
+        matches = re.findall(pat, html, re.IGNORECASE)
+        if matches:
+            sample = matches[0][:90]
+            theme_issues.append(f'{len(matches)}× {msg} — Beispiel: {sample}')
+    if theme_issues:
+        for ti in theme_issues:
+            add(route, 'BUG', f'THEME: {ti}')
+
+
+def source_scan_themes():
+    """Mode 2: Statischer Scan über ALLE Templates für hardcoded Theme-Bugs.
+    Findet auch Templates die nicht via HTTP gecrawlt werden (z.B. Modals,
+    Sub-Templates, neue Pages ohne Auth). Catch-Alls in base.html fangen
+    viele inline-Styles ab — aber neue Patterns rutschen sonst durch."""
+    import glob
+    template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
+    # NUR die Hex-Codes die NICHT von base.html-Catch-All abgedeckt sind.
+    # Diese rutschen ungefiltert in den Dark-Mode durch.
+    uncovered = [
+        # (regex, label) — werden im Dark-Mode aktuell von keinem Catch-All abgefangen
+        (r'background[^;]*#?(?:efebd6|fef3e7|eef0f4)\b', 'spezielles helles BG ohne Catch-All'),
+    ]
+    findings = []
+    for f in sorted(glob.glob(os.path.join(template_dir, '*.html'))):
+        if 'mockups' in f:  # mockups sind Demos, nicht produktiv
+            continue
+        s = open(f).read()
+        for pat, label in uncovered:
+            m = re.findall(pat, s, re.IGNORECASE)
+            if m:
+                findings.append((os.path.basename(f), label, len(m)))
+    return findings
 
 
 def main():
@@ -152,6 +199,12 @@ def main():
             audit_page(sess, route)
         except Exception as e:
             add(route, 'CRIT', f'Audit-Exception: {e}')
+
+    # Mode 2: Source-Scan
+    print('\nSource-Scan über alle produktiven Templates für nicht-abgedeckte Theme-Patterns…')
+    src_findings = source_scan_themes()
+    for f, label, n in src_findings:
+        add(f'(template: {f})', 'WARN', f'{n}× {label}')
 
     # ─── REPORT ───
     print('\n' + '═' * 60)
