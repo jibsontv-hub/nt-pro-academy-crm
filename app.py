@@ -5829,14 +5829,11 @@ def public_lead_capture():
                     f'🌐 Neue öffentliche Anmeldung: {name} ({email}){termin_extra}',
                     icon='🌐', color='gold')
 
-        # E-Mails verschicken (wenn SMTP konfiguriert)
+        # E-Mails: KEINE automatische Bestätigung an den Bewerber.
+        # Stattdessen geht der Lead in die Owner-Inbox + Admin-Notification.
+        # Bestätigungs-Mail wird erst manuell vom Owner versendet (oder bei
+        # Admin-Genehmigung — siehe /genehmigungen/<id>/bestaetigen).
         if is_smtp_configured():
-            # 1) Bestätigungs-Mail an den Bewerber
-            try:
-                send_lead_confirmation_email(email, name)
-            except Exception:
-                pass
-            # 2) Notification an Admin
             admin_email = (get_setting('smtp_from_email') or '').strip()
             if admin_email:
                 try:
@@ -6751,6 +6748,30 @@ def grundseminar():
     return render_template('grundseminar.html',
         deadlines=deadlines, teilnehmer=teilnehmer, pending=pending,
         directs=directs, scope=scope, scope_label=scope_label)
+
+
+@app.route('/meine-leads')
+@login_required
+def meine_leads_inbox():
+    """Owner-Inbox: zeigt dem User die Leads die ÜBER SEINEN Lead-Token-Link
+    reingekommen sind. Filterbar VK/RK. Ersetzt für non-Admin die /admin/inbox."""
+    typ = (request.args.get('typ') or 'all').lower()
+    if typ not in ('vk', 'rk', 'all'):
+        typ = 'all'
+    db = get_db()
+    base = '''SELECT l.* FROM leads l
+              WHERE l.source = 'public' AND l.owner_id = ?'''
+    args = [current_user.id]
+    if typ == 'vk':
+        rows = db.execute(base + " AND COALESCE(l.liste_typ,'vk') = 'vk' ORDER BY l.created_at DESC LIMIT 200", args).fetchall()
+    elif typ == 'rk':
+        rows = db.execute(base + " AND COALESCE(l.liste_typ,'vk') = 'rk' ORDER BY l.created_at DESC LIMIT 200", args).fetchall()
+    else:
+        rows = db.execute(base + " ORDER BY l.created_at DESC LIMIT 200", args).fetchall()
+    cnt_vk = db.execute("SELECT COUNT(*) c FROM leads WHERE source='public' AND owner_id=? AND COALESCE(liste_typ,'vk')='vk'", (current_user.id,)).fetchone()['c']
+    cnt_rk = db.execute("SELECT COUNT(*) c FROM leads WHERE source='public' AND owner_id=? AND COALESCE(liste_typ,'vk')='rk'", (current_user.id,)).fetchone()['c']
+    db.close()
+    return render_template('meine_leads_inbox.html', leads=rows, typ=typ, cnt_vk=cnt_vk, cnt_rk=cnt_rk, cnt_all=cnt_vk + cnt_rk)
 
 
 @app.route('/admin/inbox')
@@ -9812,6 +9833,23 @@ def genehmigung_bestaetigen(uid):
             url='/dashboard', urgent=True, tag='aktiviert')
     except Exception:
         pass
+    # Bestätigungs-Mail an den freigeschalteten User (jetzt erlaubt — bei Aktivierung)
+    if target.get('email') and is_smtp_configured():
+        try:
+            base = (request.url_root or 'https://proacademy-business.de/').rstrip('/')
+            text = (f"Hallo {target['name']},\n\nherzlich willkommen in unserer Struktur!\n"
+                    f"Dein Account wurde gerade freigeschaltet — du kannst dich ab sofort einloggen:\n\n{base}/login\n\n"
+                    f"Falls du dein Passwort nicht mehr weißt: {base}/passwort-vergessen\n\n"
+                    f"Bis bald,\nDein Pro-Academy-Team")
+            html = (f'<p>Hallo {target["name"]},</p><p>herzlich willkommen in unserer Struktur!</p>'
+                    f'<p>Dein Account wurde freigeschaltet — du kannst dich ab sofort einloggen:</p>'
+                    f'<p><a href="{base}/login" style="background:#d4a843;color:#0f1c3f;padding:12px 22px;'
+                    f'border-radius:8px;text-decoration:none;font-weight:800;display:inline-block">→ Jetzt einloggen</a></p>'
+                    f'<p style="color:#64748b;font-size:12px;margin-top:24px">Passwort vergessen? <a href="{base}/passwort-vergessen">Hier zurücksetzen</a></p>')
+            send_email(target['email'], 'Willkommen bei Pro Academy — Account freigeschaltet',
+                       text, body_html=html, sent_by=current_user.id, category='signup')
+        except Exception as e:
+            print(f'[bestaetigen-mail] {e}')
     flash(f'{target["name"]} freigeschaltet!', 'success')
     return redirect(url_for('genehmigungen_personal'))
 
@@ -10058,14 +10096,13 @@ def team_kalender():
                     })
             else:
                 # ════════ DOWNLINE-VIEW (alle außer Najib) ════════
-                # Genau EIN Kombi-Kalender: eigene + Downline + Upline-Termine
-                # Plus: Strukturleiter-Slot unten (read-only, separat zugreifbar)
+                # Genau EIN Kombi-Kalender: NUR eigene + eigene Downline
+                # Upline (parent) wird NICHT mit dazu gezogen — Privacy-Schutz!
+                # Strukturleiter-Slot unten zeigt 1:1-Termine mit Upline separat.
                 team_ids = [current_user.id] + get_all_descendants(current_user.id)
-                if me_row and me_row['parent_id']:
-                    team_ids.append(me_row['parent_id'])  # Upline drin (nur deren eigene Termine)
                 tt, tw, tu = _slot_stats(team_ids)
                 strange.append({
-                    'id': 'all', 'name': 'Team-Kalender · alle Termine',
+                    'id': 'all', 'name': 'Team-Kalender · meine Struktur',
                     'photo_path': None, 'level': 99, 'team_size': len(team_ids),
                     'count_today': tt, 'count_week': tw, 'upcoming': tu,
                     'is_all': True,
@@ -10293,22 +10330,53 @@ def team_kalender_tag(datestr):
                             FROM appointments a JOIN users u ON a.owner_id=u.id
                             WHERE a.owner_id IN ({placeholders}) AND date(a.termin_date)=?
                             ORDER BY a.termin_time NULLS FIRST, a.id''', ids + [datestr]).fetchall()
+    # Privacy-Check: Downliner schaut auf Mentor (parent_id) → nur 1:1 mit ihm sichtbar
+    is_mentor_view_day = False
+    if isinstance(root['id'], int) and not current_user.has_admin_access:
+        me_check_d = db.execute('SELECT parent_id FROM users WHERE id=?', (current_user.id,)).fetchone()
+        if me_check_d and me_check_d['parent_id'] == root['id'] and root['id'] != current_user.id:
+            is_mentor_view_day = True
+    viewer_name_lower = (current_user.name or '').lower() if is_mentor_view_day else ''
+    viewer_first_name = ((current_user.name or '').split()[0].lower() if current_user.name else '') if is_mentor_view_day else ''
+
     appts_list = []
     for a in appts:
         d2 = dict(a)
         d2['color'] = color_map.get(a['owner_id'], '#94a3b8')
-        # Attendees auflösen
-        d2['attendees'] = []
-        try:
+        # Mentor-Privacy: maskiere fremde Termine wenn Downliner den Mentor anschaut
+        if is_mentor_view_day:
+            is_with_me = False
             if a['attendee_ids']:
-                att_ids = [int(x) for x in json.loads(a['attendee_ids']) if str(x).isdigit()]
-                if att_ids:
-                    aph = ','.join('?' * len(att_ids))
-                    arows = db.execute(f'SELECT id, name FROM users WHERE id IN ({aph})', att_ids).fetchall()
-                    for ar in arows:
-                        d2['attendees'].append({'id': ar['id'], 'name': ar['name'], 'color': color_map.get(ar['id'], '#94a3b8')})
-        except Exception:
-            pass
+                try:
+                    atts = [int(x) for x in json.loads(a['attendee_ids']) if str(x).isdigit()]
+                    if current_user.id in atts:
+                        is_with_me = True
+                except Exception:
+                    pass
+            if not is_with_me and a['client_name']:
+                cn = a['client_name'].lower()
+                if viewer_name_lower and viewer_name_lower in cn:
+                    is_with_me = True
+                elif viewer_first_name and len(viewer_first_name) > 2 and viewer_first_name in cn:
+                    is_with_me = True
+            if not is_with_me:
+                d2['title'] = 'Belegt'
+                d2['client_name'] = None
+                d2['notizen'] = None
+                d2['_masked'] = True
+        # Attendees auflösen (für maskierte Termine: nicht zeigen)
+        d2['attendees'] = []
+        if not d2.get('_masked'):
+            try:
+                if a['attendee_ids']:
+                    att_ids = [int(x) for x in json.loads(a['attendee_ids']) if str(x).isdigit()]
+                    if att_ids:
+                        aph = ','.join('?' * len(att_ids))
+                        arows = db.execute(f'SELECT id, name FROM users WHERE id IN ({aph})', att_ids).fetchall()
+                        for ar in arows:
+                            d2['attendees'].append({'id': ar['id'], 'name': ar['name'], 'color': color_map.get(ar['id'], '#94a3b8')})
+            except Exception:
+                pass
         appts_list.append(d2)
     db.close()
 

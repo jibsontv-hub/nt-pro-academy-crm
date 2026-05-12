@@ -29,8 +29,9 @@
 body {
     font-family: 'Inter', -apple-system, sans-serif;
     background: var(--bg); color: var(--text);
-    min-height: 100vh; overflow: hidden;
+    min-height: 100vh; overflow-x: hidden; overflow-y: auto;
     -webkit-font-smoothing: antialiased;
+    -webkit-overflow-scrolling: touch;
 }
 body::before {
     content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
@@ -348,10 +349,13 @@ function pickBestGermanVoice() {
     for (const f of tiers) { const m = voices.find(f); if (m) return m; }
     return null;
 }
+let _wResolved = false;  // verhindert doppelten Trigger (MP3 + Fallback gleichzeitig)
 function speakStep(step) {
     if (!voiceEnabled) return;
-    if (_wAudio) { try { _wAudio.pause(); _wAudio = null; } catch(e){} }
+    // Alle vorherigen Audio/TTS hart abbrechen
+    if (_wAudio) { try { _wAudio.pause(); _wAudio.src = ''; } catch(e){} _wAudio = null; }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+    _wResolved = false;
     const text = stepTexts[step];
     if (!text) return;
     // 1) Versuche vorgenerierte MP3 in der richtigen Sprache
@@ -359,6 +363,8 @@ function speakStep(step) {
     const audioFile = '/static/voices/' + _lang + '/willkommen_' + step + '.mp3';
     const test = new Audio(audioFile);
     test.oncanplaythrough = () => {
+        if (_wResolved) return;  // Schutz: schon entschieden
+        _wResolved = true;
         _wAudio = test;
         document.getElementById('voiceIcon').classList.add('speaking');
         document.getElementById('voiceStatus').textContent = 'Spricht…';
@@ -369,6 +375,8 @@ function speakStep(step) {
         test.play().catch(()=>{});
     };
     test.onerror = () => {
+        if (_wResolved) return;
+        _wResolved = true;
         // 2) Fallback auf Browser-TTS mit bester Stimme
         if (!window.speechSynthesis) return;
         const u = new SpeechSynthesisUtterance(text);

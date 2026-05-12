@@ -29,6 +29,7 @@ cd $PROJECT
 LAST_FULL_AUDIT=0
 FULL_AUDIT_INTERVAL=$((6 * 3600))  # 6 Stunden
 LAST_DAILY_PUSH_DATE=""  # ISO-Datum des letzten Daily-Push (1× pro Tag)
+LAST_BACKUP_DATE=""      # ISO-Datum des letzten DB-Backups (1× pro Tag)
 
 echo "[$(date)] Monitor-Loop gestartet — auto-pull · daily-push · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
 
@@ -63,6 +64,13 @@ _warm_cache_background()
         echo "[$(date)] Daily-Push wird ausgelöst (1× pro Tag)" | tee -a $HEALTH_LOG
         python3 $PROJECT/scripts/daily_push.py 2>&1 | tail -10 >> $HEALTH_LOG
         LAST_DAILY_PUSH_DATE=$CURRENT_DATE
+    fi
+
+    # ─── 1c. DB-Backup (1× pro Tag, zwischen 3-5 Uhr nachts) ─────────
+    if [ "$CURRENT_HOUR" -ge 3 ] && [ "$CURRENT_HOUR" -lt 5 ] && [ "$LAST_BACKUP_DATE" != "$CURRENT_DATE" ]; then
+        echo "[$(date)] Daily-Backup wird ausgelöst" | tee -a $HEALTH_LOG
+        bash $PROJECT/scripts/db_backup.sh 2>&1 | tail -3 >> $HEALTH_LOG
+        LAST_BACKUP_DATE=$CURRENT_DATE
     fi
 
     # ─── 15-Min Health-Check ──────────────────────────────

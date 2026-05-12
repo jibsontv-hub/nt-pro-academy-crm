@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Meine Lead-Anmeldungen · Pro Academy{% endblock %}
+{% block page_title %}Meine Lead-Anmeldungen{% endblock %}
+{% block content %}
+
+<div style="max-width:920px;margin:0 auto">
+
+<div class="card" style="background:var(--bg-2);border-left:3px solid var(--gold);margin-bottom:18px">
+  <div style="font-size:13px;line-height:1.55;color:var(--text)">
+    Hier landen alle Leads die über deinen <strong>Lead-Link</strong> reingekommen sind
+    (proacademy-business.de/r/<strong>dein-name</strong>).
+    Antworten + Status setzen → der Lead landet automatisch in deiner Namensliste.
+  </div>
+</div>
+
+<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <a href="?typ=all" style="padding:8px 16px;border-radius:99px;font-size:13px;font-weight:700;text-decoration:none;
+       background:{% if typ == 'all' %}var(--gold);color:#0f1c3f{% else %}var(--surface);color:var(--text-muted){% endif %};
+       border:1px solid {% if typ == 'all' %}var(--gold){% else %}var(--border){% endif %}">
+        Alle ({{ cnt_all }})
+    </a>
+    <a href="?typ=vk" style="padding:8px 16px;border-radius:99px;font-size:13px;font-weight:700;text-decoration:none;
+       background:{% if typ == 'vk' %}#22c55e;color:#fff{% else %}var(--surface);color:var(--text-muted){% endif %};
+       border:1px solid {% if typ == 'vk' %}#22c55e{% else %}var(--border){% endif %}">
+        Kunden-Leads ({{ cnt_vk }})
+    </a>
+    <a href="?typ=rk" style="padding:8px 16px;border-radius:99px;font-size:13px;font-weight:700;text-decoration:none;
+       background:{% if typ == 'rk' %}#3b82f6;color:#fff{% else %}var(--surface);color:var(--text-muted){% endif %};
+       border:1px solid {% if typ == 'rk' %}#3b82f6{% else %}var(--border){% endif %}">
+        Bewerber-Leads ({{ cnt_rk }})
+    </a>
+</div>
+
+<div class="card">
+    {% if leads %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>Datum</th><th>Name</th><th>Kontakt</th><th>Typ</th><th>Status</th><th>Nachricht</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for l in leads %}
+                <tr>
+                    <td style="font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums">{{ l.created_at[:10] if l.created_at else '—' }}</td>
+                    <td><strong>{{ l.name }}</strong></td>
+                    <td style="font-size:12px">{{ l.email }}{% if l.phone %}<br>{{ l.phone }}{% endif %}</td>
+                    <td>
+                        {% if l.liste_typ == 'rk' %}<span style="background:#3b82f615;color:#3b82f6;padding:3px 8px;border-radius:99px;font-size:11px;font-weight:700">Bewerber</span>
+                        {% else %}<span style="background:#22c55e15;color:#22c55e;padding:3px 8px;border-radius:99px;font-size:11px;font-weight:700">Kunde</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="status-badge status-{{ l.status }}">{{ l.status }}</span></td>
+                    <td style="font-size:12px;color:var(--text-muted);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ l.public_message or '' }}">{{ l.public_message or '—' }}</td>
+                    <td><a href="/leads/{{ l.id }}/edit" class="btn btn-secondary btn-sm">Öffnen</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="padding:48px 20px;text-align:center;color:var(--text-muted)">
+        <div style="font-weight:700;color:var(--text);margin-bottom:6px">Noch keine Lead-Anmeldungen</div>
+        <div style="font-size:13px">
+            Teile deinen Link auf Instagram, WhatsApp, etc.
+            Sobald jemand sich über deinen Lead-Link einträgt, landet er hier.
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+</div>
+
+{% endblock %}

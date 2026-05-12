@@ -17,13 +17,19 @@
         background: var(--bg-2); border: 1px solid var(--border);
         cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden;
         display: flex; flex-direction: column;
+        text-decoration: none; color: var(--text);
     }
     .cal-day:hover { background: var(--surface); border-color: var(--gold); transform: translateY(-1px); }
-    .cal-day.empty { background: transparent; border: 1px dashed var(--border); cursor: default; opacity: 0.4; }
-    .cal-day.today { border: 2px solid var(--gold); background: color-mix(in srgb, var(--gold) 10%, var(--surface)); }
+    .cal-day.empty { background: transparent; border: 1px dashed var(--border); cursor: default; opacity: 0.4; pointer-events: none; }
+    .cal-day.today {
+        border: 3px solid var(--gold);
+        background: color-mix(in srgb, var(--gold) 22%, var(--surface));
+        box-shadow: 0 0 0 2px rgba(212,168,67,0.35), 0 6px 18px rgba(212,168,67,0.25);
+    }
     .cal-day.weekend { background: color-mix(in srgb, var(--text-muted) 5%, var(--bg-2)); }
     .cal-daynum { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .cal-day.today .cal-daynum { color: var(--gold); font-weight: 900; }
+    .cal-day.today .cal-daynum { color: var(--gold); font-weight: 900; font-size: 16px; }
+    .cal-day.today .cal-daynum::after { content: ' · HEUTE'; font-size: 9px; font-weight: 800; letter-spacing: 0.5px; opacity: 0.85; }
     .cal-events { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow: hidden; }
     .cal-event {
         font-size: 10px; padding: 2px 5px; border-radius: 4px;
@@ -188,8 +194,8 @@ function buildCalendar() {
         grid.appendChild(empty);
     }
 
-    // Tage
-    const subRootParam = {{ ('"&root=' ~ root.id ~ '"') | safe if is_sub_root else '""' | safe }};
+    // Tage — als native <a> für verlässlichen Klick auf jedem Browser/PWA
+    const subRoot = {{ root.id|tojson if is_sub_root else 'null' }};
     for (let day = 1; day <= lastDay; day++) {
         const iso = `${YEAR}-${String(MONTH).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const dt = new Date(YEAR, MONTH - 1, day);
@@ -197,11 +203,10 @@ function buildCalendar() {
         const isToday = (iso === TODAY);
         const events = eventsByDay[iso] || [];
 
-        const cell = document.createElement('div');
+        const cell = document.createElement('a');  // <a> statt <div> → nativer Klick
         cell.className = 'cal-day' + (isToday ? ' today' : '') + (isWeekend ? ' weekend' : '');
         cell.dataset.date = iso;
-        // Klick → Tages-Detail-Seite (mit Stunden-Timeline)
-        cell.onclick = () => { window.location.href = `/team-kalender/tag/${iso}?${subRootParam.replace('&','')}`; };
+        cell.href = `/team-kalender/tag/${iso}` + (subRoot ? `?root=${subRoot}` : '');
 
         const num = document.createElement('div');
         num.className = 'cal-daynum';
