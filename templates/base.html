@@ -1226,8 +1226,15 @@
                     <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach Chat</a>
                     <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
                     <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
+                    <a href="/content-coach" class="nav-link {% if '/content-coach' in request.path %}active{% endif %}"><span class="nav-icon">▸</span> Content-Coach</a>
                     <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live-Feed</a>
                     <a href="/newsletter" class="nav-link {% if '/newsletter' in request.path %}active{% endif %}"><span class="nav-icon">▢</span> Branchen-News</a>
+                    <a href="/whats-new" class="nav-link {% if '/whats-new' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
+                      <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">★</span> Was ist neu</span>
+                      {% if patch_unread and patch_unread > 0 %}
+                      <span style="background:var(--gold);color:var(--navy);border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ patch_unread }}</span>
+                      {% endif %}
+                    </a>
                 </div>
             </details>
 
@@ -1305,6 +1312,12 @@
                     <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
                     <a href="/news" class="nav-link {% if '/news' in request.path and '/newsletter' not in request.path %}active{% endif %}"><span class="nav-icon">📣</span> Struktur-News</a>
                     <a href="/newsletter" class="nav-link {% if '/newsletter' in request.path %}active{% endif %}"><span class="nav-icon">📰</span> Branchen-News</a>
+                    <a href="/whats-new" class="nav-link {% if '/whats-new' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
+                      <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">★</span> Was ist neu</span>
+                      {% if patch_unread and patch_unread > 0 %}
+                      <span style="background:var(--gold);color:var(--navy);border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ patch_unread }}</span>
+                      {% endif %}
+                    </a>
                     <a href="/tracking" class="nav-link {% if '/tracking' in p and q_focus != 'vk' %}active{% endif %}"><span class="nav-icon">▥</span> Tracking gesamt</a>
                     <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}"><span class="nav-icon">▲</span> Wochen-Ranking</a>
                     <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
@@ -1317,6 +1330,7 @@
                     <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach Chat</a>
                     <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
                     <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
+                    <a href="/content-coach" class="nav-link {% if '/content-coach' in request.path %}active{% endif %}"><span class="nav-icon">▸</span> Content-Coach</a>
                     <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
                 </div>
             </details>

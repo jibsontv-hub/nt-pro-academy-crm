@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Neuer Patch · Pro Academy{% endblock %}
+{% block page_title %}Neuer Patch-Note{% endblock %}
+{% block content %}
+
+<div style="max-width:680px;margin:0 auto">
+<form method="POST" class="card" style="padding:24px">
+
+  <div class="form-group">
+    <label>Titel *</label>
+    <input type="text" name="title" required maxlength="200" placeholder="z.B. Neuer Daily-Push mit KPIs" autofocus>
+  </div>
+
+  <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="form-group">
+      <label>Version (optional)</label>
+      <input type="text" name="version" maxlength="30" placeholder="z.B. 1.4.2">
+    </div>
+    <div class="form-group">
+      <label>Kategorie</label>
+      <select name="kategorie">
+        <option value="feature">Feature</option>
+        <option value="improvement">Verbesserung</option>
+        <option value="fix">Bugfix</option>
+        <option value="security">Security</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Kurz-Zusammenfassung (1-2 Sätze für Push)</label>
+    <input type="text" name="summary" maxlength="500" placeholder="Was bringt es? Was kann der User damit machen?">
+  </div>
+
+  <div class="form-group">
+    <label>Details (optional, was/warum/wo)</label>
+    <textarea name="body_md" rows="8" placeholder="Längere Beschreibung — Plain-Text, Zeilenumbrüche werden beibehalten."></textarea>
+  </div>
+
+  <div class="form-group" style="display:flex;align-items:center;gap:8px;background:var(--bg-2);padding:12px 14px;border-radius:10px;border:1px solid var(--border)">
+    <input type="checkbox" name="push_all" value="1" id="pushAllChk" checked style="width:18px;height:18px">
+    <label for="pushAllChk" style="margin:0;cursor:pointer">Push-Notification an alle aktiven User mit Subscription</label>
+  </div>
+
+  <div style="margin-top:18px;display:flex;gap:10px">
+    <button type="submit" class="btn btn-primary">Patch veröffentlichen</button>
+    <a href="/whats-new" class="btn btn-secondary">Abbrechen</a>
+  </div>
+</form>
+</div>
+
+{% endblock %}

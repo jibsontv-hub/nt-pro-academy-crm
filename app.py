@@ -2648,6 +2648,22 @@ def inject_career():
                 ctx['recent_partners'] = []
         except Exception:
             ctx['recent_partners'] = []
+        # Patch-Notes: Anzahl ungelesener (5-Min-Cache pro User)
+        try:
+            pkey = f'ctx:patch_unread:{current_user.id}'
+            cached_pn = cache_get(pkey)
+            if cached_pn is None:
+                db_pn = get_db()
+                pn_row = db_pn.execute('''SELECT COUNT(*) c FROM patch_notes p
+                                          WHERE NOT EXISTS (SELECT 1 FROM patch_notes_seen
+                                                            WHERE user_id=? AND patch_id=p.id)''',
+                                     (current_user.id,)).fetchone()
+                db_pn.close()
+                cached_pn = pn_row['c'] if pn_row else 0
+                cache_set(pkey, cached_pn, ttl=300)
+            ctx['patch_unread'] = cached_pn
+        except Exception:
+            ctx['patch_unread'] = 0
         return ctx
     # Nicht-authentifizierte User (Login, Register, Public Pages) — leeres aber valides dict
     return {
@@ -2660,6 +2676,7 @@ def inject_career():
         'pending_count': 0,
         'streak_days': 0,
         'vision_needed': False,
+        'patch_unread': 0,
     }
 
 
@@ -3426,6 +3443,33 @@ def init_db():
             last_used TEXT,
             request_count INTEGER DEFAULT 0,
             FOREIGN KEY (owner_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS content_profile (
+            user_id INTEGER PRIMARY KEY,
+            antworten_json TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS patch_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            version TEXT,
+            title TEXT NOT NULL,
+            summary TEXT,
+            body_md TEXT,
+            kategorie TEXT DEFAULT 'feature',
+            published_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            pushed INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS patch_notes_seen (
+            user_id INTEGER NOT NULL,
+            patch_id INTEGER NOT NULL,
+            seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, patch_id),
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (patch_id) REFERENCES patch_notes(id)
         );
 
         CREATE TABLE IF NOT EXISTS daily_checkins (
@@ -5888,6 +5932,213 @@ def admin_deploy_manual():
     except Exception as e:
         flash(f'Deploy-Exception: {e}', 'error')
     return redirect(url_for('admin_deploy'))
+
+
+CONTENT_QUESTIONS = [
+    ('motivation', 'Was treibt dich täglich an im Vertrieb?',
+     'Stichworte reichen — z.B. Familie, Freiheit, Status, Impact.'),
+    ('zielgruppe', 'Wen willst du primär ansprechen?',
+     'z.B. junge Berufseinsteiger 25-35, Selbstständige, Familien mit Kindern, Karriere-Wechsler.'),
+    ('region', 'In welcher Region/Stadt arbeitest du?',
+     'z.B. München, Großraum Stuttgart, Berlin, ganz DACH online.'),
+    ('alleinstellung', 'Was unterscheidet dich von anderen Vertriebspartnern?',
+     'Was sagen Kunden/Partner über dich? z.B. „immer erreichbar", „erklärt einfach".'),
+    ('wertversprechen', 'Was versprichst du Kunden konkret?',
+     'In 1 Satz: „Ich helfe dir / wir machen X / du bekommst Y."'),
+    ('format_lieblings', 'Welches Content-Format magst DU am liebsten zu drehen?',
+     'Reels, Talking Head, Carousel, Story, Live, Foto-Posts mit Caption?'),
+    ('themen_top3', 'Deine 3 Lieblings-Themen die du erklären könntest?',
+     'z.B. ETF-Sparplan, Berufsunfähigkeit, Karriere im Vertrieb, BAV…'),
+    ('persona', 'Welcher Stil passt zu dir?',
+     'professionell-ruhig, motivierend-laut, story-getrieben-emotional, witzig-locker, daten-driven?'),
+    ('tabu', 'Welche Themen oder Sprachstile NICHT?',
+     'z.B. „kein Politik-Content", „kein Schimpfwörter", „nicht zu pushy".'),
+    ('cta', 'Was soll der typische Call-to-Action sein?',
+     'z.B. „DM für Termin", „Link in Bio", „Kommentar mit BERATUNG", „Website besuchen".'),
+]
+
+# 7-Tage-Schema: Mo bis So
+CONTENT_SCHEMA_7DAYS = [
+    ('Montag', 'Story', 'Persönliche Geschichte oder Erfolgs-Anekdote — emotional einsteigen.'),
+    ('Dienstag', 'Tipp', 'Konkreter Mehrwert: ein Tipp den deine Zielgruppe sofort nutzen kann.'),
+    ('Mittwoch', 'Frage', 'Frage in die Community stellen — Engagement bauen.'),
+    ('Donnerstag', 'Behind the Scenes', 'Zeig wie du arbeitest — Termin, Vorbereitung, Tag im Leben.'),
+    ('Freitag', 'Erfolg', 'Kunden- oder Partner-Erfolg feiern. Vorher/Nachher, Zahlen, Zitat.'),
+    ('Samstag', 'Provokant', 'Mut zu Meinung — gegen Mainstream, eigene Sicht klar machen.'),
+    ('Sonntag', 'Inspiration', 'Motivation für die neue Woche — Spruch, Vision, dein Warum.'),
+]
+
+
+def _content_profile_get(user_id):
+    db = get_db()
+    row = db.execute('SELECT antworten_json FROM content_profile WHERE user_id=?', (user_id,)).fetchone()
+    db.close()
+    if row and row['antworten_json']:
+        try:
+            return json.loads(row['antworten_json'])
+        except Exception:
+            return {}
+    return {}
+
+
+def _content_suggestion(profile, day_idx):
+    """Generiert einen tagespassenden Vorschlag aus Profil + Schema."""
+    day_name, format_typ, beschreibung = CONTENT_SCHEMA_7DAYS[day_idx]
+    persona = profile.get('persona', '')
+    zielgruppe = profile.get('zielgruppe', '')
+    themen = profile.get('themen_top3', '')
+    cta = profile.get('cta', '')
+    region = profile.get('region', '')
+    format_lieb = profile.get('format_lieblings', '')
+
+    # Einfaches Prompt-Template — fügt Profil-Bezug ein
+    suggestion = {
+        'day_name': day_name,
+        'format_typ': format_typ,
+        'beschreibung': beschreibung,
+        'idee': '',
+        'cta_hinweis': cta or 'DM für Termin · Link in Bio',
+    }
+    # Konkrete Idee je nach Tag
+    ideen = {
+        0: f'Erzähl wie du {persona or "dich"} im Vertrieb gefunden hast — der Wendepunkt-Moment für {zielgruppe or "deine Zielgruppe"}.',
+        1: f'Ein konkreter Tipp aus {themen.split(",")[0].strip() if themen else "deinem Top-Thema"} — den deine Zielgruppe HEUTE umsetzen kann. Max 60s.',
+        2: f'Frage stellen: „Was ist eure größte Sorge bei {themen.split(",")[0].strip() if themen else "Geld/Vorsorge"}?" — antworte auf alle Kommentare.',
+        3: f'Zeig ein Termin-Setup{" in " + region if region else ""}: Café-Tisch, Notizblock, Tee — was Kunden NICHT sehen.',
+        4: f'Erfolg von einem Kunden/Partner teilen — anonym OK. Was hat sich konkret bei ihm verändert?',
+        5: f'Eine Meinung die viele nicht hören wollen — z.B. „Ohne 5 Anrufe pro Tag wirst du im Vertrieb nicht reich".',
+        6: f'Inspiration für die Woche — dein „Warum" in einem Satz. Was treibt dich morgens aus dem Bett?',
+    }
+    suggestion['idee'] = ideen.get(day_idx, '')
+    suggestion['format_lieb'] = format_lieb
+    return suggestion
+
+
+@app.route('/content-coach', methods=['GET'])
+@login_required
+def content_coach():
+    """Content-Coach Hauptseite: Tagesvorschlag + Setup-Link."""
+    profile = _content_profile_get(current_user.id)
+    setup_done = bool(profile and profile.get('motivation'))
+    day_idx = date.today().weekday()  # 0=Mo, 6=So
+    suggestion = _content_suggestion(profile, day_idx) if setup_done else None
+    # 7-Tage-Übersicht
+    week = []
+    for i in range(7):
+        s = _content_suggestion(profile, i)
+        s['is_today'] = (i == day_idx)
+        week.append(s)
+    return render_template('content_coach.html',
+        profile=profile, setup_done=setup_done,
+        suggestion=suggestion, week=week, today=date.today().isoformat())
+
+
+@app.route('/content-coach/setup', methods=['GET', 'POST'])
+@login_required
+def content_coach_setup():
+    """Interview-Form: User antwortet auf 10 Fragen → Profil wird gespeichert."""
+    if request.method == 'POST':
+        antworten = {}
+        for key, _q, _hint in CONTENT_QUESTIONS:
+            v = (request.form.get(key) or '').strip()[:600]
+            if v:
+                antworten[key] = v
+        db = get_db()
+        db.execute('''INSERT INTO content_profile (user_id, antworten_json, updated_at)
+                      VALUES (?, ?, CURRENT_TIMESTAMP)
+                      ON CONFLICT(user_id) DO UPDATE SET
+                        antworten_json=excluded.antworten_json,
+                        updated_at=CURRENT_TIMESTAMP''',
+                  (current_user.id, json.dumps(antworten, ensure_ascii=False)))
+        db.commit()
+        db.close()
+        flash(f'Content-Profil gespeichert · {len(antworten)} Antworten erfasst.', 'success')
+        return redirect(url_for('content_coach'))
+    profile = _content_profile_get(current_user.id)
+    return render_template('content_coach_setup.html',
+        questions=CONTENT_QUESTIONS, profile=profile)
+
+
+@app.route('/whats-new')
+@login_required
+def whats_new():
+    """Patch-Notes — User sieht alle Updates + markiert als gelesen."""
+    db = get_db()
+    patches = db.execute('''
+        SELECT p.*,
+               (SELECT seen_at FROM patch_notes_seen WHERE user_id=? AND patch_id=p.id) AS seen_at
+        FROM patch_notes p ORDER BY p.published_at DESC LIMIT 50
+    ''', (current_user.id,)).fetchall()
+    # Auto-mark als gelesen für unread
+    marked = 0
+    for p in patches:
+        if not p['seen_at']:
+            db.execute('INSERT OR IGNORE INTO patch_notes_seen (user_id, patch_id) VALUES (?, ?)',
+                      (current_user.id, p['id']))
+            marked += 1
+    db.commit()
+    db.close()
+    if marked:
+        cache_invalidate(f'ctx:patch_unread:{current_user.id}')
+    return render_template('whats_new.html', patches=patches)
+
+
+@app.route('/api/whats-new/unread')
+@login_required
+def api_whats_new_unread():
+    """Counter für Sidebar-Badge — anzahl ungelesener Patches."""
+    db = get_db()
+    n = db.execute('''SELECT COUNT(*) c FROM patch_notes p
+                      WHERE NOT EXISTS (SELECT 1 FROM patch_notes_seen
+                                        WHERE user_id=? AND patch_id=p.id)''',
+                  (current_user.id,)).fetchone()['c']
+    db.close()
+    return jsonify({'unread': n})
+
+
+@app.route('/admin/patch/new', methods=['GET', 'POST'])
+@login_required
+def admin_patch_new():
+    """Admin: neuen Patch-Note anlegen + optional Push an alle User."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('whats_new'))
+    if request.method == 'POST':
+        title = (request.form.get('title') or '').strip()[:200]
+        summary = (request.form.get('summary') or '').strip()[:500]
+        body_md = (request.form.get('body_md') or '').strip()
+        version = (request.form.get('version') or '').strip()[:30]
+        kategorie = (request.form.get('kategorie') or 'feature').strip()[:30]
+        push_all = request.form.get('push_all') == '1'
+        if not title:
+            flash('Titel fehlt', 'error')
+            return redirect(url_for('admin_patch_new'))
+        db = get_db()
+        cur = db.execute('''INSERT INTO patch_notes (version, title, summary, body_md, kategorie, pushed)
+                            VALUES (?, ?, ?, ?, ?, ?)''',
+                        (version or None, title, summary or None, body_md or None, kategorie, 1 if push_all else 0))
+        patch_id = cur.lastrowid
+        db.commit()
+        push_count = 0
+        if push_all:
+            users = db.execute('''SELECT DISTINCT u.id FROM users u
+                                  JOIN push_subscriptions ps ON ps.user_id=u.id
+                                  WHERE u.active=1''').fetchall()
+            push_title = f'Update: {title[:60]}'
+            push_body = (summary or 'Neues Feature in der App — jetzt anschauen.')[:140]
+            for u in users:
+                try:
+                    if send_push_to_user(u['id'], title=push_title, body=push_body,
+                                         url='/whats-new', push_type='patch_note',
+                                         tag=f'patch-{patch_id}'):
+                        push_count += 1
+                except Exception:
+                    pass
+        db.close()
+        cache_invalidate('ctx:patch_unread:')  # Badge bei allen Usern resetten
+        flash(f'Patch-Note „{title}" angelegt' + (f' · Push an {push_count} User' if push_all else ''), 'success')
+        return redirect(url_for('whats_new'))
+    return render_template('admin_patch_new.html')
 
 
 @app.route('/daily-checkin', methods=['GET', 'POST'])
@@ -8925,14 +9176,26 @@ def struktur_news_page():
         d['career'] = career_for_row(r['manual_career_level'], r['eh'])
         d['is_me'] = (r['id'] == current_user.id)
         top_list.append(d)
-    # Aktivitäts-Feed
+    # Aktivitäts-Feed — NUR Erfolge der ganzen Struktur (kein Routine-Lärm)
+    # Verträge, neue Partner, Aufstiege, Trophäen, Großverträge — keine Logins/Webhooks/Leads
+    SUCCESS_TYPES = (
+        'vertrag_neu', 'vertrag_freigegeben', 'großvertrag', 'grossvertrag',
+        'partner_neu', 'partner_aktiv', 'recruit_gewonnen', 'recruit',
+        'stufen_aufstieg', 'aufstieg', 'career_up',
+        'streak_milestone', 'streak_record',
+        'trophaeen_neu', 'achievement', 'badge_unlocked',
+        'top_performer', 'wochenziel_erreicht', 'booking',
+    )
+    type_placeholders = ','.join('?' * len(SUCCESS_TYPES))
     activity = db.execute(f'''
         SELECT a.*, u.name as user_name, u.photo_path
         FROM activity_log a
         LEFT JOIN users u ON a.user_id = u.id
-        WHERE a.user_id IN ({ph}) AND date(a.created_at) >= date('now', '-{days} days')
+        WHERE a.user_id IN ({ph})
+          AND a.event_type IN ({type_placeholders})
+          AND date(a.created_at) >= date('now', '-{days} days')
         ORDER BY a.created_at DESC LIMIT 30
-    ''', descendants).fetchall()
+    ''', descendants + list(SUCCESS_TYPES)).fetchall()
     db.close()
     return render_template('news.html', news=news, top=top_list, activity=activity, days=days)
 
@@ -9345,11 +9608,45 @@ def team_kalender():
                     'is_all': True,
                 })
                 # Strukturleiter-Slot (Upline read-only) — UNTEN
+                # Privacy: Viewer sieht NUR Termine, an denen er selbst beteiligt ist
+                # (= als Attendee oder mit seinem Namen im client_name)
                 if me_row and me_row['parent_id']:
                     mentor = db.execute('SELECT id, name, photo_path, manual_career_level FROM users WHERE id=? AND active=1',
                                        (me_row['parent_id'],)).fetchone()
                     if mentor:
-                        sl_t, sl_w, sl_u = _slot_stats([mentor['id']])
+                        # Hole alle Termine vom Mentor + filtere in Python auf 1:1-Match mit current_user
+                        all_mentor = db.execute('''SELECT id, title, client_name, termin_date, termin_time, status, attendee_ids
+                                                   FROM appointments WHERE owner_id=? AND date(termin_date) BETWEEN date(?) AND date(?)
+                                                   ORDER BY termin_date, termin_time''',
+                                              (mentor['id'], today.isoformat(), in_14d.isoformat())).fetchall()
+                        viewer_name_lower = current_user.name.lower() if current_user.name else ''
+                        viewer_first = (current_user.name.split()[0].lower() if current_user.name else '')
+                        sl_u = []
+                        sl_t = 0
+                        sl_w = 0
+                        today_iso = today.isoformat()
+                        for a in all_mentor:
+                            is_with_me = False
+                            if a['attendee_ids']:
+                                try:
+                                    atts = [int(x) for x in json.loads(a['attendee_ids']) if str(x).isdigit()]
+                                    if current_user.id in atts:
+                                        is_with_me = True
+                                except Exception:
+                                    pass
+                            if not is_with_me and a['client_name']:
+                                cn = a['client_name'].lower()
+                                if viewer_name_lower and viewer_name_lower in cn:
+                                    is_with_me = True
+                                elif viewer_first and len(viewer_first) > 2 and viewer_first in cn:
+                                    is_with_me = True
+                            if is_with_me:
+                                d = dict(a); d['owner_name'] = mentor['name']
+                                if len(sl_u) < 5:
+                                    sl_u.append(d)
+                                sl_w += 1
+                                if a['termin_date'] == today_iso:
+                                    sl_t += 1
                         strange.append({
                             'id': mentor['id'], 'name': f'Strukturleiter · {mentor["name"]}',
                             'photo_path': mentor['photo_path'],
@@ -9357,6 +9654,7 @@ def team_kalender():
                             'team_size': 1,
                             'count_today': sl_t, 'count_week': sl_w, 'upcoming': sl_u,
                             'is_mentor': True,
+                            'mentor_only_with_me': True,  # Hint fürs Template
                         })
             db.close()
             return render_template('team_kalender_uebersicht.html',
@@ -9418,6 +9716,34 @@ def team_kalender():
         if target_row and target_row['parent_id'] == current_user.id and root['id'] != current_user.id:
             mono = strang_color(root['id'])
     data = get_team_calendar_data(root['id'], year, month, mono_color=mono)
+    # Privacy: wenn current_user den Strukturleiter (parent) anschaut UND kein Admin ist,
+    # nur Termine zeigen wo current_user beteiligt ist (Attendee oder client_name match)
+    if isinstance(root['id'], int) and not current_user.has_admin_access:
+        db_p2 = get_db()
+        me_check = db_p2.execute('SELECT parent_id FROM users WHERE id=?', (current_user.id,)).fetchone()
+        db_p2.close()
+        if me_check and me_check['parent_id'] == root['id'] and root['id'] != current_user.id:
+            viewer_name_l = (current_user.name or '').lower()
+            viewer_first = ((current_user.name or '').split()[0].lower() if current_user.name else '')
+            filtered = []
+            for a in data['appointments']:
+                hit = False
+                if a.get('attendee_ids'):
+                    try:
+                        atts = [int(x) for x in json.loads(a['attendee_ids']) if str(x).isdigit()]
+                        if current_user.id in atts:
+                            hit = True
+                    except Exception:
+                        pass
+                if not hit and a.get('client_name'):
+                    cn = a['client_name'].lower()
+                    if viewer_name_l and viewer_name_l in cn:
+                        hit = True
+                    elif viewer_first and len(viewer_first) > 2 and viewer_first in cn:
+                        hit = True
+                if hit:
+                    filtered.append(a)
+            data['appointments'] = filtered
     # Filter nach einem Partner
     partner_filter = request.args.get('partner')
     if partner_filter and partner_filter.isdigit():

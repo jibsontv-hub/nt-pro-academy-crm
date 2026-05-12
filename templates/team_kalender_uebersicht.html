@@ -48,7 +48,7 @@
                     {% if s.is_mine %}Nur deine eigenen Termine
                     {% elif s.is_global %}{{ s.team_size }} aktive User systemweit · Admin-Sicht
                     {% elif s.is_all %}{{ s.team_size }} Person{% if s.team_size != 1 %}en{% endif %} · du + komplette Downline
-                    {% elif s.is_mentor %}Stufe {{ s.level }} · read-only · für Termin-Anfragen
+                    {% elif s.is_mentor %}Stufe {{ s.level }} · nur Termine mit dir{% if s.count_week == 0 %} · noch keine{% endif %} (read-only)
                     {% else %}Stufe {{ s.level }} · {{ s.team_size }} Person{% if s.team_size != 1 %}en{% endif %}{% endif %}
                 </div>
             </div>

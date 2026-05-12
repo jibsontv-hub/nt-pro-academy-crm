@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Content-Coach · Pro Academy{% endblock %}
+{% block page_title %}Content-Coach{% endblock %}
+{% block topbar_actions %}
+<a href="/content-coach/setup" class="btn btn-secondary btn-sm">{% if setup_done %}Profil bearbeiten{% else %}Setup starten{% endif %}</a>
+{% endblock %}
+{% block content %}
+
+<style>
+  .cc-wrap { max-width: 760px; margin: 0 auto; }
+  .cc-today {
+    background: linear-gradient(135deg, var(--surface), color-mix(in srgb, var(--gold) 8%, var(--surface)));
+    border: 2px solid var(--gold); border-radius: 16px; padding: 24px;
+    margin-bottom: 18px;
+  }
+  .cc-today .day-pill { display: inline-block; padding: 4px 12px; background: var(--gold); color: var(--navy); border-radius: 99px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+  .cc-today h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; margin: 12px 0 6px; color: var(--text); }
+  .cc-today .typ { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5; }
+  .cc-today .idee { background: var(--bg-2); border-left: 3px solid var(--gold); border-radius: 10px; padding: 14px 16px; font-size: 15px; line-height: 1.6; color: var(--text); }
+  .cc-today .cta-line { font-size: 12px; color: var(--text-muted); margin-top: 12px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+  .cc-today .cta-line strong { color: var(--gold); }
+
+  .cc-week-h { font-size: 13px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 20px 0 12px; }
+  .cc-week { display: flex; flex-direction: column; gap: 8px; }
+  .cc-week-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+  .cc-week-row.today { border-color: var(--gold); border-width: 1.5px; }
+  .cc-week-row .day { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+  .cc-week-row .typ { font-size: 14px; font-weight: 700; color: var(--text); margin: 2px 0 4px; }
+  .cc-week-row .idee { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+  .cc-week-row .badge-today { background: var(--gold); color: var(--navy); padding: 1px 8px; border-radius: 99px; font-size: 10px; font-weight: 800; margin-left: 6px; }
+
+  .cc-empty { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 40px 24px; text-align: center; }
+  .cc-empty h2 { font-size: 18px; font-weight: 800; color: var(--text); margin: 0 0 8px; }
+  .cc-empty p { font-size: 14px; color: var(--text-muted); margin: 0 0 18px; line-height: 1.6; }
+</style>
+
+<div class="cc-wrap">
+
+  {% if not setup_done %}
+  <div class="cc-empty">
+    <h2>Erst Setup, dann täglich neue Ideen</h2>
+    <p>Beantwortet 10 kurze Fragen zu deinem Stil + Zielgruppe + Themen.<br>
+    Daraus baue ich dir ab morgen jeden Tag einen passenden Vorschlag nach dem 7-Tage-Schema.</p>
+    <a href="/content-coach/setup" class="btn btn-primary">→ Setup starten (~3 Min)</a>
+  </div>
+  {% else %}
+
+  <div class="cc-today">
+    <span class="day-pill">Heute · {{ suggestion.day_name }}</span>
+    <h2>{{ suggestion.format_typ }}</h2>
+    <p class="typ">{{ suggestion.beschreibung }}</p>
+    <div class="idee">{{ suggestion.idee }}</div>
+    <div class="cta-line">
+      <strong>CTA-Idee:</strong> {{ suggestion.cta_hinweis }}
+      {% if suggestion.format_lieb %}<br><strong>Format:</strong> {{ suggestion.format_lieb }}{% endif %}
+    </div>
+  </div>
+
+  <div class="cc-week-h">📅 Diese Woche im Überblick</div>
+  <div class="cc-week">
+    {% for s in week %}
+    <div class="cc-week-row {% if s.is_today %}today{% endif %}">
+      <div class="day">{{ s.day_name }}{% if s.is_today %}<span class="badge-today">HEUTE</span>{% endif %}</div>
+      <div class="typ">{{ s.format_typ }}</div>
+      <div class="idee">{{ s.beschreibung }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="margin-top:20px;padding:14px 18px;background:var(--bg-2);border-radius:10px;border-left:3px solid var(--gold);font-size:13px;color:var(--text-muted);line-height:1.6">
+    <strong style="color:var(--text)">Tipp:</strong> Schreib dir jede Woche Sonntagabend die 7 Ideen vorab in deinen Kalender — dann musst du Mo-So nur noch produzieren statt überlegen.
+    <a href="/content-coach/setup" style="color:var(--gold);font-weight:700;text-decoration:none;margin-left:6px">Profil aktualisieren →</a>
+  </div>
+
+  {% endif %}
+</div>
+
+{% endblock %}

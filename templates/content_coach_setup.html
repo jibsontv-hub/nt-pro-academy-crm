@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Content-Coach Setup · Pro Academy{% endblock %}
+{% block page_title %}Content-Coach · Setup{% endblock %}
+{% block content %}
+
+<style>
+  .cc-wrap { max-width: 720px; margin: 0 auto; }
+  .cc-intro { background: var(--surface); border-left: 3px solid var(--gold); border-radius: 10px; padding: 16px 20px; margin-bottom: 18px; font-size: 14px; line-height: 1.6; color: var(--text); }
+  .cc-q-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 12px; }
+  .cc-q-num { display: inline-block; background: var(--gold); color: var(--navy); width: 26px; height: 26px; border-radius: 50%; text-align: center; line-height: 26px; font-weight: 800; font-size: 13px; margin-right: 8px; vertical-align: middle; }
+  .cc-q-title { font-size: 15px; font-weight: 700; color: var(--text); margin: 0 0 4px; display: inline; }
+  .cc-q-hint { font-size: 12px; color: var(--text-muted); margin: 6px 0 12px; line-height: 1.5; }
+  .cc-q-input { width: 100%; min-height: 70px; border: 1px solid var(--border); background: var(--bg-2); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--text); font-family: inherit; resize: vertical; outline: none; }
+  .cc-q-input:focus { border-color: var(--gold); }
+</style>
+
+<div class="cc-wrap">
+  <div class="cc-intro">
+    <strong>Content-Coach setup</strong> — beantworte diese 10 Fragen so ehrlich + spezifisch wie möglich.
+    Daraus baut der Coach jeden Tag einen passenden Content-Vorschlag nach dem 7-Tage-Schema (Mo: Story, Di: Tipp, Mi: Frage, Do: Behind-the-Scenes, Fr: Erfolg, Sa: Provokant, So: Inspiration).
+    Du kannst alles später jederzeit ändern.
+  </div>
+
+  <form method="POST" autocomplete="off">
+    {% for key, q, hint in questions %}
+    <div class="cc-q-card">
+      <div>
+        <span class="cc-q-num">{{ loop.index }}</span>
+        <h3 class="cc-q-title">{{ q }}</h3>
+      </div>
+      <div class="cc-q-hint">{{ hint }}</div>
+      <textarea name="{{ key }}" class="cc-q-input" placeholder="…">{{ profile.get(key, '') }}</textarea>
+    </div>
+    {% endfor %}
+
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button type="submit" class="btn btn-primary">Profil speichern</button>
+      <a href="/content-coach" class="btn btn-secondary">Abbrechen</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
