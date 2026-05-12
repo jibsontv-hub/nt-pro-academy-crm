@@ -56,15 +56,16 @@
             <div style="text-align:center;padding:60px 20px;color:var(--text-muted)">
                 <div style="font-size:60px;margin-bottom:16px">🤖</div>
                 <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px">Hi! Ich bin Coach.</div>
-                <div style="font-size:14px;line-height:1.6;max-width:440px;margin:0 auto">
-                    Ich kenne deinen kompletten Vertrieb und helfe dir bei Entscheidungen. Frag mich alles — von „Wen soll ich heute anrufen?" bis „Was ist mein nächster Schritt zur Beförderung?"
+                <div style="font-size:14px;line-height:1.6;max-width:480px;margin:0 auto">
+                    Ich kenne deinen kompletten Vertrieb UND ich kann jetzt direkt Aktionen für dich machen — Leads anlegen, Termine planen, Stati ändern, Push an deine Downline schicken.
                 </div>
                 <div style="margin-top:24px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-                    <button onclick="askSuggestion('Was sollte ich heute als erstes machen?')" class="suggest-btn">📋 Was tun heute?</button>
-                    <button onclick="askSuggestion('Welche Partner haben Aufmerksamkeit nötig?')" class="suggest-btn">🎯 Wer braucht mich?</button>
-                    <button onclick="askSuggestion('Wie steht meine Karriere?')" class="suggest-btn">📈 Mein Stand?</button>
-                    <button onclick="askSuggestion('Was muss ich vor Eingabeschluss klären?')" class="suggest-btn">⏰ Eingabeschluss</button>
-                    <button onclick="askSuggestion('Plane meine Woche')" class="suggest-btn">🗓 Wochenplan</button>
+                    <button onclick="askSuggestion('Zeig meine nächsten 5 Termine')" class="suggest-btn">Termine zeigen</button>
+                    <button onclick="askSuggestion('Leg einen neuen VK-Lead an: Müller, +49 1577 1234567')" class="suggest-btn">+ Lead</button>
+                    <button onclick="askSuggestion('Welche Partner sind über 7 Tage inaktiv?')" class="suggest-btn">Inaktive finden</button>
+                    <button onclick="askSuggestion('Wie sind meine Zahlen?')" class="suggest-btn">Meine KPIs</button>
+                    <button onclick="askSuggestion('Was sollte ich heute als erstes machen?')" class="suggest-btn">Was tun heute?</button>
+                    <button onclick="askSuggestion('Plane meine Woche')" class="suggest-btn">Wochenplan</button>
                 </div>
             </div>
         {% endif %}
@@ -74,7 +75,7 @@
     <div style="border-top:1px solid var(--border);padding:14px 18px;background:var(--surface)">
         <form id="chatForm" onsubmit="sendMessage(event)">
             <div style="display:flex;gap:10px;align-items:flex-end">
-                <textarea id="chatInput" placeholder="Frag Coach…" rows="1" required
+                <textarea id="chatInput" placeholder="Frag Coach oder gib eine Aktion an: „Leg Lead Müller an", „Zeig meine Termine", „Push an Niesa: …"" rows="1" required
                     onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage(event)}"
                     style="flex:1;padding:12px 14px;border:1px solid var(--border);border-radius:12px;font-size:14px;resize:none;font-family:inherit;background:var(--bg-2);color:var(--text);max-height:150px"></textarea>
                 <button type="button" onclick="toggleVoiceInput()" id="voiceBtn" title="Per Sprache"

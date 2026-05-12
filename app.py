@@ -927,6 +927,334 @@ def build_user_context(user_id):
     }
 
 
+# ═══════════ CLAUDE TOOL-USE: definitionen + executor ═══════════
+
+CLAUDE_TOOLS = [
+    {
+        'name': 'list_my_leads',
+        'description': 'Listet die Leads/Namensliste des aktuellen Users. Filterbar nach typ (vk=Verkauf, rk=Recruiting, all) und status (neu/kontakt/angebot/gewonnen/verloren).',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'typ': {'type': 'string', 'enum': ['vk', 'rk', 'all'], 'description': 'Liste-Typ'},
+                'status': {'type': 'string', 'description': 'Status-Filter (optional)'},
+                'limit': {'type': 'integer', 'default': 20},
+            }
+        }
+    },
+    {
+        'name': 'create_lead',
+        'description': 'Legt einen neuen Lead an für den aktuellen User. Pflicht: name. Optional: phone, email, liste_typ, notizen.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'name': {'type': 'string'},
+                'phone': {'type': 'string'},
+                'email': {'type': 'string'},
+                'liste_typ': {'type': 'string', 'enum': ['vk', 'rk'], 'default': 'vk'},
+                'notizen': {'type': 'string'},
+            },
+            'required': ['name']
+        }
+    },
+    {
+        'name': 'update_lead_status',
+        'description': 'Ändert den Status eines bestehenden Leads (neu, kontakt, angebot, gewonnen, verloren).',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'lead_id': {'type': 'integer'},
+                'new_status': {'type': 'string'},
+            },
+            'required': ['lead_id', 'new_status']
+        }
+    },
+    {
+        'name': 'list_my_termine',
+        'description': 'Listet die nächsten Termine des aktuellen Users (default nächste 14 Tage).',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'days_ahead': {'type': 'integer', 'default': 14},
+                'limit': {'type': 'integer', 'default': 20},
+            }
+        }
+    },
+    {
+        'name': 'create_termin',
+        'description': 'Legt einen neuen Termin für den aktuellen User an. Pflicht: title, termin_date (YYYY-MM-DD).',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'title': {'type': 'string'},
+                'termin_date': {'type': 'string', 'description': 'ISO YYYY-MM-DD'},
+                'termin_time': {'type': 'string', 'description': 'HH:MM (optional)'},
+                'duration_min': {'type': 'integer', 'default': 60},
+                'typ': {'type': 'string', 'default': 'kundentermin'},
+                'client_name': {'type': 'string'},
+                'notizen': {'type': 'string'},
+            },
+            'required': ['title', 'termin_date']
+        }
+    },
+    {
+        'name': 'get_my_kpis',
+        'description': 'Liefert wichtige KPIs des aktuellen Users: own_eh, team_eh, woche_eh, # Leads, # offene Termine, # offene Verträge, fehlend zur nächsten Stufe.',
+        'input_schema': {'type': 'object', 'properties': {}}
+    },
+    {
+        'name': 'list_inactive_partners',
+        'description': 'Listet Geschäftspartner in der eigenen Downline die >N Tage inaktiv sind.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'min_days_inactive': {'type': 'integer', 'default': 7},
+                'limit': {'type': 'integer', 'default': 10},
+            }
+        }
+    },
+    {
+        'name': 'send_inbox_to_user',
+        'description': 'Schickt eine In-App-Notification (Push) an einen User in der eigenen Downline. Verwendet kein E-Mail.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'target_user_id': {'type': 'integer'},
+                'title': {'type': 'string'},
+                'body': {'type': 'string'},
+            },
+            'required': ['target_user_id', 'title', 'body']
+        }
+    },
+]
+
+
+def execute_claude_tool(tool_name, tool_input, user):
+    """Führt einen Tool-Call aus. user = Flask current_user. Returns dict (JSON-serialisierbar)."""
+    try:
+        db = get_db()
+        if tool_name == 'list_my_leads':
+            typ = tool_input.get('typ', 'all')
+            status = tool_input.get('status')
+            limit = min(int(tool_input.get('limit', 20)), 50)
+            sql = "SELECT id, name, phone, email, status, liste_typ, kontaktiert_at FROM leads WHERE owner_id=?"
+            args = [user.id]
+            if typ in ('vk', 'rk'):
+                sql += " AND COALESCE(liste_typ,'vk')=?"
+                args.append(typ)
+            if status:
+                sql += " AND status=?"
+                args.append(status)
+            sql += " ORDER BY id DESC LIMIT ?"
+            args.append(limit)
+            rows = db.execute(sql, args).fetchall()
+            db.close()
+            return {'leads': [dict(r) for r in rows], 'count': len(rows)}
+
+        if tool_name == 'create_lead':
+            name = (tool_input.get('name') or '').strip()
+            if not name:
+                db.close()
+                return {'error': 'Name fehlt'}
+            cur = db.execute(
+                'INSERT INTO leads (owner_id, name, phone, email, liste_typ, notizen, status) VALUES (?,?,?,?,?,?,?)',
+                (user.id, name[:200],
+                 (tool_input.get('phone') or '')[:50] or None,
+                 (tool_input.get('email') or '')[:200] or None,
+                 tool_input.get('liste_typ', 'vk'),
+                 (tool_input.get('notizen') or '')[:500] or None,
+                 'neu'))
+            new_id = cur.lastrowid
+            db.commit()
+            db.close()
+            cache_invalidate(f'ctx:career:{user.id}')
+            return {'success': True, 'lead_id': new_id, 'message': f'Lead „{name}" angelegt (id={new_id})'}
+
+        if tool_name == 'update_lead_status':
+            lid = int(tool_input.get('lead_id', 0))
+            new_status = (tool_input.get('new_status') or '').strip()
+            if not lid or not new_status:
+                db.close()
+                return {'error': 'lead_id + new_status erforderlich'}
+            row = db.execute('SELECT id FROM leads WHERE id=? AND owner_id=?', (lid, user.id)).fetchone()
+            if not row:
+                db.close()
+                return {'error': f'Lead {lid} gehört nicht dir oder existiert nicht'}
+            db.execute('UPDATE leads SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (new_status, lid))
+            db.commit()
+            db.close()
+            return {'success': True, 'message': f'Lead {lid} → status „{new_status}"'}
+
+        if tool_name == 'list_my_termine':
+            days = min(int(tool_input.get('days_ahead', 14)), 90)
+            limit = min(int(tool_input.get('limit', 20)), 50)
+            today_iso = date.today().isoformat()
+            end_iso = (date.today() + timedelta(days=days)).isoformat()
+            rows = db.execute('''SELECT id, title, client_name, termin_date, termin_time, status, typ
+                                 FROM appointments WHERE owner_id=? AND date(termin_date) BETWEEN date(?) AND date(?)
+                                 ORDER BY termin_date, termin_time LIMIT ?''',
+                            (user.id, today_iso, end_iso, limit)).fetchall()
+            db.close()
+            return {'termine': [dict(r) for r in rows], 'count': len(rows)}
+
+        if tool_name == 'create_termin':
+            title = (tool_input.get('title') or '').strip()
+            tdate = (tool_input.get('termin_date') or '').strip()
+            if not title or not tdate:
+                db.close()
+                return {'error': 'title + termin_date erforderlich'}
+            cur = db.execute('''INSERT INTO appointments
+                (owner_id, title, client_name, termin_date, termin_time, typ, status, notizen, duration_min)
+                VALUES (?,?,?,?,?,?,?,?,?)''',
+                (user.id, title[:200],
+                 (tool_input.get('client_name') or '')[:200] or None,
+                 tdate, tool_input.get('termin_time') or None,
+                 tool_input.get('typ', 'kundentermin'), 'geplant',
+                 (tool_input.get('notizen') or '')[:500] or None,
+                 int(tool_input.get('duration_min', 60))))
+            tid = cur.lastrowid
+            db.commit()
+            db.close()
+            return {'success': True, 'termin_id': tid, 'message': f'Termin „{title}" am {tdate} angelegt'}
+
+        if tool_name == 'get_my_kpis':
+            own_eh = db.execute("SELECT COALESCE(SUM(einheiten),0) s FROM contracts WHERE owner_id=? AND status='abgeschlossen' AND recherche_status='freigegeben'",
+                              (user.id,)).fetchone()['s'] or 0
+            initial = db.execute('SELECT COALESCE(initial_eh,0) s FROM users WHERE id=?', (user.id,)).fetchone()['s']
+            own_eh += initial or 0
+            ids = [user.id] + get_all_descendants(user.id)
+            ph = ','.join('?' * len(ids))
+            team_eh = db.execute(f"SELECT COALESCE(SUM(einheiten),0) s FROM contracts WHERE owner_id IN ({ph}) AND status='abgeschlossen' AND recherche_status='freigegeben'",
+                                ids).fetchone()['s'] or 0
+            week_eh = db.execute("SELECT COALESCE(SUM(einheiten),0) s FROM contracts WHERE owner_id=? AND status='abgeschlossen' AND date(abschluss_date)>=date('now','-7 days')",
+                               (user.id,)).fetchone()['s'] or 0
+            n_leads = db.execute('SELECT COUNT(*) c FROM leads WHERE owner_id=?', (user.id,)).fetchone()['c']
+            n_open_termine = db.execute("SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND status='geplant' AND date(termin_date)>=date('now')",
+                                       (user.id,)).fetchone()['c']
+            n_open_contracts = db.execute("SELECT COUNT(*) c FROM contracts WHERE owner_id=? AND status='abgeschlossen' AND COALESCE(recherche_status,'')!='freigegeben'",
+                                         (user.id,)).fetchone()['c']
+            db.close()
+            # Nächste Stufe heuristisch
+            targets = [(3000, 'LREP'), (12500, 'HREP'), (25000, 'DREP'), (50000, 'GREP')]
+            next_lvl, eh_to_next = None, 0
+            for cap, lbl in targets:
+                if own_eh < cap:
+                    next_lvl, eh_to_next = lbl, cap - own_eh
+                    break
+            return {
+                'own_eh': int(own_eh), 'team_eh': int(team_eh), 'week_eh': int(week_eh),
+                'leads_count': n_leads, 'offene_termine': n_open_termine, 'offene_vertraege': n_open_contracts,
+                'next_stufe': next_lvl, 'eh_bis_naechste_stufe': int(eh_to_next),
+            }
+
+        if tool_name == 'list_inactive_partners':
+            min_days = max(1, int(tool_input.get('min_days_inactive', 7)))
+            limit = min(int(tool_input.get('limit', 10)), 30)
+            ids = get_all_descendants(user.id)
+            if not ids:
+                db.close()
+                return {'inactive': [], 'count': 0}
+            ph = ','.join('?' * len(ids))
+            rows = db.execute(f'''SELECT id, name, phone, email,
+                                  CAST(julianday('now') - julianday(COALESCE(last_login, joined_date)) as INTEGER) as days_inactive
+                                  FROM users WHERE id IN ({ph}) AND active=1
+                                  HAVING days_inactive >= ?
+                                  ORDER BY days_inactive DESC LIMIT ?''',
+                            ids + [min_days, limit]).fetchall()
+            db.close()
+            return {'inactive': [dict(r) for r in rows], 'count': len(rows)}
+
+        if tool_name == 'send_inbox_to_user':
+            tid = int(tool_input.get('target_user_id', 0))
+            title = (tool_input.get('title') or '').strip()
+            body = (tool_input.get('body') or '').strip()
+            if not tid or not title:
+                db.close()
+                return {'error': 'target_user_id + title erforderlich'}
+            # Berechtigung: nur eigene Downline
+            if tid != user.id and tid not in get_all_descendants(user.id):
+                db.close()
+                return {'error': f'User {tid} ist nicht in deiner Downline'}
+            db.close()
+            ok = False
+            try:
+                ok = send_push_to_user(tid, title=title[:120], body=body[:280],
+                                       url='/inbox', push_type='admin_alert',
+                                       tag=f'coach-{int(time.time())}')
+            except Exception as e:
+                return {'error': f'Push-Fehler: {e}'}
+            return {'success': bool(ok), 'message': f'Push an User {tid} versendet' if ok else 'Push fail (keine Subscription?)'}
+
+        db.close()
+        return {'error': f'Unbekanntes Tool: {tool_name}'}
+    except Exception as e:
+        try: db.close()
+        except: pass
+        return {'error': f'Tool-Exception: {str(e)[:200]}'}
+
+
+def claude_chat_with_tools(messages, system_prompt, user, max_iter=4):
+    """Tool-Use-Loop. Returns (final_text, tool_log, error)."""
+    api_key = get_setting('anthropic_api_key')
+    if not api_key:
+        return None, [], 'Anthropic API-Key fehlt'
+    tool_log = []
+    msgs = list(messages)
+    for _ in range(max_iter):
+        body = {
+            'model': 'claude-sonnet-4-5-20250929',
+            'max_tokens': 1500,
+            'system': system_prompt,
+            'tools': CLAUDE_TOOLS,
+            'messages': msgs,
+        }
+        try:
+            import urllib.request, urllib.error
+            req = urllib.request.Request(
+                'https://api.anthropic.com/v1/messages',
+                data=json.dumps(body).encode('utf-8'),
+                headers={'Content-Type': 'application/json', 'x-api-key': api_key,
+                         'anthropic-version': '2023-06-01'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            try: err_body = e.read().decode('utf-8')
+            except: err_body = str(e)
+            return None, tool_log, f'HTTP {e.code}: {err_body[:200]}'
+        except Exception as e:
+            return None, tool_log, f'API-Fehler: {str(e)[:200]}'
+
+        stop_reason = data.get('stop_reason', '')
+        content_blocks = data.get('content', [])
+
+        if stop_reason == 'tool_use':
+            # Sammle Tool-Use-Blocks + execute
+            tool_results = []
+            for b in content_blocks:
+                if b.get('type') == 'tool_use':
+                    tname = b.get('name')
+                    tinput = b.get('input', {})
+                    result = execute_claude_tool(tname, tinput, user)
+                    tool_log.append({'name': tname, 'input': tinput, 'result': result})
+                    tool_results.append({
+                        'type': 'tool_result',
+                        'tool_use_id': b.get('id'),
+                        'content': json.dumps(result, ensure_ascii=False)[:3000],
+                    })
+            msgs.append({'role': 'assistant', 'content': content_blocks})
+            msgs.append({'role': 'user', 'content': tool_results})
+            continue
+        # End: Final text
+        final_text = ''
+        for b in content_blocks:
+            if b.get('type') == 'text':
+                final_text += b.get('text', '')
+        return final_text.strip(), tool_log, None
+    return None, tool_log, 'Tool-Loop max iterations erreicht'
+
+
 def chat_with_assistant(user_id, user_message):
     """Sendet Nachricht an den KI-Assistenten und bekommt Antwort.
     Nutzt Claude API + speichert Verlauf."""
@@ -1013,37 +1341,30 @@ BESONDERS WICHTIG IM VERTRIEB:
 Antworte jetzt direkt auf die Frage des Users mit konkreten Tipps oder Aktionen.
 """
 
-    # Claude-Call mit Conversation-History
-    try:
-        import urllib.request, urllib.error
-        api_key = get_setting('anthropic_api_key')
-        body = {
-            'model': 'claude-sonnet-4-5-20250929',
-            'max_tokens': 600,
-            'system': system_prompt,
-            'messages': history,
-        }
-        req = urllib.request.Request(
-            'https://api.anthropic.com/v1/messages',
-            data=json.dumps(body).encode('utf-8'),
-            headers={
-                'Content-Type': 'application/json',
-                'x-api-key': api_key,
-                'anthropic-version': '2023-06-01'
-            },
-            method='POST'
-        )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-        text = data.get('content', [{}])[0].get('text', '').strip()
-    except urllib.error.HTTPError as e:
-        try:
-            err_body = e.read().decode('utf-8')
-        except Exception:
-            err_body = str(e)
-        return None, f'HTTP {e.code}: {err_body[:200]}'
-    except Exception as e:
-        return None, f'Fehler: {str(e)[:200]}'
+    # System-Prompt um Tool-Hinweis erweitern
+    system_prompt += """\n\nDU HAST WERKZEUGE (Tools) zur Verfügung:
+- list_my_leads — zeig die Namensliste
+- create_lead — leg einen neuen Lead an
+- update_lead_status — Status ändern
+- list_my_termine — zeig die nächsten Termine
+- create_termin — Termin anlegen
+- get_my_kpis — eigene Zahlen abrufen
+- list_inactive_partners — inaktive Partner finden
+- send_inbox_to_user — Push an einen Downline-User schicken
+
+Nutze die Tools wenn der User konkrete Aktionen will („leg Lead X an", „zeig meine Termine", „push an Niesa: …"). Bei reinen Fragen ohne Aktion antworte direkt ohne Tool.
+Bestätige nach jedem Tool-Use kurz was du getan hast."""
+
+    # Claude-Call mit Tool-Use-Loop (Mehrfach-Roundtrip wenn Claude Tools nutzt)
+    text, tool_log, err = claude_chat_with_tools(history, system_prompt, current_user)
+    if err:
+        return None, err
+    if not text:
+        text = '(KI hat ohne Text-Antwort geantwortet)'
+    if tool_log:
+        # Optional: Tool-Calls als Suffix anhängen (sichtbar im Chat)
+        actions = [f'• {t["name"]}({", ".join(f"{k}={v}" for k,v in (t["input"] or {}).items() if k in ("name","title","new_status","target_user_id"))})' for t in tool_log]
+        text = text + '\n\n_Aktionen:_\n' + '\n'.join(actions)
 
     # Speichere Assistant-Antwort
     db = get_db()
