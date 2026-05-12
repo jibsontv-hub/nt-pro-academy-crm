@@ -339,10 +339,9 @@ textarea.in { resize: vertical; min-height: 70px; }
 
         <!-- ═══════ FORM ═══════ -->
         <form class="form-card" method="POST" id="leadForm">
-            <!-- Direkt-Buchen-Banner über dem Form -->
-            <a href="/buchen{% if referred_by %}?ref={{ referred_by }}{% endif %}" style="display:block;text-decoration:none;margin:-8px -8px 18px;padding:14px 16px;background:linear-gradient(135deg,#d4a843,#f0c970);color:#0f1c3f;border-radius:14px;text-align:center;font-weight:800;font-size:14px;letter-spacing:-0.2px;box-shadow:0 6px 20px rgba(212,168,67,0.3);transition:all 0.2s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 30px rgba(212,168,67,0.45)'" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 6px 20px rgba(212,168,67,0.3)'">
-                ⚡ Lieber direkt einen Termin buchen?
-                <div style="font-size:11px;font-weight:700;opacity:0.85;margin-top:3px">Wähle Tag &amp; Uhrzeit · 30 Min · sofort bestätigt</div>
+            <!-- Direkt-Buchen-Banner als Outline (sekundär) — primärer CTA bleibt der Submit-Button -->
+            <a href="/buchen{% if referred_by %}?ref={{ referred_by }}{% endif %}" style="display:block;text-decoration:none;margin:-4px -4px 18px;padding:10px 14px;background:transparent;color:#d4a843;border:1.5px solid rgba(212,168,67,0.45);border-radius:10px;text-align:center;font-weight:600;font-size:13px;letter-spacing:-0.2px;transition:all 0.18s" onmouseover="this.style.borderColor='#d4a843';this.style.background='rgba(212,168,67,0.06)'" onmouseout="this.style.borderColor='rgba(212,168,67,0.45)';this.style.background='transparent'">
+                Lieber direkt Tag &amp; Uhrzeit wählen? → /buchen
             </a>
 
             <div class="form-title">Oder schreib mir kurz</div>
@@ -350,21 +349,13 @@ textarea.in { resize: vertical; min-height: 70px; }
 
             {% if error %}<div class="error-box">⚠️ {{ error }}</div>{% endif %}
 
-            <!-- Pfad-Auswahl -->
-            <label class="fl">Was suchst du?</label>
-            <div class="path-selector">
-                <label class="path-option active" id="opt-beratung">
-                    <input type="radio" name="interesse" value="beratung" checked>
-                    <span class="ico">💡</span>
-                    Beratung für mich
-                    <span class="sub">Mit Geld besser umgehen, Familie absichern</span>
-                </label>
-                <label class="path-option" id="opt-karriere">
-                    <input type="radio" name="interesse" value="karriere">
-                    <span class="ico">🚀</span>
-                    Bei dir mitmachen
-                    <span class="sub">Selbst beraten, eigenes Business aufbauen</span>
-                </label>
+            <!-- Pfad wird vom oberen Tab gesetzt — kein doppelter Selector mehr im Form -->
+            <input type="hidden" name="interesse" id="intHidden" value="beratung">
+            <div id="pathHint" style="font-size:12px;color:#94a3b8;margin-bottom:14px;padding:10px 12px;background:rgba(212,168,67,0.08);border-left:2px solid #d4a843;border-radius:6px">
+                <span id="pathHintText">💡 Du schreibst zum Thema <strong style="color:#d4a843">Beratung</strong>.</span>
+                <span style="float:right">
+                    <a href="#pathTabsTop" style="color:#d4a843;font-weight:600;font-size:11px;text-decoration:none">↑ wechseln</a>
+                </span>
             </div>
 
             <label class="fl">Name *</label>
@@ -404,23 +395,28 @@ textarea.in { resize: vertical; min-height: 70px; }
             <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4">Pflichtfeld. Wenn dich jemand persönlich empfohlen hat, schreib seinen Namen — wir leiten dich direkt zu ihm.</div>
             {% endif %}
 
-            <!-- ═════ TERMIN-WUNSCH (optional) ═════ -->
-            <div style="margin-top:18px;padding:14px;background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.25);border-radius:10px">
-                <label class="fl" style="margin-top:0">📅 Termin-Wunsch (optional)</label>
-                <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;line-height:1.4">Wann sollen wir dich zurückrufen? — Termin landet sofort im Kalender deines Beraters.</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                    <input class="in" type="date" name="wunsch_datum" min="{{ today_iso or '' }}">
-                    <select class="in" name="wunsch_zeit" style="cursor:pointer">
-                        <option value="">— Tageszeit wählen —</option>
-                        <option value="09:00">Morgens (09:00)</option>
-                        <option value="11:00">Vormittag (11:00)</option>
-                        <option value="14:00">Mittag (14:00)</option>
-                        <option value="16:00">Nachmittag (16:00)</option>
-                        <option value="18:00">Abends (18:00)</option>
-                        <option value="20:00">Spätabend (20:00)</option>
-                    </select>
+            <!-- ═════ TERMIN-WUNSCH (collapsed by default) ═════ -->
+            <details style="margin-top:14px">
+                <summary style="cursor:pointer;list-style:none;padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.10);border-radius:8px;font-size:12px;font-weight:600;color:#cbd5e1;display:flex;align-items:center;justify-content:space-between">
+                    <span>📅 Wunsch-Termin angeben (optional)</span>
+                    <span style="color:#64748b;font-size:11px">aufklappen ▾</span>
+                </summary>
+                <div style="margin-top:8px;padding:14px;background:rgba(212,168,67,0.06);border:1px solid rgba(212,168,67,0.20);border-radius:10px">
+                    <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;line-height:1.4">Wann sollen wir dich zurückrufen? Termin landet sofort im Kalender deines Beraters.</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                        <input class="in" type="date" name="wunsch_datum" min="{{ today_iso or '' }}">
+                        <select class="in" name="wunsch_zeit" style="cursor:pointer">
+                            <option value="">— Tageszeit wählen —</option>
+                            <option value="09:00">Morgens (09:00)</option>
+                            <option value="11:00">Vormittag (11:00)</option>
+                            <option value="14:00">Mittag (14:00)</option>
+                            <option value="16:00">Nachmittag (16:00)</option>
+                            <option value="18:00">Abends (18:00)</option>
+                            <option value="20:00">Spätabend (20:00)</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
+            </details>
 
             <label class="fl">Deine Frage / Situation (optional)</label>
             <textarea class="in" name="message" placeholder="Erzähl in 1-2 Sätzen worum's geht…"></textarea>
@@ -437,7 +433,7 @@ textarea.in { resize: vertical; min-height: 70px; }
     </div>
 
     <!-- ═══════════════ PFAD-SWITCHER ═══════════════ -->
-    <div style="margin-top: 60px; margin-bottom: 50px">
+    <div id="pathTabsTop" style="margin-top: 60px; margin-bottom: 50px">
         <div class="section-h" style="text-align:center">Was suchst du?</div>
         <h2 class="section-h2" style="text-align:center">Wähl deinen Pfad.</h2>
         <div class="path-tabs">
@@ -460,12 +456,13 @@ textarea.in { resize: vertical; min-height: 70px; }
             <div class="section-h">Klingt das vertraut?</div>
             <h2 class="section-h2">Damit kommen die meisten zu mir.</h2>
             <div class="problems">
-                <div class="problem"><div class="problem-q">„Mein Geld läuft monatlich einfach weg."</div><div class="problem-a">Konsumkredite, Versicherungen, Handy, Auto-Leasing — am Ende bleibt nichts zum Sparen.</div></div>
-                <div class="problem"><div class="problem-q">„Steuern fressen mein Gehalt."</div><div class="problem-a">Du verdienst gut, aber netto bleibt wenig hängen. Du weißt nicht wie's anders geht.</div></div>
-                <div class="problem"><div class="problem-q">„Wenn mir was passiert, ist meine Familie aufgeschmissen."</div><div class="problem-a">Keine Berufsunfähigkeits-Absicherung, keine Risikolebens, kein Plan für den Notfall.</div></div>
-                <div class="problem"><div class="problem-q">„Sparen lohnt sich doch nicht mehr."</div><div class="problem-a">Inflation frisst dein Geld auf. Du weißt nicht in was du sicher und renditestark investieren sollst.</div></div>
-                <div class="problem"><div class="problem-q">„Mein Vermieter wird teurer — ich will eigene 4 Wände."</div><div class="problem-a">Aber Eigenkapital fehlt, Immobilienpreise explodieren, Banken sagen nein.</div></div>
-                <div class="problem"><div class="problem-q">„Ich hab keine Ahnung wo ich anfangen soll."</div><div class="problem-a">Versicherungen, Aktien, Immobilien, Altersvorsorge — wer blickt da noch durch?</div></div>
+                <div class="problem"><div class="problem-q">„Wenn mir morgen was passiert, ist meine Familie aufgeschmissen."</div><div class="problem-a">Keine Berufsunfähigkeits-Absicherung, keine Risikolebens, kein Plan für den Notfall.</div></div>
+                <div class="problem"><div class="problem-q">„Wenn meine Eltern fragen wie's finanziell läuft, weiche ich aus."</div><div class="problem-a">Du verdienst nicht schlecht — und schämst dich trotzdem dass du keinen Plan hast.</div></div>
+                <div class="problem"><div class="problem-q">„Ich hab Angst, im Alter meinen Kindern zur Last zu fallen."</div><div class="problem-a">Wenn die Rente nicht reicht, sollen sie für dich aufkommen? Genau das willst du nie.</div></div>
+                <div class="problem"><div class="problem-q">„Am 28. ist das Konto leer — und ich weiß nicht mal warum."</div><div class="problem-a">Konsum, Abo's, Auto, Versicherungen — irgendwas frisst dein Geld jeden Monat. Wo, ist unklar.</div></div>
+                <div class="problem"><div class="problem-q">„Mit 67 reicht meine Rente für Aldi, nicht für Edeka."</div><div class="problem-a">Statistiken sagen es seit Jahren. Nur ändert keiner was. Du auch nicht — bisher.</div></div>
+                <div class="problem"><div class="problem-q">„Mein Ex-Mitschüler postet sein Eigenheim auf Insta. Ich miete noch."</div><div class="problem-a">Ihr habt gleich angefangen. Heute steht er da — und du fragst dich was du falsch gemacht hast.</div></div>
+                <div class="problem" style="border-left:3px solid #d4a843;background:rgba(212,168,67,0.04)"><div class="problem-q" style="color:#f0c970">„Ich hab noch nie nachgerechnet was meine Versicherungen zusammen kosten — weil ich Angst vor der Antwort habe."</div><div class="problem-a">Genau das ist der Punkt. Wir rechnen es zusammen. Du entscheidest dann was bleibt und was raus muss.</div></div>
             </div>
         </div>
 
@@ -473,12 +470,12 @@ textarea.in { resize: vertical; min-height: 70px; }
             <div class="section-h">Was du bei mir kriegst</div>
             <h2 class="section-h2">Ehrlich. Persönlich.<br>Du verstehst was passiert.</h2>
             <div class="solutions">
-                <div class="solution"><div class="solution-icon">💼</div><div class="solution-title">Finanz-Check ohne Druck</div><div class="solution-desc">Wir gucken uns gemeinsam an wo du stehst. Ich sage dir ehrlich was sinnvoll ist — und auch was du dir sparen kannst.</div></div>
-                <div class="solution"><div class="solution-icon">🛡</div><div class="solution-title">Familie absichern</div><div class="solution-desc">Was passiert wenn dir morgen was passiert? Wir bauen einen einfachen Schutz für dich und deine Liebsten.</div></div>
-                <div class="solution"><div class="solution-icon">📈</div><div class="solution-title">Vermögen aufbauen</div><div class="solution-desc">ETFs, Fonds, Immobilien — was passt zu DIR? Ich zeige verschiedene Wege. Du entscheidest. Keine Black-Box.</div></div>
-                <div class="solution"><div class="solution-icon">🏠</div><div class="solution-title">Richtung Eigenheim</div><div class="solution-desc">Eigenkapital aufbauen, Förderungen ausnutzen, Finanzierung vorbereiten — auch wenn's noch 5 Jahre dauert.</div></div>
-                <div class="solution"><div class="solution-icon">📚</div><div class="solution-title">Du verstehst jeden Schritt</div><div class="solution-desc">Kein Banker-Deutsch, kein Kleingedrucktes-Versteckspiel. Wenn du was nicht verstehst, frag — bis es klar ist.</div></div>
-                <div class="solution"><div class="solution-icon">⚡</div><div class="solution-title">Du entscheidest, nicht ich</div><div class="solution-desc">Mein Job ist erklären + Optionen zeigen. Ob du was machst — und was — ist deine Entscheidung. Immer.</div></div>
+                <div class="solution"><div class="solution-icon">💼</div><div class="solution-title">90 Min, danach weißt du wo du in 10 Jahren stehst</div><div class="solution-desc">Kein Pitch, kein PowerPoint. Wir gucken Zahlen, ich erklär dir was passiert wenn du nichts änderst — und was passiert wenn doch.</div></div>
+                <div class="solution"><div class="solution-icon">🛡</div><div class="solution-title">Du kannst morgens losfahren ohne „was wenn?" im Kopf</div><div class="solution-desc">Wir bauen einen einfachen Schutz für dich und deine Liebsten. Nichts was du nicht brauchst — aber alles was wirklich zählt.</div></div>
+                <div class="solution"><div class="solution-icon">📈</div><div class="solution-title">Endlich nachts ruhig schlafen — auch wenn die Rente nicht reicht</div><div class="solution-desc">ETFs, Fonds, Immobilien — wir bauen dir einen Plan, der zur DIR passt. Du verstehst jeden Schritt. Du entscheidest.</div></div>
+                <div class="solution"><div class="solution-icon">🏠</div><div class="solution-title">Richtung Eigenheim — auch wenn's noch 5 Jahre dauert</div><div class="solution-desc">Eigenkapital aufbauen, Förderungen ausnutzen, Finanzierung vorbereiten. Heute starten heißt: in 5 Jahren Schlüssel.</div></div>
+                <div class="solution"><div class="solution-icon">📚</div><div class="solution-title">Kein Banker-Deutsch, kein Kleingedrucktes</div><div class="solution-desc">Wenn du was nicht verstehst, frag — bis es klar ist. Wir gehen nicht weiter bevor du sagst „ja, kapiert".</div></div>
+                <div class="solution"><div class="solution-icon">⚡</div><div class="solution-title">Du entscheidest, nicht ich</div><div class="solution-desc">Auch wenn du am Ende nichts abschließt — die Beratung war kostenlos, die Erkenntnisse bleiben. Mehr versprech ich nicht.</div></div>
             </div>
         </div>
     </div>
@@ -489,12 +486,13 @@ textarea.in { resize: vertical; min-height: 70px; }
             <div class="section-h">Wo stehst du gerade?</div>
             <h2 class="section-h2">Damit kommen die meisten zu mir.</h2>
             <div class="problems">
+                <div class="problem"><div class="problem-q">„Sonntag Abend hab ich Bauchweh wegen Montag."</div><div class="problem-a">Sunday Scaries — körperlich. Du weißt was kommt, du willst es nicht. Aber jede Woche dasselbe.</div></div>
+                <div class="problem"><div class="problem-q">„Beim Klassentreffen drück ich mich um die Frage: ‚Was machst du jetzt eigentlich?'"</div><div class="problem-a">Du verdienst nicht schlecht. Aber stolz bist du auf deinen Job nicht. Das tut weh, jedes Mal.</div></div>
                 <div class="problem"><div class="problem-q">„Mein Job langweilt mich — ich bin auf Autopilot."</div><div class="problem-a">9-to-5, jeden Tag dasselbe, kein Wachstum. Du weißt es geht mehr — du weißt nur nicht wie und wo.</div></div>
-                <div class="problem"><div class="problem-q">„Ich verdiene nicht das was ich leisten könnte."</div><div class="problem-a">Festgehalt deckelt dich. Egal wie hart du ranklotzt, mehr als X kommt nicht.</div></div>
-                <div class="problem"><div class="problem-q">„Ich will Selbständigkeit — aber ohne Risiko von Null."</div><div class="problem-a">Eigenes Business klingt geil, aber kein Plan, kein Kunden, kein System. Wo anfangen?</div></div>
-                <div class="problem"><div class="problem-q">„Überall Hype — keiner sagt mir was wirklich funktioniert."</div><div class="problem-a">Coaches, Online-Kurse, „passives Einkommen" — viel heiße Luft. Du willst was Bodenständiges.</div></div>
-                <div class="problem"><div class="problem-q">„Ich brauche Sicherheit beim Einstieg."</div><div class="problem-a">Du kannst nicht einfach kündigen. Du willst nebenbei testen ob's für dich passt — bevor du All-in gehst.</div></div>
-                <div class="problem"><div class="problem-q">„Ich finde nirgends ein Team das menschlich tickt."</div><div class="problem-a">Ellbogen-Mentalität, jeder gegen jeden, Zahlen-Druck — das ist nicht deins.</div></div>
+                <div class="problem"><div class="problem-q">„Mein Chef ist 8 Jahre älter. Will ich in 8 Jahren sein wie er? Nein."</div><div class="problem-a">Schaust du in den Karriere-Spiegel deiner Firma — und sagst „kein Bock"? Dann ist die Frage schon beantwortet.</div></div>
+                <div class="problem"><div class="problem-q">„Festgehalt deckelt mich — egal wie hart ich ranklotze."</div><div class="problem-a">Mehrleistung wird gefeiert, nicht bezahlt. Wer mehr verdienen will, muss raus aus dem System.</div></div>
+                <div class="problem"><div class="problem-q">„Ich finde nirgends ein Team das menschlich tickt."</div><div class="problem-a">Ellbogen-Mentalität, jeder gegen jeden, Zahlen-Druck — das ist nicht deins. Du suchst etwas, wo Spaß und Wachstum zusammen gehen.</div></div>
+                <div class="problem" style="border-left:3px solid #d4a843;background:rgba(212,168,67,0.04)"><div class="problem-q" style="color:#f0c970">„Ich werde dafür bezahlt, dass ich da BIN — nicht dass ich was BEWEGE."</div><div class="problem-a">Genau das ist der Punkt. Im richtigen System wirst du dafür bezahlt was du LEISTEST. Bei uns wirst du dafür bezahlt was du AUFBAUST.</div></div>
             </div>
         </div>
 
@@ -502,12 +500,12 @@ textarea.in { resize: vertical; min-height: 70px; }
             <div class="section-h">Was du bei uns kriegst</div>
             <h2 class="section-h2">Echtes Team statt Konkurrenz.<br>System statt Selbst-rumeiern.</h2>
             <div class="solutions">
-                <div class="solution"><div class="solution-icon">🌍</div><div class="solution-title">Multikulti-Team</div><div class="solution-desc">Egal welche Hautfarbe, Herkunft, Religion — wir sind ein bunter Haufen. Was zählt: was du aufbauen willst.</div></div>
-                <div class="solution"><div class="solution-icon">🤝</div><div class="solution-title">Keine Ellbogen-Gesellschaft</div><div class="solution-desc">Wir helfen uns gegenseitig hoch. Wenn einer wächst, wachsen alle. Spaß ist Pflicht — Druck ist optional.</div></div>
-                <div class="solution"><div class="solution-icon">📚</div><div class="solution-title">Weiterbildung von Tag 1</div><div class="solution-desc">Schulungen, Mentor, Praxis-Begleitung. Du lernst nicht aus YouTube — du lernst von jemandem der's gemacht hat.</div></div>
-                <div class="solution"><div class="solution-icon">🌐</div><div class="solution-title">Echtes Unternehmens-Netzwerk</div><div class="solution-desc">Du arbeitest nicht allein. Du bist Teil eines etablierten Vertriebs-Systems — Marken, Tools, Strukturen sind da.</div></div>
-                <div class="solution"><div class="solution-icon">⚡</div><div class="solution-title">Quereinstieg ohne BWL</div><div class="solution-desc">Du brauchst kein Studium. Was du brauchst: Bock auf Menschen, Disziplin, Bereitschaft zu lernen.</div></div>
-                <div class="solution"><div class="solution-icon">🛡</div><div class="solution-title">Sicherheit beim Start</div><div class="solution-desc">Du musst nicht alles riskieren. Erst nebenbei testen, wachsen, dann entscheiden ob du voll einsteigst.</div></div>
+                <div class="solution"><div class="solution-icon">🌍</div><div class="solution-title">Im Team: 14 Nationen, 3 Religionen, ein Ziel</div><div class="solution-desc">Egal welche Hautfarbe, Herkunft, Religion — wir sind ein bunter Haufen. Was zählt: was du aufbauen willst.</div></div>
+                <div class="solution"><div class="solution-icon">🤝</div><div class="solution-title">Ich verdien wenn DU verdienst — ist im System verankert</div><div class="solution-desc">Wir helfen uns gegenseitig hoch. Wenn einer wächst, wachsen alle. Wer kommt, der bleibt — weil's Spaß macht.</div></div>
+                <div class="solution"><div class="solution-icon">📚</div><div class="solution-title">Weiterbildung von Tag 1 — von Praktikern</div><div class="solution-desc">Schulungen, Mentor, Praxis-Begleitung. Du lernst nicht aus YouTube — du lernst von Leuten die das selbst seit Jahren machen.</div></div>
+                <div class="solution"><div class="solution-icon">⚡</div><div class="solution-title">Mein Top-Verdiener war Friseur. Mein zweiter: KFZ-Mechaniker.</div><div class="solution-desc">Du brauchst kein BWL-Studium. Was du brauchst: Bock auf Menschen, Disziplin, Bereitschaft zu lernen. Den Rest bringen wir dir bei.</div></div>
+                <div class="solution"><div class="solution-icon">🌐</div><div class="solution-title">Echtes Unternehmens-Netzwerk im Rücken</div><div class="solution-desc">Du arbeitest nicht allein. Du bist Teil eines etablierten Vertriebs-Systems — Marken, Tools, Strukturen sind da, du baust nur drauf auf.</div></div>
+                <div class="solution"><div class="solution-icon">🛡</div><div class="solution-title">Erst nebenbei testen, dann entscheiden</div><div class="solution-desc">Du musst nicht alles riskieren. Wir starten klein, du wächst rein, und entscheidest selbst wann du voll einsteigst.</div></div>
             </div>
         </div>
     </div>
@@ -556,35 +554,24 @@ textarea.in { resize: vertical; min-height: 70px; }
 </div>
 
 <script>
-// Path-Selector im Form (alt) — togglen
-(function(){
-    const opts = document.querySelectorAll('.path-option');
-    opts.forEach(o => {
-        o.addEventListener('click', () => {
-            opts.forEach(x => x.classList.remove('active'));
-            o.classList.add('active');
-            const radio = o.querySelector('input[type="radio"]');
-            if (radio) radio.checked = true;
-        });
-    });
-})();
-
-// Pfad-Tabs (oben, Hero-Section) — togglen Inhalt + sync mit Form-Radio
+// Pfad-Tabs (oben) — togglen Inhalt + sync mit hidden Form-Field + Hint-Text
 (function(){
     const tabs = document.querySelectorAll('.path-tab[data-pathtab]');
     const contents = document.querySelectorAll('[data-pathcontent]');
-    const formOpts = document.querySelectorAll('.path-option');
+    const intHidden = document.getElementById('intHidden');
+    const hintText = document.getElementById('pathHintText');
 
     function activate(target) {
         tabs.forEach(t => t.classList.toggle('active', t.dataset.pathtab === target));
         contents.forEach(c => c.style.display = (c.dataset.pathcontent === target) ? '' : 'none');
-        // Form-Radio sync
-        formOpts.forEach(o => {
-            const radio = o.querySelector('input[type="radio"]');
-            const isMatch = radio && radio.value === target;
-            o.classList.toggle('active', isMatch);
-            if (isMatch && radio) radio.checked = true;
-        });
+        if (intHidden) intHidden.value = target;
+        if (hintText) {
+            if (target === 'karriere') {
+                hintText.innerHTML = '🚀 Du schreibst zum Thema <strong style="color:#d4a843">Karriere / Mitmachen</strong>.';
+            } else {
+                hintText.innerHTML = '💡 Du schreibst zum Thema <strong style="color:#d4a843">Beratung</strong>.';
+            }
+        }
     }
     tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.pathtab)));
 
