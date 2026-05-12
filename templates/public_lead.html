@@ -126,6 +126,30 @@ body::before {
 }
 .path-option input { position: absolute; opacity: 0; pointer-events: none; }
 
+/* ── Pfad-Switcher (Section nach Hero) ── */
+.path-tabs {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    max-width: 880px; margin: 36px auto 0;
+}
+@media (max-width: 720px) { .path-tabs { grid-template-columns: 1fr; } }
+.path-tab {
+    background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.10);
+    border-radius: 16px; padding: 24px 22px; text-align: left;
+    cursor: pointer; transition: all 0.18s; color: #cbd5e1;
+    font-family: inherit;
+}
+.path-tab:hover { background: rgba(212,168,67,0.06); border-color: rgba(212,168,67,0.40); transform: translateY(-2px); }
+.path-tab.active {
+    background: linear-gradient(135deg, rgba(212,168,67,0.18), rgba(212,168,67,0.08));
+    border-color: #d4a843;
+    box-shadow: 0 0 0 4px rgba(212,168,67,0.18), 0 8px 30px rgba(212,168,67,0.18);
+    color: #fff;
+}
+.path-tab .pt-icon { font-size: 30px; margin-bottom: 10px; line-height: 1; }
+.path-tab .pt-label { font-size: 19px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 6px; color: #fff; }
+.path-tab .pt-sub { font-size: 13px; color: #94a3b8; line-height: 1.5; font-weight: 500; }
+.path-tab.active .pt-sub { color: #cbd5e1; }
+
 label.fl {
     font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.7px;
     font-weight: 700; display: block; margin-bottom: 6px; margin-top: 14px;
@@ -412,72 +436,78 @@ textarea.in { resize: vertical; min-height: 70px; }
         </form>
     </div>
 
-    <!-- ═══════════════ DIE PROBLEME ═══════════════ -->
-    <div style="margin-top: 80px">
-        <div class="section-h">Klingt das vertraut?</div>
-        <h2 class="section-h2">Damit kommen die meisten zu mir.</h2>
-        <div class="problems">
-            <div class="problem">
-                <div class="problem-q">„Mein Geld läuft monatlich einfach weg."</div>
-                <div class="problem-a">Konsumkredite, Versicherungen, Handy, Auto-Leasing — am Ende bleibt nichts zum Sparen.</div>
+    <!-- ═══════════════ PFAD-SWITCHER ═══════════════ -->
+    <div style="margin-top: 60px; margin-bottom: 50px">
+        <div class="section-h" style="text-align:center">Was suchst du?</div>
+        <h2 class="section-h2" style="text-align:center">Wähl deinen Pfad.</h2>
+        <div class="path-tabs">
+            <button class="path-tab active" data-pathtab="beratung" type="button">
+                <div class="pt-icon">💡</div>
+                <div class="pt-label">Beratung für mich</div>
+                <div class="pt-sub">Mit Geld besser umgehen, absichern, Vermögen aufbauen</div>
+            </button>
+            <button class="path-tab" data-pathtab="karriere" type="button">
+                <div class="pt-icon">🚀</div>
+                <div class="pt-label">Eigenes Business aufbauen</div>
+                <div class="pt-sub">Im Team mitmachen, Quereinstieg, Karriere im Vertrieb</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════ INHALT — PFAD BERATUNG ═══════════════ -->
+    <div data-pathcontent="beratung">
+        <div style="margin-top: 40px">
+            <div class="section-h">Klingt das vertraut?</div>
+            <h2 class="section-h2">Damit kommen die meisten zu mir.</h2>
+            <div class="problems">
+                <div class="problem"><div class="problem-q">„Mein Geld läuft monatlich einfach weg."</div><div class="problem-a">Konsumkredite, Versicherungen, Handy, Auto-Leasing — am Ende bleibt nichts zum Sparen.</div></div>
+                <div class="problem"><div class="problem-q">„Steuern fressen mein Gehalt."</div><div class="problem-a">Du verdienst gut, aber netto bleibt wenig hängen. Du weißt nicht wie's anders geht.</div></div>
+                <div class="problem"><div class="problem-q">„Wenn mir was passiert, ist meine Familie aufgeschmissen."</div><div class="problem-a">Keine Berufsunfähigkeits-Absicherung, keine Risikolebens, kein Plan für den Notfall.</div></div>
+                <div class="problem"><div class="problem-q">„Sparen lohnt sich doch nicht mehr."</div><div class="problem-a">Inflation frisst dein Geld auf. Du weißt nicht in was du sicher und renditestark investieren sollst.</div></div>
+                <div class="problem"><div class="problem-q">„Mein Vermieter wird teurer — ich will eigene 4 Wände."</div><div class="problem-a">Aber Eigenkapital fehlt, Immobilienpreise explodieren, Banken sagen nein.</div></div>
+                <div class="problem"><div class="problem-q">„Ich hab keine Ahnung wo ich anfangen soll."</div><div class="problem-a">Versicherungen, Aktien, Immobilien, Altersvorsorge — wer blickt da noch durch?</div></div>
             </div>
-            <div class="problem">
-                <div class="problem-q">„Steuern fressen mein Gehalt."</div>
-                <div class="problem-a">Du verdienst gut, aber netto bleibt wenig hängen. Du weißt nicht wie's anders geht.</div>
-            </div>
-            <div class="problem">
-                <div class="problem-q">„Wenn mir was passiert, ist meine Familie aufgeschmissen."</div>
-                <div class="problem-a">Keine Berufsunfähigkeits-Absicherung, keine Risikolebens, kein Plan für den Notfall.</div>
-            </div>
-            <div class="problem">
-                <div class="problem-q">„Sparen lohnt sich doch nicht mehr."</div>
-                <div class="problem-a">Inflation frisst dein Geld auf. Du weißt nicht in was du sicher und renditestark investieren sollst.</div>
-            </div>
-            <div class="problem">
-                <div class="problem-q">„Mein Vermieter wird teurer — ich will eigene 4 Wände."</div>
-                <div class="problem-a">Aber Eigenkapital fehlt, Immobilienpreise explodieren, Banken sagen nein.</div>
-            </div>
-            <div class="problem">
-                <div class="problem-q">„Ich hab keine Ahnung wo ich anfangen soll."</div>
-                <div class="problem-a">Versicherungen, Aktien, Immobilien, Altersvorsorge — wer blickt da noch durch?</div>
+        </div>
+
+        <div style="margin-top: 70px">
+            <div class="section-h">Was du bei mir kriegst</div>
+            <h2 class="section-h2">Ehrlich. Persönlich.<br>Du verstehst was passiert.</h2>
+            <div class="solutions">
+                <div class="solution"><div class="solution-icon">💼</div><div class="solution-title">Finanz-Check ohne Druck</div><div class="solution-desc">Wir gucken uns gemeinsam an wo du stehst. Ich sage dir ehrlich was sinnvoll ist — und auch was du dir sparen kannst.</div></div>
+                <div class="solution"><div class="solution-icon">🛡</div><div class="solution-title">Familie absichern</div><div class="solution-desc">Was passiert wenn dir morgen was passiert? Wir bauen einen einfachen Schutz für dich und deine Liebsten.</div></div>
+                <div class="solution"><div class="solution-icon">📈</div><div class="solution-title">Vermögen aufbauen</div><div class="solution-desc">ETFs, Fonds, Immobilien — was passt zu DIR? Ich zeige verschiedene Wege. Du entscheidest. Keine Black-Box.</div></div>
+                <div class="solution"><div class="solution-icon">🏠</div><div class="solution-title">Richtung Eigenheim</div><div class="solution-desc">Eigenkapital aufbauen, Förderungen ausnutzen, Finanzierung vorbereiten — auch wenn's noch 5 Jahre dauert.</div></div>
+                <div class="solution"><div class="solution-icon">📚</div><div class="solution-title">Du verstehst jeden Schritt</div><div class="solution-desc">Kein Banker-Deutsch, kein Kleingedrucktes-Versteckspiel. Wenn du was nicht verstehst, frag — bis es klar ist.</div></div>
+                <div class="solution"><div class="solution-icon">⚡</div><div class="solution-title">Du entscheidest, nicht ich</div><div class="solution-desc">Mein Job ist erklären + Optionen zeigen. Ob du was machst — und was — ist deine Entscheidung. Immer.</div></div>
             </div>
         </div>
     </div>
 
-    <!-- ═══════════════ DIE LÖSUNG ═══════════════ -->
-    <div style="margin-top: 90px">
-        <div class="section-h">Was du bei mir kriegst</div>
-        <h2 class="section-h2">Ehrlich. Persönlich.<br>Du verstehst was passiert.</h2>
-        <div class="solutions">
-            <div class="solution">
-                <div class="solution-icon">💼</div>
-                <div class="solution-title">Finanz-Check ohne Druck</div>
-                <div class="solution-desc">Wir gucken uns gemeinsam an wo du stehst. Ich sage dir ehrlich was sinnvoll ist — und auch was du dir sparen kannst. Auch wenn du am Ende nichts abschließt.</div>
+    <!-- ═══════════════ INHALT — PFAD KARRIERE ═══════════════ -->
+    <div data-pathcontent="karriere" style="display:none">
+        <div style="margin-top: 40px">
+            <div class="section-h">Wo stehst du gerade?</div>
+            <h2 class="section-h2">Damit kommen die meisten zu mir.</h2>
+            <div class="problems">
+                <div class="problem"><div class="problem-q">„Mein Job langweilt mich — ich bin auf Autopilot."</div><div class="problem-a">9-to-5, jeden Tag dasselbe, kein Wachstum. Du weißt es geht mehr — du weißt nur nicht wie und wo.</div></div>
+                <div class="problem"><div class="problem-q">„Ich verdiene nicht das was ich leisten könnte."</div><div class="problem-a">Festgehalt deckelt dich. Egal wie hart du ranklotzt, mehr als X kommt nicht.</div></div>
+                <div class="problem"><div class="problem-q">„Ich will Selbständigkeit — aber ohne Risiko von Null."</div><div class="problem-a">Eigenes Business klingt geil, aber kein Plan, kein Kunden, kein System. Wo anfangen?</div></div>
+                <div class="problem"><div class="problem-q">„Überall Hype — keiner sagt mir was wirklich funktioniert."</div><div class="problem-a">Coaches, Online-Kurse, „passives Einkommen" — viel heiße Luft. Du willst was Bodenständiges.</div></div>
+                <div class="problem"><div class="problem-q">„Ich brauche Sicherheit beim Einstieg."</div><div class="problem-a">Du kannst nicht einfach kündigen. Du willst nebenbei testen ob's für dich passt — bevor du All-in gehst.</div></div>
+                <div class="problem"><div class="problem-q">„Ich finde nirgends ein Team das menschlich tickt."</div><div class="problem-a">Ellbogen-Mentalität, jeder gegen jeden, Zahlen-Druck — das ist nicht deins.</div></div>
             </div>
-            <div class="solution">
-                <div class="solution-icon">🛡</div>
-                <div class="solution-title">Familie absichern</div>
-                <div class="solution-desc">Was passiert wenn dir morgen was passiert? Wir bauen einen einfachen Schutz für dich und deine Liebsten. Nichts was du nicht brauchst.</div>
-            </div>
-            <div class="solution">
-                <div class="solution-icon">📈</div>
-                <div class="solution-title">Vermögen aufbauen</div>
-                <div class="solution-desc">ETFs, Fonds, Immobilien — was passt zu DIR? Ich zeige dir verschiedene Wege. Du entscheidest. Keine Black-Box, kein "vertrau mir einfach".</div>
-            </div>
-            <div class="solution">
-                <div class="solution-icon">🏠</div>
-                <div class="solution-title">Richtung Eigenheim</div>
-                <div class="solution-desc">Eigenkapital aufbauen, Förderungen ausnutzen, Finanzierung vorbereiten. Auch wenn's noch 5 Jahre dauert — wir fangen jetzt an.</div>
-            </div>
-            <div class="solution">
-                <div class="solution-icon">📚</div>
-                <div class="solution-title">Du verstehst jeden Schritt</div>
-                <div class="solution-desc">Kein Banker-Deutsch, kein Kleingedrucktes-Versteckspiel. Wenn du was nicht verstehst, frag — bis es klar ist.</div>
-            </div>
-            <div class="solution">
-                <div class="solution-icon">🚀</div>
-                <div class="solution-title">Selbst Berater werden</div>
-                <div class="solution-desc">Du willst nicht nur beraten werden, sondern selbst beraten? Eigenes Business aufbauen? Komm ins Team. Quereinsteiger willkommen, egal woher du kommst.</div>
+        </div>
+
+        <div style="margin-top: 70px">
+            <div class="section-h">Was du bei uns kriegst</div>
+            <h2 class="section-h2">Echtes Team statt Konkurrenz.<br>System statt Selbst-rumeiern.</h2>
+            <div class="solutions">
+                <div class="solution"><div class="solution-icon">🌍</div><div class="solution-title">Multikulti-Team</div><div class="solution-desc">Egal welche Hautfarbe, Herkunft, Religion — wir sind ein bunter Haufen. Was zählt: was du aufbauen willst.</div></div>
+                <div class="solution"><div class="solution-icon">🤝</div><div class="solution-title">Keine Ellbogen-Gesellschaft</div><div class="solution-desc">Wir helfen uns gegenseitig hoch. Wenn einer wächst, wachsen alle. Spaß ist Pflicht — Druck ist optional.</div></div>
+                <div class="solution"><div class="solution-icon">📚</div><div class="solution-title">Weiterbildung von Tag 1</div><div class="solution-desc">Schulungen, Mentor, Praxis-Begleitung. Du lernst nicht aus YouTube — du lernst von jemandem der's gemacht hat.</div></div>
+                <div class="solution"><div class="solution-icon">🌐</div><div class="solution-title">Echtes Unternehmens-Netzwerk</div><div class="solution-desc">Du arbeitest nicht allein. Du bist Teil eines etablierten Vertriebs-Systems — Marken, Tools, Strukturen sind da.</div></div>
+                <div class="solution"><div class="solution-icon">⚡</div><div class="solution-title">Quereinstieg ohne BWL</div><div class="solution-desc">Du brauchst kein Studium. Was du brauchst: Bock auf Menschen, Disziplin, Bereitschaft zu lernen.</div></div>
+                <div class="solution"><div class="solution-icon">🛡</div><div class="solution-title">Sicherheit beim Start</div><div class="solution-desc">Du musst nicht alles riskieren. Erst nebenbei testen, wachsen, dann entscheiden ob du voll einsteigst.</div></div>
             </div>
         </div>
     </div>
@@ -526,7 +556,7 @@ textarea.in { resize: vertical; min-height: 70px; }
 </div>
 
 <script>
-// Path-Selector aktiv-State togglen
+// Path-Selector im Form (alt) — togglen
 (function(){
     const opts = document.querySelectorAll('.path-option');
     opts.forEach(o => {
@@ -537,6 +567,31 @@ textarea.in { resize: vertical; min-height: 70px; }
             if (radio) radio.checked = true;
         });
     });
+})();
+
+// Pfad-Tabs (oben, Hero-Section) — togglen Inhalt + sync mit Form-Radio
+(function(){
+    const tabs = document.querySelectorAll('.path-tab[data-pathtab]');
+    const contents = document.querySelectorAll('[data-pathcontent]');
+    const formOpts = document.querySelectorAll('.path-option');
+
+    function activate(target) {
+        tabs.forEach(t => t.classList.toggle('active', t.dataset.pathtab === target));
+        contents.forEach(c => c.style.display = (c.dataset.pathcontent === target) ? '' : 'none');
+        // Form-Radio sync
+        formOpts.forEach(o => {
+            const radio = o.querySelector('input[type="radio"]');
+            const isMatch = radio && radio.value === target;
+            o.classList.toggle('active', isMatch);
+            if (isMatch && radio) radio.checked = true;
+        });
+    }
+    tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.pathtab)));
+
+    // URL-Param-Support: /start?ziel=karriere → karriere-Pfad direkt aktiv
+    const url = new URL(window.location.href);
+    const ziel = url.searchParams.get('ziel');
+    if (ziel === 'karriere' || ziel === 'rk') activate('karriere');
 })();
 </script>
 </body>
