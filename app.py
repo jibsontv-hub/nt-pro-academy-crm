@@ -5109,7 +5109,11 @@ def login_magic_request():
         flash('Bitte gültige E-Mail eingeben.', 'error')
         return redirect(url_for('login'))
     db = get_db()
-    row = db.execute('SELECT id, name, email FROM users WHERE LOWER(email)=? AND active=1', (email,)).fetchone()
+    # Sicherheit: Magic-Link nur wenn User schonmal eingeloggt war (last_login IS NOT NULL).
+    # Frische Accounts müssen erstmals mit E-Mail+Passwort rein — danach ist Magic-Link offen.
+    row = db.execute('''SELECT id, name, email FROM users
+                        WHERE LOWER(email)=? AND active=1 AND last_login IS NOT NULL''',
+                    (email,)).fetchone()
     if row:
         token = secrets.token_urlsafe(32)
         expires = (datetime.now() + timedelta(minutes=20)).strftime('%Y-%m-%d %H:%M:%S')
@@ -5160,6 +5164,13 @@ def login_magic(token):
     if not row['active']:
         db.close()
         flash('Account ist nicht aktiv. Frag deinen Strukturhöher.', 'error')
+        return redirect(url_for('login'))
+    # Sicherheits-Gate: Magic-Link erst nach erstem klassischen Login.
+    # Schließt auch alte „Welcome-Magic-Links" aus die früher mal verschickt wurden.
+    user_check = db.execute('SELECT last_login FROM users WHERE id=?', (row['user_id'],)).fetchone()
+    if not user_check or not user_check['last_login']:
+        db.close()
+        flash('Erst-Login bitte mit E-Mail + Passwort. Magic-Link ist erst danach verfügbar.', 'info')
         return redirect(url_for('login'))
     # Token verbrauchen
     db.execute('UPDATE magic_link_tokens SET used_at=CURRENT_TIMESTAMP WHERE id=?', (row['id'],))
@@ -9921,32 +9932,24 @@ def genehmigung_bestaetigen(uid):
             url='/dashboard', urgent=True, tag='aktiviert')
     except Exception:
         pass
-    # Bestätigungs-Mail an den freigeschalteten User mit Magic-Link für 1-Klick-Login
+    # Bestätigungs-Mail an den freigeschalteten User — KEIN Magic-Link.
+    # User muss sich erstmals mit E-Mail + Passwort einloggen. Erst danach
+    # ist Magic-Link für ihn verfügbar (siehe /login/magic-request).
     if target.get('email') and is_smtp_configured():
         try:
             base = (request.url_root or 'https://proacademy-business.de/').rstrip('/')
-            # Magic-Link-Token für 1-Klick-Onboarding (gültig 7 Tage da das ein Welcome-Link ist)
-            magic_token = secrets.token_urlsafe(32)
-            magic_expires = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
-            db_ml = get_db()
-            db_ml.execute('INSERT INTO magic_link_tokens (user_id, token, expires_at, ip) VALUES (?,?,?,?)',
-                          (uid, magic_token, magic_expires, 'admin_confirm'))
-            db_ml.commit()
-            db_ml.close()
-            magic_url = f'{base}/login/magic/{magic_token}'
             text = (f"Hallo {target['name']},\n\nherzlich willkommen in unserer Struktur!\n"
-                    f"Dein Account ist freigeschaltet.\n\n"
-                    f"→ Direkt einloggen (1-Klick, kein Passwort tippen, gültig 7 Tage):\n{magic_url}\n\n"
-                    f"Oder klassisch mit deiner E-Mail + Passwort: {base}/login\n"
+                    f"Dein Account ist freigeschaltet — du kannst dich ab sofort einloggen:\n\n{base}/login\n\n"
+                    f"Mit deiner E-Mail + dem Passwort das du bei der Anmeldung gewählt hast.\n"
                     f"Passwort vergessen? {base}/passwort-vergessen\n\n"
                     f"Bis bald,\nDein Pro-Academy-Team")
             html = (f'<p>Hallo {target["name"]},</p><p>herzlich willkommen in unserer Struktur!</p>'
-                    f'<p>Dein Account ist freigeschaltet — direkt mit 1 Klick einloggen:</p>'
-                    f'<p style="margin:24px 0"><a href="{magic_url}" style="background:#d4a843;color:#0f1c3f;'
+                    f'<p>Dein Account ist freigeschaltet — du kannst dich ab sofort einloggen:</p>'
+                    f'<p style="margin:24px 0"><a href="{base}/login" style="background:#d4a843;color:#0f1c3f;'
                     f'padding:14px 26px;border-radius:10px;text-decoration:none;font-weight:800;display:inline-block">'
-                    f'→ Jetzt einloggen (1 Klick)</a></p>'
-                    f'<p style="color:#64748b;font-size:13px">Link gilt 7 Tage. Danach klassisch via E-Mail+Passwort: '
-                    f'<a href="{base}/login">{base}/login</a></p>')
+                    f'→ Jetzt einloggen</a></p>'
+                    f'<p style="color:#64748b;font-size:13px">Mit deiner E-Mail + dem Passwort das du bei der Anmeldung gewählt hast.<br>'
+                    f'Passwort vergessen? <a href="{base}/passwort-vergessen">Hier zurücksetzen</a></p>')
             send_email(target['email'], 'Willkommen bei Pro Academy — du kannst loslegen',
                        text, body_html=html, sent_by=current_user.id, category='signup')
         except Exception as e:
