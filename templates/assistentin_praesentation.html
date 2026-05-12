@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>{{ pres.titel }} · Pro Academy</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif; background: #0a132d;
+    color: #f1f5f9; -webkit-font-smoothing: antialiased; min-height: 100vh;
+  }
+  .toolbar {
+    position: fixed; top: 16px; left: 16px; right: 16px; z-index: 100;
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .toolbar a, .toolbar button {
+    padding: 8px 14px; background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px; color: #f1f5f9; text-decoration: none; font-size: 12px; font-weight: 700;
+    cursor: pointer; font-family: inherit; backdrop-filter: blur(8px);
+  }
+  .toolbar a:hover, .toolbar button:hover { background: rgba(255,255,255,0.18); }
+  .toolbar .primary { background: #d4a843; color: #0f1c3f; border-color: #d4a843; }
+  .pres-meta { margin-left: auto; padding: 8px 14px; font-size: 12px; color: rgba(255,255,255,0.5); font-weight: 600; }
+
+  .slide {
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 80px 60px;
+    position: relative; page-break-after: always;
+    background: linear-gradient(135deg, #0f1c3f 0%, #1a2c5b 60%, #0a132d 100%);
+  }
+  .slide:nth-child(odd) { background: linear-gradient(135deg, #0a132d 0%, #0f1c3f 60%, #1a2c5b 100%); }
+  .slide-num {
+    position: absolute; top: 60px; right: 60px; font-size: 13px; color: rgba(255,255,255,0.4);
+    font-weight: 700; letter-spacing: 2px;
+  }
+  .slide-title {
+    font-size: 56px; font-weight: 900; letter-spacing: -1.5px;
+    color: #fff; line-height: 1.1; margin-bottom: 32px; max-width: 1100px;
+  }
+  .slide-title .accent { color: #d4a843; }
+  .slide-bullets { list-style: none; max-width: 900px; }
+  .slide-bullets li {
+    font-size: 28px; color: rgba(255,255,255,0.92); font-weight: 500;
+    padding: 12px 0 12px 36px; position: relative; line-height: 1.4;
+  }
+  .slide-bullets li::before {
+    content: '▸'; position: absolute; left: 0; color: #d4a843; font-weight: 800;
+  }
+  .slide-note {
+    position: absolute; bottom: 40px; left: 60px; right: 60px;
+    font-size: 12px; color: rgba(255,255,255,0.35); font-style: italic;
+    border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;
+  }
+  /* Title-Slide */
+  .slide.title {
+    background: linear-gradient(135deg, #d4a843 0%, #b8902a 50%, #0f1c3f 100%);
+    text-align: center;
+  }
+  .slide.title .slide-title { font-size: 72px; color: #fff; margin-bottom: 16px; }
+  .slide.title .author { font-size: 22px; color: rgba(255,255,255,0.85); font-weight: 600; }
+
+  @media (max-width: 720px) {
+    .slide { padding: 80px 24px; }
+    .slide-title { font-size: 36px; }
+    .slide.title .slide-title { font-size: 44px; }
+    .slide-bullets li { font-size: 18px; padding-left: 28px; }
+  }
+
+  @media print {
+    .toolbar { display: none; }
+    .slide { min-height: auto; padding: 40px; page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a href="/assistentin">← zurück</a>
+  <button class="primary" onclick="window.print()">📄 Drucken</button>
+  <button onclick="toggleFullscreen()">⛶ Vollbild</button>
+  <div class="pres-meta">{{ slides|length }} Slides · {{ pres.titel }}</div>
+</div>
+
+<!-- Title-Slide -->
+<div class="slide title">
+  <div class="slide-num">01 / {{ '%02d' % (slides|length + 1) }}</div>
+  <div class="slide-title">{{ pres.titel }}</div>
+  {% if pres.autor %}<div class="author">{{ pres.autor }}</div>{% endif %}
+</div>
+
+{% for s in slides %}
+<div class="slide">
+  <div class="slide-num">{{ '%02d' % (loop.index + 1) }} / {{ '%02d' % (slides|length + 1) }}</div>
+  <h2 class="slide-title">{{ s.title }}</h2>
+  {% if s.bullet_points %}
+  <ul class="slide-bullets">
+    {% for b in s.bullet_points %}<li>{{ b }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if s.note %}<div class="slide-note">📝 {{ s.note }}</div>{% endif %}
+</div>
+{% endfor %}
+
+<script>
+function toggleFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+}
+// Pfeil-Navigation
+document.addEventListener('keydown', (e) => {
+  const slides = document.querySelectorAll('.slide');
+  const visible = [...slides].findIndex(s => {
+    const r = s.getBoundingClientRect();
+    return r.top >= 0 && r.top < window.innerHeight / 2;
+  });
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    const next = slides[visible + 1] || slides[slides.length - 1];
+    next.scrollIntoView({ behavior: 'smooth' });
+    e.preventDefault();
+  } else if (e.key === 'ArrowLeft') {
+    const prev = slides[Math.max(0, visible - 1)];
+    prev.scrollIntoView({ behavior: 'smooth' });
+    e.preventDefault();
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>{{ doc.titel }} · Pro Academy</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif; background: #f3f4f6; color: #0f1c3f;
+    padding: 32px 16px; line-height: 1.65; -webkit-font-smoothing: antialiased;
+  }
+  .toolbar {
+    max-width: 800px; margin: 0 auto 16px; display: flex; gap: 8px; flex-wrap: wrap; padding: 0 4px;
+  }
+  .toolbar a, .toolbar button {
+    padding: 8px 14px; background: #fff; border: 1px solid #e5e8ee; border-radius: 8px;
+    color: #0f1c3f; text-decoration: none; font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: inherit;
+  }
+  .toolbar a:hover, .toolbar button:hover { background: #f3f4f6; }
+  .toolbar .primary { background: #d4a843; color: #0f1c3f; border-color: #d4a843; }
+  .doc {
+    max-width: 800px; margin: 0 auto; background: #fff; padding: 56px 60px;
+    border-radius: 14px; box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+  }
+  .doc h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.6px; margin-bottom: 6px; }
+  .doc .untertitel { font-size: 16px; color: #64748b; margin-bottom: 32px; padding-bottom: 18px; border-bottom: 2px solid #d4a843; }
+  .doc h2 { font-size: 18px; font-weight: 800; color: #d4a843; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 30px; margin-bottom: 10px; }
+  .doc p { font-size: 15px; margin-bottom: 14px; white-space: pre-wrap; }
+  .footer-meta { max-width: 800px; margin: 14px auto 0; font-size: 11px; color: #94a3b8; text-align: right; padding: 0 4px; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .toolbar, .footer-meta { display: none; }
+    .doc { box-shadow: none; padding: 30px 40px; max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a href="/assistentin">← zurück</a>
+  <button class="primary" onclick="window.print()">📄 Drucken / Als PDF speichern</button>
+</div>
+
+<div class="doc">
+  <h1>{{ doc.titel }}</h1>
+  {% if doc.untertitel %}<div class="untertitel">{{ doc.untertitel }}</div>{% endif %}
+
+  {% for s in sektionen %}
+    <h2>{{ s.ueberschrift }}</h2>
+    <p>{{ s.inhalt }}</p>
+  {% endfor %}
+</div>
+
+<div class="footer-meta">
+  Erstellt am {{ doc.created_at[:16] if doc.created_at else '—' }} · Pro Academy KI-Assistentin
+</div>
+
+</body>
+</html>

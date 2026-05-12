@@ -1029,6 +1029,209 @@ CLAUDE_TOOLS = [
 ]
 
 
+# ═══════════ ASSISTENTIN-TOOLS (für /assistentin — persönliche KI) ═══════════
+
+ASSISTENTIN_TOOLS = [
+    {
+        'name': 'web_search',
+        'description': 'Sucht im Web (DuckDuckGo) nach allgemeinen Informationen, Ortschaften, Anbietern, Themen. Gibt bis zu 5 Ergebnisse mit Titel + Link + Snippet zurück.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'query': {'type': 'string', 'description': 'Suchbegriff (z.B. „beste Konferenz-Räume München bis 30 Personen")'},
+            },
+            'required': ['query']
+        }
+    },
+    {
+        'name': 'find_event_locations',
+        'description': 'Sucht spezifisch nach Locations für Team-Events (Restaurants, Konferenzräume, Tagungshotels) in einer bestimmten Stadt. Optional Filter wie max Personen.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'stadt': {'type': 'string', 'description': 'z.B. München, Hamburg, Berlin'},
+                'art': {'type': 'string', 'description': 'Restaurant / Konferenzraum / Tagungshotel / Eventlocation', 'default': 'Eventlocation'},
+                'personen': {'type': 'integer', 'description': 'Anzahl Teilnehmer (optional)'},
+                'budget_pp': {'type': 'string', 'description': 'optional z.B. „bis 50€ pro Person"'},
+            },
+            'required': ['stadt']
+        }
+    },
+    {
+        'name': 'create_document',
+        'description': 'Generiert ein professionelles Dokument (Memo, Brief, Konzept, Protokoll) als druckfertige HTML-Page. User kann es direkt mit Cmd+P als PDF speichern. Returns URL zum Dokument.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'titel': {'type': 'string'},
+                'untertitel': {'type': 'string'},
+                'sektionen': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'ueberschrift': {'type': 'string'},
+                            'inhalt': {'type': 'string', 'description': 'Plain Text mit Zeilenumbrüchen, kann mehrere Absätze enthalten'},
+                        },
+                        'required': ['ueberschrift', 'inhalt']
+                    }
+                }
+            },
+            'required': ['titel', 'sektionen']
+        }
+    },
+    {
+        'name': 'create_presentation',
+        'description': 'Generiert eine HTML-Präsentation (Slides). User kann sie im Browser durchklicken oder drucken. Jede Slide = 1 Folie. Returns URL.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'titel': {'type': 'string'},
+                'autor': {'type': 'string'},
+                'slides': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'title': {'type': 'string'},
+                            'bullet_points': {'type': 'array', 'items': {'type': 'string'}},
+                            'note': {'type': 'string', 'description': 'Sprechernotiz (optional)'},
+                        },
+                        'required': ['title']
+                    }
+                }
+            },
+            'required': ['titel', 'slides']
+        }
+    },
+    {
+        'name': 'add_personal_todo',
+        'description': 'Legt einen persönlichen TODO für den User an. Optional mit Fälligkeitsdatum.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'titel': {'type': 'string'},
+                'beschreibung': {'type': 'string'},
+                'faellig_am': {'type': 'string', 'description': 'YYYY-MM-DD'},
+            },
+            'required': ['titel']
+        }
+    },
+]
+
+
+def _ddg_search(query, max_results=5):
+    """DuckDuckGo HTML-Endpoint scrapen — kein API-Key, robuste Fallback-Suche."""
+    import urllib.request, urllib.parse, re as _re
+    try:
+        url = 'https://html.duckduckgo.com/html/?q=' + urllib.parse.quote(query)
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode('utf-8', errors='ignore')
+        # Parse: <a class="result__a" href="...">Title</a> + <a class="result__snippet">Snippet</a>
+        results = []
+        # Title + URL
+        link_pattern = _re.compile(r'<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', _re.DOTALL)
+        snippet_pattern = _re.compile(r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>', _re.DOTALL)
+        links = link_pattern.findall(html)
+        snippets = snippet_pattern.findall(html)
+        for i, (url_raw, title_html) in enumerate(links[:max_results]):
+            title = _re.sub(r'<[^>]+>', '', title_html).strip()
+            url_clean = url_raw
+            # DDG verwendet redirect-URLs: /l/?uddg=...
+            if 'uddg=' in url_clean:
+                m = _re.search(r'uddg=([^&]+)', url_clean)
+                if m:
+                    url_clean = urllib.parse.unquote(m.group(1))
+            snippet = ''
+            if i < len(snippets):
+                snippet = _re.sub(r'<[^>]+>', '', snippets[i]).strip()[:300]
+            results.append({'title': title[:200], 'url': url_clean, 'snippet': snippet})
+        return results
+    except Exception as e:
+        return [{'error': f'Web-Search Fehler: {str(e)[:200]}'}]
+
+
+def execute_assistentin_tool(tool_name, tool_input, user):
+    """Erweiterte Tools für /assistentin — Web-Search, Dokumente, Präsentationen, Locations."""
+    try:
+        if tool_name == 'web_search':
+            q = (tool_input.get('query') or '').strip()
+            if not q:
+                return {'error': 'query fehlt'}
+            results = _ddg_search(q, max_results=5)
+            return {'query': q, 'results': results}
+
+        if tool_name == 'find_event_locations':
+            stadt = (tool_input.get('stadt') or '').strip()
+            art = (tool_input.get('art') or 'Eventlocation').strip()
+            personen = tool_input.get('personen')
+            budget = (tool_input.get('budget_pp') or '').strip()
+            if not stadt:
+                return {'error': 'stadt fehlt'}
+            q = f'{art} {stadt}'
+            if personen:
+                q += f' bis {int(personen)} Personen'
+            if budget:
+                q += f' {budget}'
+            results = _ddg_search(q + ' empfehlung', max_results=5)
+            return {'suchanfrage': q, 'results': results}
+
+        if tool_name == 'create_document':
+            import sqlite3 as sq
+            titel = (tool_input.get('titel') or 'Dokument').strip()[:200]
+            untertitel = (tool_input.get('untertitel') or '').strip()[:300]
+            sektionen = tool_input.get('sektionen') or []
+            doc_id = secrets.token_urlsafe(16)
+            db = get_db()
+            db.execute('''CREATE TABLE IF NOT EXISTS assist_documents (
+                          id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL,
+                          titel TEXT, untertitel TEXT, sektionen_json TEXT,
+                          created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+            db.execute('INSERT INTO assist_documents (id, owner_id, titel, untertitel, sektionen_json) VALUES (?,?,?,?,?)',
+                      (doc_id, user.id, titel, untertitel, json.dumps(sektionen, ensure_ascii=False)))
+            db.commit()
+            db.close()
+            return {'success': True, 'document_id': doc_id, 'url': f'/assistentin/dokument/{doc_id}',
+                    'message': f'Dokument „{titel}" erstellt — öffne den Link, drucke mit Cmd+P → als PDF speichern.'}
+
+        if tool_name == 'create_presentation':
+            titel = (tool_input.get('titel') or 'Präsentation').strip()[:200]
+            autor = (tool_input.get('autor') or user.name or '').strip()[:200]
+            slides = tool_input.get('slides') or []
+            pres_id = secrets.token_urlsafe(16)
+            db = get_db()
+            db.execute('''CREATE TABLE IF NOT EXISTS assist_presentations (
+                          id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL,
+                          titel TEXT, autor TEXT, slides_json TEXT,
+                          created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+            db.execute('INSERT INTO assist_presentations (id, owner_id, titel, autor, slides_json) VALUES (?,?,?,?,?)',
+                      (pres_id, user.id, titel, autor, json.dumps(slides, ensure_ascii=False)))
+            db.commit()
+            db.close()
+            return {'success': True, 'presentation_id': pres_id, 'url': f'/assistentin/praesentation/{pres_id}',
+                    'message': f'Präsentation „{titel}" mit {len(slides)} Slides — Klick zum Anschauen + durchklicken.'}
+
+        if tool_name == 'add_personal_todo':
+            titel = (tool_input.get('titel') or '').strip()[:200]
+            besch = (tool_input.get('beschreibung') or '').strip()[:300]
+            faellig = (tool_input.get('faellig_am') or '').strip() or date.today().isoformat()
+            if not titel:
+                return {'error': 'titel fehlt'}
+            full_title = (titel + (' — ' + besch if besch else ''))[:500]
+            db = get_db()
+            cur = db.execute('INSERT INTO personal_todos (user_id, title, datum) VALUES (?,?,?)',
+                            (user.id, full_title, faellig))
+            tid = cur.lastrowid
+            db.commit()
+            db.close()
+            return {'success': True, 'todo_id': tid, 'message': f'TODO „{titel}" für {faellig} angelegt'}
+
+        return {'error': f'Unbekanntes Assistentin-Tool: {tool_name}'}
+    except Exception as e:
+        return {'error': f'Tool-Exception: {str(e)[:200]}'}
+
+
 def execute_claude_tool(tool_name, tool_input, user):
     """Führt einen Tool-Call aus. user = Flask current_user. Returns dict (JSON-serialisierbar)."""
     try:
@@ -1191,6 +1394,65 @@ def execute_claude_tool(tool_name, tool_input, user):
         try: db.close()
         except: pass
         return {'error': f'Tool-Exception: {str(e)[:200]}'}
+
+
+def claude_chat_with_assistentin_tools(messages, system_prompt, user, max_iter=5):
+    """Tool-Use-Loop für /assistentin mit erweiterten Tools (Web, Doc, PPT, Locations)."""
+    api_key = get_setting('anthropic_api_key')
+    if not api_key:
+        return None, [], 'Anthropic API-Key fehlt'
+    tool_log = []
+    msgs = list(messages)
+    for _ in range(max_iter):
+        body = {
+            'model': 'claude-sonnet-4-5-20250929',
+            'max_tokens': 2000,
+            'system': system_prompt,
+            'tools': ASSISTENTIN_TOOLS,
+            'messages': msgs,
+        }
+        try:
+            import urllib.request, urllib.error
+            req = urllib.request.Request(
+                'https://api.anthropic.com/v1/messages',
+                data=json.dumps(body).encode('utf-8'),
+                headers={'Content-Type': 'application/json', 'x-api-key': api_key,
+                         'anthropic-version': '2023-06-01'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            try: err_body = e.read().decode('utf-8')
+            except: err_body = str(e)
+            return None, tool_log, f'HTTP {e.code}: {err_body[:200]}'
+        except Exception as e:
+            return None, tool_log, f'API-Fehler: {str(e)[:200]}'
+
+        stop_reason = data.get('stop_reason', '')
+        content_blocks = data.get('content', [])
+        if stop_reason == 'tool_use':
+            tool_results = []
+            for b in content_blocks:
+                if b.get('type') == 'tool_use':
+                    tname = b.get('name')
+                    tinput = b.get('input', {})
+                    result = execute_assistentin_tool(tname, tinput, user)
+                    tool_log.append({'name': tname, 'input': tinput, 'result': result})
+                    tool_results.append({
+                        'type': 'tool_result',
+                        'tool_use_id': b.get('id'),
+                        'content': json.dumps(result, ensure_ascii=False)[:4000],
+                    })
+            msgs.append({'role': 'assistant', 'content': content_blocks})
+            msgs.append({'role': 'user', 'content': tool_results})
+            continue
+        final_text = ''
+        for b in content_blocks:
+            if b.get('type') == 'text':
+                final_text += b.get('text', '')
+        return final_text.strip(), tool_log, None
+    return None, tool_log, 'Tool-Loop max iterations erreicht'
 
 
 def claude_chat_with_tools(messages, system_prompt, user, max_iter=4):
@@ -7162,6 +7424,144 @@ def passwort_aendern():
         flash('✅ Passwort erfolgreich geändert!', 'success')
         return redirect(url_for('dashboard'))
     return render_template('passwort_aendern.html')
+
+
+@app.route('/assistentin', methods=['GET'])
+@login_required
+def assistentin_page():
+    """Persönliche KI-Assistentin — kann Web-Suche, Dokumente, Präsentationen,
+    Locations + persönliche TODOs. Eigener Chat-Verlauf."""
+    db = get_db()
+    db.execute('''CREATE TABLE IF NOT EXISTS assist_messages (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id INTEGER NOT NULL,
+                  role TEXT NOT NULL,
+                  content TEXT,
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+    msgs = db.execute('SELECT role, content, created_at FROM assist_messages WHERE user_id=? ORDER BY id DESC LIMIT 50',
+                     (current_user.id,)).fetchall()
+    msgs = list(reversed([dict(m) for m in msgs]))
+    db.close()
+    return render_template('assistentin.html', messages=msgs, ai_configured=is_ai_configured())
+
+
+@app.route('/api/assistentin/chat', methods=['POST'])
+@login_required
+def api_assistentin_chat():
+    """Sende Nachricht an die Assistentin → Tool-Use-Loop → Antwort."""
+    payload = request.get_json(silent=True) or {}
+    user_msg = (payload.get('message') or '').strip() if request.is_json else (request.form.get('message') or '').strip()
+    if not user_msg:
+        return jsonify({'error': 'Keine Nachricht'}), 400
+    if not is_ai_configured():
+        return jsonify({'error': 'KI nicht konfiguriert. Admin muss Anthropic-API-Key in Einstellungen eintragen.'}), 503
+    db = get_db()
+    db.execute('''CREATE TABLE IF NOT EXISTS assist_messages (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id INTEGER NOT NULL, role TEXT NOT NULL, content TEXT,
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+    db.execute('INSERT INTO assist_messages (user_id, role, content) VALUES (?,?,?)',
+              (current_user.id, 'user', user_msg))
+    db.commit()
+    history_rows = db.execute('SELECT role, content FROM assist_messages WHERE user_id=? ORDER BY id DESC LIMIT 12',
+                             (current_user.id,)).fetchall()
+    history = list(reversed([{'role': r['role'], 'content': r['content']} for r in history_rows]))
+    db.close()
+
+    system_prompt = f"""Du bist die persönliche KI-Assistentin von {current_user.name}. Heute ist {date.today().strftime('%A, %d.%m.%Y')}.
+
+DEIN STIL:
+- Direkt, hilfsbereit, professionell, freundlich. Du sprichst Deutsch und duzt.
+- KURZE Antworten. Erst handeln (Tool nutzen), dann kurz bestätigen.
+- Du fragst NICHT 100 Mal nach — wenn du genug weißt, machst du.
+
+DEINE WERKZEUGE:
+- web_search(query) — sucht im Web nach allem (Anbieter, Themen, Infos, Personen)
+- find_event_locations(stadt, art, personen, budget_pp) — Restaurants/Tagungshotels/Konferenzräume
+- create_document(titel, untertitel, sektionen) — Memo, Brief, Konzept als druckfertige PDF
+- create_presentation(titel, autor, slides) — HTML-Slideshow (kann durchgeklickt + gedruckt werden)
+- add_personal_todo(titel, beschreibung, faellig_am) — persönliche TODOs anlegen
+
+WAS DU MACHST:
+- „Such mir nen Italiener in München für 12 Personen am Freitag" → find_event_locations
+- „Erstell mir ein Konzept für unser Q3-Event" → create_document mit ausgearbeitetem Inhalt
+- „Mach mir 5 Folien zur Vision von Pro Academy" → create_presentation, du baust den Inhalt selbst aus
+- „Erinner mich morgen an Anruf bei Hans" → add_personal_todo
+- „Wie ist der aktuelle Leitzins?" → web_search
+
+WICHTIG: Nutze Tools AKTIV. Wenn du Locations findest oder ein Dokument erstellt hast,
+gib dem User direkt den Link aus dem Tool-Result. Nicht nur reden — TUN.
+"""
+
+    text, tool_log, err = claude_chat_with_assistentin_tools(history, system_prompt, current_user)
+    if err:
+        return jsonify({'error': err}), 500
+    if not text:
+        text = '(KI hat keine Text-Antwort gegeben)'
+    if tool_log:
+        actions = []
+        for t in tool_log:
+            r = t.get('result', {})
+            if r.get('url'):
+                actions.append(f'• {t["name"]} → {r.get("message", "ok")}')
+            elif r.get('results'):
+                actions.append(f'• {t["name"]}({t["input"].get("query") or t["input"].get("stadt", "")}) → {len(r["results"])} Treffer')
+            else:
+                actions.append(f'• {t["name"]} → {r.get("message", "ok")}')
+        text += '\n\n_Aktionen:_\n' + '\n'.join(actions)
+
+    db = get_db()
+    db.execute('INSERT INTO assist_messages (user_id, role, content) VALUES (?,?,?)',
+              (current_user.id, 'assistant', text))
+    db.commit()
+    db.close()
+    return jsonify({'response': text})
+
+
+@app.route('/assistentin/dokument/<doc_id>')
+@login_required
+def assistentin_dokument(doc_id):
+    """Druckfertige HTML-Page eines erstellten Dokuments."""
+    db = get_db()
+    db.execute('''CREATE TABLE IF NOT EXISTS assist_documents (
+                  id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL,
+                  titel TEXT, untertitel TEXT, sektionen_json TEXT,
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+    row = db.execute('SELECT * FROM assist_documents WHERE id=? AND owner_id=?',
+                    (doc_id, current_user.id)).fetchone()
+    db.close()
+    if not row:
+        flash('Dokument nicht gefunden', 'error')
+        return redirect(url_for('assistentin_page'))
+    sektionen = []
+    try:
+        sektionen = json.loads(row['sektionen_json']) or []
+    except Exception:
+        pass
+    return render_template('assistentin_dokument.html', doc=dict(row), sektionen=sektionen)
+
+
+@app.route('/assistentin/praesentation/<pres_id>')
+@login_required
+def assistentin_praesentation(pres_id):
+    """HTML-Slideshow Viewer."""
+    db = get_db()
+    db.execute('''CREATE TABLE IF NOT EXISTS assist_presentations (
+                  id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL,
+                  titel TEXT, autor TEXT, slides_json TEXT,
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+    row = db.execute('SELECT * FROM assist_presentations WHERE id=? AND owner_id=?',
+                    (pres_id, current_user.id)).fetchone()
+    db.close()
+    if not row:
+        flash('Präsentation nicht gefunden', 'error')
+        return redirect(url_for('assistentin_page'))
+    slides = []
+    try:
+        slides = json.loads(row['slides_json']) or []
+    except Exception:
+        pass
+    return render_template('assistentin_praesentation.html', pres=dict(row), slides=slides)
 
 
 @app.route('/assistent')

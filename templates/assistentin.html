@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}KI-Assistentin · Pro Academy{% endblock %}
+{% block page_title %}KI-Assistentin{% endblock %}
+{% block content %}
+
+<style>
+  .as-wrap { max-width: 760px; margin: 0 auto; padding-bottom: 100px; }
+  .as-hint { font-size: 12px; color: var(--text-muted); padding: 12px 14px; background: var(--bg-2); border-left: 3px solid var(--gold); border-radius: 8px; margin-bottom: 18px; line-height: 1.5; }
+  .as-msgs { display: flex; flex-direction: column; gap: 12px; min-height: 200px; }
+  .as-msg { padding: 14px 16px; border-radius: 14px; max-width: 90%; line-height: 1.55; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .as-msg.user { background: var(--gold); color: var(--navy); align-self: flex-end; border-bottom-right-radius: 4px; }
+  .as-msg.assistant { background: var(--surface); color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+  .as-msg a { color: var(--gold); font-weight: 700; }
+  .as-msg.assistant a { color: var(--gold); }
+  .as-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 14px; line-height: 1.7; }
+  .as-empty .examples { display: flex; flex-direction: column; gap: 8px; max-width: 480px; margin: 18px auto 0; text-align: left; }
+  .as-example { padding: 10px 14px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 10px; font-size: 13px; color: var(--text); cursor: pointer; transition: all 0.15s; }
+  .as-example:hover { background: var(--surface); border-color: var(--gold); }
+  .as-input-bar { position: fixed; bottom: 0; left: 256px; right: 0; padding: 14px 20px; background: var(--surface); border-top: 1px solid var(--border); z-index: 50; }
+  @media (max-width: 768px) { .as-input-bar { left: 0; } }
+  .as-input-row { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; }
+  .as-input-row input {
+    flex: 1; padding: 13px 16px; border: 1px solid var(--border); background: var(--bg-2);
+    border-radius: 12px; font-size: 14px; color: var(--text); outline: none; font-family: inherit;
+  }
+  .as-input-row input:focus { border-color: var(--gold); }
+  .as-input-row button {
+    padding: 13px 22px; background: var(--gold); color: var(--navy); border: none;
+    border-radius: 12px; font-weight: 800; font-size: 14px; cursor: pointer; transition: all 0.15s;
+  }
+  .as-input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .as-typing { display: inline-block; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; font-size: 13px; color: var(--text-muted); }
+</style>
+
+<div class="as-wrap">
+
+  {% if not ai_configured %}
+  <div class="as-hint" style="border-left-color:#ef4444">
+    ⚠ KI nicht konfiguriert — Admin muss in Einstellungen einen Anthropic-API-Key eintragen.
+  </div>
+  {% endif %}
+
+  <div class="as-hint">
+    Deine persönliche Assistentin. Sie kann <strong>Web-Suche</strong>, <strong>Dokumente erstellen</strong> (PDF-druckfertig),
+    <strong>Präsentationen bauen</strong>, <strong>Locations für Events finden</strong> und <strong>persönliche TODOs</strong> anlegen.
+    Schreib einfach was du brauchst — sie macht's.
+  </div>
+
+  <div class="as-msgs" id="msgs">
+    {% if messages %}
+      {% for m in messages %}
+      <div class="as-msg {{ m.role }}">{{ m.content }}</div>
+      {% endfor %}
+    {% else %}
+      <div class="as-empty">
+        <div style="font-size:42px;margin-bottom:14px;opacity:0.3">▣</div>
+        <strong style="color:var(--text);font-size:15px">Was kann ich für dich tun?</strong>
+        <div class="examples">
+          <div class="as-example" onclick="setMsg(this.textContent)">Such mir 5 italienische Restaurants in München für 12 Personen am Freitagabend</div>
+          <div class="as-example" onclick="setMsg(this.textContent)">Erstell mir ein Konzept-Memo für unser Q3-Team-Event in Berlin</div>
+          <div class="as-example" onclick="setMsg(this.textContent)">Mach mir 5 Folien zur Vision von Pro Academy</div>
+          <div class="as-example" onclick="setMsg(this.textContent)">Wie hat sich der EZB-Leitzins die letzten 12 Monate entwickelt?</div>
+          <div class="as-example" onclick="setMsg(this.textContent)">Erinner mich morgen an Anruf bei meinem Strukturhöher</div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<div class="as-input-bar">
+  <div class="as-input-row">
+    <input type="text" id="msgInput" placeholder="Was brauchst du? z.B. „Such mir Locations für 20 Leute"..." autofocus
+           onkeydown="if(event.key==='Enter') sendMsg()">
+    <button id="sendBtn" onclick="sendMsg()">Senden</button>
+  </div>
+</div>
+
+<script>
+function setMsg(t) {
+  document.getElementById('msgInput').value = t;
+  document.getElementById('msgInput').focus();
+}
+
+function appendMsg(role, content) {
+  const m = document.getElementById('msgs');
+  // Falls Empty-State da: weg
+  const empty = m.querySelector('.as-empty');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = 'as-msg ' + role;
+  // Detect URLs + auto-link
+  const html = content.replace(/(https?:\/\/[^\s]+|\/[a-zA-Z0-9/_\-\.\?\=\&]+)/g, m => `<a href="${m}" target="_blank">${m}</a>`);
+  div.innerHTML = html.replace(/\n/g, '<br>');
+  m.appendChild(div);
+  window.scrollTo(0, document.body.scrollHeight);
+}
+
+async function sendMsg() {
+  const inp = document.getElementById('msgInput');
+  const btn = document.getElementById('sendBtn');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = '';
+  btn.disabled = true;
+  btn.textContent = 'Tippt …';
+  appendMsg('user', msg);
+
+  // Typing-Indicator
+  const m = document.getElementById('msgs');
+  const typing = document.createElement('div');
+  typing.className = 'as-typing';
+  typing.id = 'typing';
+  typing.innerHTML = '… denkt nach';
+  m.appendChild(typing);
+
+  try {
+    const res = await fetch('/api/assistentin/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg })
+    });
+    const data = await res.json();
+    document.getElementById('typing')?.remove();
+    if (data.error) {
+      appendMsg('assistant', '⚠ ' + data.error);
+    } else {
+      appendMsg('assistant', data.response || '(keine Antwort)');
+    }
+  } catch (e) {
+    document.getElementById('typing')?.remove();
+    appendMsg('assistant', '⚠ Verbindungsfehler: ' + e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Senden';
+    inp.focus();
+  }
+}
+window.scrollTo(0, document.body.scrollHeight);
+</script>
+
+{% endblock %}
