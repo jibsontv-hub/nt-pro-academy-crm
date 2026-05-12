@@ -5,6 +5,7 @@ import sqlite3
 import hashlib
 import hmac
 import subprocess
+import gzip as _gzip
 import os
 import secrets
 import csv
@@ -37,17 +38,51 @@ app.config.update(
     REMEMBER_COOKIE_REFRESH_EACH_REQUEST=True,  # Cookie verlängert sich bei jedem Request
 )
 
+# Performance: GZIP-Compression für Text-Responses (3-5× kleinere Payload)
+@app.after_request
+def gzip_response(response):
+    try:
+        accept = (request.headers.get('Accept-Encoding') or '').lower()
+        if 'gzip' not in accept:
+            return response
+        if response.status_code < 200 or response.status_code >= 300:
+            return response
+        if 'Content-Encoding' in response.headers:
+            return response
+        ctype = (response.content_type or '').lower()
+        if not any(t in ctype for t in ('text/html', 'application/json', 'text/css',
+                                        'application/javascript', 'text/javascript',
+                                        'application/xml', 'text/plain')):
+            return response
+        if not response.is_sequence and not hasattr(response, 'data'):
+            return response
+        data = response.get_data()
+        if len(data) < 500:  # < 500B: gzip-Overhead lohnt nicht
+            return response
+        compressed = _gzip.compress(data, compresslevel=6)
+        response.set_data(compressed)
+        response.headers['Content-Encoding'] = 'gzip'
+        response.headers['Content-Length'] = str(len(compressed))
+        vary = response.headers.get('Vary', '')
+        if 'Accept-Encoding' not in vary:
+            response.headers['Vary'] = (vary + ', Accept-Encoding').strip(', ')
+    except Exception:
+        pass
+    return response
+
+
 # Performance: globale Cache-Headers für statische Assets
 @app.after_request
 def add_cache_headers(response):
     try:
         # Static assets: aggressives Browser-Caching
         if request.path.startswith('/static/'):
-            # Bilder, Fonts, JS, CSS: 7 Tage cachen
-            if any(request.path.endswith(ext) for ext in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.woff', '.woff2', '.ttf', '.otf')):
-                response.headers['Cache-Control'] = 'public, max-age=604800, immutable'
+            # Bilder/Fonts: 1 Jahr immutable (Browser cached aggressive — bei Änderung URL bumpen)
+            if any(request.path.endswith(ext) for ext in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.woff', '.woff2', '.ttf', '.otf', '.ico')):
+                response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            # CSS/JS: 7 Tage (Updates kommen häufiger)
             elif any(request.path.endswith(ext) for ext in ('.css', '.js')):
-                response.headers['Cache-Control'] = 'public, max-age=86400'
+                response.headers['Cache-Control'] = 'public, max-age=604800'
             else:
                 response.headers['Cache-Control'] = 'public, max-age=3600'
         # HTML: kein langes Cachen, aber Validators erlaubt
@@ -5313,7 +5348,9 @@ def profil():
     # Token sicherstellen (bei jedem GET — generiert nur wenn None)
     lead_token = get_or_create_lead_token(current_user.id)
     lead_link = f"{CANONICAL_URL.rstrip('/')}/start?ref={lead_token}"
-    return render_template('profil.html', user=user, lead_link=lead_link, lead_token=lead_token)
+    user_photo = (user['photo_path'] if user and user['photo_path'] else None)
+    return render_template('profil.html', user=user, user_photo=user_photo,
+                          lead_link=lead_link, lead_token=lead_token)
 
 
 # === PUBLIC LEAD-CAPTURE (kein Login) ===
@@ -9607,14 +9644,14 @@ def team_kalender():
                     'count_today': tt, 'count_week': tw, 'upcoming': tu,
                     'is_all': True,
                 })
-                # Strukturleiter-Slot (Upline read-only) — UNTEN
-                # Privacy: Viewer sieht NUR Termine, an denen er selbst beteiligt ist
-                # (= als Attendee oder mit seinem Namen im client_name)
+                # Strukturleiter-Slot (Upline) — UNTEN
+                # Booking-View: zeigt eigene 1:1 mit Detail + fremde als anonymes "Belegt"
+                # Downliner kann hier Termin mit Mentor anfragen
                 if me_row and me_row['parent_id']:
                     mentor = db.execute('SELECT id, name, photo_path, manual_career_level FROM users WHERE id=? AND active=1',
                                        (me_row['parent_id'],)).fetchone()
                     if mentor:
-                        # Hole alle Termine vom Mentor + filtere in Python auf 1:1-Match mit current_user
+                        # Eigene 1:1-Termine (mit Detail) zählen für upcoming-Preview
                         all_mentor = db.execute('''SELECT id, title, client_name, termin_date, termin_time, status, attendee_ids
                                                    FROM appointments WHERE owner_id=? AND date(termin_date) BETWEEN date(?) AND date(?)
                                                    ORDER BY termin_date, termin_time''',
@@ -9622,8 +9659,8 @@ def team_kalender():
                         viewer_name_lower = current_user.name.lower() if current_user.name else ''
                         viewer_first = (current_user.name.split()[0].lower() if current_user.name else '')
                         sl_u = []
-                        sl_t = 0
-                        sl_w = 0
+                        sl_t_with_me = 0
+                        sl_w_with_me = 0
                         today_iso = today.isoformat()
                         for a in all_mentor:
                             is_with_me = False
@@ -9644,17 +9681,18 @@ def team_kalender():
                                 d = dict(a); d['owner_name'] = mentor['name']
                                 if len(sl_u) < 5:
                                     sl_u.append(d)
-                                sl_w += 1
+                                sl_w_with_me += 1
                                 if a['termin_date'] == today_iso:
-                                    sl_t += 1
+                                    sl_t_with_me += 1
                         strange.append({
                             'id': mentor['id'], 'name': f'Strukturleiter · {mentor["name"]}',
                             'photo_path': mentor['photo_path'],
                             'level': mentor['manual_career_level'] or 1,
                             'team_size': 1,
-                            'count_today': sl_t, 'count_week': sl_w, 'upcoming': sl_u,
+                            'count_today': sl_t_with_me, 'count_week': sl_w_with_me, 'upcoming': sl_u,
                             'is_mentor': True,
-                            'mentor_only_with_me': True,  # Hint fürs Template
+                            'mentor_id': mentor['id'],  # für Booking-Button
+                            'total_in_period': len(all_mentor),  # gesamt-belegung im 14T-Fenster
                         })
             db.close()
             return render_template('team_kalender_uebersicht.html',
@@ -9716,16 +9754,19 @@ def team_kalender():
         if target_row and target_row['parent_id'] == current_user.id and root['id'] != current_user.id:
             mono = strang_color(root['id'])
     data = get_team_calendar_data(root['id'], year, month, mono_color=mono)
-    # Privacy: wenn current_user den Strukturleiter (parent) anschaut UND kein Admin ist,
-    # nur Termine zeigen wo current_user beteiligt ist (Attendee oder client_name match)
+    # Booking-View: wenn current_user den Strukturleiter (parent) anschaut UND kein Admin ist,
+    # eigene 1:1-Termine voll sichtbar — fremde als anonymes „Belegt" maskieren
+    # (Downliner sieht Verfügbarkeit, kann freie Slots zum Buchen erkennen)
+    is_mentor_view = False
     if isinstance(root['id'], int) and not current_user.has_admin_access:
         db_p2 = get_db()
         me_check = db_p2.execute('SELECT parent_id FROM users WHERE id=?', (current_user.id,)).fetchone()
         db_p2.close()
         if me_check and me_check['parent_id'] == root['id'] and root['id'] != current_user.id:
+            is_mentor_view = True
             viewer_name_l = (current_user.name or '').lower()
             viewer_first = ((current_user.name or '').split()[0].lower() if current_user.name else '')
-            filtered = []
+            masked = []
             for a in data['appointments']:
                 hit = False
                 if a.get('attendee_ids'):
@@ -9742,8 +9783,16 @@ def team_kalender():
                     elif viewer_first and len(viewer_first) > 2 and viewer_first in cn:
                         hit = True
                 if hit:
-                    filtered.append(a)
-            data['appointments'] = filtered
+                    masked.append(a)  # eigener 1:1: voll sichtbar
+                else:
+                    # Maskiere: nur Zeit-Block, kein Detail
+                    a2 = dict(a)
+                    a2['title'] = 'Belegt'
+                    a2['client_name'] = None
+                    a2['notizen'] = None
+                    a2['_masked'] = True
+                    masked.append(a2)
+            data['appointments'] = masked
     # Filter nach einem Partner
     partner_filter = request.args.get('partner')
     if partner_filter and partner_filter.isdigit():

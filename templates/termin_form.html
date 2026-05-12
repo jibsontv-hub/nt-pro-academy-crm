@@ -17,8 +17,15 @@
             <div class="form-group">
                 <label>Typ</label>
                 <select name="typ">
-                    {% for t in ['kundentermin', 'partnergesprach', 'onboarding', 'followup', 'sonstiges'] %}
-                    <option value="{{ t }}" {% if termin and termin.typ == t %}selected{% elif not termin and t == 'kundentermin' %}selected{% endif %}>{{ t | capitalize }}</option>
+                    {% set typ_labels = [
+                        ('kundentermin', 'Kundentermin (Vertriebs-/Beratungsgespräch)'),
+                        ('partnergesprach', 'Partner-Gespräch (mit Geschäftspartner / Mentor)'),
+                        ('onboarding', 'Onboarding (mit neuem Partner)'),
+                        ('followup', 'Follow-Up (Nachfass-Gespräch)'),
+                        ('sonstiges', 'Sonstiges')
+                    ] %}
+                    {% for t, lbl in typ_labels %}
+                    <option value="{{ t }}" {% if termin and termin.typ == t %}selected{% elif not termin and t == 'kundentermin' %}selected{% endif %}>{{ lbl }}</option>
                     {% endfor %}
                 </select>
             </div>

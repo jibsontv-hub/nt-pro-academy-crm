@@ -94,12 +94,17 @@
         {% endfor %}
     </div>
     {% else %}
-    <div style="text-align:center;padding:40px;color:var(--text-soft)">
-        <div style="font-size:36px;margin-bottom:10px">📋</div>
-        <div style="font-size:15px;color:var(--text);font-weight:600;margin-bottom:6px">
-            Noch keine Aufgaben für deine Stufe definiert
+    <div style="padding:32px 20px;text-align:center">
+        <div style="font-size:18px;color:var(--text);font-weight:700;margin-bottom:10px">Dein Onboarding-Plan</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;max-width:420px;margin-left:auto;margin-right:auto;line-height:1.6">
+            Folge der Starter-Roadmap — sie bringt dich Schritt für Schritt durch die ersten 90 Tage. Heute zählt jeder Anruf und jeder Termin.
         </div>
-        <div style="font-size:12px">Der Admin kann unter <strong>Admin → Tagesaufgaben</strong> Slots für deine Stufe festlegen.</div>
+        <a href="/onboarding/roadmap" class="btn btn-primary" style="font-size:14px;padding:12px 24px">→ Starter-Roadmap öffnen</a>
+        <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            <a href="/leads/neu?typ=vk" class="btn btn-secondary btn-sm">+ Erster Lead</a>
+            <a href="/termine/neu" class="btn btn-secondary btn-sm">+ Erster Termin</a>
+            <a href="/daily-checkin" class="btn btn-secondary btn-sm">Daily Check-in</a>
+        </div>
     </div>
     {% endif %}
 </div>
