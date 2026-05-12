@@ -2699,6 +2699,24 @@ def inject_career():
             ctx['patch_unread'] = cached_pn
         except Exception:
             ctx['patch_unread'] = 0
+        # Newsletter: ungelesene Items seit last_seen
+        try:
+            nkey = f'ctx:newsletter_unread:{current_user.id}'
+            cached_nl = cache_get(nkey)
+            if cached_nl is None:
+                db_nl = get_db()
+                last_seen_row = db_nl.execute('SELECT last_seen_at FROM newsletter_last_seen WHERE user_id=?',
+                                            (current_user.id,)).fetchone()
+                last_seen = last_seen_row['last_seen_at'] if last_seen_row else '2000-01-01 00:00:00'
+                nl_row = db_nl.execute('''SELECT COUNT(*) c FROM newsletter_items
+                                          WHERE COALESCE(published_at, fetched_at) > ?''',
+                                     (last_seen,)).fetchone()
+                db_nl.close()
+                cached_nl = nl_row['c'] if nl_row else 0
+                cache_set(nkey, cached_nl, ttl=300)
+            ctx['newsletter_unread'] = cached_nl
+        except Exception:
+            ctx['newsletter_unread'] = 0
         return ctx
     # Nicht-authentifizierte User (Login, Register, Public Pages) — leeres aber valides dict
     return {
@@ -2712,6 +2730,7 @@ def inject_career():
         'streak_days': 0,
         'vision_needed': False,
         'patch_unread': 0,
+        'newsletter_unread': 0,
     }
 
 
@@ -3540,7 +3559,14 @@ def init_db():
             published_at TEXT,
             fetched_at TEXT DEFAULT CURRENT_TIMESTAMP,
             seen_count INTEGER DEFAULT 0,
+            pushed INTEGER DEFAULT 0,
             UNIQUE(quelle_url)
+        );
+
+        CREATE TABLE IF NOT EXISTS newsletter_last_seen (
+            user_id INTEGER PRIMARY KEY,
+            last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
         CREATE TABLE IF NOT EXISTS password_resets (
@@ -6235,9 +6261,7 @@ def daily_checkin():
 @app.route('/newsletter')
 @login_required
 def newsletter():
-    """Branchen-News-Feed: Finanz/Versicherung/Rente/Arbeitsmarkt — alles
-    was wir im Vertriebsgespräch nutzen können. Wird vom newsletter_agent.py
-    befüllt (cron-style oder via /admin/newsletter/refresh)."""
+    """Branchen-News-Feed + auto-mark als gelesen (Sidebar-Badge geht weg)."""
     db = get_db()
     kategorie = request.args.get('kategorie') or 'all'
     if kategorie == 'all':
@@ -6250,7 +6274,14 @@ def newsletter():
     cats = db.execute('SELECT kategorie, COUNT(*) c FROM newsletter_items GROUP BY kategorie').fetchall()
     cat_counts = {r['kategorie']: r['c'] for r in cats}
     cat_counts['all'] = sum(cat_counts.values())
+    # Auto-mark als gelesen — User hat den Feed gerade geöffnet
+    db.execute('''INSERT INTO newsletter_last_seen (user_id, last_seen_at)
+                  VALUES (?, CURRENT_TIMESTAMP)
+                  ON CONFLICT(user_id) DO UPDATE SET last_seen_at=CURRENT_TIMESTAMP''',
+              (current_user.id,))
+    db.commit()
     db.close()
+    cache_invalidate(f'ctx:newsletter_unread:{current_user.id}')
     return render_template('newsletter.html', items=items, kategorie=kategorie, cat_counts=cat_counts)
 
 

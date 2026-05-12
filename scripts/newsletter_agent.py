@@ -142,10 +142,43 @@ def main():
                 print(f'  ✗ insert-fail: {e}')
 
     db.commit()
+
+    # Optional: 1 Sammel-Push wenn neue Items kamen
+    push_sent = 0
+    if new_count > 0 and '--no-push' not in sys.argv:
+        # Top-3 hochrelevante neue Items ziehen für Push-Body
+        recent = db.execute('''SELECT titel, kategorie FROM newsletter_items
+                               WHERE pushed=0 ORDER BY relevanz DESC, id DESC LIMIT 3''').fetchall()
+        push_title = f'{new_count} neue Branchen-News'
+        if recent:
+            sample = ' · '.join(f'{r["titel"][:50]}' for r in recent[:2])
+            push_body = sample[:160]
+        else:
+            push_body = 'Frische Updates aus Versicherung/Rente/Wirtschaft.'
+        # Mark as pushed
+        db.execute('UPDATE newsletter_items SET pushed=1 WHERE pushed=0')
+        db.commit()
+        # Send via app.send_push_to_user
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        try:
+            from app import send_push_to_user
+            users = db.execute('''SELECT DISTINCT u.id FROM users u
+                                  JOIN push_subscriptions ps ON ps.user_id=u.id
+                                  WHERE u.active=1''').fetchall()
+            for u in users:
+                try:
+                    if send_push_to_user(u['id'], title=push_title, body=push_body,
+                                         url='/newsletter', push_type='newsletter',
+                                         tag=f'newsletter-{date.today().isoformat()}'):
+                        push_sent += 1
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f'  ⚠ Push-Import fail: {e}')
     db.close()
 
     print('\n' + '═' * 60)
-    print(f'📰 FERTIG · {new_count} neu · {skip_count} schon da · {fail_count} feed-fail')
+    print(f'📰 FERTIG · {new_count} neu · {skip_count} schon da · {fail_count} feed-fail · {push_sent} Push gesendet')
     return 0 if new_count + skip_count > 0 else 1
 
 
