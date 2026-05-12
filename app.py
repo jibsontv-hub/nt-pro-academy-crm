@@ -8227,9 +8227,10 @@ def provisionen():
 @app.route('/feed')
 @login_required
 def feed():
-    """Live Feed aller Aktivitäten."""
+    """Live Feed: Admin sieht systemweit, alle anderen nur eigene Struktur (self + Downline).
+    Verhindert dass Geschäftspartner Aktivitäten aus fremden Strukturen sehen."""
     db = get_db()
-    if current_user.role == 'admin':
+    if current_user.has_admin_access:
         rows = db.execute('''
             SELECT a.*, u.name as user_name
             FROM activity_log a

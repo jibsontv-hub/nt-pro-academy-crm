@@ -1170,15 +1170,19 @@
             {% set ftier = feature_tier or 1 %}
 
             {% if ftier <= 1 %}
-            <!-- ══════════════ STUFE 1 — VK / RK / LERNEN ══════════════ -->
+            <!-- ══════════════ STUFE 1 — Start / Verkauf / Rekrutierung / Team / Wissen / Mehr ══════════════ -->
             {% set p = request.path %}
             {% set q_typ = request.args.get('typ') or '' %}
             {% set q_focus = request.args.get('focus') or '' %}
+            {% set is_rk_list1 = ('/namensliste' in p and q_typ == 'rk') %}
+            {% set is_vk_list1 = ('/namensliste' in p and not is_rk_list1) %}
             {% set s1_start = ('/onboarding/roadmap' in p) or (p == '/aufgaben') %}
-            {% set s1_vk    = (('/namensliste' in p) and q_typ != 'rk') or (p == '/termine' or p.startswith('/termine/')) or ('/vertraege' in p) %}
-            {% set s1_rk    = ('/namensliste' in p and q_typ == 'rk') or ('/grundseminar' in p) or ('/team-kalender' in p) %}
-            {% set s1_learn = ('/assistent' in p) or ('/weiterbildung' in p) %}
-            {% set s1_any   = s1_start or s1_vk or s1_rk or s1_learn %}
+            {% set s1_vk    = is_vk_list1 or (p == '/termine' or p.startswith('/termine/')) or ('/vertraege' in p) or (('/tracking' in p) and q_focus == 'vk') %}
+            {% set s1_rk    = is_rk_list1 or ('/grundseminar' in p) or ('/strukturbomben' in p) or ('/team-kalender' in p) %}
+            {% set s1_team  = (p == '/team') or ('/partner/' in p) or ('/team/inaktiv' in p) %}
+            {% set s1_learn = ('/assistent' in p) or ('/weiterbildung' in p) or ('/coach/briefing' in p) or ('/feed' in p) or ('/newsletter' in p) %}
+            {% set s1_more  = ('/profil' in p) or ('/einstellungen' in p) or ('/push-settings' in p) or ('/quoten' in p) or ('/ziele' in p) or ('/provisionen' in p) %}
+            {% set s1_any   = s1_start or s1_vk or s1_rk or s1_team or s1_learn or s1_more %}
 
             <details class="nav-group" data-group="s1_start" {% if s1_start or not s1_any %}open{% endif %}>
                 <summary>Start</summary>
@@ -1189,32 +1193,54 @@
             </details>
 
             <details class="nav-group" data-group="s1_vk" {% if s1_vk %}open{% endif %}>
-                <summary>🛒 Verkauf</summary>
+                <summary>Verkauf</summary>
                 <div class="nav-group-items">
-                    <a href="/namensliste?typ=vk" class="nav-link {% if s1_vk and '/namensliste' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Kunden-Liste</a>
+                    <a href="/namensliste?typ=vk" class="nav-link {% if is_vk_list1 %}active{% endif %}"><span class="nav-icon">◎</span> Kunden-Liste</a>
                     <a href="/termine" class="nav-link {% if '/termine' in request.path %}active{% endif %}"><span class="nav-icon">◷</span> Beratungstermine</a>
                     <a href="/vertraege" class="nav-link {% if '/vertraege' in request.path %}active{% endif %}"><span class="nav-icon">◻</span> Verträge</a>
+                    <a href="/tracking?focus=vk" class="nav-link {% if '/tracking' in p and q_focus == 'vk' %}active{% endif %}"><span class="nav-icon">▥</span> VK-Tracking</a>
                 </div>
             </details>
 
             <details class="nav-group" data-group="s1_rk" {% if s1_rk %}open{% endif %}>
-                <summary>👥 Rekrutierung</summary>
+                <summary>Rekrutierung</summary>
                 <div class="nav-group-items">
-                    <a href="/namensliste?typ=rk" class="nav-link {% if s1_rk and '/namensliste' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Bewerber-Liste</a>
-                    <a href="/grundseminar" class="nav-link {% if '/grundseminar' in request.path %}active{% endif %}"><span class="nav-icon">🎓</span> Grundseminar</a>
+                    <a href="/namensliste?typ=rk" class="nav-link {% if is_rk_list1 %}active{% endif %}"><span class="nav-icon">◈</span> Bewerber-Liste</a>
+                    <a href="/grundseminar" class="nav-link {% if '/grundseminar' in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Grundseminar</a>
+                    <a href="/strukturbomben" class="nav-link {% if '/strukturbomben' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Strukturbomben</a>
                     <a href="/team-kalender" class="nav-link {% if '/team-kalender' in request.path %}active{% endif %}"><span class="nav-icon">▦</span> Kalender</a>
                 </div>
             </details>
 
-            <details class="nav-group" data-group="s1_learn" {% if s1_learn %}open{% endif %}>
-                <summary>Lernen</summary>
+            <details class="nav-group" data-group="s1_team" {% if s1_team %}open{% endif %}>
+                <summary>Mein Team</summary>
                 <div class="nav-group-items">
-                    <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach</a>
-                    <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
+                    <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Team-Struktur</a>
+                    <a href="/team/inaktiv" class="nav-link {% if '/team/inaktiv' in request.path %}active{% endif %}"><span class="nav-icon">⚠</span> Wer ist inaktiv?</a>
                 </div>
             </details>
 
-            <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}" style="margin-top:6px"><span class="nav-icon">●</span> Profil</a>
+            <details class="nav-group" data-group="s1_learn" {% if s1_learn %}open{% endif %}>
+                <summary>Wissen & Coach</summary>
+                <div class="nav-group-items">
+                    <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach Chat</a>
+                    <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
+                    <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
+                    <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live-Feed</a>
+                    <a href="/newsletter" class="nav-link {% if '/newsletter' in request.path %}active{% endif %}"><span class="nav-icon">▢</span> Branchen-News</a>
+                </div>
+            </details>
+
+            <details class="nav-group" data-group="s1_more" {% if s1_more %}open{% endif %}>
+                <summary>Mehr</summary>
+                <div class="nav-group-items">
+                    <a href="/quoten" class="nav-link {% if '/quoten' in request.path %}active{% endif %}"><span class="nav-icon">◉</span> Quoten</a>
+                    <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
+                    <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
+                    <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil</a>
+                    <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path %}active{% endif %}"><span class="nav-icon">⚙</span> Einstellungen</a>
+                </div>
+            </details>
             {% else %}
             <!-- ══════════════ STUFE 2+ — VK / RK / TEAM / KARRIERE / COACH / MEHR ══════════════ -->
             {% set p = request.path %}
