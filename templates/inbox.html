@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Posteingang · Pro Academy{% endblock %}
+{% block page_title %}Posteingang{% endblock %}
+{% block content %}
+
+<style>
+  .ib-wrap { max-width: 720px; margin: 0 auto; }
+  .ib-intro { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; line-height: 1.55; padding: 12px 14px; background: var(--bg-2); border-left: 3px solid var(--gold); border-radius: 8px; }
+  .ib-list { display: flex; flex-direction: column; gap: 6px; }
+  .ib-item {
+    display: grid; grid-template-columns: 36px 1fr auto;
+    gap: 14px; align-items: center;
+    padding: 14px 16px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    transition: all 0.15s;
+  }
+  .ib-item:hover { background: var(--bg-2); }
+  .ib-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: color-mix(in srgb, var(--gold) 14%, var(--bg-2));
+    color: var(--gold); font-size: 16px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ib-body { min-width: 0; }
+  .ib-label { font-size: 14px; font-weight: 700; color: var(--text); }
+  .ib-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .ib-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="ib-wrap">
+
+  <div class="ib-intro">
+    Hier landen alle automatischen Benachrichtigungen die du sonst per E-Mail kriegen würdest — Daily Motivation, Updates, Branchen-News, Geburtstage, Anmeldungen.
+    <strong style="color:var(--text)">E-Mails verschicken wir nur noch für Passwort-Reset und neue Lead-Anmeldungen.</strong>
+  </div>
+
+  {% if notifications %}
+  <div class="ib-list">
+    {% for n in notifications %}
+    <div class="ib-item">
+      <div class="ib-icon">{{ n.icon }}</div>
+      <div class="ib-body">
+        <div class="ib-label">{{ n.label }}</div>
+        {% if n.detail %}<div class="ib-detail">{{ n.detail }}</div>{% endif %}
+      </div>
+      <div class="ib-time">{{ n.sent_at[:16] if n.sent_at else '—' }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:48px 20px;color:var(--text-muted)">
+    <div style="font-weight:700;color:var(--text);margin-bottom:6px">Posteingang ist leer</div>
+    <div style="font-size:13px">Sobald wir dich benachrichtigen, landet das hier.</div>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}

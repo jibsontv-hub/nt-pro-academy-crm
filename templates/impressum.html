@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Impressum · Pro Academy{% endblock %}
+{% block page_title %}Impressum{% endblock %}
+{% block content %}
+
+<style>
+  .imp-wrap { max-width: 720px; margin: 0 auto; }
+  .imp-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px 30px; }
+  .imp-h { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 800; margin: 22px 0 8px; }
+  .imp-h:first-of-type { margin-top: 0; }
+  .imp-line { font-size: 15px; color: var(--text); line-height: 1.7; }
+  .imp-em { font-style: italic; color: var(--text-muted); }
+</style>
+
+<div class="imp-wrap">
+<div class="imp-card">
+
+  <div class="imp-h">Anbieter</div>
+  <div class="imp-line">
+    {{ data.imp_name or 'Najib Tchatikpi · Pro Academy' }}<br>
+    {% if data.imp_strasse %}{{ data.imp_strasse }}<br>{% endif %}
+    {% if data.imp_plz_ort %}{{ data.imp_plz_ort }}<br>{% endif %}
+    {{ data.imp_land or 'Deutschland' }}
+  </div>
+
+  <div class="imp-h">Kontakt</div>
+  <div class="imp-line">
+    {% if data.imp_email %}E-Mail: <a href="mailto:{{ data.imp_email }}" style="color:var(--gold);text-decoration:none">{{ data.imp_email }}</a><br>{% endif %}
+    {% if data.imp_telefon %}Telefon: <a href="tel:{{ data.imp_telefon }}" style="color:var(--gold);text-decoration:none">{{ data.imp_telefon }}</a>{% endif %}
+  </div>
+
+  {% if data.imp_ust or data.imp_handelsregister %}
+  <div class="imp-h">Rechtliches</div>
+  <div class="imp-line">
+    {% if data.imp_ust %}Umsatzsteuer-Identifikationsnummer: {{ data.imp_ust }}<br>{% endif %}
+    {% if data.imp_handelsregister %}Handelsregister: {{ data.imp_handelsregister }}{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="imp-h">Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</div>
+  <div class="imp-line">{{ data.imp_verantwortlich or 'Najib Tchatikpi' }}</div>
+
+  <div class="imp-h">Tätigkeit</div>
+  <div class="imp-line">{{ data.imp_beschreibung or 'Pro Academy ist eine Selbstorganisation zur Förderung von Karriereeinstieg im Strukturvertrieb. Wir bringen Menschen zusammen die in einem etablierten Vertriebssystem starten möchten und unterstützen sie mit Tools, Coaching und Community.' }}</div>
+
+  <div class="imp-h">Haftungsausschluss</div>
+  <div class="imp-line">
+    Die Inhalte dieser Plattform werden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen.
+    Diese Plattform dient ausschließlich der internen Organisation und Information unserer Mitglieder. Sie stellt keine Anlage-, Rechts- oder Steuerberatung dar.
+  </div>
+
+  <div class="imp-h">Streitschlichtung</div>
+  <div class="imp-line">
+    Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:
+    <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none">https://ec.europa.eu/consumers/odr/</a>.
+    Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.
+  </div>
+
+  <div style="margin-top:30px;padding-top:18px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)">
+    Stand: {{ data.imp_email and 'aktuell' or '—' }} ·
+    <a href="/datenschutz" style="color:var(--text-muted)">Datenschutzerklärung</a>
+  </div>
+
+</div>
+</div>
+
+{% endblock %}

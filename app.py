@@ -727,7 +727,7 @@ def is_smtp_configured():
 
 
 # === E-MAIL VERSAND ===
-MAIL_CATEGORIES_DEFAULT = 'signup,password_init,password_reset,admin_test'
+MAIL_CATEGORIES_DEFAULT = 'signup,password_reset,admin_test'
 MAIL_CATEGORY_LABELS = {
     'signup': 'Anmeldung',
     'password_init': 'Passwortvergabe',
@@ -6120,6 +6120,80 @@ def content_coach_setup():
     profile = _content_profile_get(current_user.id)
     return render_template('content_coach_setup.html',
         questions=CONTENT_QUESTIONS, profile=profile)
+
+
+IMPRESSUM_FIELDS = [
+    ('imp_name', 'Vor- und Nachname / Firma', 'Najib Tchatikpi · Pro Academy'),
+    ('imp_strasse', 'Straße + Hausnummer', ''),
+    ('imp_plz_ort', 'PLZ + Ort', ''),
+    ('imp_land', 'Land', 'Deutschland'),
+    ('imp_email', 'E-Mail-Adresse', 'najib@ntpro.de'),
+    ('imp_telefon', 'Telefon', ''),
+    ('imp_ust', 'USt-IdNr (falls vorhanden)', ''),
+    ('imp_handelsregister', 'Handelsregister-Nummer (falls Verein/GmbH)', ''),
+    ('imp_verantwortlich', 'Verantwortlich für Inhalt (§18 MStV)', 'Najib Tchatikpi'),
+    ('imp_beschreibung', 'Tätigkeit (kurze Beschreibung)',
+     'Pro Academy ist eine Selbstorganisation zur Förderung von Karriereeinstieg im Strukturvertrieb. Wir bringen Menschen zusammen die in einem etablierten Vertriebssystem starten möchten und unterstützen sie mit Tools, Coaching und Community.'),
+]
+
+
+@app.route('/inbox')
+@login_required
+def inbox():
+    """In-App-Notification-Center — zeigt letzte Push-Notifications des Users.
+    Ersatz für E-Mail-Versand bei Routine-Events (Reminder, Termine, Aufstiege etc.)."""
+    db = get_db()
+    rows = db.execute('''SELECT id, push_type, ref_key, sent_at
+                         FROM push_log WHERE user_id=?
+                         ORDER BY sent_at DESC LIMIT 100''', (current_user.id,)).fetchall()
+    db.close()
+    # Map push_type → label + icon (für UI)
+    type_meta = {
+        'daily_motivate': ('Daily Motivation', '☀'),
+        'admin_alert': ('Admin-Alarm', '⚠'),
+        'audit-fail': ('System-Fehler', '✗'),
+        'patch_note': ('Update', '★'),
+        'newsletter': ('Branchen-News', '▢'),
+        'birthday': ('Geburtstag', '◯'),
+        'streak': ('Streak', '◉'),
+        'registrierung': ('Neue Anmeldung', '◎'),
+        'audit-fail': ('Audit-Fail', '⚠'),
+    }
+    notifications = []
+    for r in rows:
+        meta = type_meta.get(r['push_type'], (r['push_type'] or 'Benachrichtigung', '●'))
+        notifications.append({
+            'id': r['id'],
+            'label': meta[0],
+            'icon': meta[1],
+            'detail': r['ref_key'] or '',
+            'sent_at': r['sent_at'],
+        })
+    return render_template('inbox.html', notifications=notifications)
+
+
+@app.route('/impressum')
+def impressum_page():
+    """Öffentliches Impressum — rendert aus app_settings."""
+    data = {key: get_setting(key, default) for key, _label, default in IMPRESSUM_FIELDS}
+    return render_template('impressum.html', data=data)
+
+
+@app.route('/admin/impressum', methods=['GET', 'POST'])
+@login_required
+def admin_impressum():
+    """Editor für Impressum-Felder (nur Admin)."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        for key, _label, _default in IMPRESSUM_FIELDS:
+            v = (request.form.get(key) or '').strip()[:1000]
+            set_setting(key, v)
+        flash('✓ Impressum gespeichert', 'success')
+        return redirect(url_for('admin_impressum'))
+    data = {key: get_setting(key, default) for key, _label, default in IMPRESSUM_FIELDS}
+    return render_template('admin_impressum.html', fields=IMPRESSUM_FIELDS, data=data)
 
 
 @app.route('/whats-new')

@@ -1180,7 +1180,7 @@
             {% set s1_vk    = is_vk_list1 or (p == '/termine' or p.startswith('/termine/')) or ('/vertraege' in p) or (('/tracking' in p) and q_focus == 'vk') %}
             {% set s1_rk    = is_rk_list1 or ('/grundseminar' in p) or ('/team-kalender' in p) %}
             {% set s1_team  = (p == '/team') or ('/partner/' in p) or ('/team/inaktiv' in p) or ('/struktur' in p) %}
-            {% set s1_learn = ('/assistent' in p) or ('/weiterbildung' in p) or ('/coach/briefing' in p) or ('/feed' in p) or ('/newsletter' in p) %}
+            {% set s1_learn = ('/assistent' in p) or ('/weiterbildung' in p) or ('/coach/briefing' in p) or ('/feed' in p) or ('/newsletter' in p) or (p == '/inbox') %}
             {% set s1_more  = ('/profil' in p) or ('/einstellungen' in p) or ('/push-settings' in p) or ('/quoten' in p) or ('/ziele' in p) or ('/provisionen' in p) %}
             {% set s1_any   = s1_start or s1_vk or s1_rk or s1_team or s1_learn or s1_more %}
 
@@ -1228,6 +1228,7 @@
                     <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
                     <a href="/content-coach" class="nav-link {% if '/content-coach' in request.path %}active{% endif %}"><span class="nav-icon">▸</span> Content-Coach</a>
                     <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live-Feed</a>
+                    <a href="/inbox" class="nav-link {% if '/inbox' in request.path %}active{% endif %}"><span class="nav-icon">▣</span> Posteingang</a>
                     <a href="/newsletter" class="nav-link {% if '/newsletter' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
                       <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">▢</span> Branchen-News</span>
                       {% if newsletter_unread and newsletter_unread > 0 %}
@@ -1265,7 +1266,7 @@
             {% set sec_rk    = is_rk_list or ('/grundseminar' in p) or ('/team-kalender' in p) or (('/admin/inbox' in p) and q_typ == 'rk') or (p == '/genehmigungen') %}
             {% set sec_team  = (p == '/team') or ('/partner/' in p) or ('/team/inaktiv' in p) or ('/struktur' in p) or (ftier >= 3 and ('/quoten' in p)) %}
             {% set sec_kar   = ('/provisionen' in p) or ('/trophaeen' in p) or (p == '/news' or p.startswith('/news/')) or (('/tracking' in p) and q_focus != 'vk') or ('/ranking' in p) or ('/ziele' in p) %}
-            {% set sec_coach = ('/assistent' in p) or ('/weiterbildung' in p and '/admin' not in p) or ('/coach/briefing' in p) or ('/feed' in p) %}
+            {% set sec_coach = ('/assistent' in p) or ('/weiterbildung' in p and '/admin' not in p) or ('/coach/briefing' in p) or ('/feed' in p) or (p == '/inbox') %}
             {% set sec_mehr  = (p == '/vorschlag') or ('/webhook-setup' in p) or ('/onboarding' in p) or ('/profil' in p) or ('/push-settings' in p) or ('/einstellungen' in p) %}
             {% set any_sec   = sec_vk or sec_rk or sec_team or sec_kar or sec_coach or sec_mehr %}
 
@@ -1342,6 +1343,7 @@
                     <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
                     <a href="/content-coach" class="nav-link {% if '/content-coach' in request.path %}active{% endif %}"><span class="nav-icon">▸</span> Content-Coach</a>
                     <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
+                    <a href="/inbox" class="nav-link {% if '/inbox' in request.path %}active{% endif %}"><span class="nav-icon">▣</span> Posteingang</a>
                 </div>
             </details>
 
@@ -1418,6 +1420,9 @@
                     <a href="/admin/deploy" class="nav-link {% if '/admin/deploy' in request.path %}active{% endif %}">
                         <span class="nav-icon">↻</span> Auto-Deploy
                     </a>
+                    <a href="/admin/impressum" class="nav-link {% if '/admin/impressum' in request.path %}active{% endif %}">
+                        <span class="nav-icon">§</span> Impressum
+                    </a>
                     {% endif %}
                     <a href="/admin/aktivitaet" class="nav-link {% if '/admin/aktivitaet' in request.path %}active{% endif %}">
                         <span class="nav-icon">◷</span> Aktivität
@@ -1461,6 +1466,11 @@
             <div style="font-size:9px;color:var(--gold);margin-top:5px;font-weight:700;letter-spacing:0.8px">⚡ ADMIN</div>
             {% endif %}
             <a href="/logout" class="logout-link">↩ Abmelden</a>
+            <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);font-size:10px;color:var(--text-soft);display:flex;gap:8px;flex-wrap:wrap">
+                <a href="/impressum" style="color:var(--text-soft);text-decoration:none">Impressum</a>
+                <span>·</span>
+                <a href="/datenschutz" style="color:var(--text-soft);text-decoration:none">Datenschutz</a>
+            </div>
         </div>
     </div>
 

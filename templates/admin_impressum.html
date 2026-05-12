@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Impressum bearbeiten · Pro Academy{% endblock %}
+{% block page_title %}Impressum bearbeiten{% endblock %}
+{% block content %}
+
+<div style="max-width:680px;margin:0 auto">
+
+<div class="card" style="background:var(--bg-2);border-left:3px solid var(--gold);margin-bottom:18px">
+  <div style="font-size:13px;line-height:1.6;color:var(--text)">
+    <strong>Hinweis:</strong> Pflichtangaben nach §5 TMG + §18 MStV. Felder mit ⚠ sind in Deutschland rechtlich erforderlich.
+    Die Angaben werden auf <a href="/impressum" target="_blank" style="color:var(--gold);text-decoration:none">/impressum</a> öffentlich angezeigt.
+  </div>
+</div>
+
+<form method="POST" class="card" style="padding:24px">
+  {% for key, label, _default in fields %}
+  <div class="form-group">
+    <label>
+      {% if key in ('imp_name', 'imp_strasse', 'imp_plz_ort', 'imp_email', 'imp_verantwortlich') %}<span style="color:var(--orange)">⚠</span> {% endif %}
+      {{ label }}
+    </label>
+    {% if key in ('imp_beschreibung',) %}
+    <textarea name="{{ key }}" rows="4">{{ data.get(key, '') }}</textarea>
+    {% else %}
+    <input type="text" name="{{ key }}" value="{{ data.get(key, '') }}" maxlength="500">
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div style="margin-top:18px;display:flex;gap:10px">
+    <button type="submit" class="btn btn-primary">Speichern</button>
+    <a href="/impressum" target="_blank" class="btn btn-secondary">Vorschau →</a>
+  </div>
+</form>
+</div>
+
+{% endblock %}
