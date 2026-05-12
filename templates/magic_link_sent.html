@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Login-Link unterwegs · Pro Academy{% endblock %}
+{% block page_title %}Login-Link unterwegs{% endblock %}
+{% block content %}
+
+<div style="max-width:480px;margin:48px auto;padding:36px 32px;background:var(--surface);border:1px solid var(--border);border-radius:18px;text-align:center">
+  <div style="font-size:48px;margin-bottom:16px">📬</div>
+  <h2 style="font-size:22px;font-weight:800;margin:0 0 12px;letter-spacing:-0.4px">Mail unterwegs!</h2>
+  <p style="font-size:14px;color:var(--text-muted);line-height:1.6">
+    Wir haben dir gerade einen Login-Link an
+    {% if email_used %}<strong style="color:var(--gold)">{{ email_used }}</strong>{% else %}deine E-Mail-Adresse{% endif %}
+    geschickt.<br><br>
+    <strong style="color:var(--text)">Klick einfach den Link in der Mail</strong> — kein Passwort nötig.<br>
+    Link gilt 20 Minuten.
+  </p>
+  <div style="margin-top:22px;padding:14px;background:color-mix(in srgb,#f97316 8%,var(--bg-2));border-left:3px solid #f97316;border-radius:8px;font-size:12px;color:var(--text-muted);line-height:1.5;text-align:left">
+    <strong style="color:#f97316">⚠ Bitte SPAM-Ordner checken!</strong> Manchmal landet die Mail dort. Such nach „<em>Pro Academy</em>" oder „<em>Login-Link</em>".
+  </div>
+  <div style="margin-top:18px;font-size:13px"><a href="/login" style="color:var(--text-muted);text-decoration:none">↩ zurück zum Login</a></div>
+</div>
+
+{% endblock %}

@@ -727,7 +727,7 @@ def is_smtp_configured():
 
 
 # === E-MAIL VERSAND ===
-MAIL_CATEGORIES_DEFAULT = 'signup,password_reset,admin_test'
+MAIL_CATEGORIES_DEFAULT = 'signup,password_reset,admin_test,login_link'
 MAIL_CATEGORY_LABELS = {
     'signup': 'Anmeldung',
     'password_init': 'Passwortvergabe',
@@ -3890,6 +3890,17 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS magic_link_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            expires_at TEXT NOT NULL,
+            used_at TEXT,
+            ip TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS password_resets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -5087,6 +5098,83 @@ def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
+
+
+@app.route('/login/magic-request', methods=['POST'])
+def login_magic_request():
+    """Magic-Link-Login: User trägt nur E-Mail ein, bekommt Klick-Link.
+    Anti-Enumeration: gibt immer dieselbe Erfolgsmeldung zurück."""
+    email = (request.form.get('email') or '').strip().lower()
+    if not email or '@' not in email:
+        flash('Bitte gültige E-Mail eingeben.', 'error')
+        return redirect(url_for('login'))
+    db = get_db()
+    row = db.execute('SELECT id, name, email FROM users WHERE LOWER(email)=? AND active=1', (email,)).fetchone()
+    if row:
+        token = secrets.token_urlsafe(32)
+        expires = (datetime.now() + timedelta(minutes=20)).strftime('%Y-%m-%d %H:%M:%S')
+        db.execute('INSERT INTO magic_link_tokens (user_id, token, expires_at, ip) VALUES (?,?,?,?)',
+                   (row['id'], token, expires, request.remote_addr or ''))
+        db.commit()
+        base = (request.url_root or '').rstrip('/')
+        link = f'{base}/login/magic/{token}'
+        if is_smtp_configured():
+            text = (f"Hallo {row['name']},\n\nklick zum Einloggen (gültig 20 Minuten):\n\n{link}\n\n"
+                    f"Wenn du das nicht warst — einfach ignorieren. Niemand kommt ohne diesen Link rein.\n\nProAcademy")
+            html = (f'<p>Hallo {row["name"]},</p>'
+                    f'<p>Klick zum sofortigen Einloggen — kein Passwort nötig:</p>'
+                    f'<p style="margin:24px 0"><a href="{link}" style="background:#d4a843;color:#0f1c3f;'
+                    f'padding:14px 26px;border-radius:10px;text-decoration:none;font-weight:800;display:inline-block">'
+                    f'→ Login öffnen</a></p>'
+                    f'<p style="color:#64748b;font-size:13px">Link gilt 20 Minuten. War das nicht du? Einfach ignorieren.</p>')
+            try:
+                send_email(row['email'], 'Login-Link für Pro Academy', text,
+                           body_html=html, sent_by=None, category='login_link')
+            except Exception as e:
+                print(f'[magic-link] mail fail: {e}')
+    db.close()
+    flash('Falls die E-Mail bei uns hinterlegt ist, kommt gleich ein Login-Link an.', 'info')
+    return render_template('magic_link_sent.html', email_used=email)
+
+
+@app.route('/login/magic/<token>')
+def login_magic(token):
+    """Magic-Link Klick → User einloggen."""
+    db = get_db()
+    row = db.execute('''SELECT m.*, u.name as user_name, u.email as user_email,
+                               u.active, u.must_change_password, u.role
+                        FROM magic_link_tokens m JOIN users u ON m.user_id = u.id
+                        WHERE m.token=? AND m.used_at IS NULL''', (token,)).fetchone()
+    if not row:
+        db.close()
+        flash('Login-Link ungültig oder schon benutzt. Fordere einen neuen an.', 'error')
+        return redirect(url_for('login'))
+    try:
+        exp = datetime.strptime(row['expires_at'], '%Y-%m-%d %H:%M:%S')
+    except Exception:
+        exp = datetime.now() - timedelta(seconds=1)
+    if datetime.now() > exp:
+        db.close()
+        flash('Login-Link ist abgelaufen. Fordere einen neuen an.', 'error')
+        return redirect(url_for('login'))
+    if not row['active']:
+        db.close()
+        flash('Account ist nicht aktiv. Frag deinen Strukturhöher.', 'error')
+        return redirect(url_for('login'))
+    # Token verbrauchen
+    db.execute('UPDATE magic_link_tokens SET used_at=CURRENT_TIMESTAMP WHERE id=?', (row['id'],))
+    # User-Object für flask-login
+    user_row = db.execute('SELECT * FROM users WHERE id=?', (row['user_id'],)).fetchone()
+    db.commit()
+    db.close()
+    if not user_row:
+        return redirect(url_for('login'))
+    user_obj = User(dict(user_row))
+    session.permanent = True
+    login_user(user_obj, remember=True, duration=timedelta(days=30))
+    log_activity(user_obj.id, 'login', f'{user_obj.name} hat sich per Magic-Link eingeloggt', icon='✓', color='green')
+    flash(f'Hi {user_obj.name.split()[0]} — eingeloggt.', 'success')
+    return redirect(url_for('dashboard'))
 
 
 @app.route('/login', methods=['GET', 'POST'])

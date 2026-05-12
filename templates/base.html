@@ -1303,63 +1303,44 @@
                 </div>
             </details>
 
-            <details class="nav-group" data-group="team" {% if sec_team %}open{% endif %}>
-                <summary>Mein Team</summary>
+            <details class="nav-group" data-group="team_kar" {% if sec_team or sec_kar %}open{% endif %}>
+                <summary>Mein Team & Erfolg</summary>
                 <div class="nav-group-items">
                     <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Team-Übersicht</a>
                     <a href="/struktur" class="nav-link {% if '/struktur' in request.path %}active{% endif %}"><span class="nav-icon">⬢</span> Strukturbaum</a>
                     <a href="/team/inaktiv" class="nav-link {% if '/team/inaktiv' in request.path %}active{% endif %}"><span class="nav-icon">⚠</span> Wer ist inaktiv?</a>
+                    <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
+                    <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}"><span class="nav-icon">▲</span> Wochen-Ranking</a>
+                    <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
+                    <a href="/tracking" class="nav-link {% if '/tracking' in p and q_focus != 'vk' %}active{% endif %}"><span class="nav-icon">▥</span> Tracking</a>
                     {% if ftier >= 3 %}
                     <a href="/quoten" class="nav-link {% if '/quoten' in request.path %}active{% endif %}"><span class="nav-icon">◉</span> Quoten</a>
                     {% endif %}
+                    <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
                 </div>
             </details>
 
-            <details class="nav-group" data-group="kar" {% if sec_kar %}open{% endif %}>
-                <summary>Karriere</summary>
+            <details class="nav-group" data-group="tools" {% if sec_coach or sec_mehr %}open{% endif %}>
+                <summary>Wissen & Tools</summary>
                 <div class="nav-group-items">
-                    <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
-                    <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
+                    <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach Chat</a>
+                    <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
+                    <a href="/content-coach" class="nav-link {% if '/content-coach' in request.path %}active{% endif %}"><span class="nav-icon">▸</span> Content-Coach</a>
+                    <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
                     <a href="/news" class="nav-link {% if '/news' in request.path and '/newsletter' not in request.path %}active{% endif %}"><span class="nav-icon">📣</span> Struktur-News</a>
                     <a href="/newsletter" class="nav-link {% if '/newsletter' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
                       <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">📰</span> Branchen-News</span>
-                      {% if newsletter_unread and newsletter_unread > 0 %}
-                      <span style="background:var(--gold);color:var(--navy);border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ newsletter_unread }}</span>
-                      {% endif %}
+                      {% if newsletter_unread and newsletter_unread > 0 %}<span style="background:var(--gold);color:var(--navy);border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ newsletter_unread }}</span>{% endif %}
                     </a>
+                    <a href="/inbox" class="nav-link {% if '/inbox' in request.path %}active{% endif %}"><span class="nav-icon">▣</span> Posteingang</a>
+                    <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
                     <a href="/whats-new" class="nav-link {% if '/whats-new' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
                       <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">★</span> Was ist neu</span>
-                      {% if patch_unread and patch_unread > 0 %}
-                      <span style="background:var(--gold);color:var(--navy);border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ patch_unread }}</span>
-                      {% endif %}
+                      {% if patch_unread and patch_unread > 0 %}<span style="background:var(--gold);color:var(--navy);border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ patch_unread }}</span>{% endif %}
                     </a>
-                    <a href="/tracking" class="nav-link {% if '/tracking' in p and q_focus != 'vk' %}active{% endif %}"><span class="nav-icon">▥</span> Tracking gesamt</a>
-                    <a href="/ranking" class="nav-link {% if '/ranking' in request.path %}active{% endif %}"><span class="nav-icon">▲</span> Wochen-Ranking</a>
-                    <a href="/ziele" class="nav-link {% if '/ziele' in request.path %}active{% endif %}"><span class="nav-icon">◎</span> Wochenziele</a>
-                </div>
-            </details>
-
-            <details class="nav-group" data-group="coach" {% if sec_coach %}open{% endif %}>
-                <summary>Coaching & Lernen</summary>
-                <div class="nav-group-items">
-                    <a href="/assistent" class="nav-link {% if '/assistent' in request.path %}active{% endif %}"><span class="nav-icon">◆</span> Coach Chat</a>
-                    <a href="/weiterbildung" class="nav-link {% if '/weiterbildung' in request.path and '/admin' not in request.path %}active{% endif %}"><span class="nav-icon">▤</span> Weiterbildung</a>
-                    <a href="/coach/briefing" class="nav-link {% if '/coach/briefing' in request.path %}active{% endif %}"><span class="nav-icon">≡</span> Daily Briefing</a>
-                    <a href="/content-coach" class="nav-link {% if '/content-coach' in request.path %}active{% endif %}"><span class="nav-icon">▸</span> Content-Coach</a>
-                    <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
-                    <a href="/inbox" class="nav-link {% if '/inbox' in request.path %}active{% endif %}"><span class="nav-icon">▣</span> Posteingang</a>
-                </div>
-            </details>
-
-            <details class="nav-group" data-group="mehr" {% if sec_mehr %}open{% endif %}>
-                <summary>Mehr</summary>
-                <div class="nav-group-items">
-                    <a href="/vorschlag" class="nav-link {% if request.path == '/vorschlag' %}active{% endif %}"><span class="nav-icon">＋</span> Vorschlag einreichen</a>
-                    <a href="/webhook-setup" class="nav-link {% if '/webhook-setup' in request.path %}active{% endif %}"><span class="nav-icon">🔌</span> Webhook (Typeform)</a>
-                    <a href="/onboarding/catchup" class="nav-link {% if '/onboarding' in request.path %}active{% endif %}"><span class="nav-icon">▥</span> Stand & Strukturen</a>
                     <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil & Vision</a>
-                    <a href="/push-settings" class="nav-link {% if '/push-settings' in request.path %}active{% endif %}"><span class="nav-icon">▶</span> Push-Einstellungen</a>
-                    <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path %}active{% endif %}"><span class="nav-icon">⚙</span> Einstellungen</a>
+                    <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path or '/push-settings' in request.path %}active{% endif %}"><span class="nav-icon">⚙</span> Einstellungen</a>
+                    <a href="/vorschlag" class="nav-link {% if request.path == '/vorschlag' %}active{% endif %}"><span class="nav-icon">＋</span> Vorschlag</a>
                 </div>
             </details>
             {% endif %}
@@ -2465,5 +2446,53 @@
         });
     </script>
     {% endif %}
+
+    <!-- ─── Pull-to-Refresh (Mobile only) ─── -->
+    <div id="ptrIndicator" style="position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-60px);z-index:9999;background:var(--gold);color:var(--navy);padding:8px 18px;border-radius:0 0 14px 14px;font-size:13px;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,0.18);transition:transform 0.18s,opacity 0.18s;opacity:0;pointer-events:none">
+        ↓ Loslassen zum Aktualisieren
+    </div>
+    <script>
+    (function(){
+        // Nur auf Touch-Geräten (Mobile/Tablet)
+        if (!('ontouchstart' in window)) return;
+        const indicator = document.getElementById('ptrIndicator');
+        let startY = 0, currentY = 0, pulling = false, threshold = 80;
+        document.addEventListener('touchstart', (e) => {
+            if (window.scrollY > 0) return;
+            startY = e.touches[0].clientY;
+            pulling = true;
+        }, { passive: true });
+        document.addEventListener('touchmove', (e) => {
+            if (!pulling) return;
+            currentY = e.touches[0].clientY;
+            const diff = currentY - startY;
+            if (diff > 10 && window.scrollY === 0) {
+                const pct = Math.min(diff / threshold, 1);
+                indicator.style.opacity = pct;
+                indicator.style.transform = `translateX(-50%) translateY(${Math.min(diff * 0.5, 60) - 60}px)`;
+                if (diff > threshold) {
+                    indicator.textContent = '↻ Loslassen zum Aktualisieren';
+                } else {
+                    indicator.textContent = '↓ Weiter ziehen';
+                }
+            }
+        }, { passive: true });
+        document.addEventListener('touchend', () => {
+            if (!pulling) return;
+            pulling = false;
+            const diff = currentY - startY;
+            if (diff > threshold && window.scrollY === 0) {
+                indicator.textContent = '↻ Lade …';
+                indicator.style.opacity = '1';
+                indicator.style.transform = 'translateX(-50%) translateY(0)';
+                setTimeout(() => window.location.reload(), 250);
+            } else {
+                indicator.style.opacity = '0';
+                indicator.style.transform = 'translateX(-50%) translateY(-60px)';
+            }
+            startY = 0; currentY = 0;
+        }, { passive: true });
+    })();
+    </script>
 </body>
 </html>

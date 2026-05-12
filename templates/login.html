@@ -164,21 +164,59 @@
                 {% endfor %}
             {% endwith %}
 
-            <form method="POST">
+            <!-- Tab-Switch: Passwort vs Magic-Link -->
+            <div style="display:flex;gap:6px;margin-bottom:18px">
+                <button type="button" id="tabPwd" onclick="showTab('pwd')" style="flex:1;padding:10px;border-radius:10px;background:#0f1c3f;color:#fff;border:1px solid #0f1c3f;font-weight:700;font-size:13px;cursor:pointer">Mit Passwort</button>
+                <button type="button" id="tabMagic" onclick="showTab('magic')" style="flex:1;padding:10px;border-radius:10px;background:#fff;color:#64748b;border:1px solid #e5e8ee;font-weight:700;font-size:13px;cursor:pointer">Login-Link per Mail</button>
+            </div>
+
+            <!-- ─── Klassischer Login (Passwort) ─── -->
+            <form method="POST" id="formPwd">
                 <div class="form-group">
                     <label>E-Mail</label>
-                    <input type="email" name="email" placeholder="ihre@email.de" required autofocus>
+                    <input type="email" name="email" placeholder="ihre@email.de" required autofocus autocomplete="email">
                 </div>
                 <div class="form-group">
                     <label>Passwort</label>
-                    <input type="password" name="password" placeholder="••••••••" required>
+                    <input type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
                 </div>
                 <button type="submit" class="btn-login">Anmelden →</button>
+            </form>
+
+            <!-- ─── Magic-Link Login (kein Passwort nötig) ─── -->
+            <form method="POST" action="/login/magic-request" id="formMagic" style="display:none">
+                <div class="form-group">
+                    <label>E-Mail</label>
+                    <input type="email" name="email" placeholder="ihre@email.de" required autocomplete="email">
+                </div>
+                <div style="font-size:12px;color:#64748b;margin:-4px 0 12px;line-height:1.5">
+                    Wir schicken dir einen <strong style="color:#0f1c3f">Klick-Link per E-Mail</strong>. Kein Passwort tippen — einfach klicken und du bist drin. Link gilt 20 Minuten.
+                </div>
+                <button type="submit" class="btn-login">Login-Link schicken →</button>
             </form>
 
             <div style="margin-top:14px;text-align:center">
                 <a href="/passwort-vergessen" style="font-size:13px;color:#d4a843;text-decoration:none;font-weight:700">🔑 Passwort vergessen? Self-Service starten →</a>
             </div>
+
+            <script>
+            function showTab(t) {
+                const isMagic = (t === 'magic');
+                document.getElementById('formPwd').style.display = isMagic ? 'none' : '';
+                document.getElementById('formMagic').style.display = isMagic ? '' : 'none';
+                const tabP = document.getElementById('tabPwd');
+                const tabM = document.getElementById('tabMagic');
+                tabP.style.background = isMagic ? '#fff' : '#0f1c3f';
+                tabP.style.color = isMagic ? '#64748b' : '#fff';
+                tabP.style.borderColor = isMagic ? '#e5e8ee' : '#0f1c3f';
+                tabM.style.background = isMagic ? '#0f1c3f' : '#fff';
+                tabM.style.color = isMagic ? '#fff' : '#64748b';
+                tabM.style.borderColor = isMagic ? '#0f1c3f' : '#e5e8ee';
+                // Autofocus auf das sichtbare email-Feld
+                const f = isMagic ? document.querySelector('#formMagic input[name=email]') : document.querySelector('#formPwd input[name=email]');
+                if (f) setTimeout(() => f.focus(), 50);
+            }
+            </script>
 
             <div style="text-align:center;margin-top:16px;padding:14px;background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.25);border-radius:12px">
                 <div style="font-size:13px;color:#0f1c3f;font-weight:700;margin-bottom:6px">Noch kein Account?</div>
