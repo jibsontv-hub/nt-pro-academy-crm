@@ -29,11 +29,26 @@ cd $PROJECT
 LAST_FULL_AUDIT=0
 FULL_AUDIT_INTERVAL=$((6 * 3600))  # 6 Stunden
 
-echo "[$(date)] Monitor-Loop gestartet — health 15min · full-audit 6h" | tee -a $HEALTH_LOG
+echo "[$(date)] Monitor-Loop gestartet — auto-pull · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
 
 while true; do
-    # ─── 15-Min Cache-Refresh (Dashboard < 500ms) ─────────
-    # Triggert _warm_cache_background() für Top-Users — verhindert Cold-Hits
+    # ─── 0. Auto-Pull (Fallback wenn GitHub-Webhook fail) ───
+    # Webhook in /api/deploy ist primär — dieser Pull catch-t falls webhook nicht ankam
+    cd $PROJECT
+    PULL_OUTPUT=$(git pull --ff-only 2>&1)
+    if echo "$PULL_OUTPUT" | grep -q "Updating"; then
+        echo "[$(date)] AUTO-PULL: neue Commits gepullt" | tee -a $HEALTH_LOG
+        echo "$PULL_OUTPUT" | head -10 >> $HEALTH_LOG
+        # WSGI touch für Reload
+        if [ -f /var/www/proacademy-business_de_wsgi.py ]; then
+            touch /var/www/proacademy-business_de_wsgi.py
+            echo "[$(date)] WSGI touched → Reload triggered" >> $HEALTH_LOG
+        fi
+        # Newsletter-Agent triggern wenn neue commits kamen
+        python3 $PROJECT/scripts/newsletter_agent.py 2>&1 | tail -3 >> $HEALTH_LOG
+    fi
+
+    # ─── 1. Cache-Refresh (Dashboard < 500ms) ─────────
     python3 -c "
 import sys; sys.path.insert(0, '$PROJECT')
 from app import _warm_cache_background

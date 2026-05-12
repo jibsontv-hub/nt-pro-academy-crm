@@ -3,6 +3,8 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import hashlib
+import hmac
+import subprocess
 import os
 import secrets
 import csv
@@ -3426,6 +3428,16 @@ def init_db():
             FOREIGN KEY (owner_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS deploy_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sha TEXT,
+            message TEXT,
+            status TEXT NOT NULL DEFAULT 'ok',
+            output TEXT,
+            triggered_by TEXT DEFAULT 'webhook',
+            deployed_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS newsletter_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             kategorie TEXT NOT NULL,
@@ -5683,6 +5695,109 @@ def strukturbomben():
     # Sort all by date desc
     bombs.sort(key=lambda b: b['when'] or '', reverse=True)
     return render_template('strukturbomben.html', bombs=bombs, total_team=len(ids))
+
+
+@app.route('/api/deploy', methods=['POST'])
+def api_deploy():
+    """GitHub-Webhook-Receiver: pullt main + reload WSGI bei jedem Push.
+    Verifiziert HMAC-SHA256 Signature mit Secret aus app_settings.
+    Idempotent: ignoriert Pushes auf andere Branches."""
+    secret = get_setting('deploy_webhook_secret')
+    if not secret:
+        return jsonify({'error': 'Webhook nicht konfiguriert — geh zu /admin/deploy'}), 503
+
+    # 1) Signature verifizieren (HMAC-SHA256)
+    sig_header = request.headers.get('X-Hub-Signature-256') or ''
+    if not sig_header.startswith('sha256='):
+        return jsonify({'error': 'Invalid X-Hub-Signature-256'}), 403
+    expected = 'sha256=' + hmac.new(secret.encode(), request.get_data(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, sig_header):
+        return jsonify({'error': 'Signature mismatch'}), 403
+
+    # 2) Nur Pushes auf main durchlassen (ignoriere Tags, andere Branches, ping)
+    event = request.headers.get('X-GitHub-Event', '')
+    payload = request.get_json(silent=True) or {}
+    if event == 'ping':
+        return jsonify({'status': 'pong', 'msg': 'Webhook erreichbar'}), 200
+    if event != 'push' or payload.get('ref') != 'refs/heads/main':
+        return jsonify({'status': 'ignored', 'event': event, 'ref': payload.get('ref')}), 200
+
+    # 3) git pull --ff-only + WSGI touch
+    repo_dir = os.path.dirname(os.path.abspath(__file__))
+    wsgi_path = '/var/www/proacademy-business_de_wsgi.py'
+    sha = (payload.get('after') or '')[:8]
+    msg = ((payload.get('head_commit') or {}).get('message') or '')[:200]
+    try:
+        pull = subprocess.run(['git', 'pull', '--ff-only'], cwd=repo_dir,
+                              capture_output=True, text=True, timeout=60)
+        out = ((pull.stdout or '') + (pull.stderr or ''))[:1500]
+        if pull.returncode != 0:
+            db = get_db()
+            db.execute('INSERT INTO deploy_log (sha, message, status, output, triggered_by) VALUES (?,?,?,?,?)',
+                       (sha, msg, 'pull_failed', out, 'webhook'))
+            db.commit(); db.close()
+            return jsonify({'status': 'pull_failed', 'output': out[-500:]}), 500
+        # Touch WSGI to reload Flask app
+        wsgi_msg = ''
+        if os.path.isfile(wsgi_path):
+            try:
+                os.utime(wsgi_path, None)
+                wsgi_msg = ' · WSGI touched'
+            except Exception as e:
+                wsgi_msg = f' · WSGI touch failed: {e}'
+        db = get_db()
+        db.execute('INSERT INTO deploy_log (sha, message, status, output, triggered_by) VALUES (?,?,?,?,?)',
+                   (sha, msg, 'ok', out + wsgi_msg, 'webhook'))
+        db.commit(); db.close()
+        return jsonify({'status': 'deployed', 'sha': sha, 'message': msg, 'wsgi': wsgi_msg.strip()}), 200
+    except subprocess.TimeoutExpired:
+        return jsonify({'status': 'timeout', 'msg': 'git pull > 60s'}), 504
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)[:300]}), 500
+
+
+@app.route('/admin/deploy')
+@login_required
+def admin_deploy():
+    """Auto-Deploy-Konfiguration: zeigt Webhook-URL + Secret + History."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('dashboard'))
+    secret = get_setting('deploy_webhook_secret')
+    if not secret:
+        secret = secrets.token_urlsafe(32)
+        set_setting('deploy_webhook_secret', secret)
+    db = get_db()
+    deploys = db.execute('SELECT * FROM deploy_log ORDER BY id DESC LIMIT 30').fetchall()
+    db.close()
+    base = (request.url_root or '').rstrip('/')
+    webhook_url = f'{base}/api/deploy'
+    return render_template('admin_deploy.html', secret=secret, webhook_url=webhook_url, deploys=deploys)
+
+
+@app.route('/admin/deploy/manual', methods=['POST'])
+@login_required
+def admin_deploy_manual():
+    """Manueller Deploy-Trigger via Admin-UI (z.B. wenn Webhook fail)."""
+    if not current_user.has_admin_access:
+        return redirect(url_for('admin_deploy'))
+    repo_dir = os.path.dirname(os.path.abspath(__file__))
+    wsgi_path = '/var/www/proacademy-business_de_wsgi.py'
+    try:
+        pull = subprocess.run(['git', 'pull', '--ff-only'], cwd=repo_dir,
+                              capture_output=True, text=True, timeout=60)
+        out = ((pull.stdout or '') + (pull.stderr or ''))[:1500]
+        ok = pull.returncode == 0
+        if ok and os.path.isfile(wsgi_path):
+            os.utime(wsgi_path, None)
+        db = get_db()
+        db.execute('INSERT INTO deploy_log (sha, message, status, output, triggered_by) VALUES (?,?,?,?,?)',
+                   ('manual', f'Trigger durch {current_user.name}', 'ok' if ok else 'fail', out, 'admin_ui'))
+        db.commit(); db.close()
+        flash('✓ Deploy ausgeführt' if ok else f'✗ Deploy fail: {out[-200:]}', 'success' if ok else 'error')
+    except Exception as e:
+        flash(f'Deploy-Exception: {e}', 'error')
+    return redirect(url_for('admin_deploy'))
 
 
 @app.route('/newsletter')

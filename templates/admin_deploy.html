@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Auto-Deploy · Pro Academy{% endblock %}
+{% block page_title %}Auto-Deploy{% endblock %}
+{% block topbar_actions %}
+<form method="POST" action="/admin/deploy/manual" style="display:inline" onsubmit="return confirm('Jetzt git pull + reload?')">
+  <button type="submit" class="btn btn-secondary btn-sm">↻ Manuell deployen</button>
+</form>
+{% endblock %}
+{% block content %}
+
+<style>
+  .ad-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px; margin-bottom: 14px; }
+  .ad-h { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; margin: 0 0 14px; color: var(--text); }
+  .ad-row { display: flex; align-items: flex-start; gap: 14px; padding: 10px 0; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+  .ad-row:first-of-type { border-top: none; padding-top: 0; }
+  .ad-row .ar-label { width: 140px; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 700; padding-top: 6px; flex-shrink: 0; }
+  .ad-row .ar-value { flex: 1; min-width: 0; }
+  .ad-mono { background: var(--bg-2); padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 13px; color: var(--text); border: 1px solid var(--border); word-break: break-all; }
+  .ad-step { padding: 12px 14px; background: var(--bg-2); border-left: 3px solid var(--gold); border-radius: 8px; margin-bottom: 10px; font-size: 13px; line-height: 1.55; }
+  .ad-step strong { color: var(--gold); }
+  .ad-status-ok { background: color-mix(in srgb,#22c55e 15%,var(--bg-2)); color: #22c55e; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+  .ad-status-fail { background: color-mix(in srgb,#ef4444 15%,var(--bg-2)); color: #ef4444; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+</style>
+
+<div class="ad-card">
+  <h2 class="ad-h">GitHub-Webhook (sofortiger Auto-Deploy)</h2>
+  <div class="ad-row">
+    <div class="ar-label">Webhook-URL</div>
+    <div class="ar-value"><div class="ad-mono">{{ webhook_url }}</div></div>
+  </div>
+  <div class="ad-row">
+    <div class="ar-label">Secret</div>
+    <div class="ar-value">
+      <div class="ad-mono" id="secretField">{{ secret }}</div>
+      <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('secretField').textContent.trim()); this.textContent='✓ Kopiert'" style="margin-top:6px;font-size:12px;padding:5px 12px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer">Kopieren</button>
+    </div>
+  </div>
+</div>
+
+<div class="ad-card">
+  <h2 class="ad-h">Setup (einmalig, ~2 Min)</h2>
+  <div class="ad-step">
+    <strong>1.</strong> GitHub-Repo öffnen → <strong>Settings</strong> → <strong>Webhooks</strong> → <strong>Add webhook</strong>
+  </div>
+  <div class="ad-step">
+    <strong>2.</strong> <strong>Payload URL</strong>: oben kopieren — <code>{{ webhook_url }}</code>
+  </div>
+  <div class="ad-step">
+    <strong>3.</strong> <strong>Content type</strong>: <code>application/json</code>
+  </div>
+  <div class="ad-step">
+    <strong>4.</strong> <strong>Secret</strong>: oben kopieren (großer schwarzer String)
+  </div>
+  <div class="ad-step">
+    <strong>5.</strong> <strong>Which events?</strong>: <code>Just the push event</code>
+  </div>
+  <div class="ad-step">
+    <strong>6.</strong> <strong>Active</strong> ✓ → <strong>Add webhook</strong>. Fertig.
+  </div>
+  <div class="ad-step" style="border-left-color:#22c55e">
+    Ab dem Moment: jeder Push auf <code>main</code> → in &lt;5 Sek live auf proacademy-business.de.
+  </div>
+</div>
+
+<div class="ad-card">
+  <h2 class="ad-h">Deploy-Historie ({{ deploys|length }})</h2>
+  {% if deploys %}
+  <div style="display:flex;flex-direction:column;gap:8px">
+    {% for d in deploys %}
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px">
+      <div style="font-family:monospace;font-size:12px;color:var(--text-muted);min-width:80px">{{ d.deployed_at[:16] if d.deployed_at else '—' }}</div>
+      {% if d.status == 'ok' %}<span class="ad-status-ok">OK</span>{% else %}<span class="ad-status-fail">{{ d.status }}</span>{% endif %}
+      <div style="flex:1;min-width:0;font-size:13px">
+        <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.message or '—' }}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">{{ d.triggered_by }} · {{ d.sha[:8] if d.sha else '—' }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">
+    Noch kein Deploy gelaufen. Sobald GitHub-Webhook konfiguriert ist + erster Push kommt, erscheinen hier die Logs.
+  </div>
+  {% endif %}
+</div>
+
+<div class="ad-card" style="border-left:3px solid #f97316;background:color-mix(in srgb,#f97316 5%,var(--surface))">
+  <h2 class="ad-h" style="color:#f97316">Sicherheitsnetz: 15-Min-Auto-Pull</h2>
+  <div style="font-size:13px;color:var(--text);line-height:1.55">
+    Selbst wenn der Webhook mal failt: das bestehende <code>scripts/monitor_loop.sh</code>
+    pullt jetzt zusätzlich alle 15 Min automatisch. Nach dem Setup oben ist alles
+    doppelt abgesichert — Push → entweder sofort (Webhook) oder spätestens 15 Min (Monitor).
+  </div>
+</div>
+
+{% endblock %}
