@@ -321,42 +321,54 @@ textarea.in { resize: vertical; min-height: 70px; }
     <div class="hero">
         <div class="hero-left">
             <div class="badge">⚡ Erstgespräch ist immer kostenlos · keine Verpflichtung</div>
-            <h1>Du arbeitest. Du verdienst.<br>Und trotzdem bleibt am Ende <span class="accent">nichts übrig?</span></h1>
-            <p class="lead">
-                Dann lass uns mal sprechen.<br><br>
+            {# Pfad-adaptive Headline (outcome-orientiert statt pain) #}
+            <h1 id="heroH1">Mit deinem Geld endlich klarkommen.<br><span class="accent">Ohne Banker-Deutsch. Ohne Druck.</span></h1>
+            <p class="lead" id="heroLead">
+                90 Min. Erstgespräch · kostenlos · 24-48h Antwort.<br><br>
                 Ich helfe Menschen, mit ihren Finanzen klarzukommen — ohne dass dir irgendwas angedreht wird.
                 <strong>Du verstehst was du machst, du entscheidest was du machst.</strong>
-                Mehr braucht's nicht.
             </p>
+            {# TIER F.1 — Trust-Bar unter H1 (Marketing-Audit Empfehlung) #}
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 22px">
+                <span style="font-size:11px;color:#cbd5e1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:99px;font-weight:600">✓ Persönliche Beratung</span>
+                <span style="font-size:11px;color:#cbd5e1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:99px;font-weight:600">✓ Partner Ergo Pro</span>
+                <span style="font-size:11px;color:#cbd5e1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:99px;font-weight:600">✓ Antwort in 24-48h</span>
+                <span style="font-size:11px;color:#cbd5e1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:99px;font-weight:600">✓ Kein Hardsell</span>
+            </div>
             <div class="founder">
                 <img src="/static/icons/najib-founder.jpg" alt="Jibson · JIBSON.TV" class="founder-photo" loading="lazy" decoding="async" onerror="this.src='/static/icons/coach-figure-200.jpg'">
                 <div class="founder-text">
                     <div class="founder-name">Jibson</div>
-                    <div class="founder-role">JIBSON.TV · Gründer Pro Academy</div>
+                    <div class="founder-role">„Ich beantworte jede Anfrage persönlich. Versprochen."</div>
                 </div>
             </div>
         </div>
 
         <!-- ═══════ FORM ═══════ -->
         <form class="form-card" method="POST" id="leadForm">
+
+            {# TIER F.1 — Path-Tabs DIREKT über der Form (statt 600px weiter unten).
+               Marketing-Audit: ohne Tab über Form ist der Hint-Text-Verweis „↑ wechseln" UX-Bruch. #}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:-4px -4px 16px;padding:4px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px">
+                <button type="button" id="pathFormTabBeratung" data-pathtab="beratung" class="path-tab-mini active" style="padding:11px 10px;background:rgba(212,168,67,0.18);color:#fff;border:none;border-radius:7px;font-weight:700;font-size:13px;cursor:pointer;transition:all 0.15s">
+                    💡 Beratung für mich
+                </button>
+                <button type="button" id="pathFormTabKarriere" data-pathtab="karriere" class="path-tab-mini" style="padding:11px 10px;background:transparent;color:#94a3b8;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;transition:all 0.15s">
+                    🚀 Karriere im Vertrieb
+                </button>
+            </div>
+
             <!-- Direkt-Buchen-Banner als Outline (sekundär) — primärer CTA bleibt der Submit-Button -->
-            <a href="/buchen{% if referred_by %}?ref={{ referred_by }}{% endif %}" style="display:block;text-decoration:none;margin:-4px -4px 18px;padding:10px 14px;background:transparent;color:#d4a843;border:1.5px solid rgba(212,168,67,0.45);border-radius:10px;text-align:center;font-weight:600;font-size:13px;letter-spacing:-0.2px;transition:all 0.18s" onmouseover="this.style.borderColor='#d4a843';this.style.background='rgba(212,168,67,0.06)'" onmouseout="this.style.borderColor='rgba(212,168,67,0.45)';this.style.background='transparent'">
+            <a href="/buchen{% if referred_by %}?ref={{ referred_by }}{% endif %}" style="display:block;text-decoration:none;margin:0 0 16px;padding:10px 14px;background:transparent;color:#d4a843;border:1.5px solid rgba(212,168,67,0.45);border-radius:10px;text-align:center;font-weight:600;font-size:13px;letter-spacing:-0.2px;transition:all 0.18s" onmouseover="this.style.borderColor='#d4a843';this.style.background='rgba(212,168,67,0.06)'" onmouseout="this.style.borderColor='rgba(212,168,67,0.45)';this.style.background='transparent'">
                 Lieber direkt Tag &amp; Uhrzeit wählen? → /buchen
             </a>
 
-            <div class="form-title">Oder schreib mir kurz</div>
+            <div class="form-title" id="formTitle">Oder schreib mir kurz</div>
             <div class="form-sub">Ich melde mich innerhalb von <strong style="color:#d4a843">24-48 Std.</strong> zurück — kostenlos, unverbindlich, kein Verkaufsgespräch.</div>
 
             {% if error %}<div class="error-box">⚠️ {{ error }}</div>{% endif %}
 
-            <!-- Pfad wird vom oberen Tab gesetzt — kein doppelter Selector mehr im Form -->
             <input type="hidden" name="interesse" id="intHidden" value="beratung">
-            <div id="pathHint" style="font-size:12px;color:#94a3b8;margin-bottom:14px;padding:10px 12px;background:rgba(212,168,67,0.08);border-left:2px solid #d4a843;border-radius:6px">
-                <span id="pathHintText">💡 Du schreibst zum Thema <strong style="color:#d4a843">Beratung</strong>.</span>
-                <span style="float:right">
-                    <a href="#pathTabsTop" style="color:#d4a843;font-weight:600;font-size:11px;text-decoration:none">↑ wechseln</a>
-                </span>
-            </div>
 
             <label class="fl">Name *</label>
             <input class="in" type="text" name="name" required placeholder="Max Mustermann" autocomplete="name">
@@ -368,32 +380,50 @@ textarea.in { resize: vertical; min-height: 70px; }
             <input class="in" type="tel" name="phone" placeholder="+49 170 1234567" autocomplete="tel">
 
             {% if matched_owner_display %}
-            <!-- Token-Match: Berater bekannt → keine Namens-Frage, nur „Über welche Plattform" -->
+            <!-- Token-Match: Berater bekannt → grüner Hinweis -->
             <div style="background:rgba(52,211,153,0.10);border:1px solid rgba(52,211,153,0.30);border-radius:10px;padding:12px 14px;margin-bottom:14px">
                 <div style="font-size:13px;color:#34d399;line-height:1.45">
                     ✓ Du wurdest direkt von <strong style="color:#fff">{{ matched_owner_display }}</strong> verlinkt — er bekommt deine Anfrage persönlich.
                 </div>
             </div>
+            <input type="hidden" name="ref_token" value="{{ ref_token }}">
+            {% endif %}
+
+            {# TIER F.1 — Source-Field IMMER als Select (Marketing-Audit: Freitext = -38% Conversion).
+               Bei Token-Match nur Plattform-Auswahl, sonst freie Auswahl mit Bekannten-Option. #}
             <label class="fl">Über welche Plattform bist du auf uns aufmerksam geworden? <span style="color:#ef4444">*</span></label>
-            <select class="in" name="referred_by" required style="cursor:pointer">
+            <select class="in" id="sourceSelect" name="referred_by" required style="cursor:pointer" onchange="onSourceChange(this)">
                 <option value="">— bitte wählen —</option>
                 <option value="Instagram">📸 Instagram</option>
                 <option value="TikTok">🎵 TikTok</option>
                 <option value="YouTube">▶ YouTube</option>
-                <option value="Persönlich empfohlen">🤝 Persönlich empfohlen</option>
+                <option value="Persönlich empfohlen">🤝 Persönlich empfohlen (Bekannte/r)</option>
                 <option value="WhatsApp">💬 WhatsApp</option>
                 <option value="Google-Suche">🔍 Google-Suche</option>
                 <option value="Podcast">🎙 Podcast</option>
                 <option value="Event / Vortrag">📅 Event / Vortrag</option>
                 <option value="LinkedIn">💼 LinkedIn</option>
-                <option value="Anderes">✨ Anderes</option>
+                <option value="__custom__">✨ Anderes (eintippen)</option>
             </select>
-            <input type="hidden" name="ref_token" value="{{ ref_token }}">
-            {% else %}
-            <label class="fl">Wie bist du auf uns aufmerksam geworden? <span style="color:#ef4444">*</span></label>
-            <input class="in" type="text" name="referred_by" value="{{ referred_by or '' }}" required minlength="2" placeholder="z.B. Instagram · Google · TikTok · oder Name eines Beraters">
-            <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4">Pflichtfeld. Wenn dich jemand persönlich empfohlen hat, schreib seinen Namen — wir leiten dich direkt zu ihm.</div>
-            {% endif %}
+            <input class="in" type="text" id="sourceCustom" name="referred_by_custom" placeholder="Name oder Quelle eintippen…" style="display:none;margin-top:8px" minlength="2">
+            <script>
+            function onSourceChange(sel) {
+                const custom = document.getElementById('sourceCustom');
+                if (sel.value === '__custom__') {
+                    custom.style.display = 'block';
+                    custom.required = true;
+                    sel.required = false;
+                    sel.name = 'referred_by_orig';
+                    custom.name = 'referred_by';
+                } else {
+                    custom.style.display = 'none';
+                    custom.required = false;
+                    sel.required = true;
+                    sel.name = 'referred_by';
+                    custom.name = 'referred_by_custom';
+                }
+            }
+            </script>
 
             <!-- ═════ TERMIN-WUNSCH (collapsed by default) ═════ -->
             <details style="margin-top:14px">
@@ -428,7 +458,7 @@ textarea.in { resize: vertical; min-height: 70px; }
                 </label>
             </div>
 
-            <button type="submit" class="btn-submit">Schreib mir →</button>
+            <button type="submit" class="btn-submit" id="submitBtn">Kostenloses Erstgespräch sichern →</button>
         </form>
     </div>
 
@@ -554,24 +584,54 @@ textarea.in { resize: vertical; min-height: 70px; }
 </div>
 
 <script>
-// Pfad-Tabs (oben) — togglen Inhalt + sync mit hidden Form-Field + Hint-Text
+// Pfad-Tabs (oben + Form-Mini) — togglen Inhalt + sync mit hidden Form-Field
+// + Headline + Lead + CTA-Button pfad-adaptiv (Marketing-Audit TIER F.1).
 (function(){
-    const tabs = document.querySelectorAll('.path-tab[data-pathtab]');
+    const tabs = document.querySelectorAll('.path-tab[data-pathtab], .path-tab-mini[data-pathtab]');
     const contents = document.querySelectorAll('[data-pathcontent]');
     const intHidden = document.getElementById('intHidden');
-    const hintText = document.getElementById('pathHintText');
+    const heroH1 = document.getElementById('heroH1');
+    const heroLead = document.getElementById('heroLead');
+    const submitBtn = document.getElementById('submitBtn');
+    const formTitle = document.getElementById('formTitle');
+
+    const COPY = {
+        beratung: {
+            h1: 'Mit deinem Geld endlich klarkommen.<br><span class="accent">Ohne Banker-Deutsch. Ohne Druck.</span>',
+            lead: '90 Min. Erstgespräch · kostenlos · 24-48h Antwort.<br><br>Ich helfe Menschen, mit ihren Finanzen klarzukommen — ohne dass dir irgendwas angedreht wird. <strong>Du verstehst was du machst, du entscheidest was du machst.</strong>',
+            cta: 'Kostenloses Erstgespräch sichern →',
+            formTitle: 'Oder schreib mir kurz',
+        },
+        karriere: {
+            h1: 'Vertrieb mit System statt Glück.<br><span class="accent">Quereinstieg möglich · 14 Nationen im Team.</span>',
+            lead: 'Wir starten klein, du wächst rein. <strong>Erst nebenbei testen, dann entscheiden ob es dein Ding ist.</strong><br><br>Ich erkläre dir in 30 Min was wir machen, wie viel realistisch geht und ob du dazu passt — ohne Druck.',
+            cta: 'Karriere-Talk anfragen →',
+            formTitle: 'Schreib mir worum es geht',
+        }
+    };
 
     function activate(target) {
-        tabs.forEach(t => t.classList.toggle('active', t.dataset.pathtab === target));
+        tabs.forEach(t => {
+            const isActive = t.dataset.pathtab === target;
+            t.classList.toggle('active', isActive);
+            // Mini-Tabs (über Form): inline-style update
+            if (t.classList.contains('path-tab-mini')) {
+                if (isActive) {
+                    t.style.background = 'rgba(212,168,67,0.18)';
+                    t.style.color = '#fff';
+                } else {
+                    t.style.background = 'transparent';
+                    t.style.color = '#94a3b8';
+                }
+            }
+        });
         contents.forEach(c => c.style.display = (c.dataset.pathcontent === target) ? '' : 'none');
         if (intHidden) intHidden.value = target;
-        if (hintText) {
-            if (target === 'karriere') {
-                hintText.innerHTML = '🚀 Du schreibst zum Thema <strong style="color:#d4a843">Karriere / Mitmachen</strong>.';
-            } else {
-                hintText.innerHTML = '💡 Du schreibst zum Thema <strong style="color:#d4a843">Beratung</strong>.';
-            }
-        }
+        const c = COPY[target] || COPY.beratung;
+        if (heroH1) heroH1.innerHTML = c.h1;
+        if (heroLead) heroLead.innerHTML = c.lead;
+        if (submitBtn) submitBtn.textContent = c.cta;
+        if (formTitle) formTitle.textContent = c.formTitle;
     }
     tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.pathtab)));
 

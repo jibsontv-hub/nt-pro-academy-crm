@@ -164,17 +164,30 @@
                 {% endfor %}
             {% endwith %}
 
-            <!-- Tab-Switch: Passwort vs Magic-Link -->
+            {# TIER F.2 — Magic-Link als Default-Tab (Marketing-Audit: B2B-SaaS-Standard 2025).
+               Hint kürzer: keine Conversion-Bremse mehr. #}
             <div style="display:flex;gap:6px;margin-bottom:18px">
-                <button type="button" id="tabPwd" onclick="showTab('pwd')" style="flex:1;padding:10px;border-radius:10px;background:#0f1c3f;color:#fff;border:1px solid #0f1c3f;font-weight:700;font-size:13px;cursor:pointer">Mit Passwort</button>
-                <button type="button" id="tabMagic" onclick="showTab('magic')" style="flex:1;padding:10px;border-radius:10px;background:#fff;color:#64748b;border:1px solid #e5e8ee;font-weight:700;font-size:13px;cursor:pointer">Login-Link per Mail</button>
+                <button type="button" id="tabMagic" onclick="showTab('magic')" style="flex:1;padding:10px;border-radius:10px;background:#0f1c3f;color:#fff;border:1px solid #0f1c3f;font-weight:700;font-size:13px;cursor:pointer">▢ Per E-Mail (empfohlen)</button>
+                <button type="button" id="tabPwd" onclick="showTab('pwd')" style="flex:1;padding:10px;border-radius:10px;background:#fff;color:#64748b;border:1px solid #e5e8ee;font-weight:700;font-size:13px;cursor:pointer">Mit Passwort</button>
             </div>
 
-            <!-- ─── Klassischer Login (Passwort) ─── -->
-            <form method="POST" id="formPwd">
+            <!-- ─── Magic-Link Login (DEFAULT) ─── -->
+            <form method="POST" action="/login/magic-request" id="formMagic">
                 <div class="form-group">
                     <label>E-Mail</label>
                     <input type="email" name="email" placeholder="ihre@email.de" required autofocus autocomplete="email">
+                </div>
+                <div style="font-size:12px;color:#64748b;margin:-4px 0 12px;line-height:1.5">
+                    Wir schicken dir einen <strong style="color:#0f1c3f">Klick-Link per E-Mail</strong>. Kein Passwort tippen, einfach klicken — Link gilt 20 Min.
+                </div>
+                <button type="submit" class="btn-login">Login-Link schicken →</button>
+            </form>
+
+            <!-- ─── Klassischer Login (sekundär) ─── -->
+            <form method="POST" id="formPwd" style="display:none">
+                <div class="form-group">
+                    <label>E-Mail</label>
+                    <input type="email" name="email" placeholder="ihre@email.de" required autocomplete="email">
                 </div>
                 <div class="form-group">
                     <label>Passwort</label>
@@ -183,22 +196,8 @@
                 <button type="submit" class="btn-login">Anmelden →</button>
             </form>
 
-            <!-- ─── Magic-Link Login (kein Passwort nötig) ─── -->
-            <form method="POST" action="/login/magic-request" id="formMagic" style="display:none">
-                <div class="form-group">
-                    <label>E-Mail</label>
-                    <input type="email" name="email" placeholder="ihre@email.de" required autocomplete="email">
-                </div>
-                <div style="font-size:12px;color:#64748b;margin:-4px 0 12px;line-height:1.5">
-                    Wir schicken dir einen <strong style="color:#0f1c3f">Klick-Link per E-Mail</strong>. Kein Passwort tippen — einfach klicken und du bist drin. Link gilt 20 Minuten.
-                    <br><br>
-                    <span style="color:#9ca3af;font-size:11px">Hinweis: funktioniert erst <strong>nach deinem ersten Login</strong> mit E-Mail + Passwort.</span>
-                </div>
-                <button type="submit" class="btn-login">Login-Link schicken →</button>
-            </form>
-
             <div style="margin-top:14px;text-align:center">
-                <a href="/passwort-vergessen" style="font-size:13px;color:#d4a843;text-decoration:none;font-weight:700">🔑 Passwort vergessen? Self-Service starten →</a>
+                <a href="/passwort-vergessen" style="font-size:12px;color:#94a3b8;text-decoration:none">Passwort vergessen?</a>
             </div>
 
             <script>
@@ -214,18 +213,16 @@
                 tabM.style.background = isMagic ? '#0f1c3f' : '#fff';
                 tabM.style.color = isMagic ? '#fff' : '#64748b';
                 tabM.style.borderColor = isMagic ? '#0f1c3f' : '#e5e8ee';
-                // Autofocus auf das sichtbare email-Feld
                 const f = isMagic ? document.querySelector('#formMagic input[name=email]') : document.querySelector('#formPwd input[name=email]');
                 if (f) setTimeout(() => f.focus(), 50);
             }
             </script>
 
-            <div style="text-align:center;margin-top:16px;padding:14px;background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.25);border-radius:12px">
-                <div style="font-size:13px;color:#0f1c3f;font-weight:700;margin-bottom:6px">Noch kein Account?</div>
-                <a href="/registrieren" style="display:inline-block;color:#fff;background:linear-gradient(135deg,#d4a843,#f0c970);padding:10px 22px;border-radius:10px;text-decoration:none;font-size:13px;font-weight:800">▶ Jetzt registrieren</a>
-                <div style="font-size:10px;color:#94a3b8;margin-top:8px">Dein Strukturhöher bestätigt dich, dann geht's los</div>
+            <div style="text-align:center;margin-top:18px;padding:12px 14px;background:rgba(212,168,67,0.08);border:1px solid rgba(212,168,67,0.25);border-radius:10px">
+                <div style="font-size:12px;color:#0f1c3f;font-weight:700;margin-bottom:6px">Noch kein Account?</div>
+                <a href="/registrieren" style="display:inline-block;color:#fff;background:#d4a843;padding:8px 18px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700">→ Registrieren</a>
             </div>
-            <div class="hint" style="margin-top:14px">· <a href="/datenschutz" target="_blank" style="color:#9ca3af">Datenschutz</a> · <a href="/start" style="color:#9ca3af">Mehr Infos</a></div>
+            <div class="hint" style="margin-top:12px;font-size:10px;opacity:0.6">· <a href="/datenschutz" target="_blank" style="color:#9ca3af">Datenschutz</a> · <a href="/impressum" style="color:#9ca3af">Impressum</a> · <a href="/start" style="color:#9ca3af">Was ist Pro Academy?</a></div>
 
         </div>
     </div>
