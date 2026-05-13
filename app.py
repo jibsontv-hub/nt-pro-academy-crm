@@ -13747,6 +13747,10 @@ def partner_profil(uid):
         upline = db.execute('SELECT id, name, photo_path FROM users WHERE id=?', (target['parent_id'],)).fetchone()
         if upline: upline = dict(upline)
     db.close()
+    # Lead-Link-Tracking für diesen Partner: Klicks + Conversions auf seinem ?ref=token Link
+    target_lead_stats = get_lead_link_stats(uid)
+    target_lead_token = get_or_create_lead_token(uid)
+    target_lead_link = f"{CANONICAL_URL.rstrip('/')}/start?ref={target_lead_token}"
     return render_template('partner_profil.html',
         target=target, target_career=target_career, own_eh=own_eh,
         contracts_total=contracts_total, volumen_total=volumen_total, provision_total=provision_total,
@@ -13756,6 +13760,8 @@ def partner_profil(uid):
         last_contracts=last_contracts, last_appts=last_appts,
         direct_dl=direct_dl_with_career,
         heatmap_dict=heatmap_dict, upline=upline,
+        target_lead_stats=target_lead_stats,
+        target_lead_link=target_lead_link,
         today_iso=date.today().isoformat()
     )
 
