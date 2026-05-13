@@ -9825,6 +9825,241 @@ def get_najib_morning_briefing(user_id):
         db.close()
 
 
+# ═══════════════════════════════════════════════════════════════════
+# TIER D — /owner/queue: konsolidierte Owner-Action-Page
+# Statt 6 Morgen-Pages (Dashboard + Genehmigungen + Inbox + /team/inaktiv +
+# /vertraege + /admin/mail) = 1 Page mit allen Entscheidungen als priorisierte
+# Inline-Liste. Spart Najib bei Skalierung 60-90 Min/Tag.
+# ═══════════════════════════════════════════════════════════════════
+
+def get_owner_queue(user_id):
+    """Liefert konsolidierte Action-Liste für Owner-Queue.
+
+    Sortiert nach Urgency (rot zuerst). Jeder Eintrag hat:
+      type: 'pending_approval' | 'hot_lead' | 'drift_top' | 'geld_blocker' | 'coaching_today'
+      title, subtitle, urgency (0-100), actions (inline buttons), data (für Aktion)
+    """
+    db = get_db()
+    today = date.today()
+    today_iso = today.isoformat()
+    queue = []
+    try:
+        descendants = [user_id] + get_all_descendants(user_id)
+        ph = ','.join('?' * len(descendants))
+
+        # 1. Hot Leads (≤24h, status='neu', source='public')
+        hot_leads = db.execute(
+            "SELECT l.id, l.name, l.email, l.phone, l.created_at, l.public_message, "
+            "       l.referred_by, l.liste_typ, u.name AS owner_name "
+            "FROM leads l LEFT JOIN users u ON u.id = l.owner_id "
+            "WHERE l.source='public' AND l.status='neu' "
+            "AND l.created_at >= datetime('now','-24 hours') "
+            "ORDER BY l.created_at DESC LIMIT 10"
+        ).fetchall()
+        for l in hot_leads:
+            queue.append({
+                'type': 'hot_lead', 'urgency': 90,
+                'title': l['name'],
+                'subtitle': f"{l['email']} · {l['liste_typ'].upper()} · Owner: {l['owner_name'] or '–'}",
+                'meta': l['public_message'][:80] if l['public_message'] else '',
+                'data': {'id': l['id'], 'phone': l['phone']},
+            })
+
+        # 2. Pending Approvals (manuell, Edge-Cases die nicht auto-genehmigt wurden)
+        pending = db.execute('''
+            SELECT u.id, u.name, u.manual_career_level, u.pending_career_level, u.pending_at,
+                   p.name AS proposed_by
+            FROM users u
+            LEFT JOIN users p ON u.pending_by_user_id = p.id
+            WHERE u.pending_career_level IS NOT NULL AND u.active=1
+            ORDER BY u.pending_at ASC
+            LIMIT 20
+        ''').fetchall()
+        for p in pending:
+            cur_career = next((cl for cl in CAREER_LEVELS if cl['level'] == (p['manual_career_level'] or 1)), CAREER_LEVELS[0])
+            new_career = next((cl for cl in CAREER_LEVELS if cl['level'] == p['pending_career_level']), CAREER_LEVELS[0])
+            try:
+                age_days = (datetime.now() - datetime.strptime(p['pending_at'][:19], '%Y-%m-%d %H:%M:%S')).days
+            except (ValueError, TypeError):
+                age_days = 0
+            urgency = 95 if age_days >= 5 else (80 if age_days >= 2 else 60)
+            queue.append({
+                'type': 'pending_approval', 'urgency': urgency,
+                'title': f'{p["name"]}: {cur_career["short"]} → {new_career["short"]}',
+                'subtitle': f'Vorgeschlagen von {p["proposed_by"] or "?"} · {age_days}T pending',
+                'meta': '',
+                'data': {'id': p['id'], 'new_level': p['pending_career_level']},
+            })
+
+        # 3. Drift-Top (48h-Aktivitäts-Drop unter Baseline) — wiederverwendet von Briefing
+        for did in descendants[1:][:30]:  # max 30 prüfen
+            base_row = db.execute(
+                "SELECT COUNT(*) AS c FROM activity_log WHERE user_id=? "
+                "AND created_at >= datetime('now','-30 days')", (did,)
+            ).fetchone()
+            base = base_row['c'] / 30 if base_row['c'] else 0
+            if base < 1:
+                continue
+            cur_row = db.execute(
+                "SELECT COUNT(*) AS c FROM activity_log WHERE user_id=? "
+                "AND created_at >= datetime('now','-2 days')", (did,)
+            ).fetchone()
+            cur_2d = cur_row['c'] / 2
+            if cur_2d < base * 0.25:
+                u_row = db.execute('SELECT name, phone FROM users WHERE id=?', (did,)).fetchone()
+                if u_row:
+                    queue.append({
+                        'type': 'drift_top', 'urgency': 85,
+                        'title': u_row['name'],
+                        'subtitle': f'48h unter Baseline ({round(base,1)}/T → {round(cur_2d,1)}/T)',
+                        'meta': 'Anruf jetzt — bevor er aussteigt',
+                        'data': {'id': did, 'phone': u_row['phone']},
+                    })
+
+        # 4. Geld-Blocker (hängende Recherchen >7T) gruppiert nach Owner
+        geld_rows = db.execute(
+            f"SELECT c.owner_id, u.name AS owner_name, "
+            f"       COUNT(*) AS cnt, COALESCE(SUM(c.einheiten),0) AS eh "
+            f"FROM contracts c JOIN users u ON u.id = c.owner_id "
+            f"WHERE c.owner_id IN ({ph}) "
+            f"AND c.status='abgeschlossen' "
+            f"AND c.recherche_status IN ('offen','in_pruefung') "
+            f"AND date(c.abschluss_date) <= date('now','-7 days') "
+            f"GROUP BY c.owner_id ORDER BY eh DESC",
+            descendants
+        ).fetchall()
+        for g in geld_rows[:5]:
+            eur = round(g['eh'] * 9.50)
+            queue.append({
+                'type': 'geld_blocker', 'urgency': 75,
+                'title': f'{g["owner_name"]}: ~{eur} € blockiert',
+                'subtitle': f"{g['cnt']} Verträge in Recherche >7T · {round(g['eh'])} EH",
+                'meta': '',
+                'data': {'owner_id': g['owner_id']},
+            })
+
+        # 5. Coachings heute (next_session_date == today)
+        coach_today = db.execute(
+            "SELECT cn.target_user_id, u.name, u.phone FROM coaching_notes cn "
+            "JOIN users u ON u.id = cn.target_user_id "
+            "WHERE cn.author_user_id=? AND date(cn.next_session_date)=? "
+            "GROUP BY cn.target_user_id LIMIT 10",
+            (user_id, today_iso)
+        ).fetchall()
+        for c in coach_today:
+            queue.append({
+                'type': 'coaching_today', 'urgency': 70,
+                'title': f'Coaching: {c["name"]}',
+                'subtitle': 'Heute geplant',
+                'meta': '',
+                'data': {'id': c['target_user_id'], 'phone': c['phone']},
+            })
+
+        # Sortierung: höchste Urgency zuerst
+        queue.sort(key=lambda x: -x['urgency'])
+        return queue
+    except Exception as e:
+        app.logger.warning(f'get_owner_queue fail: {e}')
+        return []
+    finally:
+        db.close()
+
+
+@app.route('/owner/queue')
+@login_required
+def owner_queue():
+    """Konsolidierte Action-Page für Owner — eine einzige Morgen-Seite."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('dashboard'))
+    queue = get_owner_queue(current_user.id)
+    # Counts für Header
+    counts = {}
+    for q in queue:
+        counts[q['type']] = counts.get(q['type'], 0) + 1
+    return render_template('owner_queue.html', queue=queue, counts=counts, total=len(queue))
+
+
+# JSON-API: Approval inline ohne Page-Reload
+@app.route('/api/admin/genehmigungen/<int:uid>/approve-json', methods=['POST'])
+@login_required
+def api_approve_json(uid):
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    db = get_db()
+    user = db.execute('SELECT name, pending_career_level FROM users WHERE id=?', (uid,)).fetchone()
+    if not user or not user['pending_career_level']:
+        db.close()
+        return jsonify({'error': 'kein pending'}), 404
+    new_lvl = user['pending_career_level']
+    db.execute('''UPDATE users SET manual_career_level=?,
+                  pending_career_level=NULL, pending_by_user_id=NULL, pending_at=NULL
+                  WHERE id=?''', (new_lvl, uid))
+    db.commit()
+    db.close()
+    new_career = next((cl for cl in CAREER_LEVELS if cl['level'] == new_lvl), None)
+    if new_career:
+        log_activity(uid, 'befoerderung', f'{user["name"]} → {new_career["short"]} (Manual-Approve via Owner-Queue) 🚀',
+                    icon='⬆️', color='gold')
+        try:
+            send_push_to_user(uid,
+                title=f'🎯 Beförderung: {new_career["short"]}',
+                body=f'Glückwunsch — du bist jetzt {new_career["name"]}.',
+                url='/dashboard', urgent=True, tag='goal',
+                push_type='goal_achieved')
+        except Exception:
+            pass
+    recalculate_all_commissions()
+    cache_invalidate(f'najib_briefing:{current_user.id}')
+    return jsonify({'ok': True})
+
+
+@app.route('/api/admin/genehmigungen/<int:uid>/reject-json', methods=['POST'])
+@login_required
+def api_reject_json(uid):
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    db = get_db()
+    db.execute('''UPDATE users SET pending_career_level=NULL,
+                  pending_by_user_id=NULL, pending_at=NULL WHERE id=?''', (uid,))
+    db.commit()
+    db.close()
+    cache_invalidate(f'najib_briefing:{current_user.id}')
+    return jsonify({'ok': True})
+
+
+# JSON-API: Owner pingen (Push erinnern an hängende Recherchen)
+@app.route('/api/admin/ping-owner/<int:owner_id>', methods=['POST'])
+@login_required
+def api_ping_owner(owner_id):
+    """Push an Owner: 'X € in Recherche blockiert — schliesst du das ab?'"""
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    db = get_db()
+    info = db.execute(
+        "SELECT name, COUNT(c.id) AS cnt, COALESCE(SUM(c.einheiten),0) AS eh "
+        "FROM users u LEFT JOIN contracts c ON c.owner_id=u.id "
+        "AND c.status='abgeschlossen' "
+        "AND c.recherche_status IN ('offen','in_pruefung') "
+        "AND date(c.abschluss_date) <= date('now','-7 days') "
+        "WHERE u.id=? GROUP BY u.id", (owner_id,)
+    ).fetchone()
+    db.close()
+    if not info:
+        return jsonify({'error': 'user nicht gefunden'}), 404
+    eur = round((info['eh'] or 0) * 9.50)
+    try:
+        send_push_to_user(owner_id,
+            title=f'⏰ {info["cnt"]} Verträge in Recherche >7T',
+            body=f'Ca. {eur} € Provision blockiert. Recherche jetzt freigeben?',
+            url='/vertraege', urgent=True, tag='recherche-reminder',
+            push_type='admin_alert')
+    except Exception:
+        pass
+    cache_invalidate(f'najib_briefing:{current_user.id}')
+    return jsonify({'ok': True, 'ping_sent_to': info['name']})
+
+
 @app.route('/admin/owner-ziel', methods=['GET', 'POST'])
 @login_required
 def admin_owner_ziel():

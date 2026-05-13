@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}Owner-Queue · Pro Academy{% endblock %}
+{% block page_title %}Owner-Queue · Heute{% endblock %}
+
+{% block content %}
+
+<style>
+  .oq-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+  .oq-counts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .oq-pill { padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase; }
+  .oq-empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+  .oq-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; transition: background 0.12s; }
+  .oq-row.hot   { border-left: 3px solid var(--red); }
+  .oq-row.high  { border-left: 3px solid var(--orange); }
+  .oq-row.med   { border-left: 3px solid var(--gold); }
+  .oq-row:hover { background: var(--bg-2); }
+  .oq-icon { width: 36px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; flex-shrink: 0; background: var(--bg-2); border: 1px solid var(--border); }
+  .oq-body { flex: 1; min-width: 0; }
+  .oq-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .oq-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .oq-meta { font-size: 11px; color: var(--text-soft); margin-top: 4px; font-style: italic; }
+  .oq-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+  .oq-section-title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; margin: 18px 0 8px; }
+</style>
+
+<div class="oq-header">
+  <div>
+    <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">▸ {{ total }} Aktion{% if total != 1 %}en{% endif %} priorisiert</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Eine Page für deinen Morgen — alle Entscheidungen mit 1 Klick</div>
+  </div>
+  <div class="oq-counts">
+    {% if counts.hot_lead %}<span class="oq-pill" style="background:var(--red-soft);color:var(--red)">{{ counts.hot_lead }} Hot-Leads</span>{% endif %}
+    {% if counts.pending_approval %}<span class="oq-pill" style="background:var(--orange-soft);color:var(--orange)">{{ counts.pending_approval }} Genehmigungen</span>{% endif %}
+    {% if counts.drift_top %}<span class="oq-pill" style="background:var(--red-soft);color:var(--red)">{{ counts.drift_top }} Drift-Risiko</span>{% endif %}
+    {% if counts.geld_blocker %}<span class="oq-pill" style="background:var(--gold-soft);color:var(--gold)">{{ counts.geld_blocker }} Geld-Blocker</span>{% endif %}
+    {% if counts.coaching_today %}<span class="oq-pill" style="background:var(--blue-soft);color:var(--blue)">{{ counts.coaching_today }} Coachings</span>{% endif %}
+  </div>
+</div>
+
+{% if not queue %}
+<div class="oq-empty">
+  <div style="font-size:42px;opacity:0.3;margin-bottom:14px">✓</div>
+  <strong style="color:var(--text);font-size:14px">Queue ist leer — alles erledigt</strong>
+  <div style="font-size:13px;margin-top:6px">Geh produzieren oder coache deine Top-Strang.</div>
+</div>
+{% else %}
+
+{% for item in queue %}
+{% set urg_class = 'hot' if item.urgency >= 90 else ('high' if item.urgency >= 75 else 'med') %}
+
+{# ─── HOT LEAD ─── #}
+{% if item.type == 'hot_lead' %}
+<div class="oq-row {{ urg_class }}">
+  <div class="oq-icon">🌐</div>
+  <div class="oq-body">
+    <div class="oq-title">{{ item.title }}</div>
+    <div class="oq-sub">{{ item.subtitle }}</div>
+    {% if item.meta %}<div class="oq-meta">„{{ item.meta }}"</div>{% endif %}
+  </div>
+  <div class="oq-actions">
+    {% if item.data.phone %}<a href="tel:{{ item.data.phone }}" class="btn btn-secondary btn-sm">📞</a>{% endif %}
+    <button type="button" onclick="quickTermin({{ item.data.id }}, '{{ item.title|e }}')" class="btn btn-primary btn-sm">+📅 Termin</button>
+    <a href="/leads/{{ item.data.id }}/edit" class="btn btn-secondary btn-sm">✎</a>
+  </div>
+</div>
+
+{# ─── PENDING APPROVAL ─── #}
+{% elif item.type == 'pending_approval' %}
+<div class="oq-row {{ urg_class }}" id="approval-{{ item.data.id }}">
+  <div class="oq-icon">⬆</div>
+  <div class="oq-body">
+    <div class="oq-title">{{ item.title }}</div>
+    <div class="oq-sub">{{ item.subtitle }}</div>
+  </div>
+  <div class="oq-actions">
+    <button type="button" onclick="approveInline({{ item.data.id }})" class="btn btn-primary btn-sm" style="background:var(--green);border-color:var(--green)">✓ Bestätigen</button>
+    <button type="button" onclick="rejectInline({{ item.data.id }})" class="btn btn-secondary btn-sm">×</button>
+    <a href="/partner/{{ item.data.id }}/profil" class="btn btn-secondary btn-sm">→</a>
+  </div>
+</div>
+
+{# ─── DRIFT TOP-PERFORMER ─── #}
+{% elif item.type == 'drift_top' %}
+<div class="oq-row {{ urg_class }}">
+  <div class="oq-icon" style="color:var(--red)">⚠</div>
+  <div class="oq-body">
+    <div class="oq-title">{{ item.title }}</div>
+    <div class="oq-sub">{{ item.subtitle }}</div>
+    {% if item.meta %}<div class="oq-meta">{{ item.meta }}</div>{% endif %}
+  </div>
+  <div class="oq-actions">
+    {% if item.data.phone %}<a href="tel:{{ item.data.phone }}" class="btn btn-primary btn-sm" style="background:var(--red);border-color:var(--red)">📞 Anruf jetzt</a>{% endif %}
+    <a href="/coaching/{{ item.data.id }}" class="btn btn-secondary btn-sm">📝 Notiz</a>
+    <a href="/partner/{{ item.data.id }}/profil" class="btn btn-secondary btn-sm">→</a>
+  </div>
+</div>
+
+{# ─── GELD-BLOCKER ─── #}
+{% elif item.type == 'geld_blocker' %}
+<div class="oq-row {{ urg_class }}" id="blocker-{{ item.data.owner_id }}">
+  <div class="oq-icon" style="color:var(--gold)">€</div>
+  <div class="oq-body">
+    <div class="oq-title">{{ item.title }}</div>
+    <div class="oq-sub">{{ item.subtitle }}</div>
+  </div>
+  <div class="oq-actions">
+    <button type="button" onclick="pingOwner({{ item.data.owner_id }})" class="btn btn-primary btn-sm">⏰ Owner pingen</button>
+    <a href="/partner/{{ item.data.owner_id }}/profil" class="btn btn-secondary btn-sm">→</a>
+  </div>
+</div>
+
+{# ─── COACHING HEUTE ─── #}
+{% elif item.type == 'coaching_today' %}
+<div class="oq-row {{ urg_class }}">
+  <div class="oq-icon" style="color:var(--blue)">📝</div>
+  <div class="oq-body">
+    <div class="oq-title">{{ item.title }}</div>
+    <div class="oq-sub">{{ item.subtitle }}</div>
+  </div>
+  <div class="oq-actions">
+    {% if item.data.phone %}<a href="tel:{{ item.data.phone }}" class="btn btn-secondary btn-sm">📞</a>{% endif %}
+    <a href="/coaching/{{ item.data.id }}" class="btn btn-primary btn-sm">Notiz schreiben</a>
+  </div>
+</div>
+{% endif %}
+
+{% endfor %}
+
+{% endif %}
+
+{# Quick-Termin-Modal (wiederverwendet aus admin_inbox) #}
+<div id="qtModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(4px)" onclick="if(event.target===this) closeQT()">
+    <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:10px;padding:24px;max-width:420px;width:100%;box-shadow:var(--shadow-lg)">
+        <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Quick-Termin</div>
+        <div style="font-size:16px;color:var(--text);font-weight:700;margin-top:4px" id="qtName">—</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Lead-Daten werden automatisch übernommen</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="setQTDate(0)">Heute</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="setQTDate(1)">Morgen</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="setQTDate(7)">Nächste Woche</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+            <input type="date" id="qtDate" style="flex:1">
+            <input type="time" id="qtTime" value="14:00" style="width:110px">
+        </div>
+        <div id="qtErr" style="display:none;margin-bottom:10px;padding:8px;background:var(--red-soft);color:var(--red);border-radius:6px;font-size:12px"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button type="button" onclick="closeQT()" class="btn btn-secondary btn-sm">Abbrechen</button>
+            <button type="button" onclick="saveQT()" class="btn btn-primary btn-sm">Termin anlegen</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let _qtLeadId = null;
+function quickTermin(leadId, name) {
+    _qtLeadId = leadId;
+    document.getElementById('qtName').textContent = name;
+    document.getElementById('qtErr').style.display = 'none';
+    setQTDate(1);
+    document.getElementById('qtModal').style.display = 'flex';
+}
+function setQTDate(daysOffset) {
+    const d = new Date();
+    d.setDate(d.getDate() + daysOffset);
+    document.getElementById('qtDate').value = d.toISOString().slice(0, 10);
+}
+function closeQT() { document.getElementById('qtModal').style.display = 'none'; }
+async function saveQT() {
+    const date_v = document.getElementById('qtDate').value;
+    const time_v = document.getElementById('qtTime').value;
+    const err = document.getElementById('qtErr');
+    if (!date_v) { err.textContent = 'Datum fehlt.'; err.style.display = 'block'; return; }
+    try {
+        const res = await fetch(`/api/inbox/${_qtLeadId}/quick-termin`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ termin_date: date_v, termin_time: time_v })
+        });
+        const data = await res.json();
+        if (data.ok) { closeQT(); location.reload(); }
+        else { err.textContent = data.error || 'Fehler'; err.style.display = 'block'; }
+    } catch (e) { err.textContent = 'Verbindungsfehler'; err.style.display = 'block'; }
+}
+
+async function approveInline(uid) {
+    const row = document.getElementById('approval-' + uid);
+    if (!confirm('Beförderung bestätigen?')) return;
+    try {
+        const res = await fetch(`/api/admin/genehmigungen/${uid}/approve-json`, {method: 'POST'});
+        const data = await res.json();
+        if (data.ok) { row.style.opacity = '0.4'; row.querySelector('.oq-actions').innerHTML = '<span style="color:var(--green);font-size:13px;font-weight:700">✓ Bestätigt</span>'; }
+        else alert(data.error || 'Fehler');
+    } catch (e) { alert('Verbindungsfehler'); }
+}
+async function rejectInline(uid) {
+    const row = document.getElementById('approval-' + uid);
+    if (!confirm('Beförderung ablehnen?')) return;
+    try {
+        const res = await fetch(`/api/admin/genehmigungen/${uid}/reject-json`, {method: 'POST'});
+        const data = await res.json();
+        if (data.ok) { row.style.opacity = '0.4'; row.querySelector('.oq-actions').innerHTML = '<span style="color:var(--text-muted);font-size:13px">× Abgelehnt</span>'; }
+        else alert(data.error || 'Fehler');
+    } catch (e) { alert('Verbindungsfehler'); }
+}
+async function pingOwner(ownerId) {
+    const row = document.getElementById('blocker-' + ownerId);
+    try {
+        const res = await fetch(`/api/admin/ping-owner/${ownerId}`, {method: 'POST'});
+        const data = await res.json();
+        if (data.ok) { row.querySelector('.oq-actions').innerHTML = `<span style="color:var(--green);font-size:13px;font-weight:700">✓ ${data.ping_sent_to} gepingt</span>`; }
+        else alert(data.error || 'Fehler');
+    } catch (e) { alert('Verbindungsfehler'); }
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('qtModal').style.display === 'flex') closeQT();
+});
+</script>
+
+{% endblock %}

@@ -1309,8 +1309,13 @@
 
             {% if current_user.has_admin_access %}
             {% set p = request.path %}
-            {% set sec_council = ('/admin/tagesaktion' in p) or ('/admin/content' in p) %}
+            {% set sec_council = ('/admin/tagesaktion' in p) or ('/admin/content' in p) or ('/owner/queue' in p) %}
             {% set sec_admin = (('/admin' in p) and not sec_council and not ('/admin/weiterbildung' in p)) %}
+
+            {# TIER D — Owner-Queue ganz oben in Council, Gold-prominent #}
+            <a href="/owner/queue" class="nav-link {% if '/owner/queue' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.22),rgba(212,168,67,0.06));color:var(--gold);font-weight:800;margin:6px 0">
+                <span class="nav-icon">▸</span> Owner-Queue
+            </a>
 
             <details class="nav-group" data-group="council" {% if sec_council %}open{% endif %}>
                 <summary>Admin · Council</summary>
