@@ -1,393 +1,99 @@
 {% extends "base.html" %}
-{% block title %}System-Anleitung · Pro Academy{% endblock %}
-{% block page_title %}So nutzt du das System richtig{% endblock %}
+{% block title %}Anleitung · Pro Academy{% endblock %}
+{% block page_title %}Schritt für Schritt{% endblock %}
 
 {% block content %}
 
 <style>
-  .guide-wrap { max-width: 880px; margin: 0 auto; }
-  .guide-hero { background: linear-gradient(135deg, #0f1c3f, #1a2c5b); color: #fff; border-radius: 10px; padding: 24px 26px; margin-bottom: 18px; border-left: 3px solid var(--gold); }
-  .guide-hero h2 { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 4px; }
-  .guide-hero p { font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.55; }
-  .guide-stage-badge { display: inline-block; font-size: 10px; background: var(--gold); color: var(--navy); padding: 3px 10px; border-radius: 4px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 8px; }
+  .guide-wrap { max-width: 540px; margin: 0 auto; }
 
-  .guide-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px 22px; margin-bottom: 14px; }
-  .guide-section h3 { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -0.2px; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
-  .guide-section .step-num { width: 28px; height: 28px; border-radius: 6px; background: var(--gold-soft); color: var(--gold); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
-  .guide-section .lead { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.55; }
-  .guide-section ul { list-style: none; padding: 0; }
-  .guide-section li { padding: 9px 0; border-bottom: 1px solid var(--border); display: flex; gap: 12px; align-items: flex-start; }
-  .guide-section li:last-child { border-bottom: none; }
-  .guide-section li .ic { font-size: 16px; flex-shrink: 0; width: 22px; text-align: center; }
-  .guide-section li .txt { font-size: 13px; color: var(--text); line-height: 1.55; }
-  .guide-section li .txt strong { color: var(--gold); }
-  .guide-section li .txt a { color: var(--gold); text-decoration: none; font-weight: 700; }
-  .guide-section li .txt a:hover { text-decoration: underline; }
+  .guide-progress { background: var(--bg-2); border-radius: 99px; height: 6px; overflow: hidden; margin-bottom: 24px; }
+  .guide-progress-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-light)); transition: width 0.4s; }
+  .guide-progress-text { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 6px; display: flex; justify-content: space-between; }
 
-  .day-blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 10px 0; }
-  .day-block { background: var(--bg-2); border: 1px solid var(--border); border-left: 3px solid var(--gold); border-radius: 8px; padding: 14px 16px; }
-  .day-block .when { font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
-  .day-block .what { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 3px; }
-  .day-block .why { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+  .step-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--gold); border-radius: 12px; padding: 28px 28px; }
+  .step-icon { font-size: 36px; line-height: 1; margin-bottom: 16px; }
+  .step-title { font-size: 20px; font-weight: 800; color: var(--text); letter-spacing: -0.4px; line-height: 1.3; margin-bottom: 8px; }
+  .step-detail { font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; }
 
-  .toc { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 18px; font-size: 12px; }
-  .toc a { color: var(--text-muted); text-decoration: none; margin-right: 14px; }
-  .toc a:hover { color: var(--gold); }
+  .step-cta { display: block; width: 100%; padding: 14px 18px; background: var(--gold); color: var(--navy); border: none; border-radius: 8px; font-weight: 800; font-size: 14px; cursor: pointer; text-decoration: none; text-align: center; transition: background 0.15s; margin-bottom: 10px; }
+  .step-cta:hover { background: var(--gold-light); }
 
-  .quick-action { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; background: var(--gold-soft); color: var(--gold); border-radius: 6px; font-size: 12px; font-weight: 700; text-decoration: none; margin: 4px 4px 0 0; transition: background 0.15s; }
-  .quick-action:hover { background: var(--gold); color: var(--navy); }
+  .step-actions { display: flex; gap: 8px; }
+  .step-done { flex: 1; padding: 12px; background: var(--green); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; transition: background 0.15s; font-family: inherit; }
+  .step-done:hover { background: #2cb588; }
+  .step-skip { padding: 12px 16px; background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; cursor: pointer; font-family: inherit; }
+  .step-skip:hover { color: var(--text); border-color: var(--border-strong); }
 
-  .pro-tip { background: var(--gold-soft); border-left: 3px solid var(--gold); border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 8px 0; font-size: 12px; color: var(--text); line-height: 1.55; }
-  .pro-tip strong { color: var(--gold); }
+  .all-done { background: var(--surface); border: 1px solid var(--green); border-left: 3px solid var(--green); border-radius: 12px; padding: 32px 28px; text-align: center; }
+  .all-done .ic { font-size: 42px; margin-bottom: 14px; }
+  .all-done h3 { font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+  .all-done p { font-size: 13px; color: var(--text-muted); line-height: 1.55; margin-bottom: 18px; }
+
+  .step-overview { margin-top: 28px; font-size: 11px; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 8px; }
+  .step-mini { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
+  .step-mini.done { opacity: 0.5; }
+  .step-mini.done .step-mini-title { text-decoration: line-through; color: var(--text-muted); }
+  .step-mini.current { border-color: var(--gold); background: var(--gold-soft); }
+  .step-mini-num { width: 22px; height: 22px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text-muted); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .step-mini.done .step-mini-num { background: var(--green); border-color: var(--green); color: #fff; }
+  .step-mini.current .step-mini-num { background: var(--gold); border-color: var(--gold); color: var(--navy); }
+  .step-mini-title { flex: 1; color: var(--text); font-weight: 600; }
 </style>
 
 <div class="guide-wrap">
 
-  <!-- HERO — Stufenspezifisch -->
-  <div class="guide-hero">
-    <span class="guide-stage-badge">Stufe {{ career.level }} · {{ career.short }}</span>
-    <h2>Willkommen, {{ current_user.name }}.</h2>
-    <p>
-      Diese Anleitung zeigt dir <strong style="color:var(--gold)">systematisch</strong> wie du das CRM nutzt um effizient zu arbeiten
-      {% if next_level %}und schnell auf <strong style="color:var(--gold)">{{ next_level.short }}</strong> ({{ next_level.name }}) zu kommen{% else %}und dein Team optimal zu führen{% endif %}.
-      <strong style="color:var(--gold)">15-20 Minuten lesen — spart dir 100+ Stunden im Jahr.</strong>
-    </p>
+  {% if all_done %}
+  <div class="all-done">
+    <div class="ic">✓</div>
+    <h3>Du hast alles durch.</h3>
+    <p>{{ total }}/{{ total }} Schritte erledigt.<br>Jetzt kennst du das System — geh produzieren.</p>
+    <form method="POST" action="/guide/restart" style="display:inline" onsubmit="return confirm('Anleitung von vorne starten?')">
+      <button type="submit" style="background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;padding:8px 14px;font-size:12px;cursor:pointer;font-family:inherit">↻ Nochmal von vorne</button>
+    </form>
   </div>
 
-  <!-- TOC -->
-  <div class="toc">
-    <strong style="color:var(--text);font-size:11px;text-transform:uppercase;letter-spacing:0.5px">▸ Inhalt:</strong>
-    <a href="#tagesablauf">1. Dein Tagesablauf</a>
-    <a href="#tools">2. Tools die du brauchst</a>
-    {% if career.level >= 2 %}<a href="#fuehrung">3. Team führen</a>{% endif %}
-    {% if is_admin %}<a href="#owner">4. Owner-Workflow</a>{% endif %}
-    <a href="#aufstieg">{% if career.level >= 2 and is_admin %}5{% elif career.level >= 2 %}3{% else %}3{% endif %}. Aufstieg{% if next_level %} zu {{ next_level.short }}{% endif %}</a>
-    <a href="#auto">Was läuft automatisch</a>
-    <a href="#tipps">Profi-Tipps</a>
+  {% else %}
+
+  {# Progress-Bar #}
+  <div class="guide-progress-text">
+    <span>Schritt {{ current_idx + 1 }} von {{ total }}</span>
+    <span>{{ completed_count }} erledigt</span>
+  </div>
+  <div class="guide-progress">
+    <div class="guide-progress-fill" style="width:{{ (completed_count / total * 100) }}%"></div>
   </div>
 
-  <!-- § 1. TAGESABLAUF -->
-  <div class="guide-section" id="tagesablauf">
-    <h3><span class="step-num">1</span> Dein Tagesablauf — was du WANN machst</h3>
-    <div class="lead">Der Schlüssel im Vertrieb ist Routine. Jeden Tag dieselbe Reihenfolge — das System trägt dich, du musst nicht überlegen.</div>
+  {# AKTUELLER SCHRITT (groß, sticky) #}
+  <div class="step-card">
+    <div class="step-icon">{{ current_step.icon }}</div>
+    <div class="step-title">{{ current_step.title }}</div>
+    <div class="step-detail">{{ current_step.detail }}</div>
 
-    <div class="day-blocks">
-      <div class="day-block">
-        <div class="when">☀ 8-10 Uhr · Start</div>
-        <div class="what">Daily Check-in + KI-Coach</div>
-        <div class="why">Schau aufs <strong>Dashboard</strong>. Lies das <strong>Tages-Briefing vom Coach</strong>. Trag im <strong>Daily Check-in</strong> ein wie du dich fühlst + Plan für heute.</div>
-        <a href="/daily-checkin" class="quick-action">→ Daily Check-in</a>
-        <a href="/dashboard" class="quick-action">→ Dashboard</a>
-      </div>
+    <a href="{{ current_step.cta_url }}" class="step-cta">{{ current_step.cta_label }} →</a>
 
-      <div class="day-block">
-        <div class="when">▶ 9-12 Uhr · Akquise</div>
-        <div class="what">Telefonate · 20 Anrufe / Tag</div>
-        <div class="why">Geh auf deine <strong>Namensliste</strong>. Nutz die <strong>Telefon-Skripte</strong> für Einstieg/Einwand/Abschluss. Ziel: 2-3 Termine setzen.</div>
-        <a href="/namensliste?typ=vk" class="quick-action">→ Kunden-Liste</a>
-        <a href="/skripte" class="quick-action">→ Skripte</a>
-      </div>
-
-      <div class="day-block">
-        <div class="when">◷ 12-17 Uhr · Termine</div>
-        <div class="what">Beratungen halten + Verträge</div>
-        <div class="why">Halte deine <strong>Termine</strong>, dokumentiere sofort. Bei Abschluss: <strong>Vertrag direkt eingeben</strong> — sonst vergisst du Details.</div>
-        <a href="/termine" class="quick-action">→ Termine</a>
-        <a href="/vertraege" class="quick-action">→ Verträge</a>
-      </div>
-
-      <div class="day-block">
-        <div class="when">★ 17-18 Uhr · Reflexion</div>
-        <div class="what">Tag abschließen · Aufgaben</div>
-        <div class="why">Check deine <strong>Heute-Aufgaben</strong>, prüf was offen ist. Bei Problemen: <strong>KI-Coach</strong> fragen oder <strong>SOS-Knopf</strong> zum Sponsor.</div>
-        <a href="/aufgaben" class="quick-action">→ Aufgaben</a>
-        <a href="/assistent" class="quick-action">→ KI-Coach</a>
-      </div>
-    </div>
-
-    <div class="pro-tip">
-      💡 <strong>Pro-Tipp:</strong> Auf dem Dashboard steht ein <strong>„Heute-Pflicht"-Banner</strong> mit deinem Soll für heute (X Anrufe · Y Termine).
-      Wenn du um 14 Uhr noch keine Aktivität hast, bekommst du automatisch einen <strong>Mittag-Re-Push</strong>: „Halbzeit · 0 Aktionen heute".
+    <div class="step-actions">
+      <form method="POST" action="/guide/step/{{ current_step.id }}/done" style="flex:1;margin:0">
+        <button type="submit" class="step-done" style="width:100%">✓ Erledigt — nächster Schritt</button>
+      </form>
+      <form method="POST" action="/guide/step/{{ current_step.id }}/skip" style="margin:0">
+        <button type="submit" class="step-skip">Überspringen</button>
+      </form>
     </div>
   </div>
 
-  <!-- § 2. TOOLS -->
-  <div class="guide-section" id="tools">
-    <h3><span class="step-num">2</span> Tools die du täglich brauchst</h3>
-    <div class="lead">Die wichtigsten Features auf einen Blick — was es ist + wofür.</div>
-    <ul>
-      <li>
-        <span class="ic">★</span>
-        <div class="txt">
-          <strong>Starter-Roadmap</strong> — dein 6-Monats-Pfad zum LREP. Tag-für-Tag-Aufgaben mit konkreten Wegmarken (250 EH, 500 EH, 800 EH, 1000 EH = LREP-Schwelle).
-          <a href="/onboarding/roadmap">→ Roadmap öffnen</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">◆</span>
-        <div class="txt">
-          <strong>KI-Coach</strong> — dein 24/7-Trainer. Frag ihn bei jedem Einwand, jeder Strategie-Frage. Er kennt deine Zahlen.
-          <a href="/assistent">→ KI-Coach öffnen</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">☏</span>
-        <div class="txt">
-          <strong>Telefon-Skripte</strong> — Standard-Einstieg, „Ich hab keine Zeit"-Einwand, Alternativ-Termin-Klassiker. Beim Anruf 1 Klick.
-          <a href="/skripte">→ Skripte öffnen</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">🆘</span>
-        <div class="txt">
-          <strong>SOS-Knopf zum Sponsor</strong> (nur Stufe 1) — der Knopf unten rechts. Klick + Modal mit Vorlagen → sofort Push an deinen Sponsor.
-          Max 5/Tag. Nutz ihn bei Einwänden, vor wichtigen Terminen, oder wenn du moralisch durchhängst.
-        </div>
-      </li>
-      <li>
-        <span class="ic">€</span>
-        <div class="txt">
-          <strong>Mein Lead-Link</strong> — dein persönlicher Werbe-Link (proacademy-business.de/start?ref=jibson). Poste den in Insta-Bio, WhatsApp-Stories.
-          Jeder Klick + jede Anmeldung wird gemessen.
-          <a href="/webhook-setup">→ Stats ansehen</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">▢</span>
-        <div class="txt">
-          <strong>Posteingang</strong> — alle Push-Notifications die du je bekommen hast (SOS-Antworten, Beförderungen, Termin-Reminder, neue Leads).
-          <a href="/inbox">→ Posteingang</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">★</span>
-        <div class="txt">
-          <strong>Daily Check-in</strong> — 30 Sek pro Tag. Trag ein wie viele Anrufe + Termine du gemacht hast. Streak zählt nur wenn du AKTIVITÄT hast (kein Cheating durch nur Login).
-          <a href="/daily-checkin">→ Check-in</a>
-        </div>
-      </li>
-    </ul>
-  </div>
-
-  {% if career.level >= 2 %}
-  <!-- § 3. TEAM FÜHREN — nur ab LREP -->
-  <div class="guide-section" id="fuehrung">
-    <h3><span class="step-num">3</span> Dein Team führen ({{ career.short }})</h3>
-    <div class="lead">Als {{ career.short }} bist du Coach für deine direkten REPs. Das System sagt dir täglich WEN du anrufen sollst.</div>
-    <ul>
-      <li>
-        <span class="ic">▸</span>
-        <div class="txt">
-          <strong>„Mein Coach-Plan heute"</strong> auf deinem Dashboard — Liste der REPs die HEUTE Hilfe brauchen (inaktiv ≥2T, hängende Recherchen, 80%+ zur Beförderung). Priorisiert nach Urgency.
-        </div>
-      </li>
-      <li>
-        <span class="ic">◈</span>
-        <div class="txt">
-          <strong>Team-Übersicht</strong> mit Aktivität-Spalte — sortiert <strong>inaktivste oben</strong>. Rot = ≥7T still, Orange = 3-7T, Grün = aktiv. Plus „Tage seit letztem Coaching" pro REP.
-          <a href="/team">→ Team</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">📝</span>
-        <div class="txt">
-          <strong>Aufgaben zuweisen</strong> — auf /coaching/&lt;rep_id&gt; den „+ Aufgabe zuweisen"-Button. REP kriegt sofort Push + sieht's auf seiner /aufgaben-Page als „Vom Strukturhöher".
-        </div>
-      </li>
-      <li>
-        <span class="ic">⬢</span>
-        <div class="txt">
-          <strong>Strukturbaum</strong> — ganzer Strang visuell. Bei vielen Partnern: Drill-Down via `?focus=&lt;lrep_id&gt;` zeigt nur einen Teilbaum.
-          <a href="/struktur">→ Struktur</a>
-        </div>
-      </li>
-      {% if career.level >= 3 %}
-      <li>
-        <span class="ic">🚨</span>
-        <div class="txt">
-          <strong>Eskalations-System</strong> — wenn ein REP 14 Tage inaktiv ist UND dein LREP nicht reagiert (kein Coaching-Note), kriegst DU eine HREP-Eskalation per Push. Kein REP geht mehr verloren.
-        </div>
-      </li>
-      {% endif %}
-    </ul>
-
-    <div class="pro-tip">
-      💡 <strong>Pro-Tipp:</strong> Nutz die <strong>HREP-Beschleuniger-Card</strong> auf dem Dashboard. Sie sagt dir genau <strong>welcher REP diese Woche wachsen muss</strong> damit DU auf HREP kommst. Statt 6 Statistiken im Kopf jonglieren — 1 konkrete Aktion.
-    </div>
-  </div>
   {% endif %}
 
-  {% if is_admin %}
-  <!-- § 4. OWNER-WORKFLOW — nur Admin -->
-  <div class="guide-section" id="owner">
-    <h3><span class="step-num">4</span> Owner-Workflow (Admin)</h3>
-    <div class="lead">Als Owner führst du die ganze Pyramide. Der Morgen läuft über 2 Pages: Briefing + Queue.</div>
-    <ul>
-      <li>
-        <span class="ic">▦</span>
-        <div class="txt">
-          <strong>Najib-Briefing</strong> ganz oben auf dem Dashboard — Plan-Ampel (Tag/Soll/Forecast), „Heute persönlich", „Heute eskalieren", „Geld blockiert" (€-Hochrechnung hängender Recherchen), „Neu 24h ungetoucht".
-          <a href="/dashboard">→ Dashboard</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">▸</span>
-        <div class="txt">
-          <strong>Owner-Queue</strong> — DIE Action-Page für deinen Morgen. Alle Entscheidungen priorisiert mit Inline-Buttons. Statt 6 Pages = 1 Page.
-          <a href="/owner/queue">→ Queue öffnen</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">⚙</span>
-        <div class="txt">
-          <strong>Owner-Monatsziel</strong> — du kannst dein Monatsziel (default 5000 EH) anpassen. Plan-Ampel rechnet automatisch neu.
-          <a href="/admin/owner-ziel">→ Ziel setzen</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">⬢</span>
-        <div class="txt">
-          <strong>Strang-Trends</strong> auf dem Dashboard — Trend-Pfeil ▲▼ (vs. Vormonat) + Inaktiv-Count + Coaching-Frequenz pro Strang. Klick auf einen Strang → Drill-Down.
-        </div>
-      </li>
-      <li>
-        <span class="ic">▣</span>
-        <div class="txt">
-          <strong>KI-Assistentin</strong> mit Owner-Tools — frag „Was muss ich heute persönlich tun?" oder „Wo ist Geld blockiert?". Sie liest die Daten und gibt konkrete Empfehlungen.
-          <a href="/assistentin">→ Assistentin</a>
-        </div>
-      </li>
-      <li>
-        <span class="ic">📣</span>
-        <div class="txt">
-          <strong>Mail-Subgruppen</strong> — gezielt ansprechen: alle Inaktiv ≥3T, alle „0 EH in 30T" (Drop-out-Risiko), gesamten Strang Marc, oder Stufe X.
-          <a href="/admin/mail">→ Mail-Versand</a>
-        </div>
-      </li>
-    </ul>
+  {# ÜBERSICHT — alle Schritte als Mini-Liste (klein, am Fuß) #}
+  <div class="step-overview">▸ Alle Schritte ({{ completed_count }}/{{ total }})</div>
+  {% for s in steps %}
+  {% set is_current = (current_step and s.id == current_step.id) %}
+  {% set is_done = (s.id in done_ids) %}
+  <div class="step-mini {% if is_done %}done{% elif is_current %}current{% endif %}">
+    <div class="step-mini-num">{% if is_done %}✓{% else %}{{ loop.index }}{% endif %}</div>
+    <div class="step-mini-title">{{ s.title }}</div>
   </div>
-  {% endif %}
-
-  <!-- § AUFSTIEG -->
-  <div class="guide-section" id="aufstieg">
-    {% if next_level %}
-    <h3><span class="step-num">{% if career.level >= 2 and is_admin %}5{% elif career.level >= 2 %}4{% else %}3{% endif %}</span> Dein Aufstieg zu {{ next_level.short }} ({{ next_level.name }})</h3>
-    <div class="lead">Was du brauchst um aufzusteigen — und wann das System dich automatisch befördert.</div>
-    <ul>
-      <li>
-        <span class="ic">€</span>
-        <div class="txt">
-          <strong>EH-Schwelle:</strong> {{ "{:,.0f}".format(next_level.min_eh).replace(",", ".") }} EH (eigen + Team).
-          Sobald du diese Schwelle erreichst <strong>UND keine Diversifikations-Verletzung</strong> hast, wirst du <strong>automatisch befördert</strong> — ohne dass jemand klicken muss.
-        </div>
-      </li>
-      <li>
-        <span class="ic">▲</span>
-        <div class="txt">
-          <strong>Dein aktueller Stand:</strong> sieh den <strong>Aufstiegs-Fortschritts-Banner</strong> oben auf dem Dashboard ({% if career.level >= 2 %}ftier=2+{% else %}ist sowieso prominent platziert{% endif %}). Format: „Pfad zu {{ next_level.short }} · X% · noch Y EH".
-        </div>
-      </li>
-      {% if next_level.level == 2 %}
-      <li>
-        <span class="ic">📚</span>
-        <div class="txt">
-          <strong>Grundseminar:</strong> Pflicht-Wegmarke. Sobald du es absolvierst (ODER deinen ersten Vertrag einreichst), schaltet sich der Bewerber-Bereich für dich frei — du kannst dann selbst Partner gewinnen.
-        </div>
-      </li>
-      {% endif %}
-      {% if next_level.level >= 3 %}
-      <li>
-        <span class="ic">⬢</span>
-        <div class="txt">
-          <strong>Diversifikation (HREP-Regel):</strong> max 70% deiner EH dürfen aus EINEM Strang kommen. Schau täglich auf dem Dashboard — die <strong>HREP-Beschleuniger-Card</strong> sagt dir genau welcher REP in welchem Strang noch wachsen muss.
-        </div>
-      </li>
-      {% endif %}
-    </ul>
-    {% else %}
-    <h3><span class="step-num">{% if is_admin %}5{% else %}3{% endif %}</span> Du bist auf der höchsten Stufe</h3>
-    <div class="lead">Du bist <strong style="color:var(--gold)">{{ career.short }}</strong>. Jetzt geht's um <strong>Skalierung</strong>: mehr Partner gewinnen, deine LREPs zu HREPs entwickeln, dein eigenes Monatsziel erreichen.</div>
-    {% endif %}
-  </div>
-
-  <!-- § AUTO -->
-  <div class="guide-section" id="auto">
-    <h3><span class="step-num">⚡</span> Was läuft automatisch — du musst nichts tun</h3>
-    <div class="lead">Das System arbeitet im Hintergrund für dich. Hier was alle 15 Min automatisch passiert:</div>
-    <ul>
-      <li>
-        <span class="ic">⬆</span>
-        <div class="txt">
-          <strong>Auto-Beförderungen:</strong> sobald du EH-Schwelle erreichst → automatisch eine Stufe hoch + Push. Kein manuelles Klicken.
-        </div>
-      </li>
-      <li>
-        <span class="ic">📧</span>
-        <div class="txt">
-          <strong>Auto-Mail-Sequenz für deine Bewerber/Leads:</strong> 24h Bestätigung, 72h Termin-Vorschlag, 5T Last-Chance — alle automatisch in DEINEM Namen verschickt.
-        </div>
-      </li>
-      <li>
-        <span class="ic">⏰</span>
-        <div class="txt">
-          <strong>Mittag-Re-Push:</strong> wenn du um 13-15 Uhr noch 0 Aktivität hast → Push „Halbzeit · 5 Min reichen für 1 Termin".
-        </div>
-      </li>
-      <li>
-        <span class="ic">⚠</span>
-        <div class="txt">
-          <strong>Drift-Detection:</strong> wenn du 3 Tage inaktiv bist → Push an dich + an deinen Sponsor. Bei 14T ohne LREP-Reaktion → HREP-Eskalation.
-        </div>
-      </li>
-      <li>
-        <span class="ic">🎯</span>
-        <div class="txt">
-          <strong>Goal-Visibility-Pushes:</strong> bei 70/80/90% bis zur nächsten Stufe bekommst du einen Motivations-Push.
-        </div>
-      </li>
-    </ul>
-  </div>
-
-  <!-- § TIPPS -->
-  <div class="guide-section" id="tipps">
-    <h3><span class="step-num">★</span> Profi-Tipps aus 15+ Jahren Strukturvertrieb</h3>
-    <ul>
-      <li>
-        <span class="ic">1</span>
-        <div class="txt"><strong>Routine schlägt Motivation.</strong> Mach JEDEN Tag dasselbe (Daily Check-in → Anrufe → Termine → Reflexion). Streak im System belohnt das.</div>
-      </li>
-      <li>
-        <span class="ic">2</span>
-        <div class="txt"><strong>20 Anrufe pro Tag.</strong> Nicht 5, nicht 50. Konstant 20. Daraus werden 2-3 Termine, daraus 1 Vertrag — das ist die Strukki-Mathematik.</div>
-      </li>
-      <li>
-        <span class="ic">3</span>
-        <div class="txt"><strong>Bei jedem „Nein": Telefon-Skripte.</strong> „Ich hab keine Zeit" → Skript-Einwand 1. „Ich hab schon ne Versicherung" → Skript-Einwand 2. Nie spontan, immer aus Skript.</div>
-      </li>
-      <li>
-        <span class="ic">4</span>
-        <div class="txt"><strong>SOS bei jedem Wackler nutzen.</strong> Du hast Angst vorm nächsten Termin? SOS-Knopf. Du hängst moralisch durch? SOS. Dein Sponsor will dass du anrufst — nicht dass du leidest.</div>
-      </li>
-      <li>
-        <span class="ic">5</span>
-        <div class="txt"><strong>Lead-Link überall posten.</strong> Insta-Bio · WhatsApp-Status · TikTok-Profil · E-Mail-Signatur. Bei 10 Klicks/Tag wirst du irgendwann 1 Anmeldung haben. Conversion-Rate ist messbar.</div>
-      </li>
-      <li>
-        <span class="ic">6</span>
-        <div class="txt"><strong>Verträge sofort eingeben.</strong> NICHT am Wochenende sammeln. Sofort nach Termin. Recherche &gt;7T = blockierte Provision für DICH.</div>
-      </li>
-      <li>
-        <span class="ic">7</span>
-        <div class="txt"><strong>Wochenend-Routine.</strong> Sonntagabend 30 Min: Wochen-Reflexion + Plan für Montag. Das System sendet dir Sonntag-Abend einen Push („Plan für Montag?").</div>
-      </li>
-    </ul>
-  </div>
-
-  <!-- Footer -->
-  <div style="text-align:center;padding:24px 0;color:var(--text-soft);font-size:11px">
-    Pro Academy CRM · Hast du Fragen? <a href="/assistent" style="color:var(--gold);text-decoration:none;font-weight:700">→ KI-Coach fragen</a>
-    {% if career.level == 1 %} oder <a href="#" onclick="document.getElementById('sosBtn')?.click(); return false" style="color:var(--gold);text-decoration:none;font-weight:700">→ SOS an deinen Sponsor</a>{% endif %}
-  </div>
+  {% endfor %}
 
 </div>
 

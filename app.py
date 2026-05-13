@@ -5188,6 +5188,17 @@ def init_db():
             FOREIGN KEY (owner_id) REFERENCES users(id)
         );
 
+        -- Guide-Progress: welche Schritte hat User in der System-Anleitung
+        -- bereits erledigt. Step-IDs sind hardcoded Strings (z.B. 'rep_daily_checkin').
+        CREATE TABLE IF NOT EXISTS guide_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            step_id TEXT NOT NULL,
+            completed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, step_id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS phone_scripts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             owner_user_id INTEGER,
@@ -8183,21 +8194,150 @@ def admin_impressum():
     return render_template('admin_impressum.html', fields=IMPRESSUM_FIELDS, data=data)
 
 
+# ═══════════════════════════════════════════════════════════════════
+# GUIDE — Step-by-Step-Wizard statt Wall-of-Text.
+# User bekommt EINE Aufgabe nach der anderen, mit Erledigt-Button.
+# Fortschritt persistiert in guide_progress-Tabelle.
+# Stufenspezifisch: REP/LREP/HREP/Admin haben verschiedene Schritt-Listen.
+# ═══════════════════════════════════════════════════════════════════
+
+GUIDE_STEPS_REP = [
+    {'id': 'rep_intro', 'icon': '👋', 'title': 'Willkommen — schau dich kurz um',
+     'detail': 'Schau auf dein Dashboard, lies das Tages-Briefing vom KI-Coach. Das ist deine Startseite jeden Morgen.',
+     'cta_label': 'Dashboard öffnen', 'cta_url': '/dashboard'},
+    {'id': 'rep_daily_checkin', 'icon': '✓', 'title': 'Mach dein erstes Daily Check-in',
+     'detail': '30 Sek pro Tag. Wie fühlst du dich heute? Was ist dein Plan? Streak baut sich nur auf wenn du wirklich aktiv bist.',
+     'cta_label': 'Daily Check-in', 'cta_url': '/daily-checkin'},
+    {'id': 'rep_lead_link', 'icon': '★', 'title': 'Teile deinen Lead-Link auf Insta/WhatsApp',
+     'detail': 'Du hast einen persönlichen Link (proacademy-business.de/start?ref=DEIN_NAME). Jeder Klick + jede Anmeldung wird gemessen. Poste ihn JETZT in deine Bio.',
+     'cta_label': 'Mein Lead-Link', 'cta_url': '/webhook-setup'},
+    {'id': 'rep_first_5_namen', 'icon': '◎', 'title': 'Schreib 5 Namen auf deine Liste',
+     'detail': 'Familie, Freunde, Bekannte, Arbeitskollegen — wer könnte interessiert sein. Keine Sortierung, einfach reinschreiben. 5 Namen reichen für den Start.',
+     'cta_label': 'Kunden-Liste öffnen', 'cta_url': '/namensliste?typ=vk'},
+    {'id': 'rep_skripte', 'icon': '☏', 'title': 'Schau dir die Telefon-Skripte an',
+     'detail': 'Drei Tabs: Einstieg, Einwand-Behandlung, Abschluss. Beim ersten Anruf einfach ablesen — du wirst sicherer mit jedem Mal.',
+     'cta_label': 'Skripte', 'cta_url': '/skripte'},
+    {'id': 'rep_first_termin', 'icon': '◷', 'title': 'Setz deinen ersten Termin',
+     'detail': 'Nach 5-10 Anrufen wirst du den ersten Termin haben. Trag ihn sofort ein — Datum, Uhrzeit, Kunde. Das System erinnert dich.',
+     'cta_label': 'Termine', 'cta_url': '/termine'},
+    {'id': 'rep_grundseminar', 'icon': '▤', 'title': 'Meld dich für Grundseminar an',
+     'detail': 'Pflicht-Wegmarke. Sobald bestanden, schaltet sich der Bewerber-Bereich frei — du kannst dann selbst Partner gewinnen.',
+     'cta_label': 'Grundseminar', 'cta_url': '/grundseminar'},
+]
+
+GUIDE_STEPS_LREP = [
+    {'id': 'lrep_coach_plan', 'icon': '▸', 'title': 'Check deinen „Coach-Plan heute"',
+     'detail': 'Auf dem Dashboard siehst du WELCHE REPs heute Hilfe brauchen — sortiert nach Urgency. Ruf den ersten an.',
+     'cta_label': 'Dashboard', 'cta_url': '/dashboard'},
+    {'id': 'lrep_team_inactive', 'icon': '◈', 'title': 'Geh deine Team-Liste durch',
+     'detail': 'Sortiert: inaktivste oben (rot ≥7T, orange 3-7T). Pro REP siehst du auch wann du ihn zuletzt gecoacht hast.',
+     'cta_label': 'Team', 'cta_url': '/team'},
+    {'id': 'lrep_first_coach_note', 'icon': '📝', 'title': 'Schreib deine erste Coaching-Notiz',
+     'detail': 'Geh auf einen REP-Profil, klick „Coaching-Karte". Schreib was ihr besprochen habt + setz nächstes Coaching-Datum.',
+     'cta_label': 'Team-Liste', 'cta_url': '/team'},
+    {'id': 'lrep_assign_task', 'icon': '✓', 'title': 'Weis einem REP eine konkrete Aufgabe zu',
+     'detail': 'Auf der Coaching-Karte: „+ Aufgabe zuweisen". Beispiel: „Heute 5 Anrufe machen" oder „Bis Freitag 1 Termin setzen". REP kriegt Push.',
+     'cta_label': 'Team', 'cta_url': '/team'},
+    {'id': 'lrep_hrep_pfad', 'icon': '🎯', 'title': 'Schau auf deinen HREP-Beschleuniger',
+     'detail': 'Das System sagt dir genau WELCHER REP diese Woche wachsen muss damit DU HREP wirst. Ein Hebel, nicht 6 Statistiken.',
+     'cta_label': 'Dashboard', 'cta_url': '/dashboard'},
+]
+
+GUIDE_STEPS_HREP = [
+    {'id': 'hrep_briefing', 'icon': '▦', 'title': 'Lies dein Owner-Briefing oben am Dashboard',
+     'detail': 'Plan-Ampel (Tag/Soll/Forecast), Heute persönlich, Heute eskalieren, Geld blockiert, Neu in 24h — alles auf einen Blick.',
+     'cta_label': 'Dashboard', 'cta_url': '/dashboard'},
+    {'id': 'hrep_owner_queue', 'icon': '▸', 'title': 'Klick einmal durch die Owner-Queue',
+     'detail': 'EINE Page mit allen Entscheidungen priorisiert. Inline-Buttons (✓ Bestätigen, 📞 Anrufen, +Termin, Owner pingen) — kein Tab-Switch.',
+     'cta_label': 'Owner-Queue', 'cta_url': '/owner/queue'},
+    {'id': 'hrep_strang_trends', 'icon': '⬢', 'title': 'Check deine Strang-Trends',
+     'detail': 'Auf dem Dashboard: pro direktem Strang Trend-Pfeil ▲▼ vs Vormonat + Inaktiv-Count + Coaching-Frequenz. Klick = Drill-Down.',
+     'cta_label': 'Struktur', 'cta_url': '/struktur'},
+    {'id': 'hrep_assistentin', 'icon': '▣', 'title': 'Frag die KI-Assistentin: „Was muss ich heute persönlich tun?"',
+     'detail': 'Sie liest dein Briefing + Queue + Drift-Liste und gibt dir konkrete Empfehlungen wie ein Chief of Staff.',
+     'cta_label': 'KI-Assistentin', 'cta_url': '/assistentin'},
+    {'id': 'hrep_mail_filter', 'icon': '📣', 'title': 'Schick deine erste gezielte Sub-Mail',
+     'detail': 'Ansprache an genau eine Subgruppe: „Inaktiv ≥3T", „0 EH in 30T" (Drop-out-Risiko), oder ganzer Strang Marc.',
+     'cta_label': 'Mail-Versand', 'cta_url': '/admin/mail'},
+]
+
+
+def get_guide_steps_for_user(user, career):
+    """Liefert die richtige Step-Liste basierend auf User-Stufe."""
+    if user.has_admin_access:
+        return GUIDE_STEPS_HREP
+    lvl = (career or {}).get('level', 1)
+    if lvl >= 3:
+        return GUIDE_STEPS_HREP
+    if lvl >= 2:
+        return GUIDE_STEPS_LREP
+    return GUIDE_STEPS_REP
+
+
+def _get_completed_step_ids(user_id):
+    db = get_db()
+    rows = db.execute('SELECT step_id FROM guide_progress WHERE user_id=?', (user_id,)).fetchall()
+    db.close()
+    return {r['step_id'] for r in rows}
+
+
 @app.route('/guide')
 @login_required
 def guide():
-    """System-Anleitung — stufenspezifisch. Jeder Partner sieht hier wie er
-    das CRM systematisch nutzen soll: Tagesablauf, Tools, Aufstieg, Best
-    Practices. Für alle Stufen sichtbar, Inhalt passt sich an Level an."""
+    """Step-by-Step-Wizard: zeigt EINE Aufgabe nach der anderen, mit Erledigt-Button."""
     career = get_career_level_for_user(current_user.id)
-    cur_level = career['level']
-    next_level = get_next_level(cur_level)
-    # Lead-Link auch im Guide bewerben
-    lead_token = get_or_create_lead_token(current_user.id)
-    lead_link = f"{CANONICAL_URL.rstrip('/')}/start?ref={lead_token}"
+    steps = get_guide_steps_for_user(current_user, career)
+    done_ids = _get_completed_step_ids(current_user.id)
+    # Finde nächsten offenen Schritt
+    current_idx = None
+    for i, s in enumerate(steps):
+        if s['id'] not in done_ids:
+            current_idx = i
+            break
+    total = len(steps)
+    completed_count = sum(1 for s in steps if s['id'] in done_ids)
+    all_done = current_idx is None
+    current_step = steps[current_idx] if not all_done else None
     return render_template('guide.html',
-        career=career, next_level=next_level, lead_link=lead_link,
+        career=career,
+        steps=steps, done_ids=done_ids,
+        current_step=current_step, current_idx=current_idx,
+        total=total, completed_count=completed_count, all_done=all_done,
         is_admin=current_user.has_admin_access)
+
+
+@app.route('/guide/step/<step_id>/done', methods=['POST'])
+@login_required
+def guide_step_done(step_id):
+    db = get_db()
+    db.execute('INSERT OR IGNORE INTO guide_progress (user_id, step_id) VALUES (?, ?)',
+               (current_user.id, step_id))
+    db.commit()
+    db.close()
+    return redirect(url_for('guide'))
+
+
+@app.route('/guide/step/<step_id>/skip', methods=['POST'])
+@login_required
+def guide_step_skip(step_id):
+    """Skip = wie Done, aber semantisch übersprungen (gleicher Effekt: nicht mehr anzeigen)."""
+    db = get_db()
+    db.execute('INSERT OR IGNORE INTO guide_progress (user_id, step_id) VALUES (?, ?)',
+               (current_user.id, step_id))
+    db.commit()
+    db.close()
+    return redirect(url_for('guide'))
+
+
+@app.route('/guide/restart', methods=['POST'])
+@login_required
+def guide_restart():
+    """Setzt allen Fortschritt zurück — User will nochmal von vorne durch."""
+    db = get_db()
+    db.execute('DELETE FROM guide_progress WHERE user_id=?', (current_user.id,))
+    db.commit()
+    db.close()
+    return redirect(url_for('guide'))
 
 
 @app.route('/whats-new')
