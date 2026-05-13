@@ -63,6 +63,9 @@ _warm_cache_background()
     if [ "$CURRENT_HOUR" -ge 8 ] && [ "$CURRENT_HOUR" -lt 10 ] && [ "$LAST_DAILY_PUSH_DATE" != "$CURRENT_DATE" ]; then
         echo "[$(date)] Daily-Push wird ausgelöst (1× pro Tag)" | tee -a $HEALTH_LOG
         python3 $PROJECT/scripts/daily_push.py 2>&1 | tail -10 >> $HEALTH_LOG
+        # Plus: Assistentin-Tagesbriefing für Admin (proaktive Reminder)
+        echo "[$(date)] Assistentin-Proaktiv-Push wird ausgelöst" | tee -a $HEALTH_LOG
+        python3 $PROJECT/scripts/assistentin_proactive.py 2>&1 | tail -8 >> $HEALTH_LOG
         LAST_DAILY_PUSH_DATE=$CURRENT_DATE
     fi
 

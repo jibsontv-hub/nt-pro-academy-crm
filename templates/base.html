@@ -1093,6 +1093,7 @@
             }
             .sidebar.is-open { transform: translateX(0); }
             .sidebar-backdrop.is-open { display: block; }
+            .sidebar-close { display: flex !important; align-items: center; justify-content: center; }
             .main { margin-left: 0; }
             .topbar { padding: 14px 16px; gap: 10px; }
             .topbar-title { font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1140,6 +1141,8 @@
 <body>
     <div class="sidebar-backdrop" onclick="toggleSidebar()"></div>
     <div class="sidebar">
+        <button class="sidebar-close" onclick="toggleSidebar()" aria-label="Schließen"
+                style="display:none;position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;background:var(--bg-2);border:1px solid var(--border);color:var(--text);font-size:18px;cursor:pointer;z-index:10;font-weight:700">×</button>
         <div class="sidebar-logo">
             <div class="brand-row">
                 <div class="brand-icon"><img src="/static/icons/pa-logo.png?v=1" alt="Pro Academy" onerror="this.parentElement.innerText='PA'"></div>
@@ -1333,14 +1336,12 @@
                       {% if newsletter_unread and newsletter_unread > 0 %}<span style="background:var(--gold);color:var(--navy);border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ newsletter_unread }}</span>{% endif %}
                     </a>
                     <a href="/inbox" class="nav-link {% if '/inbox' in request.path %}active{% endif %}"><span class="nav-icon">▣</span> Posteingang</a>
-                    <a href="/feed" class="nav-link {% if '/feed' in request.path %}active{% endif %}"><span class="nav-icon">~</span> Live Feed</a>
                     <a href="/whats-new" class="nav-link {% if '/whats-new' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
                       <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">★</span> Was ist neu</span>
                       {% if patch_unread and patch_unread > 0 %}<span style="background:var(--gold);color:var(--navy);border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ patch_unread }}</span>{% endif %}
                     </a>
                     <a href="/profil" class="nav-link {% if '/profil' in request.path %}active{% endif %}"><span class="nav-icon">●</span> Profil & Vision</a>
                     <a href="/einstellungen" class="nav-link {% if '/einstellungen' in request.path or '/push-settings' in request.path %}active{% endif %}"><span class="nav-icon">⚙</span> Einstellungen</a>
-                    <a href="/vorschlag" class="nav-link {% if request.path == '/vorschlag' %}active{% endif %}"><span class="nav-icon">＋</span> Vorschlag</a>
                 </div>
             </details>
             {% endif %}
@@ -1455,6 +1456,8 @@
                 <a href="/impressum" style="color:var(--text-soft);text-decoration:none">Impressum</a>
                 <span>·</span>
                 <a href="/datenschutz" style="color:var(--text-soft);text-decoration:none">Datenschutz</a>
+                <span>·</span>
+                <a href="/vorschlag" style="color:var(--text-soft);text-decoration:none">Vorschlag</a>
             </div>
         </div>
     </div>
@@ -1938,7 +1941,7 @@
             setInterval(tick, 1000);
         })();
 
-        // Sidebar Toggle (Mobile)
+        // Sidebar Toggle (Mobile) + ESC-Key
         function toggleSidebar() {
             const sb = document.querySelector('.sidebar');
             const bd = document.querySelector('.sidebar-backdrop');
@@ -1947,6 +1950,12 @@
                 bd.classList.toggle('is-open');
             }
         }
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                const sb = document.querySelector('.sidebar.is-open');
+                if (sb) toggleSidebar();
+            }
+        });
         // Auto-Close beim Link-Klick (Mobile)
         document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('.sidebar .nav-link').forEach(a => {

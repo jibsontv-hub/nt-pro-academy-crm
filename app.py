@@ -5540,7 +5540,7 @@ _FAVICON_SVG = '''<?xml version="1.0" encoding="UTF-8"?>
         </linearGradient>
     </defs>
     <rect width="100" height="100" rx="22" fill="url(#bg)"/>
-    <text x="50" y="68" font-family="Inter, Arial, sans-serif" font-weight="900" font-size="42" fill="#d4a843" text-anchor="middle" letter-spacing="-3">NT</text>
+    <text x="50" y="68" font-family="Inter, Arial, sans-serif" font-weight="900" font-size="42" fill="#d4a843" text-anchor="middle" letter-spacing="-3">PA</text>
 </svg>'''
 
 
@@ -5564,9 +5564,9 @@ def favicon_ico():
 @app.route('/apple-touch-icon-152x152-precomposed.png')
 @app.route('/apple-touch-icon-180x180.png')
 def apple_touch_icon():
-    """Safari/iOS Home-Screen Icon — echtes PNG (180x180) damit iOS es akzeptiert."""
+    """Safari/iOS Home-Screen Icon — PA-Logo PNG (180x180)."""
     return send_from_directory(os.path.join(app.root_path, 'static', 'icons'),
-                               'apple-touch-icon.png', mimetype='image/png')
+                               'pa-apple-touch.png', mimetype='image/png')
 
 
 # === PUSH NOTIFICATIONS (Web Push API + VAPID) ===
