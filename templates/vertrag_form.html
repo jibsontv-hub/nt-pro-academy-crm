@@ -69,8 +69,18 @@
                     <input type="number" name="volumen" id="volumenInput" value="{{ vertrag.volumen if vertrag else '' }}" placeholder="0" step="0.01" min="0" required oninput="updateEH()">
                 </div>
                 <div class="form-group">
-                    <label>⚡ Einheiten (EH) — Auto-Berechnet</label>
+                    <label style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+                        <span>⚡ Einheiten (EH)</span>
+                        <span style="font-size:10px;color:var(--text-muted);font-weight:600">
+                            <input type="checkbox" id="ehManualToggle" name="einheiten_manual" value="1" onchange="toggleEhManual()" style="vertical-align:middle;margin-right:4px"> manuell überschreiben
+                        </span>
+                    </label>
+                    {# Auto-Anzeige (read-only) #}
                     <input type="text" id="ehDisplay" value="{{ '{:.0f}'.format(vertrag.einheiten) if vertrag else '0' }}" readonly style="background:var(--gold-soft);color:var(--gold);font-weight:700;font-size:16px;border-color:#e8d59a">
+                    {# Manueller Input — versteckt bis Toggle on #}
+                    <input type="number" name="einheiten" id="ehManualInput" value="{{ '{:.1f}'.format(vertrag.einheiten) if vertrag else '' }}" step="0.1" min="0" placeholder="z.B. 250"
+                           style="display:none;background:#fff8e1;color:var(--text);font-weight:700;font-size:16px;border:2px solid var(--gold);margin-top:6px">
+                    <div id="ehManualHint" style="display:none;font-size:10px;color:var(--text-muted);margin-top:4px">⚠ Überschreibt Auto-Berechnung. Wert wird so gespeichert wie eingetragen.</div>
                 </div>
                 <div class="form-group">
                     <label>Provision (€) – optional</label>
@@ -167,7 +177,30 @@
 const EH_FAKTOR = {{ eh_faktor }};
 function updateEH() {
     const vol = parseFloat(document.getElementById('volumenInput').value || 0);
-    document.getElementById('ehDisplay').value = (vol * EH_FAKTOR).toFixed(0);
+    const auto = (vol * EH_FAKTOR).toFixed(0);
+    document.getElementById('ehDisplay').value = auto;
+    // Wenn manueller Modus aktiv und Input leer → Auto-Wert als Vorschlag
+    const manualInput = document.getElementById('ehManualInput');
+    const toggle = document.getElementById('ehManualToggle');
+    if (manualInput && !toggle.checked) manualInput.value = auto;
+}
+function toggleEhManual() {
+    const toggle = document.getElementById('ehManualToggle');
+    const display = document.getElementById('ehDisplay');
+    const manualInput = document.getElementById('ehManualInput');
+    const hint = document.getElementById('ehManualHint');
+    if (toggle.checked) {
+        display.style.display = 'none';
+        manualInput.style.display = '';
+        hint.style.display = '';
+        // Vorschlag aus Auto-Anzeige übernehmen wenn leer
+        if (!manualInput.value) manualInput.value = display.value;
+        manualInput.focus();
+    } else {
+        display.style.display = '';
+        manualInput.style.display = 'none';
+        hint.style.display = 'none';
+    }
 }
 function fillFromLead() {
     const sel = document.getElementById('leadSelect');

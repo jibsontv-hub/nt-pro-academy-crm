@@ -6,6 +6,29 @@
 {% endblock %}
 
 {% block content %}
+{# Monats-Navigations-Bar — User klickt durch Monate/Produktionsschluss-Zyklen #}
+<div class="card" style="margin-bottom:14px;padding:14px 18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div style="display:flex;align-items:center;gap:8px">
+            {% if nav_prev %}
+            <a href="?monat={{ nav_prev }}{% if scope == 'ps' %}&scope=ps{% endif %}" class="btn btn-secondary btn-sm" title="Vorheriger {% if scope == 'ps' %}Produktionsschluss{% else %}Monat{% endif %}">←</a>
+            {% endif %}
+            <div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">📅 Anzeige-Zeitraum</div>
+                <div style="font-size:18px;font-weight:800;color:var(--text);margin-top:2px">{{ nav_label }}</div>
+            </div>
+            {% if nav_next %}
+            <a href="?monat={{ nav_next }}{% if scope == 'ps' %}&scope=ps{% endif %}" class="btn btn-secondary btn-sm" title="Nächster {% if scope == 'ps' %}Produktionsschluss{% else %}Monat{% endif %}">→</a>
+            {% endif %}
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <a href="?monat=aktuell" class="btn btn-sm" style="font-size:11px;{% if cur_month and scope != 'ps' and not nav_prev %}background:var(--gold);color:var(--navy);border-color:var(--gold){% else %}background:var(--surface);border:1px solid var(--border){% endif %}">Aktueller Monat</a>
+            <a href="?monat={{ cur_month or 'aktuell' }}&scope=ps" class="btn btn-sm" style="font-size:11px;{% if scope == 'ps' %}background:var(--gold);color:var(--navy);border-color:var(--gold){% else %}background:var(--surface);border:1px solid var(--border){% endif %}">Produktionsschluss</a>
+            <a href="?monat=alle" class="btn btn-sm" style="font-size:11px;{% if show_all %}background:var(--gold);color:var(--navy);border-color:var(--gold){% else %}background:var(--surface);border:1px solid var(--border){% endif %}">Alle</a>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">
         <div style="font-size:13px;color:var(--text-muted)">
@@ -110,6 +133,43 @@
             {% endif %}
         </table>
     </div>
+
+    {# Ziel-Footer: zeigt EH-Stand des Zeitraums vs. Monatsziel + was fehlt #}
+    {% if not show_all %}
+    {% set pct = (total_eh / monthly_target * 100) if monthly_target else 0 %}
+    <div style="margin-top:18px;padding:16px 18px;background:linear-gradient(135deg,rgba(212,168,67,0.08),rgba(212,168,67,0.02));border:1px solid #e8d59a;border-radius:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:10px">
+            <div>
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">🎯 {{ nav_label }} · Ziel-Stand</div>
+                <div style="font-size:22px;font-weight:900;margin-top:4px;color:var(--text)">
+                    <span style="color:var(--gold)">{{ "{:,.0f}".format(total_eh).replace(",", ".") }}</span>
+                    <span style="color:var(--text-muted);font-size:16px;font-weight:600"> / </span>
+                    <span>{{ "{:,.0f}".format(monthly_target).replace(",", ".") }}</span>
+                    <span style="font-size:14px;color:var(--text-muted);font-weight:600">EH</span>
+                </div>
+            </div>
+            <div style="text-align:right">
+                <div style="font-size:30px;font-weight:900;color:var(--gold);line-height:1">{{ "%.0f"|format(pct) }}%</div>
+                {% if eh_remaining > 0 %}
+                <div style="font-size:12px;color:var(--text-muted);margin-top:4px">noch <strong style="color:var(--text)">{{ "{:,.0f}".format(eh_remaining).replace(",", ".") }} EH</strong> bis Ziel</div>
+                {% else %}
+                <div style="font-size:12px;color:#16a34a;font-weight:700;margin-top:4px">🏆 Ziel erreicht!</div>
+                {% endif %}
+            </div>
+        </div>
+        <div style="height:8px;background:var(--bg-2);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:{{ pct if pct < 100 else 100 }}%;background:linear-gradient(90deg,var(--gold),#f0c970);border-radius:99px;transition:width 0.6s"></div>
+        </div>
+        {% if pending_eh > 0 %}
+        <div style="font-size:11px;color:var(--text-muted);margin-top:8px">
+            ⓘ Zusätzlich <strong>{{ "{:,.0f}".format(pending_eh).replace(",", ".") }} EH</strong> in Recherche (zählt nicht bis freigegeben)
+        </div>
+        {% endif %}
+        <div style="font-size:10px;color:var(--text-muted);margin-top:6px;text-align:right">
+            <a href="/admin/owner-ziel" style="color:var(--gold);text-decoration:none">Monatsziel ändern</a>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script>

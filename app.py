@@ -13133,14 +13133,95 @@ def lead_delete(lead_id):
 @login_required
 def vertraege():
     db = get_db()
+    today = date.today()
+    # Monats-/Filter-Modus aus Query
+    # ?monat=YYYY-MM (Default = aktueller Kalendermonat)
+    # ?scope=ps  → Produktionsschluss-Zyklus statt Kalendermonat
+    # ?monat=alle → kein Filter
+    monat_param = (request.args.get('monat') or '').strip()
+    scope = (request.args.get('scope') or 'monat').strip()
+    show_all = monat_param == 'alle'
+
+    if not monat_param or monat_param == 'aktuell':
+        cur_month = today.strftime('%Y-%m')
+    elif monat_param == 'alle':
+        cur_month = None
+    else:
+        # Validierung YYYY-MM
+        try:
+            datetime.strptime(monat_param, '%Y-%m')
+            cur_month = monat_param
+        except ValueError:
+            cur_month = today.strftime('%Y-%m')
+
+    # Filter-Bedingung bauen
+    if cur_month and scope == 'ps':
+        # Produktionsschluss-Sicht: vom 1. AT NACH 3. Werktag des Vormonats bis 3. Werktag dieses Monats
+        # Bsp Mai-Produktionsschluss: alle Verträge vom 4.4. bis 6.5.
+        try:
+            y, m = [int(x) for x in cur_month.split('-')]
+            this_ps = get_third_workday(y, m)
+            prev_y = y - 1 if m == 1 else y
+            prev_m = 12 if m == 1 else m - 1
+            prev_ps = get_third_workday(prev_y, prev_m)
+            ps_start = (prev_ps + timedelta(days=1)).isoformat() if prev_ps else f'{cur_month}-01'
+            ps_end = this_ps.isoformat() if this_ps else f'{cur_month}-31'
+        except Exception:
+            ps_start = f'{cur_month}-01'
+            ps_end = f'{cur_month}-31'
+        date_filter_sql = "AND date(COALESCE(c.abschluss_date, c.created_at)) BETWEEN date(?) AND date(?)"
+        date_params = [ps_start, ps_end]
+    elif cur_month:
+        date_filter_sql = 'AND strftime("%Y-%m", COALESCE(c.abschluss_date, c.created_at)) = ?'
+        date_params = [cur_month]
+    else:
+        date_filter_sql = ''
+        date_params = []
+
     if current_user.role == 'admin':
-        rows = db.execute('SELECT c.*, u.name as berater_name FROM contracts c JOIN users u ON c.owner_id = u.id ORDER BY c.created_at DESC').fetchall()
+        sql = f'SELECT c.*, u.name as berater_name FROM contracts c JOIN users u ON c.owner_id = u.id WHERE 1=1 {date_filter_sql} ORDER BY c.created_at DESC'
+        rows = db.execute(sql, date_params).fetchall()
     else:
         ids = [current_user.id] + get_all_descendants(current_user.id)
         ph = ','.join('?' * len(ids))
-        rows = db.execute(f'SELECT c.*, u.name as berater_name FROM contracts c JOIN users u ON c.owner_id = u.id WHERE c.owner_id IN ({ph}) ORDER BY c.created_at DESC', ids).fetchall()
+        sql = f'SELECT c.*, u.name as berater_name FROM contracts c JOIN users u ON c.owner_id = u.id WHERE c.owner_id IN ({ph}) {date_filter_sql} ORDER BY c.created_at DESC'
+        rows = db.execute(sql, ids + date_params).fetchall()
+
+    # Footer-Stats: Total EH der gefilterten Verträge + Monatsziel + Fehlend
+    total_eh = sum(r['einheiten'] or 0 for r in rows if r['status'] == 'abgeschlossen' and r['recherche_status'] == 'freigegeben')
+    pending_eh = sum(r['einheiten'] or 0 for r in rows if r['status'] == 'abgeschlossen' and (r['recherche_status'] or 'ausstehend') != 'freigegeben')
+    try:
+        monthly_target = int(get_setting('monthly_target_eh', '5000') or '5000')
+    except (ValueError, TypeError):
+        monthly_target = 5000
+    eh_remaining = max(0, monthly_target - int(total_eh))
+
+    # Monats-Navigation: vorher/nachher berechnen
+    nav_prev = nav_next = None
+    nav_label = 'Alle Verträge'
+    if cur_month:
+        try:
+            y, m = [int(x) for x in cur_month.split('-')]
+            prev_y = y - 1 if m == 1 else y
+            prev_m = 12 if m == 1 else m - 1
+            next_y = y + 1 if m == 12 else y
+            next_m = 1 if m == 12 else m + 1
+            nav_prev = f'{prev_y}-{prev_m:02d}'
+            nav_next = f'{next_y}-{next_m:02d}'
+            month_names = ['','Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+            nav_label = f'{month_names[m]} {y}'
+            if scope == 'ps':
+                nav_label = f'Produktionsschluss {nav_label}'
+        except Exception:
+            pass
+
     db.close()
-    return render_template('vertraege.html', vertraege=rows, eh_faktor=EH_FAKTOR)
+    return render_template('vertraege.html',
+        vertraege=rows, eh_faktor=EH_FAKTOR,
+        cur_month=cur_month, scope=scope, show_all=show_all,
+        nav_prev=nav_prev, nav_next=nav_next, nav_label=nav_label,
+        total_eh=int(total_eh), pending_eh=int(pending_eh),
+        monthly_target=monthly_target, eh_remaining=eh_remaining)
 
 
 @app.route('/vertraege/neu', methods=['GET', 'POST'])
@@ -13148,7 +13229,15 @@ def vertraege():
 def vertrag_neu():
     if request.method == 'POST':
         volumen = float(request.form.get('volumen', 0) or 0)
-        einheiten = volumen * EH_FAKTOR
+        # EH manuell überschreibbar via Checkbox 'einheiten_manual=1' + Input 'einheiten'
+        # Sonst: einheiten = volumen × EH_FAKTOR (Standard)
+        if request.form.get('einheiten_manual') == '1':
+            try:
+                einheiten = float(request.form.get('einheiten', 0) or 0)
+            except (ValueError, TypeError):
+                einheiten = volumen * EH_FAKTOR
+        else:
+            einheiten = volumen * EH_FAKTOR
         lead_id_raw = request.form.get('lead_id', '').strip()
         lead_id = int(lead_id_raw) if lead_id_raw and lead_id_raw.isdigit() else None
         db = get_db()
@@ -13229,7 +13318,14 @@ def vertrag_edit(vid):
         return redirect(url_for('vertraege'))
     if request.method == 'POST':
         volumen = float(request.form.get('volumen', 0) or 0)
-        einheiten = volumen * EH_FAKTOR
+        # EH manuell überschreibbar (gleiche Logik wie vertrag_neu)
+        if request.form.get('einheiten_manual') == '1':
+            try:
+                einheiten = float(request.form.get('einheiten', 0) or 0)
+            except (ValueError, TypeError):
+                einheiten = volumen * EH_FAKTOR
+        else:
+            einheiten = volumen * EH_FAKTOR
         owner_id = vertrag['owner_id']
         lead_id_raw = request.form.get('lead_id', '').strip()
         lead_id = int(lead_id_raw) if lead_id_raw and lead_id_raw.isdigit() else None
