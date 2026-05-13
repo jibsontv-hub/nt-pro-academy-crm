@@ -34,6 +34,7 @@ LAST_BACKUP_DATE=""        # ISO-Datum des letzten DB-Backups (1× pro Tag)
 LAST_STAGNATION_DATE=""    # ISO-Datum letzter Stagnations-Mail-Run (1× pro Tag, 9-10 Uhr)
 LAST_STREAK_WARN_DATE=""   # ISO-Datum letzter Streak-Warning-Push (1× pro Tag, 18-20 Uhr)
 LAST_OWNER_AUDIT_DATE=""   # ISO-Datum letzter Owner-Audit-Mail (1× pro Tag, 21-22 Uhr)
+LAST_ASSISTENTIN_DATE=""   # ISO-Datum letzter Assistentin-Morgen-Brief (1× pro Tag, 8-9 Uhr)
 
 echo "[$(date)] Monitor-Loop gestartet — auto-pull · daily-push 8-10 · midday-push 13-15 · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
 
@@ -108,6 +109,20 @@ stats = run_lead_followup_sequence()
 if any(stats.values()):
     print('lead-followup:', stats)
 " 2>&1 | grep -v '^$' >> $HEALTH_LOG
+
+    # ─── 1b4b. Assistentin-Morgen-Brief (1× pro Tag, 8-9 Uhr) ───
+    # Najibs persönliche KI-Assistentin schickt Morgen-Mail mit:
+    # Top-3 Tasks heute, Pipeline-Hebel, letzte 24h Stats, Streak-Reminder.
+    if [ "$CURRENT_HOUR" -ge 8 ] && [ "$CURRENT_HOUR" -lt 9 ] && [ "$LAST_ASSISTENTIN_DATE" != "$CURRENT_DATE" ]; then
+        echo "[$(date)] Assistentin-Morgen-Brief wird ausgelöst" | tee -a $HEALTH_LOG
+        python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+from app import run_assistentin_morning_brief
+stats = run_assistentin_morning_brief()
+print('assistentin:', stats)
+" 2>&1 | tail -3 >> $HEALTH_LOG
+        LAST_ASSISTENTIN_DATE=$CURRENT_DATE
+    fi
 
     # ─── 1b5. Stagnations-Sequenz (1× pro Tag, 9-10 Uhr) — Auto-Mail Tag 3 ───
     # BJ Fogg / Eric Worre Pattern: empath. Mail an Partner die genau 3T inaktiv sind.

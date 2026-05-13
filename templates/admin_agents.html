@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Backoffice-Agents · Pro Academy{% endblock %}
+{% block page_title %}🤖 Backoffice-Agents{% endblock %}
+
+{% block content %}
+<style>
+.agent-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; }
+.agent-card.ok { border-left: 3px solid #22c55e; }
+.agent-card.error { border-left: 3px solid #ef4444; background: linear-gradient(135deg, rgba(239,68,68,0.04), var(--surface)); }
+.agent-card.missing { border-left: 3px solid #f59e0b; opacity: 0.7; }
+.agent-row { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap }
+.badge { padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.badge.ok { background:#22c55e15; color:#16a34a; border:1px solid #22c55e40 }
+.badge.error { background:#ef444415; color:#dc2626; border:1px solid #ef444440 }
+.badge.skip { background:#94a3b815; color:#64748b; border:1px solid #94a3b840 }
+.err-row { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:flex-start }
+.err-row:last-child { border-bottom: none }
+.err-row.unseen { background: rgba(239,68,68,0.04) }
+.err-source { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--gold); font-weight: 700; flex-shrink: 0; min-width: 160px; }
+.err-msg { flex: 1; font-size: 12px; color: var(--text); line-height: 1.4 }
+.err-meta { font-size: 10px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0 }
+</style>
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Backoffice · Cron-Jobs</div>
+            <div style="font-size:18px;font-weight:800;color:var(--text);margin-top:2px">{{ last_runs|length }} aktive Job{% if last_runs|length != 1 %}s{% endif %}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">
+            Cron läuft via <code>scripts/monitor_loop.sh</code> auf PythonAnywhere<br>
+            Auto-Pull alle 15 Min, Audit alle 6h
+        </div>
+    </div>
+
+    {# Bekannte aber noch nie ausgeführte Jobs #}
+    {% if missing_jobs %}
+    {% for j in missing_jobs %}
+    <div class="agent-card missing">
+        <div class="agent-row">
+            <div>
+                <div style="font-weight:800;font-size:14px">{{ j }}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Noch nie gelaufen — Cron noch nicht aktiv oder fehlt im monitor_loop.sh</div>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+                <span class="badge skip">noch nie</span>
+                <form method="POST" action="/admin/agents/trigger/{{ j }}" style="display:inline">
+                    <button type="submit" class="btn btn-secondary btn-sm" style="font-size:11px">▶ Manuell starten</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {# Letzte Runs #}
+    {% for r in last_runs %}
+    <div class="agent-card {% if r.last_outcome == 'error' %}error{% else %}ok{% endif %}">
+        <div class="agent-row">
+            <div style="flex:1;min-width:200px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span style="font-weight:800;font-size:14px">{{ r.job_name }}</span>
+                    <span class="badge {{ r.last_outcome }}">{{ r.last_outcome }}</span>
+                    {% if r.last_duration %}<span style="font-size:10px;color:var(--text-muted)">{{ r.last_duration }}ms</span>{% endif %}
+                </div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+                    Letzter Run: {{ r.last_run[:16] if r.last_run else '–' }} ·
+                    Total: {{ r.total_runs }} Runs ({{ r.error_runs or 0 }} Fehler)
+                </div>
+                {% if r.last_stats %}
+                <div style="font-size:10px;color:var(--text-muted);margin-top:4px;font-family:'JetBrains Mono',monospace;background:var(--bg-2);padding:4px 8px;border-radius:4px;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                    {{ r.last_stats }}
+                </div>
+                {% endif %}
+                {% if r.last_error %}
+                <div style="font-size:11px;color:#dc2626;margin-top:6px;font-weight:700">⚠ {{ r.last_error }}</div>
+                {% endif %}
+            </div>
+            <form method="POST" action="/admin/agents/trigger/{{ r.job_name }}" style="display:inline">
+                <button type="submit" class="btn btn-secondary btn-sm" style="font-size:11px">▶ Manuell</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if not last_runs and not missing_jobs %}
+    <div style="padding:30px;text-align:center;color:var(--text-soft)">
+        Noch keine Cron-Runs erfasst. Wenn der monitor_loop.sh läuft, erscheinen hier die Jobs.
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">⚠ Fehler-Log · letzte 50</div>
+            <div style="font-size:18px;font-weight:800;color:var(--text);margin-top:2px">
+                {% if unseen_errors > 0 %}
+                <span style="color:#dc2626">{{ unseen_errors }}</span> ungelesen / {{ errors|length }} gesamt
+                {% else %}
+                {{ errors|length }} Einträge · alle gesehen
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% if errors %}
+    <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        {% for e in errors %}
+        <div class="err-row {% if not e.seen_by_admin %}unseen{% endif %}">
+            <span class="err-source">{{ e.source }}</span>
+            <span class="err-msg">{{ e.message }}</span>
+            <span class="err-meta">{{ e.created_at[:16] }}</span>
+            {% if not e.seen_by_admin %}
+            <form method="POST" action="/admin/agents/error/{{ e.id }}/seen" style="display:inline;flex-shrink:0">
+                <button type="submit" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:2px 8px;border-radius:5px;font-size:10px;cursor:pointer">✓ gesehen</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="padding:30px;text-align:center;color:var(--text-soft)">
+        🎉 Keine Fehler geloggt. System läuft sauber.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -5187,6 +5187,33 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        -- Zentrales Error-Log: jede Exception in Cron-Jobs / Routes / API-Calls
+        -- wird hier erfasst. Najib sieht die Last-N im /admin/agents Status-Page.
+        -- Bei kritischen Fehlern wird ein Push an Admin gesendet (max 1×/Stunde).
+        CREATE TABLE IF NOT EXISTS error_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,        -- z.B. 'cron:stagnation' / 'route:/heute' / 'api:dmo'
+            severity TEXT DEFAULT 'error',  -- error / warning / critical
+            message TEXT NOT NULL,
+            traceback TEXT,
+            user_id INTEGER,             -- falls bekannt: welcher User war betroffen
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            seen_by_admin INTEGER DEFAULT 0
+        );
+
+        -- Cron-Job-Run-Log: tracked welcher Cron wann gelaufen ist und mit welchem
+        -- Result. Najib sieht in /admin/agents wann der letzte Stagnations-Run war,
+        -- ob er Erfolg hatte, etc. Auto-Push wenn Cron 24h+ nicht gelaufen.
+        CREATE TABLE IF NOT EXISTS cron_run_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_name TEXT NOT NULL,      -- 'stagnation' / 'streak_warn' / 'owner_audit' / etc.
+            started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            duration_ms INTEGER,
+            outcome TEXT,                -- 'ok' / 'error' / 'skip'
+            stats_json TEXT,             -- JSON-Dump des Result-Dicts
+            error_msg TEXT
+        );
+
         CREATE TABLE IF NOT EXISTS email_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -6326,6 +6353,102 @@ def _effective_career_uncached(user_id, db=None):
     earned = earned_career_for_user(user_id, db)
     final_level = max(user['manual_career_level'] or 1, earned['level'])
     return next((c for c in CAREER_LEVELS if c['level'] == final_level), CAREER_LEVELS[0])
+# ============================================================================
+
+
+# ============================================================================
+# ERROR-LOG + CRON-RUN-TRACKING — zentrales Backoffice-Monitoring
+# ============================================================================
+import traceback as _traceback
+import time as _time
+import functools as _functools
+
+def log_error(source, message, exception=None, severity='error', user_id=None):
+    """Schreibt einen Fehler ins error_log. Bei severity='critical' Push an Admin (max 1×/h)."""
+    tb = ''
+    if exception is not None:
+        try:
+            tb = ''.join(_traceback.format_exception(type(exception), exception, exception.__traceback__))[:5000]
+        except Exception:
+            tb = repr(exception)
+    try:
+        db = get_db()
+        db.execute('''INSERT INTO error_log (source, severity, message, traceback, user_id)
+                      VALUES (?, ?, ?, ?, ?)''',
+                   (source, severity, message[:1000], tb, user_id))
+        db.commit()
+        db.close()
+    except Exception as e:
+        # Last resort: in app.logger
+        try:
+            app.logger.error(f'[log_error fallback] {source}: {message} ({e})')
+        except Exception:
+            pass
+    # Bei critical: Push an Admin (max 1×/h via push_log idempotency)
+    if severity == 'critical':
+        try:
+            db = get_db()
+            admins = db.execute("SELECT id FROM users WHERE role='admin' AND active=1").fetchall()
+            db.close()
+            for a in admins:
+                hour_key = f'crit-err-{datetime.now().strftime("%Y%m%d-%H")}'
+                if not _push_already_sent(a['id'], 'critical_error', hour_key):
+                    try:
+                        send_push_to_user(a['id'],
+                            title='🚨 System-Fehler',
+                            body=f'{source}: {message[:80]}',
+                            url='/admin/agents', urgent=True,
+                            tag='critical-error', push_type='admin_alert')
+                        _push_mark_sent(a['id'], 'critical_error', hour_key)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+
+def cron_tracked(job_name):
+    """Decorator: trackt Start/Ende eines Cron-Jobs in cron_run_log + fängt Exceptions
+    in error_log. Returnt das Original-Result oder None bei Crash.
+
+    Usage:
+        @cron_tracked('stagnation')
+        def run_stagnation_sequence():
+            ...
+    """
+    def deco(fn):
+        @_functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            t0 = _time.time()
+            outcome = 'ok'
+            err_msg = None
+            stats_str = None
+            result = None
+            try:
+                result = fn(*args, **kwargs)
+                try:
+                    stats_str = json.dumps(result, default=str)[:2000]
+                except Exception:
+                    stats_str = str(result)[:2000]
+            except Exception as e:
+                outcome = 'error'
+                err_msg = f'{type(e).__name__}: {e}'[:500]
+                log_error(f'cron:{job_name}', err_msg, exception=e, severity='error')
+                result = None
+            finally:
+                duration_ms = int((_time.time() - t0) * 1000)
+                try:
+                    db = get_db()
+                    db.execute('''INSERT INTO cron_run_log
+                                  (job_name, duration_ms, outcome, stats_json, error_msg)
+                                  VALUES (?, ?, ?, ?, ?)''',
+                               (job_name, duration_ms, outcome, stats_str, err_msg))
+                    db.commit()
+                    db.close()
+                except Exception:
+                    pass
+            return result
+        return wrapper
+    return deco
 # ============================================================================
 
 
@@ -11285,6 +11408,7 @@ def api_run_lead_followup():
     return jsonify({'ok': True, 'stats': stats})
 
 
+@cron_tracked('stagnation')
 def run_stagnation_sequence():
     """Auto-Reaktivierungs-Sequenz für stagnierte Partner.
     Pattern: BJ Fogg Tiny Habits + Eric Worre 'edify your mentor'.
@@ -11341,6 +11465,7 @@ def run_stagnation_sequence():
         db.close()
 
 
+@cron_tracked('streak_warn')
 def run_streak_warning_push():
     """Streak-Verlust-Warnung als Push-Nachricht (Duolingo-Pattern).
     Trigger: User hat Streak ≥3, hat heute noch nicht alle DMO-Targets erreicht,
@@ -11403,6 +11528,7 @@ def api_run_streak_warning():
     return jsonify({'ok': True, 'stats': stats})
 
 
+@cron_tracked('owner_audit')
 def run_daily_owner_audit():
     """BACKOFFICE-AGENT — täglich 21 Uhr.
     Mailt Najib einen Tages-Report:
@@ -11442,7 +11568,7 @@ def run_daily_owner_audit():
             # 3. Stagnation-Stats
             stag_sent_today = db.execute('''
                 SELECT COUNT(*) c FROM push_log
-                WHERE push_type='stagnation_seq' AND date(created_at)=date(?)
+                WHERE push_type='stagnation_seq' AND date(sent_at)=date(?)
             ''', (today_iso,)).fetchone()['c']
 
             # 4. Pipeline-Bewegung diese Woche
@@ -11534,6 +11660,204 @@ def api_run_owner_audit():
         return jsonify({'error': 'admin only'}), 403
     stats = run_daily_owner_audit()
     return jsonify({'ok': True, 'stats': stats})
+
+
+@cron_tracked('assistentin_morning')
+def run_assistentin_morning_brief():
+    """ASSISTENTIN-AGENT — täglich 8 Uhr morgens.
+    Najibs persönliche KI-Assistentin generiert proaktiv eine Mail mit:
+    - Top-3 Aufgaben für heute (aus get_today_stack)
+    - Pipeline-Hebel-Hinweis (wer ist nahe an Beförderung)
+    - Auffälligkeiten der letzten 24h (neue Verträge / Inaktivitäten / Approvals)
+    - Quick-Tipp (Daily Method of Operation Reminder)
+
+    Idempotent via push_log mit ref_key 'assistentin-{YYYY-MM-DD}'.
+    Returns: {'sent_to': [admin_id, ...]}
+    """
+    db = get_db()
+    sent_to = []
+    try:
+        admins = db.execute("SELECT id, name, email FROM users WHERE role='admin' AND active=1").fetchall()
+        today_iso = date.today().isoformat()
+        for admin in admins:
+            ref_key = f'assistentin-{today_iso}'
+            if _push_already_sent(admin['id'], 'assistentin_morning', ref_key):
+                continue
+            if not admin['email']:
+                continue
+
+            # Top-3 Tasks aus today_stack
+            try:
+                stack = get_today_stack(admin['id'], max_items=3)
+            except Exception as e:
+                log_error('assistentin:get_today_stack', str(e), exception=e, user_id=admin['id'])
+                stack = []
+
+            # Pipeline-Hebel: nächste Beförderung
+            try:
+                hrep_pipe = get_hrep_pipeline(admin['id'], max_items=2)
+            except Exception:
+                hrep_pipe = []
+
+            # Last-24h Stats
+            new_contracts_24h = db.execute('''
+                SELECT COUNT(*) c FROM contracts
+                WHERE created_at >= datetime('now','-1 days')
+                  AND status='abgeschlossen'
+            ''').fetchone()['c']
+            pending_recherche = db.execute('''
+                SELECT COUNT(*) c FROM contracts
+                WHERE recherche_status IN ('ausstehend','')
+                  AND status='abgeschlossen'
+                  AND date(created_at) <= date('now','-2 days')
+            ''').fetchone()['c']
+
+            # DMO Status (gestern)
+            try:
+                dmo = get_dmo_status(admin['id'])
+            except Exception:
+                dmo = {'streak': 0, 'all_done': False, 'target': {'calls': 5}}
+
+            # Mail bauen — fühlt sich wie eine echte Assistentin an
+            first_name = (admin['name'] or '').split()[0] or 'Najib'
+            weekday_de = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'][date.today().weekday()]
+            lines = [
+                f'Guten Morgen {first_name},',
+                '',
+                f'hier dein Briefing für {weekday_de}, {today_iso}:',
+                '',
+                '== HEUTE OBEN AUF DER LISTE ==',
+            ]
+            if stack:
+                for i, t in enumerate(stack, 1):
+                    lines.append(f'  {i}. {t["title"]} → {t["reason"][:120]}')
+            else:
+                lines.append('  Keine kritischen Aufgaben — perfekter Tag für Akquise oder Coaching.')
+
+            if hrep_pipe:
+                lines.append('')
+                lines.append('== PIPELINE-HEBEL ==')
+                for p in hrep_pipe[:2]:
+                    lines.append(f'  · {p["name"]}: noch {int(p["eh_remaining"])} EH bis HREP ({int(p["pct"])}%)')
+
+            lines.append('')
+            lines.append('== LETZTE 24h ==')
+            lines.append(f'  Neue Verträge: {new_contracts_24h}')
+            if pending_recherche > 0:
+                lines.append(f'  ⚠ {pending_recherche} Verträge warten >2T auf Recherche-Freigabe')
+
+            if dmo['streak'] >= 3:
+                lines.append('')
+                lines.append(f'🔥 Du hast {dmo["streak"]} Tage Streak. Heute {dmo["target"]["calls"]} Anrufe = Streak hält.')
+
+            lines.append('')
+            lines.append('Öffne /heute → Single-Task-Modus. Eine Karte nach der anderen.')
+            lines.append('')
+            lines.append('Deine Pro Academy KI-Assistentin')
+
+            text = '\n'.join(lines)
+            subject = f'☕ Dein Morgen-Briefing · {today_iso}'
+            ok, err = send_email(admin['email'], subject, text, sent_by=None, category='reminder')
+            if ok:
+                _push_mark_sent(admin['id'], 'assistentin_morning', ref_key)
+                sent_to.append(admin['id'])
+            else:
+                log_error('assistentin:send_email', err or 'unknown send error', user_id=admin['id'])
+        return {'sent_to': sent_to, 'count': len(sent_to)}
+    except Exception as e:
+        log_error('assistentin:morning_brief', str(e), exception=e, severity='error')
+        return {'sent_to': sent_to, 'count': len(sent_to), 'error': str(e)}
+    finally:
+        db.close()
+
+
+@app.route('/api/admin/run-assistentin', methods=['POST'])
+@login_required
+def api_run_assistentin():
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    stats = run_assistentin_morning_brief()
+    return jsonify({'ok': True, 'stats': stats})
+
+
+# ═══════════════════════════════════════════════════════════════════
+# /admin/agents — Backoffice-Status-Page
+# Zeigt alle Cron-Jobs + letzte Fehler + manueller Trigger-Button
+# ═══════════════════════════════════════════════════════════════════
+@app.route('/admin/agents')
+@login_required
+def admin_agents():
+    """Backoffice-Status: alle Cron-Jobs + letzte Fehler + Trigger-Buttons."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('dashboard'))
+    db = get_db()
+    # Letzte Run pro Job
+    last_runs = db.execute('''
+        SELECT job_name, MAX(started_at) as last_run, outcome,
+               (SELECT outcome FROM cron_run_log c2 WHERE c2.job_name=c1.job_name ORDER BY id DESC LIMIT 1) as last_outcome,
+               (SELECT duration_ms FROM cron_run_log c2 WHERE c2.job_name=c1.job_name ORDER BY id DESC LIMIT 1) as last_duration,
+               (SELECT stats_json FROM cron_run_log c2 WHERE c2.job_name=c1.job_name ORDER BY id DESC LIMIT 1) as last_stats,
+               (SELECT error_msg FROM cron_run_log c2 WHERE c2.job_name=c1.job_name ORDER BY id DESC LIMIT 1) as last_error,
+               COUNT(*) as total_runs,
+               SUM(CASE WHEN outcome='error' THEN 1 ELSE 0 END) as error_runs
+        FROM cron_run_log c1
+        GROUP BY job_name ORDER BY last_run DESC
+    ''').fetchall()
+    # Letzte 50 Fehler
+    errors = db.execute('''
+        SELECT id, source, severity, message, created_at, seen_by_admin
+        FROM error_log ORDER BY id DESC LIMIT 50
+    ''').fetchall()
+    unseen_errors = db.execute('SELECT COUNT(*) c FROM error_log WHERE seen_by_admin=0').fetchone()['c']
+    # Bekannte Jobs (Liste der erwarteten — falls noch nie gelaufen)
+    known_jobs = ['stagnation', 'streak_warn', 'owner_audit', 'assistentin_morning']
+    seen_jobs = {r['job_name'] for r in last_runs}
+    db.close()
+    return render_template('admin_agents.html',
+        last_runs=[dict(r) for r in last_runs],
+        errors=[dict(e) for e in errors],
+        unseen_errors=unseen_errors,
+        missing_jobs=[j for j in known_jobs if j not in seen_jobs])
+
+
+@app.route('/admin/agents/error/<int:eid>/seen', methods=['POST'])
+@login_required
+def admin_agents_error_seen(eid):
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    db = get_db()
+    db.execute('UPDATE error_log SET seen_by_admin=1 WHERE id=?', (eid,))
+    db.commit()
+    db.close()
+    return redirect(url_for('admin_agents'))
+
+
+@app.route('/admin/agents/trigger/<job_name>', methods=['POST'])
+@login_required
+def admin_agents_trigger(job_name):
+    """Manuell einen Cron-Job triggern (für Testing)."""
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    job_map = {
+        'stagnation': run_stagnation_sequence,
+        'streak_warn': run_streak_warning_push,
+        'owner_audit': run_daily_owner_audit,
+        'assistentin_morning': run_assistentin_morning_brief,
+        'lead_followup': run_lead_followup_sequence,
+        'auto_approve': try_auto_approve_pending,
+    }
+    fn = job_map.get(job_name)
+    if not fn:
+        flash(f'Unbekannter Job: {job_name}', 'error')
+        return redirect(url_for('admin_agents'))
+    try:
+        result = fn()
+        flash(f'Job {job_name} ausgeführt: {result}', 'success')
+    except Exception as e:
+        log_error(f'manual-trigger:{job_name}', str(e), exception=e, severity='error')
+        flash(f'Job {job_name} crashed: {e}', 'error')
+    return redirect(url_for('admin_agents'))
 
 
 # ═══════════════════════════════════════════════════════════════════
