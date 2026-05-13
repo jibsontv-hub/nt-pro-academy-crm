@@ -8201,64 +8201,66 @@ def admin_impressum():
 # Stufenspezifisch: REP/LREP/HREP/Admin haben verschiedene Schritt-Listen.
 # ═══════════════════════════════════════════════════════════════════
 
+# REP-Steps: action-fokussiert (5 statt 7) — was er HEUTE noch machen soll
 GUIDE_STEPS_REP = [
-    {'id': 'rep_intro', 'icon': '👋', 'title': 'Willkommen — schau dich kurz um',
-     'detail': 'Schau auf dein Dashboard, lies das Tages-Briefing vom KI-Coach. Das ist deine Startseite jeden Morgen.',
-     'cta_label': 'Dashboard öffnen', 'cta_url': '/dashboard'},
-    {'id': 'rep_daily_checkin', 'icon': '✓', 'title': 'Mach dein erstes Daily Check-in',
-     'detail': '30 Sek pro Tag. Wie fühlst du dich heute? Was ist dein Plan? Streak baut sich nur auf wenn du wirklich aktiv bist.',
-     'cta_label': 'Daily Check-in', 'cta_url': '/daily-checkin'},
-    {'id': 'rep_lead_link', 'icon': '★', 'title': 'Teile deinen Lead-Link auf Insta/WhatsApp',
-     'detail': 'Du hast einen persönlichen Link (proacademy-business.de/start?ref=DEIN_NAME). Jeder Klick + jede Anmeldung wird gemessen. Poste ihn JETZT in deine Bio.',
-     'cta_label': 'Mein Lead-Link', 'cta_url': '/webhook-setup'},
-    {'id': 'rep_first_5_namen', 'icon': '◎', 'title': 'Schreib 5 Namen auf deine Liste',
-     'detail': 'Familie, Freunde, Bekannte, Arbeitskollegen — wer könnte interessiert sein. Keine Sortierung, einfach reinschreiben. 5 Namen reichen für den Start.',
-     'cta_label': 'Kunden-Liste öffnen', 'cta_url': '/namensliste?typ=vk'},
-    {'id': 'rep_skripte', 'icon': '☏', 'title': 'Schau dir die Telefon-Skripte an',
-     'detail': 'Drei Tabs: Einstieg, Einwand-Behandlung, Abschluss. Beim ersten Anruf einfach ablesen — du wirst sicherer mit jedem Mal.',
-     'cta_label': 'Skripte', 'cta_url': '/skripte'},
-    {'id': 'rep_first_termin', 'icon': '◷', 'title': 'Setz deinen ersten Termin',
-     'detail': 'Nach 5-10 Anrufen wirst du den ersten Termin haben. Trag ihn sofort ein — Datum, Uhrzeit, Kunde. Das System erinnert dich.',
-     'cta_label': 'Termine', 'cta_url': '/termine'},
-    {'id': 'rep_grundseminar', 'icon': '▤', 'title': 'Meld dich für Grundseminar an',
-     'detail': 'Pflicht-Wegmarke. Sobald bestanden, schaltet sich der Bewerber-Bereich frei — du kannst dann selbst Partner gewinnen.',
-     'cta_label': 'Grundseminar', 'cta_url': '/grundseminar'},
+    {'id': 'rep_daily_checkin', 'icon': '✓', 'title': 'Daily Check-in — JETZT',
+     'detail': '30 Sek. Wie fühlst du dich? Was ist dein Plan heute? Streak zählt nur wenn du wirklich aktiv bist.',
+     'cta_label': 'Check-in starten', 'cta_url': '/daily-checkin'},
+    {'id': 'rep_lead_link', 'icon': '★', 'title': 'Lead-Link auf Insta/WhatsApp posten',
+     'detail': 'Dein persönlicher Link bringt Bewerber + Kunden direkt zu dir. Klicks + Anmeldungen werden gemessen. Poste jetzt in deine Bio.',
+     'cta_label': 'Lead-Link kopieren', 'cta_url': '/webhook-setup'},
+    {'id': 'rep_first_5_namen', 'icon': '◎', 'title': '5 Namen auf deine Liste — heute',
+     'detail': 'Familie, Freunde, Kollegen, Bekannte. Keine Vor-Sortierung. Einfach reinschreiben — System sagt dir wer als nächstes dran ist.',
+     'cta_label': 'Liste öffnen', 'cta_url': '/namensliste?typ=vk'},
+    {'id': 'rep_first_anrufe', 'icon': '☏', 'title': '5 Anrufe heute — mit Skripten',
+     'detail': 'Skripte für Einstieg, Einwand, Abschluss bereitstellen. Du musst nichts auswendig — beim Anruf 1-Klick ablesen.',
+     'cta_label': 'Skripte öffnen', 'cta_url': '/skripte'},
+    {'id': 'rep_first_termin', 'icon': '◷', 'title': 'Ersten Termin setzen + sofort eintragen',
+     'detail': 'Nach 5-10 Anrufen kommt der erste Termin. Datum + Uhrzeit + Kunde sofort eintragen — System erinnert dich + erinnert den Kunden.',
+     'cta_label': 'Termin anlegen', 'cta_url': '/termine/neu'},
 ]
 
+# LREP-Steps: tägliche Coach-Routine
 GUIDE_STEPS_LREP = [
-    {'id': 'lrep_coach_plan', 'icon': '▸', 'title': 'Check deinen „Coach-Plan heute"',
-     'detail': 'Auf dem Dashboard siehst du WELCHE REPs heute Hilfe brauchen — sortiert nach Urgency. Ruf den ersten an.',
+    {'id': 'lrep_coach_plan', 'icon': '▸', 'title': 'Coach-Plan heute checken — JETZT',
+     'detail': 'Dashboard zeigt dir welche REPs heute Hilfe brauchen, sortiert nach Urgency (rot zuerst). Ruf den ersten an — bevor du was anderes machst.',
      'cta_label': 'Dashboard', 'cta_url': '/dashboard'},
-    {'id': 'lrep_team_inactive', 'icon': '◈', 'title': 'Geh deine Team-Liste durch',
-     'detail': 'Sortiert: inaktivste oben (rot ≥7T, orange 3-7T). Pro REP siehst du auch wann du ihn zuletzt gecoacht hast.',
-     'cta_label': 'Team', 'cta_url': '/team'},
-    {'id': 'lrep_first_coach_note', 'icon': '📝', 'title': 'Schreib deine erste Coaching-Notiz',
-     'detail': 'Geh auf einen REP-Profil, klick „Coaching-Karte". Schreib was ihr besprochen habt + setz nächstes Coaching-Datum.',
+    {'id': 'lrep_team_inactive', 'icon': '⚠', 'title': 'Inaktivste 3 REPs anschauen',
+     'detail': 'Team-Liste sortiert nach „Tage inaktiv" (rot ≥7T). Wenn jemand 3+ Tage still ist — heute anrufen, nicht morgen.',
      'cta_label': 'Team-Liste', 'cta_url': '/team'},
-    {'id': 'lrep_assign_task', 'icon': '✓', 'title': 'Weis einem REP eine konkrete Aufgabe zu',
-     'detail': 'Auf der Coaching-Karte: „+ Aufgabe zuweisen". Beispiel: „Heute 5 Anrufe machen" oder „Bis Freitag 1 Termin setzen". REP kriegt Push.',
+    {'id': 'lrep_first_coach_note', 'icon': '📝', 'title': 'Erste Coaching-Notiz schreiben',
+     'detail': 'Auf REP-Profil: Coaching-Karte. Schreib 2 Sätze über euer letztes Gespräch + setz nächstes 1-on-1 Datum. Sonst vergisst du wo ihr standet.',
      'cta_label': 'Team', 'cta_url': '/team'},
-    {'id': 'lrep_hrep_pfad', 'icon': '🎯', 'title': 'Schau auf deinen HREP-Beschleuniger',
-     'detail': 'Das System sagt dir genau WELCHER REP diese Woche wachsen muss damit DU HREP wirst. Ein Hebel, nicht 6 Statistiken.',
+    {'id': 'lrep_assign_task', 'icon': '✓', 'title': 'EINE konkrete Aufgabe an EINEN REP',
+     'detail': 'Coaching-Karte → „+ Aufgabe zuweisen". Beispiel: „Heute 5 Anrufe" oder „Bis Freitag 1 Termin". REP kriegt Push, du siehst was er macht.',
+     'cta_label': 'Coaching', 'cta_url': '/team'},
+    {'id': 'lrep_hrep_pfad', 'icon': '🎯', 'title': 'HREP-Beschleuniger anschauen',
+     'detail': 'Lila Card oben am Dashboard sagt dir: WELCHER REP muss diese Woche wachsen damit DU HREP wirst. EIN Hebel, nicht 6 Statistiken.',
      'cta_label': 'Dashboard', 'cta_url': '/dashboard'},
 ]
 
+# HREP/Admin-Steps: das ist deine TÄGLICHE MORGEN-ROUTINE.
+# Schritt-für-Schritt durch deinen Morgen. Jeder Schritt mit Zeit-Schätzung.
+# Du kannst die Anleitung jeden Tag „neu starten" — sie ist deine Tages-Checkliste.
 GUIDE_STEPS_HREP = [
-    {'id': 'hrep_briefing', 'icon': '▦', 'title': 'Lies dein Owner-Briefing oben am Dashboard',
-     'detail': 'Plan-Ampel (Tag/Soll/Forecast), Heute persönlich, Heute eskalieren, Geld blockiert, Neu in 24h — alles auf einen Blick.',
-     'cta_label': 'Dashboard', 'cta_url': '/dashboard'},
-    {'id': 'hrep_owner_queue', 'icon': '▸', 'title': 'Klick einmal durch die Owner-Queue',
-     'detail': 'EINE Page mit allen Entscheidungen priorisiert. Inline-Buttons (✓ Bestätigen, 📞 Anrufen, +Termin, Owner pingen) — kein Tab-Switch.',
-     'cta_label': 'Owner-Queue', 'cta_url': '/owner/queue'},
-    {'id': 'hrep_strang_trends', 'icon': '⬢', 'title': 'Check deine Strang-Trends',
-     'detail': 'Auf dem Dashboard: pro direktem Strang Trend-Pfeil ▲▼ vs Vormonat + Inaktiv-Count + Coaching-Frequenz. Klick = Drill-Down.',
-     'cta_label': 'Struktur', 'cta_url': '/struktur'},
-    {'id': 'hrep_assistentin', 'icon': '▣', 'title': 'Frag die KI-Assistentin: „Was muss ich heute persönlich tun?"',
-     'detail': 'Sie liest dein Briefing + Queue + Drift-Liste und gibt dir konkrete Empfehlungen wie ein Chief of Staff.',
-     'cta_label': 'KI-Assistentin', 'cta_url': '/assistentin'},
-    {'id': 'hrep_mail_filter', 'icon': '📣', 'title': 'Schick deine erste gezielte Sub-Mail',
-     'detail': 'Ansprache an genau eine Subgruppe: „Inaktiv ≥3T", „0 EH in 30T" (Drop-out-Risiko), oder ganzer Strang Marc.',
-     'cta_label': 'Mail-Versand', 'cta_url': '/admin/mail'},
+    {'id': 'hrep_assistentin_briefing', 'icon': '▣', 'title': '1. KI-Assistentin öffnen — Tagesbriefing lesen (2 Min)',
+     'detail': 'Wenn du heute zum ersten Mal reingehst, begrüßt sie dich proaktiv mit deinem Tagesbriefing: Plan-Status, was zu eskalieren ist, Geld blockiert, neue Leads. EIN Klick = ganzer Überblick.',
+     'cta_label': '→ Assistentin öffnen', 'cta_url': '/assistentin'},
+    {'id': 'hrep_briefing', 'icon': '▦', 'title': '2. Najib-Briefing oben am Dashboard durchsehen (1 Min)',
+     'detail': 'Plan-Ampel rot/gelb/grün, Forecast Monatsende, „Heute persönlich" + „Heute eskalieren". Wenn rot → Prio aufs Eskalieren legen.',
+     'cta_label': '→ Dashboard', 'cta_url': '/dashboard'},
+    {'id': 'hrep_owner_queue', 'icon': '▸', 'title': '3. Owner-Queue durchklicken (5-10 Min)',
+     'detail': 'Hot-Leads, Pending Approvals, Drift-REPs, Geld-Blocker, Coachings heute — alles in einer Liste mit Inline-Buttons. Top-3 abarbeiten reicht.',
+     'cta_label': '→ Owner-Queue', 'cta_url': '/owner/queue'},
+    {'id': 'hrep_strang_trends', 'icon': '⬢', 'title': '4. Strang-Trends scannen (1 Min)',
+     'detail': 'Dashboard zeigt pro Strang Trend-Pfeil ▲▼ vs Vormonat. Wenn ein Strang ▼ -20% → kurz drauf klicken, schauen wer schwächelt.',
+     'cta_label': '→ Dashboard', 'cta_url': '/dashboard'},
+    {'id': 'hrep_one_coaching', 'icon': '📝', 'title': '5. EINE Coaching-Aktion — heute ausführen',
+     'detail': 'Aus dem Briefing oder Queue: 1× Anruf, 1× Aufgabe zuweisen, oder 1× Owner pingen. Nicht alles — EINE konkrete Sache wo du heute den Hebel umlegst.',
+     'cta_label': '→ Team', 'cta_url': '/team'},
+    {'id': 'hrep_done', 'icon': '✓', 'title': '6. Erledigt — Rest läuft im Auto-Pilot',
+     'detail': 'Auto-Approvals, Auto-Mail-Sequenz, Mittag-Push für REPs, Drift-Eskalation REP→LREP→HREP — das System arbeitet im Hintergrund weiter. Du gehst Verkäufe machen oder coachen.',
+     'cta_label': '→ Anleitung neu starten morgen', 'cta_url': '/dashboard'},
 ]
 
 
@@ -8989,7 +8991,13 @@ def passwort_aendern():
 @login_required
 def assistentin_page():
     """Persönliche KI-Assistentin — NUR FÜR ADMIN.
-    Web-Suche, Dokumente, Präsentationen, Locations, persönliche TODOs."""
+    Web-Suche, Dokumente, Präsentationen, Locations, persönliche TODOs.
+
+    Auto-Daily-Briefing: wenn Najib heute zum ersten Mal reinkommt,
+    begrüßt ihn die Assistentin proaktiv mit dem Tagesbriefing
+    (Plan-Status, Eskalationen, Geld-Blocker, neue Leads + 3 konkrete
+    Heute-Aktionen). Idempotent — nur 1× pro Kalendertag.
+    """
     if not current_user.has_admin_access:
         flash('KI-Assistentin ist nur für Admin verfügbar.', 'info')
         return redirect(url_for('dashboard'))
@@ -9000,6 +9008,58 @@ def assistentin_page():
                   role TEXT NOT NULL,
                   content TEXT,
                   created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+
+    # Auto-Daily-Briefing: prüfen ob heute schon eine vorhanden
+    today_iso = date.today().isoformat()
+    today_briefing = db.execute(
+        "SELECT 1 FROM assist_messages WHERE user_id=? AND date(created_at)=? "
+        "AND role='assistant' AND content LIKE '☀ Tagesbriefing%' LIMIT 1",
+        (current_user.id, today_iso)
+    ).fetchone()
+    if not today_briefing:
+        try:
+            briefing = get_najib_morning_briefing(current_user.id)
+            if briefing:
+                pa = briefing.get('plan_ampel', {})
+                ampel = pa.get('ampel', 'gelb')
+                ampel_ic = '🟢' if ampel == 'gruen' else ('🟡' if ampel == 'gelb' else '🔴')
+                lines = [f"☀ Tagesbriefing für {current_user.name}", ""]
+                lines.append(f"{ampel_ic} **Plan-Status:** {pa.get('eh_ist',0):.0f} / {pa.get('monthly_target',0):.0f} EH "
+                            f"({pa.get('off_pace_pct',0):+.1f}% vs Plan · Tag {pa.get('days_passed',0)}/{pa.get('days_in_month',0)})")
+                lines.append(f"📊 **Forecast Monatsende:** {briefing.get('forecast_eom',0):.0f} EH")
+                lines.append("")
+                hp = briefing.get('heute_persoenlich', [])
+                if hp:
+                    lines.append(f"📅 **Heute persönlich ({len(hp)}):**")
+                    for h in hp[:5]:
+                        prefix = f"{h.get('time')} · " if h.get('time') else ''
+                        lines.append(f"  • {prefix}{h.get('title','')[:80]}")
+                    lines.append("")
+                he = briefing.get('heute_eskalieren', [])
+                if he:
+                    lines.append(f"⚠ **Heute eskalieren ({len(he)}):**")
+                    for e in he[:5]:
+                        lines.append(f"  • {e.get('title','')[:80]}")
+                    lines.append("")
+                gb = briefing.get('geld_blockiert', {})
+                if gb.get('eur', 0) > 0:
+                    lines.append(f"💰 **Geld blockiert:** ~{gb.get('eur'):.0f} € in {gb.get('anzahl',0)} hängenden Recherchen >7T")
+                    lines.append("")
+                n24 = briefing.get('neu_24h', {})
+                if n24.get('leads', 0) or n24.get('inbox_alt', 0):
+                    lines.append(f"🌐 **Neu in 24h:** {n24.get('leads',0)} Leads via /start, {n24.get('inbox_alt',0)} Bewerber >48h ohne Status")
+                    lines.append("")
+                lines.append("---")
+                lines.append('💡 **Frag mich was du heute fokussieren sollst** — z.B. „Was ist mein 1 wichtigster Hebel heute?" oder „Wo soll ich anrufen?". Ich hab alle Daten.')
+                briefing_msg = "\n".join(lines)
+                db.execute(
+                    "INSERT INTO assist_messages (user_id, role, content) VALUES (?, ?, ?)",
+                    (current_user.id, 'assistant', briefing_msg)
+                )
+                db.commit()
+        except Exception as e:
+            app.logger.warning(f'auto-briefing fail: {e}')
+
     msgs = db.execute('SELECT role, content, created_at FROM assist_messages WHERE user_id=? ORDER BY id DESC LIMIT 50',
                      (current_user.id,)).fetchall()
     msgs = list(reversed([dict(m) for m in msgs]))
