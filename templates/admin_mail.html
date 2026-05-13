@@ -38,7 +38,7 @@
         <div class="card-title">① Empfänger wählen</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
             <label class="target-card" style="cursor:pointer">
-                <input type="radio" name="target" value="all" checked style="display:none">
+                <input type="radio" name="target" value="all" {% if preset == 'all' or not preset %}checked{% endif %} style="display:none">
                 <div class="target-inner">
                     <div style="font-size:22px">📣</div>
                     <div style="font-size:14px;font-weight:700;margin-top:6px">Alle Mitglieder</div>
@@ -54,7 +54,7 @@
                 </div>
             </label>
             <label class="target-card" style="cursor:pointer">
-                <input type="radio" name="target" value="silent" style="display:none">
+                <input type="radio" name="target" value="silent" {% if preset == 'silent' %}checked{% endif %} style="display:none">
                 <div class="target-inner">
                     <div style="font-size:22px">🔇</div>
                     <div style="font-size:14px;font-weight:700;margin-top:6px">Schweigend (>30 Tage)</div>
@@ -64,7 +64,7 @@
             {# TIER E.3 — präzisere Filter via activity_log + contracts #}
             {% if counts.inactive_3d > 0 %}
             <label class="target-card" style="cursor:pointer">
-                <input type="radio" name="target" value="inactive_3d" style="display:none">
+                <input type="radio" name="target" value="inactive_3d" {% if preset == 'inactive_3d' %}checked{% endif %} style="display:none">
                 <div class="target-inner" style="border-left:3px solid var(--orange)">
                     <div style="font-size:22px">⚠</div>
                     <div style="font-size:14px;font-weight:700;margin-top:6px">Inaktiv ≥3T (Aktivität)</div>
@@ -74,7 +74,7 @@
             {% endif %}
             {% if counts.no_eh_30d > 0 %}
             <label class="target-card" style="cursor:pointer">
-                <input type="radio" name="target" value="no_eh_30d" style="display:none">
+                <input type="radio" name="target" value="no_eh_30d" {% if preset == 'no_eh_30d' %}checked{% endif %} style="display:none">
                 <div class="target-inner" style="border-left:3px solid var(--red)">
                     <div style="font-size:22px">🔴</div>
                     <div style="font-size:14px;font-weight:700;margin-top:6px">0 EH in 30T (Drop-out-Risiko)</div>

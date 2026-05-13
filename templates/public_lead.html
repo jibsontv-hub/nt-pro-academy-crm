@@ -282,6 +282,27 @@ textarea.in { resize: vertical; min-height: 70px; }
     padding: 12px 16px; font-size: 13px; margin-bottom: 14px;
 }
 
+/* ── Karriere-Quiz (TIER F.3) ── */
+.quiz-opt {
+    display: block; width: 100%; text-align: left;
+    padding: 14px 18px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: #f1f5f9; font-family: inherit; font-size: 14px; font-weight: 600;
+    border-radius: 10px; cursor: pointer;
+    transition: all 0.15s;
+}
+.quiz-opt:hover {
+    background: rgba(212,168,67,0.10);
+    border-color: rgba(212,168,67,0.45);
+    transform: translateX(2px);
+}
+.quiz-opt.selected {
+    background: rgba(212,168,67,0.18);
+    border-color: #d4a843;
+    color: #fff;
+}
+
 /* ── Footer ── */
 .footer { text-align: center; margin-top: 60px; font-size: 11px; color: #475569; }
 .footer a { color: #94a3b8; text-decoration: none; margin: 0 8px; }
@@ -358,13 +379,60 @@ textarea.in { resize: vertical; min-height: 70px; }
                 </button>
             </div>
 
-            <!-- Direkt-Buchen-Banner als Outline (sekundär) — primärer CTA bleibt der Submit-Button -->
-            <a href="/buchen{% if referred_by %}?ref={{ referred_by }}{% endif %}" style="display:block;text-decoration:none;margin:0 0 16px;padding:10px 14px;background:transparent;color:#d4a843;border:1.5px solid rgba(212,168,67,0.45);border-radius:10px;text-align:center;font-weight:600;font-size:13px;letter-spacing:-0.2px;transition:all 0.18s" onmouseover="this.style.borderColor='#d4a843';this.style.background='rgba(212,168,67,0.06)'" onmouseout="this.style.borderColor='rgba(212,168,67,0.45)';this.style.background='transparent'">
+            <!-- Direkt-Buchen-Banner als Outline (nur Beratung) -->
+            <a id="bookingBanner" href="/buchen{% if referred_by %}?ref={{ referred_by }}{% endif %}" style="display:block;text-decoration:none;margin:0 0 16px;padding:10px 14px;background:transparent;color:#d4a843;border:1.5px solid rgba(212,168,67,0.45);border-radius:10px;text-align:center;font-weight:600;font-size:13px;letter-spacing:-0.2px;transition:all 0.18s" onmouseover="this.style.borderColor='#d4a843';this.style.background='rgba(212,168,67,0.06)'" onmouseout="this.style.borderColor='rgba(212,168,67,0.45)';this.style.background='transparent'">
                 Lieber direkt Tag &amp; Uhrzeit wählen? → /buchen
             </a>
 
-            <div class="form-title" id="formTitle">Oder schreib mir kurz</div>
-            <div class="form-sub">Ich melde mich innerhalb von <strong style="color:#d4a843">24-48 Std.</strong> zurück — kostenlos, unverbindlich, kein Verkaufsgespräch.</div>
+            {# TIER F.3 — 3-Step-Quiz für Karriere-Pfad (Mindvalley-Pattern, +213% Conversion).
+               Nur sichtbar wenn karriere-Tab aktiv. Step 1+2 sind Multi-Choice (qualifiziert
+               den Lead). Step 3 sind Kontakt-Felder. Quiz-Antworten landen als Lead-Tags. #}
+            <div id="quizPanel" style="display:none">
+                <div style="font-size:11px;color:#d4a843;text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:6px">Karriere-Match · 3 kurze Fragen</div>
+                <div id="quizProgress" style="height:4px;background:rgba(255,255,255,0.06);border-radius:99px;overflow:hidden;margin-bottom:18px">
+                    <div id="quizProgressBar" style="height:100%;width:33%;background:linear-gradient(90deg,#d4a843,#f0c970);transition:width 0.3s"></div>
+                </div>
+
+                {# Step 1: Status #}
+                <div id="quizStep1" class="quiz-step">
+                    <div style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.3px;margin-bottom:4px">Was ist dein aktueller Status?</div>
+                    <div style="font-size:12px;color:#94a3b8;margin-bottom:14px">Wähle was am ehesten passt — keine richtige oder falsche Antwort.</div>
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                        <button type="button" class="quiz-opt" data-step="1" data-val="Angestellt, suche nebenbei">📋 Angestellt — möchte nebenbei testen</button>
+                        <button type="button" class="quiz-opt" data-step="1" data-val="Selbstständig, brauche System">🛠 Selbstständig — brauche Struktur &amp; System</button>
+                        <button type="button" class="quiz-opt" data-step="1" data-val="Quereinsteiger, ganz neu">🌱 Quereinsteiger — ganz neu im Vertrieb</button>
+                        <button type="button" class="quiz-opt" data-step="1" data-val="Schüler/Student, Zukunft offen">🎓 Schüler / Student — Zukunft noch offen</button>
+                    </div>
+                </div>
+
+                {# Step 2: Motiv #}
+                <div id="quizStep2" class="quiz-step" style="display:none">
+                    <div style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.3px;margin-bottom:4px">Was treibt dich am meisten?</div>
+                    <div style="font-size:12px;color:#94a3b8;margin-bottom:14px">Damit ich dir die richtigen Beispiele erzählen kann.</div>
+                    <div style="display:flex;flex-direction:column;gap:8px">
+                        <button type="button" class="quiz-opt" data-step="2" data-val="Mehr Geld verdienen">💰 Mehr Geld verdienen</button>
+                        <button type="button" class="quiz-opt" data-step="2" data-val="Eigener Chef sein">👑 Eigener Chef sein — Zeit selbst einteilen</button>
+                        <button type="button" class="quiz-opt" data-step="2" data-val="Menschen helfen">🤝 Menschen wirklich helfen</button>
+                        <button type="button" class="quiz-opt" data-step="2" data-val="Team und Wachstum">📈 Team aufbauen, Wachstum erleben</button>
+                    </div>
+                    <button type="button" onclick="quizGoTo(1)" style="margin-top:14px;background:transparent;color:#94a3b8;border:none;font-size:12px;cursor:pointer">← zurück</button>
+                </div>
+
+                {# Step 3: Kontakt #}
+                <div id="quizStep3" class="quiz-step" style="display:none">
+                    <div style="font-size:18px;font-weight:800;color:#fff;letter-spacing:-0.3px;margin-bottom:4px">Wie soll Jibson dich erreichen?</div>
+                    <div id="quizSummary" style="font-size:12px;color:#d4a843;background:rgba(212,168,67,0.08);border-left:2px solid #d4a843;padding:8px 12px;border-radius:6px;margin-bottom:14px;line-height:1.5">—</div>
+                    {# Restliche Form-Felder (Name, Phone, Email, Privacy) werden unten geteilt — Quiz fügt nur die Quiz-Antworten als hidden inputs hinzu #}
+                    <input type="hidden" name="quiz_status" id="quizStatusInput">
+                    <input type="hidden" name="quiz_motiv" id="quizMotivInput">
+                    <button type="button" onclick="quizGoTo(2)" style="margin-bottom:10px;background:transparent;color:#94a3b8;border:none;font-size:12px;cursor:pointer">← Antwort ändern</button>
+                </div>
+            </div>
+
+            <div id="formTitleWrap">
+                <div class="form-title" id="formTitle">Oder schreib mir kurz</div>
+                <div class="form-sub" id="formSub">Ich melde mich innerhalb von <strong style="color:#d4a843">24-48 Std.</strong> zurück — kostenlos, unverbindlich, kein Verkaufsgespräch.</div>
+            </div>
 
             {% if error %}<div class="error-box">⚠️ {{ error }}</div>{% endif %}
 
@@ -585,7 +653,8 @@ textarea.in { resize: vertical; min-height: 70px; }
 
 <script>
 // Pfad-Tabs (oben + Form-Mini) — togglen Inhalt + sync mit hidden Form-Field
-// + Headline + Lead + CTA-Button pfad-adaptiv (Marketing-Audit TIER F.1).
+// + Headline + Lead + CTA-Button pfad-adaptiv. Karriere zeigt 3-Step-Quiz
+// (TIER F.3 Mindvalley-Pattern), Beratung zeigt klassische Form.
 (function(){
     const tabs = document.querySelectorAll('.path-tab[data-pathtab], .path-tab-mini[data-pathtab]');
     const contents = document.querySelectorAll('[data-pathcontent]');
@@ -594,6 +663,9 @@ textarea.in { resize: vertical; min-height: 70px; }
     const heroLead = document.getElementById('heroLead');
     const submitBtn = document.getElementById('submitBtn');
     const formTitle = document.getElementById('formTitle');
+    const quizPanel = document.getElementById('quizPanel');
+    const formTitleWrap = document.getElementById('formTitleWrap');
+    const bookingBanner = document.getElementById('bookingBanner');
 
     const COPY = {
         beratung: {
@@ -604,9 +676,9 @@ textarea.in { resize: vertical; min-height: 70px; }
         },
         karriere: {
             h1: 'Vertrieb mit System statt Glück.<br><span class="accent">Quereinstieg möglich · 14 Nationen im Team.</span>',
-            lead: 'Wir starten klein, du wächst rein. <strong>Erst nebenbei testen, dann entscheiden ob es dein Ding ist.</strong><br><br>Ich erkläre dir in 30 Min was wir machen, wie viel realistisch geht und ob du dazu passt — ohne Druck.',
-            cta: 'Karriere-Talk anfragen →',
-            formTitle: 'Schreib mir worum es geht',
+            lead: 'Wir starten klein, du wächst rein. <strong>Erst nebenbei testen, dann entscheiden ob es dein Ding ist.</strong><br><br>Beantworte 3 kurze Fragen — ich melde mich mit den Beispielen die zu DEINER Situation passen.',
+            cta: 'Mein persönliches Karriere-Match anfordern →',
+            formTitle: 'Deine Kontaktdaten',
         }
     };
 
@@ -614,7 +686,6 @@ textarea.in { resize: vertical; min-height: 70px; }
         tabs.forEach(t => {
             const isActive = t.dataset.pathtab === target;
             t.classList.toggle('active', isActive);
-            // Mini-Tabs (über Form): inline-style update
             if (t.classList.contains('path-tab-mini')) {
                 if (isActive) {
                     t.style.background = 'rgba(212,168,67,0.18)';
@@ -632,14 +703,56 @@ textarea.in { resize: vertical; min-height: 70px; }
         if (heroLead) heroLead.innerHTML = c.lead;
         if (submitBtn) submitBtn.textContent = c.cta;
         if (formTitle) formTitle.textContent = c.formTitle;
+        // Karriere → Quiz statt Direkt-Buchen-Banner; Form-Title verstecken bis Step 3
+        const isKarriere = (target === 'karriere');
+        if (quizPanel) quizPanel.style.display = isKarriere ? 'block' : 'none';
+        if (bookingBanner) bookingBanner.style.display = isKarriere ? 'none' : 'block';
+        if (formTitleWrap) formTitleWrap.style.display = isKarriere ? 'none' : 'block';
+        // Bei Karriere: Quiz auf Step 1 zurücksetzen
+        if (isKarriere) quizGoTo(1);
     }
     tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.pathtab)));
 
-    // URL-Param-Support: /start?ziel=karriere → karriere-Pfad direkt aktiv
     const url = new URL(window.location.href);
     const ziel = url.searchParams.get('ziel');
     if (ziel === 'karriere' || ziel === 'rk') activate('karriere');
 })();
+
+// 3-Step Karriere-Quiz Logik (TIER F.3)
+let _quizState = { step: 1, status: '', motiv: '' };
+function quizGoTo(step) {
+    _quizState.step = step;
+    document.getElementById('quizStep1').style.display = (step === 1) ? '' : 'none';
+    document.getElementById('quizStep2').style.display = (step === 2) ? '' : 'none';
+    document.getElementById('quizStep3').style.display = (step === 3) ? '' : 'none';
+    const bar = document.getElementById('quizProgressBar');
+    if (bar) bar.style.width = (step * 33.34) + '%';
+    // Bei Step 3: Form-Title-Wrap einblenden + Submit zeigen, Summary zeigen
+    const formTitleWrap = document.getElementById('formTitleWrap');
+    if (formTitleWrap) formTitleWrap.style.display = (step === 3) ? 'block' : 'none';
+    if (step === 3) {
+        const sum = document.getElementById('quizSummary');
+        if (sum) sum.innerHTML = `<strong>Status:</strong> ${_quizState.status}<br><strong>Motiv:</strong> ${_quizState.motiv}`;
+        document.getElementById('quizStatusInput').value = _quizState.status;
+        document.getElementById('quizMotivInput').value = _quizState.motiv;
+    }
+}
+document.addEventListener('click', function(e) {
+    const opt = e.target.closest('.quiz-opt');
+    if (!opt) return;
+    const step = parseInt(opt.dataset.step);
+    const val = opt.dataset.val;
+    // Visuelle Selektion innerhalb des Steps
+    document.querySelectorAll(`.quiz-opt[data-step="${step}"]`).forEach(o => o.classList.remove('selected'));
+    opt.classList.add('selected');
+    if (step === 1) {
+        _quizState.status = val;
+        setTimeout(() => quizGoTo(2), 250);
+    } else if (step === 2) {
+        _quizState.motiv = val;
+        setTimeout(() => quizGoTo(3), 250);
+    }
+});
 </script>
 </body>
 </html>

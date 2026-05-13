@@ -4186,8 +4186,10 @@ Diese Nachricht wurde von {current_user.name} versendet.
         chain = [s['id']] + get_all_descendants(s['id'])
         strang_options.append({'id': s['id'], 'name': s['name'], 'count': len(chain)})
     db.close()
+    # TIER F.4 — ?preset=<target> für Deeplink aus /admin/aktivitaet
+    preset = (request.args.get('preset') or '').strip()
     return render_template('admin_mail.html', counts=counts, all_levels=CAREER_LEVELS,
-                          strang_options=strang_options)
+                          strang_options=strang_options, preset=preset)
 
 
 # === ADMIN: BACKUP DOWNLOAD ===
@@ -7143,6 +7145,16 @@ def public_lead_capture():
             db.close()
             return render_template('public_lead.html', success=True, duplicate=True)
 
+        # TIER F.3 — Karriere-Quiz Antworten erfassen (3-Step-Wizard für Karriere-Pfad)
+        quiz_status = (request.form.get('quiz_status') or '').strip()[:80]
+        quiz_motiv = (request.form.get('quiz_motiv') or '').strip()[:80]
+        quiz_tag = ''
+        if interesse == 'karriere' and (quiz_status or quiz_motiv):
+            quiz_parts = []
+            if quiz_status: quiz_parts.append(f'Status: {quiz_status}')
+            if quiz_motiv: quiz_parts.append(f'Motiv: {quiz_motiv}')
+            quiz_tag = ' · 📋 [' + ' · '.join(quiz_parts) + ']'
+
         # Notiz inkl. Interesse + Quelle/Empfehlung-Tag — sofort sichtbar im CRM
         interesse_tag = ''
         if interesse == 'beratung':
@@ -7155,7 +7167,7 @@ def public_lead_capture():
             quelle_tag = f' · 🤝 Empfohlen von {matched_berater_name}'
         elif referred_by:
             quelle_tag = f' · Quelle: {referred_by[:60]}'
-        notizen_full = f'{interesse_tag}Über Online-Form{quelle_tag}. {message}' if (interesse_tag or message or quelle_tag) else 'Über Online-Form.'
+        notizen_full = f'{interesse_tag}Über Online-Form{quelle_tag}{quiz_tag}. {message}' if (interesse_tag or message or quelle_tag or quiz_tag) else 'Über Online-Form.'
         # Lead-Liste-Typ: Beratung → vk (Vertrieb), Karriere → rk (Recruiting)
         liste_typ = 'rk' if interesse == 'karriere' else 'vk'
         cur = db.execute('''INSERT INTO leads (owner_id, name, email, phone, status, notizen,
