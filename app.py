@@ -10633,11 +10633,18 @@ def _get_admin_personal_dashboard_uncached(user_id):
     for d in direct:
         chain = [d['id']] + get_all_descendants(d['id'])
         cph = ','.join('?' * len(chain))
+        # Gesamt-EH des Bereichs (root + alle Sub-Downliner, transitiv)
         s_eh = db.execute(f'''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
                               WHERE owner_id IN ({cph})
                                 AND status="abgeschlossen" AND recherche_status="freigegeben"
                                 AND strftime("%Y-%m", abschluss_date) = ?''',
                           chain + [cur_month]).fetchone()['s']
+        # Eigene EH des Bereich-Roots (nur was der direkte Downliner selbst gemacht hat)
+        s_eh_self = db.execute('''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
+                                   WHERE owner_id=?
+                                     AND status="abgeschlossen" AND recherche_status="freigegeben"
+                                     AND strftime("%Y-%m", abschluss_date) = ?''',
+                               (d['id'], cur_month)).fetchone()['s']
         s_eh_prev = db.execute(f'''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
                                     WHERE owner_id IN ({cph})
                                       AND status="abgeschlossen" AND recherche_status="freigegeben"
@@ -10669,7 +10676,8 @@ def _get_admin_personal_dashboard_uncached(user_id):
             trend = 'flat'
         strang_status.append({
             'id': d['id'], 'name': d['name'], 'photo': d['photo_path'],
-            'eh_month': float(s_eh),
+            'eh_month': float(s_eh),                 # gesamt (root + alle Sub-Downliner)
+            'eh_self_month': float(s_eh_self),       # nur Bereich-Root selbst
             'eh_prev_month': float(s_eh_prev),
             'pct_change': round(pct_change, 1),
             'trend': trend,

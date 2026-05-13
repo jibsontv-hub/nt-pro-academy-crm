@@ -208,14 +208,15 @@
                     <div style="flex:1;min-width:0">
                         <div style="font-weight:700;font-size:13px">{{ s.name }}</div>
                         <div style="font-size:10px;color:rgba(255,255,255,0.5);display:flex;gap:8px;flex-wrap:wrap">
-                            <span>{{ s.partners }} Partner</span>
+                            <span>{{ s.partners }} Partner gesamt</span>
                             {% if s.inactive_count > 0 %}<span style="color:#f87171;font-weight:700">{{ s.inactive_count }} inaktiv</span>{% endif %}
                             <span>· {{ s.coaching_30d }} Coachings/30T</span>
                         </div>
                     </div>
                     <div style="text-align:right">
-                        <div style="font-weight:800;color:#d4a843;font-size:14px">{{ "{:,.0f}".format(s.eh_month).replace(",", ".") }} EH</div>
-                        <div style="font-size:10px;color:{{ trend_color }};font-weight:700;margin-top:1px">{{ trend_icon }} {{ s.pct_change|abs }}%</div>
+                        <div style="font-weight:800;color:#d4a843;font-size:14px" title="Bereich gesamt: {{ s.name }} + alle Sub-Downliner">{{ "{:,.0f}".format(s.eh_month).replace(",", ".") }} EH</div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:1px" title="Davon nur was {{ s.name }} selbst gemacht hat">davon {{ "{:,.0f}".format(s.eh_self_month).replace(",", ".") }} eigene</div>
+                        <div style="font-size:10px;color:{{ trend_color }};font-weight:700;margin-top:2px">{{ trend_icon }} {{ s.pct_change|abs }}%</div>
                     </div>
                 </a>
                 {% endfor %}
