@@ -84,6 +84,17 @@ print('midday-stats:', stats)
         LAST_MIDDAY_PUSH_DATE=$CURRENT_DATE
     fi
 
+    # ─── 1b3. Auto-Approve-Beförderungen (TIER B.2) — alle Loop-Iterationen (15 Min) ───
+    # Risikofreie Beförderungen automatisch durchwinken (1-Stufe-hoch + EH-Schwelle
+    # + keine Diversifikations-Verletzung). Spart Najib das manuelle Klicken.
+    python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+from app import try_auto_approve_pending
+stats = try_auto_approve_pending()
+if stats['auto_approved_count']:
+    print('auto-approve:', stats)
+" 2>&1 | grep -v '^$' >> $HEALTH_LOG
+
     # ─── 1c. DB-Backup (1× pro Tag, zwischen 3-5 Uhr nachts) ─────────
     if [ "$CURRENT_HOUR" -ge 3 ] && [ "$CURRENT_HOUR" -lt 5 ] && [ "$LAST_BACKUP_DATE" != "$CURRENT_DATE" ]; then
         echo "[$(date)] Daily-Backup wird ausgelöst" | tee -a $HEALTH_LOG

@@ -52,7 +52,15 @@
             <tbody>
                 {% for l in leads %}
                 <tr>
-                    <td><span style="font-size:12px;color:var(--text-muted)">{{ l.created_at[:16] }}</span></td>
+                    <td>
+                        <span style="font-size:12px;color:var(--text-muted)">{{ l.created_at[:16] }}</span>
+                        {# TIER C.3 — Alter-Pille bei alten ungetouchten Leads #}
+                        {% if l.status == 'neu' and l.hours_old > 48 %}
+                        <div style="margin-top:3px"><span class="status-badge" style="background:var(--red-soft);color:var(--red);font-size:10px">⏰ {{ (l.hours_old / 24)|round(1) }}T alt</span></div>
+                        {% elif l.status == 'neu' and l.hours_old > 24 %}
+                        <div style="margin-top:3px"><span class="status-badge" style="background:var(--orange-soft);color:var(--orange);font-size:10px">⏰ {{ l.hours_old|round(0) }}h alt</span></div>
+                        {% endif %}
+                    </td>
                     <td>
                         <strong>{{ l.name }}</strong>
                         <div style="font-size:11px;color:var(--text-muted)">📧 {{ l.email }}</div>
@@ -73,8 +81,10 @@
                     </td>
                     <td><span class="status-badge status-{{ l.status }}">{{ l.status }}</span></td>
                     <td style="white-space:nowrap">
-                        <a href="/leads/{{ l.id }}/edit" class="btn btn-secondary btn-sm">✎ Bearbeiten</a>
-                        {% if l.phone %}<a href="tel:{{ l.phone }}" class="btn btn-primary btn-sm">📞</a>{% endif %}
+                        <a href="/leads/{{ l.id }}/edit" class="btn btn-secondary btn-sm">✎</a>
+                        {# TIER C.3 — Quick-Termin (kein Tab-Switch mehr) #}
+                        <button type="button" onclick="quickTermin({{ l.id }}, '{{ l.name|e }}')" class="btn btn-primary btn-sm" title="Termin direkt anlegen">+📅</button>
+                        {% if l.phone %}<a href="tel:{{ l.phone }}" class="btn btn-secondary btn-sm">📞</a>{% endif %}
                         <a href="mailto:{{ l.email }}" class="btn btn-secondary btn-sm">✉</a>
                     </td>
                 </tr>
@@ -82,6 +92,73 @@
             </tbody>
         </table>
     </div>
+
+    {# Quick-Termin-Modal #}
+    <div id="qtModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(4px)" onclick="if(event.target===this) closeQT()">
+        <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:10px;padding:24px;max-width:420px;width:100%;box-shadow:var(--shadow-lg)">
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">Quick-Termin</div>
+            <div style="font-size:16px;color:var(--text);font-weight:700;margin-top:4px" id="qtName">—</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Lead-Daten werden automatisch übernommen</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setQTDate(0)">Heute</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setQTDate(1)">Morgen</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setQTDate(7)">Nächste Woche</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+                <input type="date" id="qtDate" style="flex:1">
+                <input type="time" id="qtTime" value="14:00" style="width:110px">
+            </div>
+            <div id="qtErr" style="display:none;margin-bottom:10px;padding:8px;background:var(--red-soft);color:var(--red);border-radius:6px;font-size:12px"></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" onclick="closeQT()" class="btn btn-secondary btn-sm">Abbrechen</button>
+                <button type="button" onclick="saveQT()" class="btn btn-primary btn-sm">Termin anlegen</button>
+            </div>
+        </div>
+    </div>
+    <script>
+      let _qtLeadId = null;
+      function quickTermin(leadId, name) {
+        _qtLeadId = leadId;
+        document.getElementById('qtName').textContent = name;
+        document.getElementById('qtErr').style.display = 'none';
+        setQTDate(1); // default morgen
+        document.getElementById('qtModal').style.display = 'flex';
+      }
+      function setQTDate(daysOffset) {
+        const d = new Date();
+        d.setDate(d.getDate() + daysOffset);
+        document.getElementById('qtDate').value = d.toISOString().slice(0, 10);
+      }
+      function closeQT() {
+        document.getElementById('qtModal').style.display = 'none';
+      }
+      async function saveQT() {
+        const date_v = document.getElementById('qtDate').value;
+        const time_v = document.getElementById('qtTime').value;
+        const err = document.getElementById('qtErr');
+        if (!date_v) { err.textContent = 'Datum fehlt.'; err.style.display = 'block'; return; }
+        try {
+          const res = await fetch(`/api/inbox/${_qtLeadId}/quick-termin`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ termin_date: date_v, termin_time: time_v })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            closeQT();
+            location.reload();
+          } else {
+            err.textContent = data.error || 'Fehler';
+            err.style.display = 'block';
+          }
+        } catch (e) {
+          err.textContent = 'Verbindungsfehler';
+          err.style.display = 'block';
+        }
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.getElementById('qtModal').style.display === 'flex') closeQT();
+      });
+    </script>
     {% else %}
     <div style="text-align:center;padding:48px 20px;color:var(--text-soft)">
         <div style="font-size:48px;margin-bottom:14px">📭</div>

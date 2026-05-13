@@ -4,6 +4,94 @@
 
 {% block content %}
 
+{# ═══ NAJIB-BRIEFING — konsolidierte Owner-Card ganz oben ═══ #}
+{% if najib_briefing %}
+{% set b = najib_briefing %}
+{% set _ampel_color = ('#34d399' if b.plan_ampel.ampel == 'gruen' else ('#f59e0b' if b.plan_ampel.ampel == 'gelb' else '#f87171')) %}
+{% set _ampel_bg = ('rgba(52,211,153,0.08)' if b.plan_ampel.ampel == 'gruen' else ('rgba(245,158,11,0.08)' if b.plan_ampel.ampel == 'gelb' else 'rgba(248,113,113,0.08)')) %}
+<div class="card" style="background:{{ _ampel_bg }};border-left:3px solid {{ _ampel_color }};margin-bottom:14px">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div>
+            <div style="font-size:11px;color:{{ _ampel_color }};text-transform:uppercase;letter-spacing:0.7px;font-weight:700">Owner-Briefing · Tag {{ b.plan_ampel.days_passed }}/{{ b.plan_ampel.days_in_month }}</div>
+            <div style="font-size:18px;font-weight:800;color:var(--text);margin-top:2px;letter-spacing:-0.3px">
+                {{ b.plan_ampel.eh_ist }} / {{ b.plan_ampel.monthly_target }} EH
+                <span style="font-size:13px;color:{{ _ampel_color }};font-weight:700;margin-left:6px">
+                    {% if b.plan_ampel.off_pace_pct >= 0 %}+{% endif %}{{ b.plan_ampel.off_pace_pct }}% vs Plan
+                </span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+                Soll heute: {{ b.plan_ampel.eh_soll_pace }} EH · Forecast Monatsende:
+                <strong style="color:{{ _ampel_color }}">{{ b.forecast_eom }} EH</strong>
+            </div>
+        </div>
+        <a href="/admin/owner-ziel" style="font-size:11px;color:var(--text-muted);text-decoration:none">⚙ Ziel</a>
+    </div>
+
+    {# 4-Spalten Mini-Grid #}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+
+        {# Heute persönlich #}
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-bottom:6px">▌ Heute persönlich ({{ b.heute_persoenlich|length }})</div>
+            {% if b.heute_persoenlich %}
+                {% for h in b.heute_persoenlich %}
+                <div style="font-size:12px;color:var(--text);margin-top:3px"><a href="{{ h.url }}" style="color:var(--text);text-decoration:none">{% if h.time %}{{ h.time }} · {% endif %}{{ h.title[:50] }}</a></div>
+                {% endfor %}
+            {% else %}
+                <div style="font-size:12px;color:var(--text-muted);font-style:italic">Nichts heute · freier Slot zum Akquirieren</div>
+            {% endif %}
+        </div>
+
+        {# Heute eskalieren #}
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-bottom:6px">▌ Heute eskalieren ({{ b.heute_eskalieren|length }})</div>
+            {% if b.heute_eskalieren %}
+                {% for e in b.heute_eskalieren %}
+                <div style="font-size:12px;color:var(--text);margin-top:3px">
+                    <a href="{{ e.url }}" style="color:{% if e.severity == 'rot' %}var(--red){% else %}var(--text){% endif %};text-decoration:none">
+                        {% if e.severity == 'rot' %}🔴{% else %}🟡{% endif %} {{ e.title[:55] }}
+                    </a>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="font-size:12px;color:var(--green);font-weight:600">✓ Alles unter Kontrolle</div>
+            {% endif %}
+        </div>
+
+        {# Geld blockiert #}
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-bottom:6px">▌ Geld liegen geblieben</div>
+            {% if b.geld_blockiert.anzahl > 0 %}
+            <div style="font-size:18px;font-weight:800;color:var(--red);letter-spacing:-0.3px">~{{ "{:,.0f}".format(b.geld_blockiert.eur).replace(",", ".") }} €</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                <a href="/vertraege" style="color:var(--text-muted);text-decoration:none">{{ b.geld_blockiert.anzahl }} Verträge in Recherche &gt;7T →</a>
+            </div>
+            {% else %}
+            <div style="font-size:13px;color:var(--green);font-weight:600">✓ Keine Recherche &gt;7T</div>
+            {% endif %}
+        </div>
+
+        {# Neu in 24h ungetoucht #}
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:10px 12px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-bottom:6px">▌ Neu (24h, ungetoucht)</div>
+            {% if b.neu_24h.leads or b.neu_24h.inbox_alt or b.neu_24h.klicks_lost %}
+            {% if b.neu_24h.leads %}<div style="font-size:12px;color:var(--text);margin-top:3px">
+                <a href="/admin/inbox" style="color:var(--text);text-decoration:none">{{ b.neu_24h.leads }} Lead{% if b.neu_24h.leads != 1 %}s{% endif %} via /start</a>
+            </div>{% endif %}
+            {% if b.neu_24h.inbox_alt %}<div style="font-size:12px;color:var(--orange);margin-top:3px">
+                <a href="/admin/inbox?typ=rk" style="color:var(--orange);text-decoration:none">{{ b.neu_24h.inbox_alt }} Bewerber &gt;48h ohne Status</a>
+            </div>{% endif %}
+            {% if b.neu_24h.klicks_lost %}<div style="font-size:11px;color:var(--text-muted);margin-top:3px">{{ b.neu_24h.klicks_lost }} Lead-Klicks ohne Anmeldung</div>{% endif %}
+            {% else %}
+            <div style="font-size:13px;color:var(--text-muted)">Nichts Neues</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endif %}
+
 {# TIER 1.5 — Today-Pace-Banner für Admin (eigene Aktivität) #}
 {% if today_pace %}
 {% set _bg = 'linear-gradient(135deg,#7f1d1d 0%,#1a2c5b 100%)' if today_pace.status == 'rot' else

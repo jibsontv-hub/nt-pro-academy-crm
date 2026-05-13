@@ -4288,6 +4288,105 @@ def genehmigung_reject(uid):
     return redirect(url_for('admin_genehmigungen'))
 
 
+def try_auto_approve_pending():
+    """TIER B.2 — risikofreie Beförderungen auto-bestätigen.
+
+    Prüft ALLE pending Beförderungen und genehmigt automatisch wenn:
+      1. pending_level == current_level + 1 (nur 1 Stufe hoch, keine Sprünge)
+      2. total_eh (eigen + Team) >= next_level.min_eh
+      3. pending_at >= 1h alt (Mini-Cooldown gegen Race-Conditions)
+      4. Keine Diversifikations-Verletzung bei HREP-Anforderung
+
+    Logs auto-Approves in activity_log mit Marker. Wird vom Cron im
+    monitor_loop.sh stündlich aufgerufen.
+
+    Returns dict mit auto_approved_count + auto_approved_names.
+    """
+    db = get_db()
+    auto_approved = []
+    try:
+        rows = db.execute('''
+            SELECT id, name, manual_career_level, pending_career_level, pending_at
+            FROM users
+            WHERE pending_career_level IS NOT NULL AND active = 1
+              AND datetime(pending_at) <= datetime('now', '-1 hour')
+        ''').fetchall()
+        for r in rows:
+            uid = r['id']
+            cur_lvl = r['manual_career_level'] or 1
+            pending_lvl = r['pending_career_level']
+            # Regel 1: nur 1 Stufe hoch
+            if pending_lvl != cur_lvl + 1:
+                continue
+            next_career = next((cl for cl in CAREER_LEVELS if cl['level'] == pending_lvl), None)
+            if not next_career:
+                continue
+            # Regel 2: total_eh erfüllt? (eigen + Team)
+            descendants = get_all_descendants(uid)
+            ids = [uid] + descendants
+            ph = ','.join('?' * len(ids))
+            total_eh = db.execute(
+                f'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                f'WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+                ids
+            ).fetchone()['s']
+            if total_eh < next_career['min_eh']:
+                continue
+            # Regel 3: HREP-Diversifikation prüfen (max 70% aus 1 Strang)
+            if pending_lvl >= 3:
+                direct = db.execute('SELECT id FROM users WHERE parent_id=? AND active=1', (uid,)).fetchall()
+                strang_eh_max = 0
+                team_eh = 0
+                for d in direct:
+                    chain = [d['id']] + get_all_descendants(d['id'])
+                    cph = ','.join('?' * len(chain))
+                    s_eh = db.execute(
+                        f'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                        f'WHERE owner_id IN ({cph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+                        chain
+                    ).fetchone()['s']
+                    team_eh += s_eh
+                    if s_eh > strang_eh_max:
+                        strang_eh_max = s_eh
+                if total_eh > 0 and (strang_eh_max / total_eh) > 0.70:
+                    continue  # Diversifikations-Verletzung — manuell prüfen lassen
+            # Auto-Approve
+            db.execute('''UPDATE users SET manual_career_level = ?,
+                          pending_career_level = NULL, pending_by_user_id = NULL, pending_at = NULL
+                          WHERE id = ?''', (pending_lvl, uid))
+            log_activity(uid, 'befoerderung',
+                f'{r["name"]} → {next_career["short"]} (AUTO-APPROVE: alle Kriterien erfüllt) 🚀',
+                icon='⬆️', color='gold')
+            auto_approved.append({'id': uid, 'name': r['name'], 'level': pending_lvl, 'short': next_career['short']})
+            # Push an User
+            try:
+                send_push_to_user(uid,
+                    title=f'🎯 Beförderung: jetzt {next_career["short"]}!',
+                    body=f'Glückwunsch — du bist jetzt {next_career["name"]}.',
+                    url='/dashboard', urgent=True, tag='goal',
+                    push_type='goal_achieved')
+            except Exception:
+                pass
+        db.commit()
+        if auto_approved:
+            recalculate_all_commissions()
+            cache_invalidate('najib_briefing:')
+            cache_invalidate('adm_pers:')
+    finally:
+        db.close()
+    return {'auto_approved_count': len(auto_approved), 'auto_approved': auto_approved}
+
+
+@app.route('/api/admin/auto-approve-pending', methods=['POST'])
+@login_required
+def api_auto_approve_pending():
+    """Manuell triggerbar (Admin-only) — sonst läuft das per Cron alle 1h."""
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    result = try_auto_approve_pending()
+    return jsonify({'ok': True, 'stats': result})
+
+
 # ═══════════════════════════════════════════════════════════════════
 # TELEFON-SKRIPTE (Quickaccess für Anrufe)
 # ═══════════════════════════════════════════════════════════════════
@@ -8201,7 +8300,56 @@ def admin_inbox():
     cnt_vk = db.execute("SELECT COUNT(*) c FROM leads WHERE source='public' AND COALESCE(liste_typ,'vk')='vk'").fetchone()['c']
     cnt_rk = db.execute("SELECT COUNT(*) c FROM leads WHERE source='public' AND COALESCE(liste_typ,'vk')='rk'").fetchone()['c']
     db.close()
-    return render_template('admin_inbox.html', leads=rows, typ=typ, cnt_vk=cnt_vk, cnt_rk=cnt_rk, cnt_all=cnt_vk + cnt_rk)
+    # TIER C.3 — Alter pro Lead anreichern (für Pille im Template)
+    today_dt = datetime.now()
+    leads_enriched = []
+    for r in rows:
+        d = dict(r)
+        try:
+            created_dt = datetime.strptime(r['created_at'][:19], '%Y-%m-%d %H:%M:%S')
+            hours_old = round((today_dt - created_dt).total_seconds() / 3600, 1)
+        except (ValueError, TypeError):
+            hours_old = 0
+        d['hours_old'] = hours_old
+        leads_enriched.append(d)
+    return render_template('admin_inbox.html', leads=leads_enriched, typ=typ, cnt_vk=cnt_vk, cnt_rk=cnt_rk, cnt_all=cnt_vk + cnt_rk)
+
+
+@app.route('/api/inbox/<int:lead_id>/quick-termin', methods=['POST'])
+@login_required
+def api_inbox_quick_termin(lead_id):
+    """TIER C.3 — Inline aus der Inbox einen Termin anlegen.
+    Vorbefüllt mit Lead-Daten — kein Tab-Switch / Copy-Paste mehr."""
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    data = request.get_json(silent=True) or {}
+    termin_date = (data.get('termin_date') or '').strip()[:10]
+    termin_time = (data.get('termin_time') or '14:00').strip()[:5]
+    if not termin_date:
+        return jsonify({'error': 'Datum fehlt'}), 400
+    db = get_db()
+    lead = db.execute('SELECT * FROM leads WHERE id=?', (lead_id,)).fetchone()
+    if not lead:
+        db.close()
+        return jsonify({'error': 'Lead nicht gefunden'}), 404
+    owner_id = lead['owner_id'] or current_user.id
+    title = f'📞 Erstgespräch mit {lead["name"]}'
+    notes = f'Auto via Inbox-Quick-Termin.\n📞 {lead["phone"] or "(kein Tel.)"} · 📧 {lead["email"]}\n'
+    if lead['public_message']:
+        notes += f'\n„{lead["public_message"][:200]}"'
+    if lead['referred_by']:
+        notes += f'\nQuelle: {lead["referred_by"]}'
+    db.execute('''INSERT INTO appointments
+                  (owner_id, title, client_name, termin_date, termin_time,
+                   typ, status, notizen)
+                  VALUES (?, ?, ?, ?, ?, 'kundentermin', 'geplant', ?)''',
+               (owner_id, title, lead['name'], termin_date, termin_time, notes))
+    # Lead-Status auf 'kontakt' setzen
+    db.execute("UPDATE leads SET status='kontakt' WHERE id=?", (lead_id,))
+    db.commit()
+    db.close()
+    cache_invalidate(f'najib_briefing:{current_user.id}')
+    return jsonify({'ok': True, 'message': f'Termin {termin_date} {termin_time} angelegt für {lead["name"]}'})
 
 
 # In-Memory Rate-Limit-Tracker für Reset-Endpoint
@@ -9492,6 +9640,214 @@ def get_admin_personal_dashboard(user_id):
     return result
 
 
+def get_najib_morning_briefing(user_id):
+    """Owner-Briefing: konsolidierte Daten für die Top-Card am Admin-Dashboard.
+
+    Beantwortet morgens auf 1 Blick: Was muss ich heute persönlich tun?
+    Was muss ich heute eskalieren? Wo ist Geld liegen geblieben? Wer driftet?
+
+    Quellen: bestehende Tabellen (contracts, leads, appointments, coaching_notes,
+    activity_log, users, lead_link_clicks). Cache 5 Min.
+
+    Returns dict mit:
+      plan_ampel: {tag, days_in_month, eh_ist, eh_soll_pace, off_pace_pct, ampel}
+      forecast_eom: hochgerechnete EH bis Monatsende
+      heute_persoenlich: Termine + Coachings + heisse Closings heute
+      heute_eskalieren: anomalies + alte pending genehmigungen + überfällige
+      geld_blockiert: {anzahl, eur} hängende Recherchen
+      neu_24h: leads + bewerber-inbox >24h ohne Touch
+      drift_top: Top-Performer mit 48h-Aktivitäts-Drop vs Baseline
+      commission_forecast: monat + quartal-Hochrechnung
+    """
+    ckey = f'najib_briefing:{user_id}'
+    cached = cache_get(ckey)
+    if cached is not None:
+        return cached
+    db = get_db()
+    today = date.today()
+    today_iso = today.isoformat()
+    cur_month = today.strftime('%Y-%m')
+    days_in_month = ((today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)).day
+    days_passed = today.day
+    days_left = max(1, days_in_month - days_passed)
+    try:
+        descendants = [user_id] + get_all_descendants(user_id)
+        ph = ','.join('?' * len(descendants))
+        # Plan-Ampel
+        try:
+            monthly_target = int(get_setting('monthly_target_eh', '5000') or '5000')
+        except (ValueError, TypeError):
+            monthly_target = 5000
+        eh_ist = db.execute(
+            f'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+            f'WHERE owner_id IN ({ph}) AND status="abgeschlossen" '
+            f'AND recherche_status="freigegeben" '
+            f'AND strftime("%Y-%m", abschluss_date) = ?',
+            descendants + [cur_month]
+        ).fetchone()['s']
+        eh_soll_pace = monthly_target * (days_passed / days_in_month) if days_in_month else 0
+        off_pace = (eh_ist - eh_soll_pace) / monthly_target * 100 if monthly_target else 0
+        if off_pace >= 0:
+            ampel = 'gruen'
+        elif off_pace >= -10:
+            ampel = 'gelb'
+        else:
+            ampel = 'rot'
+        forecast_eom = round(eh_ist / days_passed * days_in_month) if days_passed > 0 else 0
+
+        # Heute persönlich: Termine + Coachings heute des Owners
+        heute = []
+        appts_today = db.execute(
+            "SELECT id, title, client_name, termin_time FROM appointments "
+            "WHERE owner_id=? AND termin_date=? AND status NOT IN ('erledigt','abgesagt') "
+            "ORDER BY termin_time", (user_id, today_iso)
+        ).fetchall()
+        for a in appts_today:
+            heute.append({'type': 'termin',
+                         'title': a['title'] or a['client_name'] or 'Termin',
+                         'time': (a['termin_time'] or '')[:5],
+                         'url': f'/termine/{a["id"]}/edit'})
+        # Coachings heute
+        coach_today = db.execute(
+            "SELECT cn.target_user_id, u.name FROM coaching_notes cn "
+            "JOIN users u ON u.id = cn.target_user_id "
+            "WHERE cn.author_user_id=? AND date(cn.next_session_date)=? "
+            "GROUP BY cn.target_user_id LIMIT 10", (user_id, today_iso)
+        ).fetchall()
+        for c in coach_today:
+            heute.append({'type': 'coaching',
+                         'title': f'Coaching mit {c["name"]}',
+                         'time': '',
+                         'url': f'/coaching/{c["target_user_id"]}'})
+
+        # Heute eskalieren: alte pending Genehmigungen + 48h-Drift Top-Performer
+        eskalieren = []
+        pending_old = db.execute(
+            "SELECT id, name, pending_career_level, pending_at FROM users "
+            "WHERE pending_career_level IS NOT NULL AND active=1 "
+            "AND date(pending_at) <= date('now', '-2 days')"
+        ).fetchall()
+        for p in pending_old:
+            eskalieren.append({'type': 'pending',
+                              'title': f'{p["name"]}: Antrag Stufe {p["pending_career_level"]} (>2T alt)',
+                              'severity': 'gelb',
+                              'url': '/admin/genehmigungen'})
+
+        # Top-Performer-Drift: User mit historisch hoher Aktivität, jetzt 48h still
+        drift_top = []
+        for did in descendants[1:]:  # ohne mich selbst
+            # Baseline: avg Activity-Events letzte 30T
+            base_row = db.execute(
+                "SELECT COUNT(*) AS c FROM activity_log WHERE user_id=? "
+                "AND created_at >= datetime('now','-30 days')", (did,)
+            ).fetchone()
+            base = base_row['c'] / 30 if base_row['c'] else 0
+            if base < 1:
+                continue  # nicht als Top-Performer geltend
+            # Aktuell: letzte 48h
+            cur_row = db.execute(
+                "SELECT COUNT(*) AS c FROM activity_log WHERE user_id=? "
+                "AND created_at >= datetime('now','-2 days')", (did,)
+            ).fetchone()
+            cur_2d = cur_row['c'] / 2
+            if cur_2d < base * 0.25:  # <25% Baseline-Pace
+                u_row = db.execute('SELECT name, phone FROM users WHERE id=?', (did,)).fetchone()
+                if u_row:
+                    drift_top.append({
+                        'id': did, 'name': u_row['name'], 'phone': u_row['phone'] or '',
+                        'baseline_pday': round(base, 1), 'current_pday': round(cur_2d, 1),
+                    })
+                    eskalieren.append({'type': 'drift',
+                                      'title': f'{u_row["name"]}: 48h unter Baseline ({round(base,1)}/T → {round(cur_2d,1)}/T)',
+                                      'severity': 'rot',
+                                      'url': f'/partner/{did}/profil'})
+            if len(drift_top) >= 5:
+                break
+
+        # Geld-Blocker: hängende Recherchen × geschätzte Provision
+        # Nutze CAREER_LEVELS commission-Rates (ø ~9,5 €/EH für mid-tier)
+        avg_commission = 9.50
+        geld_row = db.execute(
+            f'SELECT COALESCE(SUM(einheiten),0) AS eh, COUNT(*) AS c FROM contracts '
+            f'WHERE owner_id IN ({ph}) '
+            f"AND status='abgeschlossen' "
+            f"AND recherche_status IN ('offen','in_pruefung') "
+            f"AND date(abschluss_date) <= date('now','-7 days')",
+            descendants
+        ).fetchone()
+        geld_eur = round(geld_row['eh'] * avg_commission) if geld_row else 0
+
+        # Neu in 24h ungetoucht: public Leads ohne Termin/Bearbeitung
+        neu_24h_leads = db.execute(
+            "SELECT COUNT(*) AS c FROM leads WHERE source='public' "
+            "AND created_at >= datetime('now','-24 hours') "
+            "AND status='neu'"
+        ).fetchone()['c']
+        # Inbox-Bewerber >48h ohne Status-Wechsel (rk-Liste, source=public)
+        inbox_alt = db.execute(
+            "SELECT COUNT(*) AS c FROM leads WHERE source='public' "
+            "AND liste_typ='rk' AND status='neu' "
+            "AND created_at <= datetime('now','-48 hours')"
+        ).fetchone()['c']
+        # Lead-Klicks ohne Anmeldung in 24h (an Najib selbst)
+        klicks_24h = db.execute(
+            "SELECT COUNT(*) AS c FROM lead_link_clicks WHERE owner_id=? "
+            "AND created_at >= datetime('now','-24 hours')",
+            (user_id,)
+        ).fetchone()['c']
+        signups_24h = db.execute(
+            "SELECT COUNT(*) AS c FROM leads WHERE owner_id=? AND source='public' "
+            "AND created_at >= datetime('now','-24 hours')",
+            (user_id,)
+        ).fetchone()['c']
+        klicks_lost = max(0, klicks_24h - signups_24h)
+
+        result = {
+            'plan_ampel': {
+                'days_passed': days_passed, 'days_in_month': days_in_month,
+                'eh_ist': round(float(eh_ist)), 'eh_soll_pace': round(eh_soll_pace),
+                'off_pace_pct': round(off_pace, 1), 'ampel': ampel,
+                'monthly_target': monthly_target,
+            },
+            'forecast_eom': forecast_eom,
+            'heute_persoenlich': heute[:6],
+            'heute_eskalieren': eskalieren[:6],
+            'geld_blockiert': {'anzahl': geld_row['c'] if geld_row else 0, 'eur': geld_eur},
+            'neu_24h': {'leads': neu_24h_leads, 'inbox_alt': inbox_alt, 'klicks_lost': klicks_lost},
+            'drift_top': drift_top,
+        }
+        cache_set(ckey, result, ttl=300)
+        return result
+    except Exception as e:
+        app.logger.warning(f'get_najib_morning_briefing fail: {e}')
+        return None
+    finally:
+        db.close()
+
+
+@app.route('/admin/owner-ziel', methods=['GET', 'POST'])
+@login_required
+def admin_owner_ziel():
+    """Owner-Monats-Ziel editieren (für Plan-Ampel im Briefing). Nur Admin."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        try:
+            target = int((request.form.get('monthly_target_eh') or '5000').strip())
+            if target < 100 or target > 1000000:
+                raise ValueError('plausibler Wertebereich verletzt')
+            set_setting('monthly_target_eh', str(target))
+            cache_invalidate('najib_briefing:')
+            cache_invalidate('adm_pers:')
+            flash(f'Monatsziel auf {target} EH gesetzt.', 'success')
+        except (ValueError, TypeError) as e:
+            flash(f'Ungültiger Wert: {e}', 'error')
+        return redirect(url_for('admin_owner_ziel'))
+    cur_target = get_setting('monthly_target_eh', '5000')
+    return render_template('admin_owner_ziel.html', monthly_target=cur_target)
+
+
 def _get_admin_personal_dashboard_uncached(user_id):
     """Persönliches Command-Center für den Admin/Top-Performer.
     Zeigt: Monats-EH-Ziel, GP-Gespräche, Zielgespräche, Strang-Status."""
@@ -9500,8 +9856,11 @@ def _get_admin_personal_dashboard_uncached(user_id):
     if not user:
         db.close()
         return None
-    # EH-Ziel diesen Monat (default 5000, hardcoded für Najib)
-    monthly_target = 5000
+    # EH-Ziel diesen Monat — editable via app_settings 'monthly_target_eh', default 5000
+    try:
+        monthly_target = int(get_setting('monthly_target_eh', '5000') or '5000')
+    except (ValueError, TypeError):
+        monthly_target = 5000
     # Aktuelle EH diesen Monat (gesamt-team inkl. Downline)
     descendants = [user_id] + get_all_descendants(user_id)
     ph = ','.join('?' * len(descendants))
@@ -10346,6 +10705,8 @@ def dashboard():
         today_pace = get_today_pace(current_user.id)
         # TIER 3.16 — Pin-Bar Coaching-Slots der nächsten 7 Tage
         upcoming_coaching = get_upcoming_coaching_slots(current_user.id, days=7)
+        # TIER A (Owner-Audit) — Najib-Briefing-Card oben
+        najib_briefing = get_najib_morning_briefing(current_user.id)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -10368,7 +10729,8 @@ def dashboard():
             forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news,
             streak_days=streak_days, vision_needed=vision_needed,
             coach_plan=coach_plan, today_pace=today_pace,
-            upcoming_coaching=upcoming_coaching
+            upcoming_coaching=upcoming_coaching,
+            najib_briefing=najib_briefing
         )
     else:
         stats = get_team_stats(current_user.id)

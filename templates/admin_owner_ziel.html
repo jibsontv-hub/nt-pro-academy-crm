@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Owner-Monatsziel · Pro Academy{% endblock %}
+{% block page_title %}Mein Monatsziel{% endblock %}
+
+{% block content %}
+<div style="max-width:520px;margin:0 auto">
+  <div class="card" style="border-left:3px solid var(--gold)">
+    <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Plan-Ampel basiert hierauf</div>
+    <div style="font-size:14px;color:var(--text-muted);margin-top:6px;line-height:1.55">
+      Das Briefing oben am Dashboard rechnet jeden Tag ob du noch im Soll bist.
+      <strong style="color:var(--text)">Tag-Pace = Ziel × (Tag/Monatslänge)</strong>.
+      Grün wenn du drüber bist, Gelb wenn ≤10% drunter, Rot wenn >10% drunter.
+    </div>
+
+    <form method="POST" style="margin-top:18px">
+      <div class="form-group">
+        <label>Gesamt-EH-Ziel pro Monat (eigen + Team)</label>
+        <input type="number" name="monthly_target_eh" value="{{ monthly_target }}" min="100" max="1000000" step="50" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Speichern</button>
+      <a href="/dashboard" class="btn btn-secondary">Abbrechen</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

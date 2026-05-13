@@ -41,10 +41,11 @@ else
     # Stale-Flask killen falls Port belegt — sonst greift unser Code-Update
     # (inkl. EMAIL_E2E_NO_SEND-Schutz) nicht und die alte Instanz beantwortet
     # die Test-Requests mit altem Code.
-    STALE_PIDS=$(lsof -ti:$PORT 2>/dev/null)
+    # WICHTIG: lsof exit-code 1 wenn nichts gefunden — würde sonst set -e triggern
+    STALE_PIDS=$(lsof -ti:$PORT 2>/dev/null || true)
     if [ -n "$STALE_PIDS" ]; then
         echo "   ⚠ Port $PORT belegt von PID(s) $STALE_PIDS — werden gekillt"
-        echo "$STALE_PIDS" | xargs kill -9 2>/dev/null
+        echo "$STALE_PIDS" | xargs kill -9 2>/dev/null || true
         sleep 1
     fi
     # Wichtig: EMAIL_E2E_NO_SEND=1 verhindert dass der Email-E2E-Agent
