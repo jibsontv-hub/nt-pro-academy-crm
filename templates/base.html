@@ -1705,13 +1705,13 @@
             if (_achievementsQueue.length > 1) {
                 counter.textContent = `${_achievementIdx+1} von ${_achievementsQueue.length} neuen Trophäen`;
                 nextBtn.style.display = (_achievementIdx < _achievementsQueue.length - 1) ? 'inline-block' : 'none';
-                nextBtn.onclick = () => { _achievementIdx++; showAchievement(); };
+                nextBtn.onclick = () => { _achievementIdx++; showAchievement(); fireConfetti(); };
             } else {
                 counter.textContent = '';
                 nextBtn.style.display = 'none';
             }
             document.getElementById('achievementModal').style.display = 'flex';
-            // Confetti deaktiviert — business-grade
+            fireConfetti();
         }
         function closeAchievementModal() {
             document.getElementById('achievementModal').style.display = 'none';
@@ -1721,12 +1721,61 @@
             _achievementsQueue = []; _achievementIdx = 0;
         }
 
-        // Confetti deaktiviert — wir sind ein Business-CRM, kein Pokemon-Sammelspiel.
-        // Stubs bleiben damit alte Aufrufe nicht crashen.
-        function fireConfetti() { /* no-op — entfernt für serious-business Look */ }
-        function stopConfetti() {
+        // Confetti Engine — bleibt drin, weil Trophäen sich wie Trophäen anfühlen sollen
+        let _confettiAnim = null;
+        function fireConfetti() {
             const cv = document.getElementById('confettiCanvas');
-            if (cv) cv.style.display = 'none';
+            cv.style.display = 'block';
+            cv.width = window.innerWidth; cv.height = window.innerHeight;
+            const ctx = cv.getContext('2d');
+            const colors = ['#d4a843','#b8902e','#3b82f6','#10b981','#a78bfa','#f59e0b','#ec4899'];
+            const particles = [];
+            for (let i=0; i<150; i++) {
+                particles.push({
+                    x: window.innerWidth/2 + (Math.random()-0.5)*100,
+                    y: window.innerHeight/2,
+                    vx: (Math.random()-0.5)*16,
+                    vy: -Math.random()*16 - 4,
+                    size: Math.random()*6 + 4,
+                    color: colors[Math.floor(Math.random()*colors.length)],
+                    rot: Math.random()*Math.PI,
+                    vrot: (Math.random()-0.5)*0.4,
+                    gravity: 0.4
+                });
+            }
+            cancelAnimationFrame(_confettiAnim);
+            const start = Date.now();
+            function frame() {
+                ctx.clearRect(0,0,cv.width,cv.height);
+                let alive = 0;
+                particles.forEach(p => {
+                    p.vy += p.gravity;
+                    p.x += p.vx; p.y += p.vy;
+                    p.rot += p.vrot;
+                    if (p.y < cv.height + 30) {
+                        alive++;
+                        ctx.save();
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.rot);
+                        ctx.fillStyle = p.color;
+                        ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+                        ctx.restore();
+                    }
+                });
+                if (alive > 0 && Date.now() - start < 4500) {
+                    _confettiAnim = requestAnimationFrame(frame);
+                } else {
+                    stopConfetti();
+                }
+            }
+            frame();
+        }
+        function stopConfetti() {
+            cancelAnimationFrame(_confettiAnim);
+            const cv = document.getElementById('confettiCanvas');
+            const ctx = cv.getContext('2d');
+            ctx.clearRect(0,0,cv.width,cv.height);
+            cv.style.display = 'none';
         }
         // Auto-Check beim Pageload
         setTimeout(fetchAchievements, 800);
