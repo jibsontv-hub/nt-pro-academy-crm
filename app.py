@@ -12041,6 +12041,8 @@ def _get_admin_personal_dashboard_uncached(user_id):
         'gp_count': gp_count,
         'zg_count': zg_count,
         'strang_status': strang_status,
+        'cur_month_num': today_d.month,
+        'cur_month_iso': cur_month,
     }
 
 
@@ -13037,10 +13039,20 @@ def lead_edit(lead_id):
 @login_required
 def lead_delete(lead_id):
     db = get_db()
+    # Liste-Typ holen damit wir nach dem Löschen auf die richtige Liste zurück können
+    lead = db.execute('SELECT liste_typ, owner_id FROM leads WHERE id = ?', (lead_id,)).fetchone()
+    # Permission: nur eigener Lead oder Admin
+    if lead and lead['owner_id'] != current_user.id and not current_user.has_admin_access:
+        db.close()
+        flash('Keine Berechtigung.', 'error')
+        return redirect(url_for('namensliste'))
     db.execute('DELETE FROM leads WHERE id = ?', (lead_id,))
     db.commit()
     db.close()
-    return redirect(url_for('leads'))
+    flash('Kontakt gelöscht.', 'success')
+    # Zurück auf die Namensliste mit dem richtigen Typ-Filter
+    typ = (lead['liste_typ'] if lead else None) or 'vk'
+    return redirect(url_for('namensliste', typ=typ))
 
 
 # === VERTRÄGE ===

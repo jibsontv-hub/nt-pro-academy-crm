@@ -134,6 +134,9 @@
                         <a href="https://wa.me/{{ l.phone | replace(' ','') | replace('+','') | replace('-','') }}" target="_blank" class="btn btn-secondary btn-sm" title="WhatsApp">WA</a>
                         {% endif %}
                         <a href="/leads/{{ l.id }}/edit" class="btn btn-secondary btn-sm">Öffnen</a>
+                        <form method="POST" action="/leads/{{ l.id }}/delete" style="display:inline" onsubmit="return confirm('Kontakt „{{ l.name }}“ wirklich löschen?')">
+                            <button type="submit" class="btn btn-sm" style="background:var(--red,#ef4444);color:#fff;border-color:var(--red,#ef4444)" title="Löschen">×</button>
+                        </form>
                     </td>
                 </tr>
                 {% else %}

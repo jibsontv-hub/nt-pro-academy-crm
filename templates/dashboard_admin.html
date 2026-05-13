@@ -282,31 +282,40 @@
 </style>
 
 <!-- ============================================
-     ⚡ JIBSON-COMMAND-CENTER — Personal-Coach
+     ⚡ MONATSZIEL — aktueller Monat: Soll vs. Ist + %
+     User-Wunsch: 'Monatsziel + erreicht + %' wie oben mit Prozentzahlen
      ============================================ -->
 {% if admin_personal %}
+{% set _month_names = ['','Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'] %}
 <div class="card" style="background:linear-gradient(135deg,#0f1c3f,#1a2c5b 60%,#0a132d);color:#fff;border:none;position:relative;overflow:hidden;padding:26px 24px">
     <div style="position:absolute;right:-80px;top:-80px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,67,0.3),transparent 70%)"></div>
     <div style="position:relative;z-index:1">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
             <div>
-                <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1.5px;font-weight:800">⚡ Command Center · Monatsziel</div>
-                <div style="font-size:30px;font-weight:900;letter-spacing:-0.7px;line-height:1.1;margin-top:4px">
-                    <span style="color:#d4a843"><span class="counter" data-target="{{ admin_personal.eh_this_month|int }}">0</span></span> / {{ "{:,.0f}".format(admin_personal.monthly_target).replace(",", ".") }} EH
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1.5px;font-weight:800">
+                    🎯 Monatsziel · {{ _month_names[admin_personal.cur_month_num] if admin_personal.cur_month_num else 'aktuell' }}
+                    <a href="/admin/owner-ziel" style="color:rgba(255,255,255,0.4);text-decoration:none;font-weight:600;font-size:10px;margin-left:6px" title="Monatsziel anpassen">[ändern]</a>
                 </div>
-                <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:6px">
+                <div style="font-size:32px;font-weight:900;letter-spacing:-0.7px;line-height:1.1;margin-top:6px">
+                    <span style="color:#d4a843"><span class="counter" data-target="{{ admin_personal.eh_this_month|int }}">0</span></span>
+                    <span style="color:rgba(255,255,255,0.4);font-weight:600;font-size:24px"> / </span>
+                    <span style="color:#fff">{{ "{:,.0f}".format(admin_personal.monthly_target).replace(",", ".") }}</span>
+                    <span style="font-size:18px;color:rgba(255,255,255,0.5);font-weight:600">EH</span>
+                </div>
+                <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:8px">
                     {% if admin_personal.eh_remaining > 0 %}
-                    Noch <strong style="color:#fff">{{ "{:,.0f}".format(admin_personal.eh_remaining).replace(",", ".") }} EH</strong> in {{ admin_personal.days_left }} Tagen — das sind <strong style="color:#d4a843">{{ admin_personal.eh_per_day_needed }} EH/Tag</strong> pro Bereich
+                    Noch <strong style="color:#fff">{{ "{:,.0f}".format(admin_personal.eh_remaining).replace(",", ".") }} EH</strong> in {{ admin_personal.days_left }} Tagen
+                    — <strong style="color:#d4a843">{{ admin_personal.eh_per_day_needed }} EH/Tag</strong> pro Bereich
                     {% else %}
-                    🏆 <strong style="color:#34d399">Ziel erreicht!</strong> Jetzt drauflegen — die nächste Stufe wartet.
+                    🏆 <strong style="color:#34d399">Monatsziel erreicht!</strong> Jetzt drauflegen — nächste Stufe.
                     {% endif %}
                 </div>
             </div>
             <div style="text-align:right">
-                <div style="font-size:36px;font-weight:900;color:#d4a843;letter-spacing:-1px;line-height:1">
+                <div style="font-size:42px;font-weight:900;color:#d4a843;letter-spacing:-1px;line-height:1">
                     {{ admin_personal.pct }}%
                 </div>
-                <div style="font-size:11px;color:rgba(255,255,255,0.6)">Tag {{ admin_personal.days_passed }}/{{ admin_personal.days_in_month }}</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px">Tag {{ admin_personal.days_passed }} von {{ admin_personal.days_in_month }}</div>
             </div>
         </div>
 
