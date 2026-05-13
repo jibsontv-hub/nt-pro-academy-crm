@@ -8,28 +8,16 @@
 
 {# TIER 1.5 — HEUTE-SOLL-vs-IST Banner: ganz oben, vor allem anderen.
    Zeigt Tagessoll aus weekly_goals/7 vs heute-Ist. Status: rot/gelb/grün. #}
-{% if today_pace %}
-{% set _bg = 'linear-gradient(135deg,#7f1d1d 0%,#1a2c5b 100%)' if today_pace.status == 'rot' else
-             ('linear-gradient(135deg,#92400e 0%,#1a2c5b 100%)' if today_pace.status == 'gelb' else
-              'linear-gradient(135deg,#065f46 0%,#1a2c5b 100%)') %}
-{% set _ic = '⚠' if today_pace.status == 'rot' else ('◷' if today_pace.status == 'gelb' else '✓') %}
-{% set _msg = ('Du bist hinten dran — leg jetzt los' if today_pace.status == 'rot' else
-              ('Du schaffst das — noch ein bisschen' if today_pace.status == 'gelb' else
-               'Tagessoll erreicht — weiter so')) %}
-<a href="/aufgaben" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:{{ _bg }};color:#fff;border-radius:8px;text-decoration:none;margin-bottom:14px;border-left:3px solid var(--gold)">
-  <div style="font-size:22px">{{ _ic }}</div>
-  <div style="flex:1;min-width:0">
-    <div style="font-size:11px;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Heute-Pflicht</div>
-    <div style="font-size:15px;font-weight:700;margin-top:2px">
-      {% if today_pace.anrufe_soll %}{{ today_pace.anrufe_ist }}/{{ today_pace.anrufe_soll }} Anrufe{% endif %}
-      {% if today_pace.anrufe_soll and today_pace.termine_soll %} · {% endif %}
-      {% if today_pace.termine_soll %}{{ today_pace.termine_ist }}/{{ today_pace.termine_soll }} Termine{% endif %}
+{# Today-Pace-Banner ersetzt durch /heute-Verweis: jetzt im DMO-Counter dort. #}
+<a href="/heute" style="display:block;text-decoration:none;background:linear-gradient(135deg,rgba(34,197,94,0.18),rgba(34,197,94,0.06));border:1px solid #22c55e40;border-left:3px solid #22c55e;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:var(--text)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div>
+            <div style="font-size:11px;color:#16a34a;text-transform:uppercase;letter-spacing:0.6px;font-weight:800">⚡ Heute-Modus</div>
+            <div style="font-size:14px;font-weight:700;margin-top:2px">Was du JETZT zu tun hast — eine Karte nach der anderen</div>
+        </div>
+        <div style="font-size:14px;color:#16a34a;font-weight:800">→</div>
     </div>
-    <div style="font-size:12px;color:rgba(255,255,255,0.85);margin-top:2px">{{ _msg }}</div>
-  </div>
-  <div style="font-size:11px;background:var(--gold);color:#0f1c3f;padding:5px 10px;border-radius:6px;font-weight:800">Aufgaben →</div>
 </a>
-{% endif %}
 
 {# TIER 4.17 — HREP-Beschleuniger: NUR für LREPs (ftier=2) zeigen, REPs sollen
    sich nicht mit HREP-Pfad ablenken #}

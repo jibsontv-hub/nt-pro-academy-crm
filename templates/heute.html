@@ -183,6 +183,35 @@
             </div>
         {% endif %}
     </div>
+
+    {# Aktivitäts-Leaderboard — Top 5 letzte 7 Tage (NUR Aktivitäten, KEINE Provision) #}
+    {% if leaderboard and leaderboard.top %}
+    <div style="margin-top:32px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div>
+                <div style="font-size:13px;font-weight:800;color:var(--text)">🏅 Aktivitäts-Top der letzten 7 Tage</div>
+                <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Aktivitäten · keine Provision · alles erreichbar</div>
+            </div>
+            {% if leaderboard.me_position %}
+            <div style="font-size:11px;background:var(--gold-soft);color:var(--gold);padding:5px 12px;border-radius:999px;font-weight:700">
+                Du auf Platz {{ leaderboard.me_position }} / {{ leaderboard.total_team }}
+            </div>
+            {% endif %}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+            {% for r in leaderboard.top %}
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;{% if r.id == current_user.id %}background:linear-gradient(90deg,var(--gold-soft),var(--surface));border:1px solid #e8d59a{% else %}background:var(--bg-2){% endif %}">
+                <div style="font-size:14px;font-weight:800;color:{% if loop.index == 1 %}#d4a843{% elif loop.index == 2 %}#94a3b8{% elif loop.index == 3 %}#b78757{% else %}var(--text-muted){% endif %};min-width:24px">{{ loop.index }}.</div>
+                <div style="flex:1;font-weight:700;font-size:13px;color:var(--text)">{{ r.name }}{% if r.id == current_user.id %} <span style="color:var(--gold);font-size:11px">(du)</span>{% endif %}</div>
+                <div style="font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums">
+                    📞 {{ r.calls }} · 📅 {{ r.termine }}{% if r.recruiting > 0 %} · 🎯 {{ r.recruiting }}{% endif %}
+                </div>
+                <div style="font-size:14px;font-weight:800;color:var(--gold);min-width:32px;text-align:right">{{ r.activity_score }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script>

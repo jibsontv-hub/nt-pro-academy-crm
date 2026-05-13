@@ -28,9 +28,11 @@ cd $PROJECT
 
 LAST_FULL_AUDIT=0
 FULL_AUDIT_INTERVAL=$((6 * 3600))  # 6 Stunden
-LAST_DAILY_PUSH_DATE=""  # ISO-Datum des letzten Daily-Push (1× pro Tag)
-LAST_MIDDAY_PUSH_DATE="" # ISO-Datum des letzten Mittag-Re-Push (1× pro Tag, 13-15 Uhr)
-LAST_BACKUP_DATE=""      # ISO-Datum des letzten DB-Backups (1× pro Tag)
+LAST_DAILY_PUSH_DATE=""    # ISO-Datum des letzten Daily-Push (1× pro Tag)
+LAST_MIDDAY_PUSH_DATE=""   # ISO-Datum des letzten Mittag-Re-Push (1× pro Tag, 13-15 Uhr)
+LAST_BACKUP_DATE=""        # ISO-Datum des letzten DB-Backups (1× pro Tag)
+LAST_STAGNATION_DATE=""    # ISO-Datum letzter Stagnations-Mail-Run (1× pro Tag, 9-10 Uhr)
+LAST_STREAK_WARN_DATE=""   # ISO-Datum letzter Streak-Warning-Push (1× pro Tag, 18-20 Uhr)
 
 echo "[$(date)] Monitor-Loop gestartet — auto-pull · daily-push 8-10 · midday-push 13-15 · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
 
@@ -105,6 +107,34 @@ stats = run_lead_followup_sequence()
 if any(stats.values()):
     print('lead-followup:', stats)
 " 2>&1 | grep -v '^$' >> $HEALTH_LOG
+
+    # ─── 1b5. Stagnations-Sequenz (1× pro Tag, 9-10 Uhr) — Auto-Mail Tag 3 ───
+    # BJ Fogg / Eric Worre Pattern: empath. Mail an Partner die genau 3T inaktiv sind.
+    # Höher als generischer daily-push damit nicht doppelt mit anderen Reminders.
+    if [ "$CURRENT_HOUR" -ge 9 ] && [ "$CURRENT_HOUR" -lt 10 ] && [ "$LAST_STAGNATION_DATE" != "$CURRENT_DATE" ]; then
+        echo "[$(date)] Stagnation-Sequenz wird ausgelöst" | tee -a $HEALTH_LOG
+        python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+from app import run_stagnation_sequence
+stats = run_stagnation_sequence()
+print('stagnation:', stats)
+" 2>&1 | tail -3 >> $HEALTH_LOG
+        LAST_STAGNATION_DATE=$CURRENT_DATE
+    fi
+
+    # ─── 1b6. Streak-Warning-Push (1× pro Tag, 18-20 Uhr) — Duolingo-Pattern ───
+    # User mit Streak ≥3 die heute noch nicht alle DMO-Targets erfüllt haben →
+    # Push „Streak in Gefahr". Verlustaversion > Belohnung.
+    if [ "$CURRENT_HOUR" -ge 18 ] && [ "$CURRENT_HOUR" -lt 20 ] && [ "$LAST_STREAK_WARN_DATE" != "$CURRENT_DATE" ]; then
+        echo "[$(date)] Streak-Warning-Push wird ausgelöst" | tee -a $HEALTH_LOG
+        python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+from app import run_streak_warning_push
+stats = run_streak_warning_push()
+print('streak-warn:', stats)
+" 2>&1 | tail -3 >> $HEALTH_LOG
+        LAST_STREAK_WARN_DATE=$CURRENT_DATE
+    fi
 
     # ─── 1c. DB-Backup (1× pro Tag, zwischen 3-5 Uhr nachts) ─────────
     if [ "$CURRENT_HOUR" -ge 3 ] && [ "$CURRENT_HOUR" -lt 5 ] && [ "$LAST_BACKUP_DATE" != "$CURRENT_DATE" ]; then

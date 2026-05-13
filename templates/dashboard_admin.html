@@ -96,32 +96,18 @@
    schon Plan-Ampel + eh_ist vs eh_soll_pace. Anrufe/Termine-Soll auf
    /aufgaben, nicht auf Dashboard. #}
 
-{# HEBEL #1 — „Heute deine 5 Zielgespräche" — Najibs Hauptaufgabe als HREP+ #}
+{# Zielgespräche-Card entfernt: jetzt im /heute-Modus als priorisierter Single-Stack.
+   Stattdessen kompakter Verweis-Banner damit Najib weiß wohin. #}
 {% if zielgespraeche_heute %}
-<div class="card" style="border-left:3px solid var(--gold);margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+<a href="/heute" style="display:block;text-decoration:none;background:linear-gradient(135deg,rgba(34,197,94,0.18),rgba(34,197,94,0.06));border:1px solid #22c55e40;border-left:3px solid #22c55e;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:var(--text)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
         <div>
-            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">▸ Deine {{ zielgespraeche_heute|length }} Zielgespräche heute</div>
-            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Wählen ist erledigt — System hat priorisiert. Du musst nur anrufen.</div>
+            <div style="font-size:11px;color:#16a34a;text-transform:uppercase;letter-spacing:0.6px;font-weight:800">⚡ Heute-Modus</div>
+            <div style="font-size:14px;font-weight:700;margin-top:2px">{{ zielgespraeche_heute|length }} priorisierte Aufgaben warten — eine Karte nach der anderen</div>
         </div>
-        <div style="font-size:11px;color:var(--text-soft)">Slots vorgeschlagen</div>
+        <div style="font-size:14px;color:#16a34a;font-weight:800">→</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-        {% for zg in zielgespraeche_heute %}
-        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid {% if zg.prio >= 100 %}var(--red){% elif zg.prio >= 90 %}var(--gold){% else %}var(--orange){% endif %};border-radius:6px">
-            <div style="font-size:12px;color:var(--gold);font-weight:800;width:48px;flex-shrink:0;font-family:'JetBrains Mono',monospace">{{ zg.suggested_slot }}</div>
-            <div style="flex:1;min-width:0">
-                <a href="/partner/{{ zg.id }}/profil" style="color:var(--text);text-decoration:none;font-weight:700;font-size:13px">{{ zg.name }}</a>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ zg.reasons|join(' · ') }}</div>
-            </div>
-            <div style="display:flex;gap:6px;flex-shrink:0">
-                {% if zg.phone %}<a href="tel:{{ zg.phone }}" class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--green);font-size:11px">📞</a>{% endif %}
-                <a href="/coaching/{{ zg.id }}" class="btn btn-sm btn-secondary" style="font-size:11px">📝 Notiz</a>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
+</a>
 {% endif %}
 
 {# HEBEL #3 — Bewerber-Funnel: 4 Stufen Klicks→Anmeldung→Termin→Vertrag.
@@ -215,32 +201,8 @@
 </div>
 {% endif %}
 
-{# TIER 2.9 — „Mein Coach-Plan heute" für direkte REPs #}
-{% if coach_plan %}
-<div class="card" style="border-left:3px solid var(--gold);margin-bottom:14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div>
-            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Mein Coach-Plan heute</div>
-            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">{{ coach_plan|length }} REP{% if coach_plan|length != 1 %}s{% endif %} brauchen heute deine Aufmerksamkeit</div>
-        </div>
-        <a href="/team" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">Alle →</a>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-        {% for r in coach_plan %}
-        <div style="display:flex;align-items:center;gap:12px;padding:9px 11px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid {% if r.urgency >= 90 %}var(--red){% elif r.urgency >= 70 %}var(--orange){% else %}var(--gold){% endif %};border-radius:6px">
-            <a href="/partner/{{ r.rep_id }}/profil" style="flex:1;color:var(--text);text-decoration:none;font-weight:600;font-size:13px">
-                {{ r.name }}
-                <span style="font-size:11px;color:var(--text-muted);font-weight:500;margin-left:6px">— {{ r.reasons | join(' · ') }}</span>
-            </a>
-            {% if r.phone %}
-            <a href="tel:{{ r.phone }}" class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--green);font-size:11px">↻ Anruf</a>
-            {% endif %}
-            <a href="/coaching/{{ r.rep_id }}" class="btn btn-sm btn-secondary" style="font-size:11px">📝 Notiz</a>
-        </div>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
+{# Coach-Plan-Card entfernt: redundant zu /heute (P5 Coaching-Lücke + P0 Drift covern dasselbe).
+   Ein einziger Workflow im /heute-Modus statt 3 Cards mit überlappenden Listen. #}
 
 {# Coach-Hero entfernt (Übersichts-Audit): doppelt zu Najib-Briefing,
    Coach-Plan-Card und KI-Coach-Sidebar-Link. Animierter Avatar mit

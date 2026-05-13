@@ -6729,6 +6729,46 @@ def get_today_stack(user_id, max_items=5, db=None):
     return stack[:max_items]
 
 
+def get_activity_leaderboard(scope_user_id, days=7, limit=5):
+    """Aktivitäts-Leaderboard NUR mit Aktivitäten (Calls/Termine) — KEINE Provision/Umsatz.
+    Pattern: Cialdini Public Commitment + erreichbare Top-Liste motiviert die unteren 70%
+    (Provision-Leaderboard demotiviert, Aktivitäts-Leaderboard motiviert).
+
+    scope_user_id: Owner — zeigt sein Team (sich selbst + alle Descendants).
+    Returns: {'top': [...], 'me_position': int, 'total_team': int}
+    """
+    db = get_db()
+    try:
+        descendants = get_all_descendants(scope_user_id)
+        team_ids = [scope_user_id] + descendants
+        if not team_ids:
+            return {'top': [], 'me_position': None, 'total_team': 0}
+        ph = ','.join('?' * len(team_ids))
+        cutoff = (date.today() - timedelta(days=days)).isoformat()
+        rows = db.execute(f'''
+            SELECT u.id, u.name, u.photo_path,
+                   COALESCE(SUM(d.calls), 0) + COALESCE(SUM(d.followups), 0) +
+                       COALESCE(SUM(d.termine), 0) + COALESCE(SUM(d.recruiting), 0) as activity_score,
+                   COALESCE(SUM(d.calls), 0) as calls,
+                   COALESCE(SUM(d.termine), 0) as termine,
+                   COALESCE(SUM(d.recruiting), 0) as recruiting
+            FROM users u
+            LEFT JOIN dmo_activity d ON d.user_id = u.id AND d.datum >= ?
+            WHERE u.id IN ({ph}) AND u.active = 1
+            GROUP BY u.id
+            ORDER BY activity_score DESC, u.name ASC
+        ''', [cutoff] + team_ids).fetchall()
+        all_rows = [dict(r) for r in rows]
+        top = all_rows[:limit]
+        me_position = next((i + 1 for i, r in enumerate(all_rows) if r['id'] == scope_user_id), None)
+        return {
+            'top': top, 'me_position': me_position,
+            'total_team': len(all_rows), 'days': days
+        }
+    finally:
+        db.close()
+
+
 def record_today_action(user_id, task_key, task_type, outcome,
                          target_user_id=None, snooze_until=None, note=None):
     """Schreibt Done/Snooze/Skip in today_actions. Bei Done auch DMO-Counter incrementieren."""
@@ -11222,6 +11262,124 @@ def api_run_lead_followup():
     return jsonify({'ok': True, 'stats': stats})
 
 
+def run_stagnation_sequence():
+    """Auto-Reaktivierungs-Sequenz für stagnierte Partner.
+    Pattern: BJ Fogg Tiny Habits + Eric Worre 'edify your mentor'.
+
+    Tag 3 inaktiv: freundliche Mail an Partner direkt — empath. Frame, kein Druck.
+    Tag 7 + 14: werden in get_today_stack als Mentor-Aufgabe sichtbar (siehe dort).
+
+    Idempotent via push_log mit ref_key='stag-{user_id}-d{n}'.
+    Returns: {'sent_d3': int}
+    """
+    db = get_db()
+    sent = {'sent_d3': 0}
+    try:
+        # Alle aktiven User mit last_active 3T alt (60-84h Fenster) UND Mail vorhanden
+        candidates = db.execute('''
+            SELECT u.id, u.name, u.email,
+                   (SELECT MAX(created_at) FROM activity_log WHERE user_id=u.id) as last_active
+            FROM users u
+            WHERE u.active=1 AND u.email IS NOT NULL AND u.email != ''
+        ''').fetchall()
+        today = date.today()
+        for r in candidates:
+            last = r['last_active']
+            if not last:
+                continue
+            try:
+                days_inactive = (today - datetime.strptime(last[:10], '%Y-%m-%d').date()).days
+            except Exception:
+                continue
+            if days_inactive != 3:
+                continue  # nur exakt Tag 3 — nicht nochmal jeden Tag spammen
+            ref_key = f'stag-{r["id"]}-d3'
+            if _push_already_sent(r['id'], 'stagnation_seq', ref_key):
+                continue
+            first_name = (r['name'] or '').split()[0] or 'Hi'
+            subject = f'{first_name}, alles ok?'
+            text = (
+                f"Hallo {first_name},\n\n"
+                f"ich hab dich 3 Tage nicht im System gesehen. Kein Stress — kein Druck.\n\n"
+                f"Falls du grad in einer schwierigen Phase bist: melde dich bei deinem Mentor. "
+                f"Falls du nur kurz raus warst und gleich wieder voll loslegst: noch besser.\n\n"
+                f"Du musst auf nichts antworten. Nur ein kurzes Lebenszeichen freut mich.\n\n"
+                f"Pro Academy"
+            )
+            ok, _ = send_email(r['email'], subject, text, sent_by=None, category='reminder')
+            if ok:
+                _push_mark_sent(r['id'], 'stagnation_seq', ref_key)
+                sent['sent_d3'] += 1
+        return sent
+    except Exception as e:
+        app.logger.warning(f'run_stagnation_sequence fail: {e}')
+        return sent
+    finally:
+        db.close()
+
+
+def run_streak_warning_push():
+    """Streak-Verlust-Warnung als Push-Nachricht (Duolingo-Pattern).
+    Trigger: User hat Streak ≥3, hat heute noch nicht alle DMO-Targets erreicht,
+    es ist ≥18 Uhr lokale Zeit.
+    Idempotent: max 1× pro User pro Tag.
+    """
+    db = get_db()
+    sent = 0
+    try:
+        # Alle aktiven User mit Streak ≥3
+        candidates = db.execute('''
+            SELECT id, name, streak_days FROM users
+            WHERE active=1 AND COALESCE(streak_days,0) >= 3
+        ''').fetchall()
+        today_iso = date.today().isoformat()
+        for r in candidates:
+            ref_key = f'streak-warn-{today_iso}'
+            if _push_already_sent(r['id'], 'streak_warn', ref_key):
+                continue
+            # Prüfe ob heute alle DMO-Targets schon erreicht
+            dmo = get_dmo_status(r['id'])
+            if dmo['all_done']:
+                continue  # alles erfüllt, kein Push nötig
+            # Push absetzen
+            try:
+                send_push_to_user(
+                    r['id'],
+                    title=f'🔥 {r["streak_days"]}-Tage-Streak in Gefahr',
+                    body='Heute noch keine Aktivität. Ein Anruf hält ihn am Leben.',
+                    push_type='streak_warning',
+                    url='/heute'
+                )
+                _push_mark_sent(r['id'], 'streak_warn', ref_key)
+                sent += 1
+            except Exception:
+                pass
+        return {'sent': sent}
+    except Exception as e:
+        app.logger.warning(f'run_streak_warning_push fail: {e}')
+        return {'sent': sent}
+    finally:
+        db.close()
+
+
+@app.route('/api/admin/run-stagnation', methods=['POST'])
+@login_required
+def api_run_stagnation():
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    stats = run_stagnation_sequence()
+    return jsonify({'ok': True, 'stats': stats})
+
+
+@app.route('/api/admin/run-streak-warning', methods=['POST'])
+@login_required
+def api_run_streak_warning():
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    stats = run_streak_warning_push()
+    return jsonify({'ok': True, 'stats': stats})
+
+
 # ═══════════════════════════════════════════════════════════════════
 # TIER D — /owner/queue: konsolidierte Owner-Action-Page
 # Statt 6 Morgen-Pages (Dashboard + Genehmigungen + Inbox + /team/inaktiv +
@@ -11387,8 +11545,13 @@ def heute():
     Zeigt EINE Aufgabe nach der anderen — nach Done/Snooze/Skip kommt die nächste."""
     stack = get_today_stack(current_user.id, max_items=5)
     dmo = get_dmo_status(current_user.id)
+    # Leaderboard nur für User mit Team (mind. 2 Personen)
+    leaderboard = get_activity_leaderboard(current_user.id, days=7, limit=5)
+    if leaderboard['total_team'] < 2:
+        leaderboard = None
     return render_template('heute.html',
-        stack=stack, dmo=dmo, today_iso=date.today().isoformat())
+        stack=stack, dmo=dmo, today_iso=date.today().isoformat(),
+        leaderboard=leaderboard)
 
 
 @app.route('/api/today/action', methods=['POST'])
