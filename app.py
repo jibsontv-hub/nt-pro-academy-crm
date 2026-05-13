@@ -7429,8 +7429,11 @@ def passwort_aendern():
 @app.route('/assistentin', methods=['GET'])
 @login_required
 def assistentin_page():
-    """Persönliche KI-Assistentin — kann Web-Suche, Dokumente, Präsentationen,
-    Locations + persönliche TODOs. Eigener Chat-Verlauf."""
+    """Persönliche KI-Assistentin — NUR FÜR ADMIN.
+    Web-Suche, Dokumente, Präsentationen, Locations, persönliche TODOs."""
+    if not current_user.has_admin_access:
+        flash('KI-Assistentin ist nur für Admin verfügbar.', 'info')
+        return redirect(url_for('dashboard'))
     db = get_db()
     db.execute('''CREATE TABLE IF NOT EXISTS assist_messages (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -7442,13 +7445,97 @@ def assistentin_page():
                      (current_user.id,)).fetchall()
     msgs = list(reversed([dict(m) for m in msgs]))
     db.close()
-    return render_template('assistentin.html', messages=msgs, ai_configured=is_ai_configured())
+    # Proaktive Vorschläge: was sollte Najib aktuell tun?
+    proaktiv = _assistentin_proaktive_vorschlaege(current_user.id)
+    return render_template('assistentin.html', messages=msgs, ai_configured=is_ai_configured(),
+                          proaktiv=proaktiv)
+
+
+def _assistentin_proaktive_vorschlaege(user_id):
+    """Generiert eine Liste mit aktuellen Empfehlungen die Najib JETZT angehen sollte.
+    Beispiele: ZVGs nach Eingabeschluss, Kontrollgespräche fällig, Inaktive Partner."""
+    vorschlaege = []
+    db = get_db()
+    today = date.today()
+
+    # 1. ZVG-Reminder: nach Eingabeschluss (3-10 Tage danach) — fällig für Stufe 2/3
+    deadlines = get_production_deadlines()
+    if deadlines:
+        eingabe = deadlines.get('eingabeschluss')
+        if eingabe:
+            days_since = (today - eingabe).days
+            if 0 < days_since <= 10:
+                # Stufe 2+ Partner in der Downline finden
+                ids = get_all_descendants(user_id)
+                if ids:
+                    ph = ','.join('?' * len(ids))
+                    n_rep_2_3 = db.execute(f'''SELECT COUNT(*) c FROM users
+                                               WHERE id IN ({ph}) AND active=1
+                                               AND COALESCE(manual_career_level,1) >= 2''', ids).fetchone()['c']
+                    if n_rep_2_3 > 0:
+                        vorschlaege.append({
+                            'icon': '🎯',
+                            'titel': f'Zielvereinbarungs-Gespräche fällig ({n_rep_2_3} Stufe 2+ Partner)',
+                            'detail': f'Eingabeschluss war vor {days_since} Tagen. Jetzt ZVGs mit deinen LREP/HREP+ machen.',
+                            'prompt': f'Mach mir ein Memo „ZVG-Termine {today.month}/{today.year}" mit Liste meiner {n_rep_2_3} Stufe-2+-Partner und Vorschlägen für Termin-Slots in den nächsten 7 Tagen.',
+                        })
+
+    # 2. Kontrollgespräche: Partner ohne Login >14 Tage
+    ids = [user_id] + get_all_descendants(user_id)
+    ph = ','.join('?' * len(ids))  # immer definieren
+    if len(ids) > 1:
+        inactive = db.execute(f'''SELECT * FROM (
+                                    SELECT id, name, last_login,
+                                      CAST(julianday('now') - julianday(COALESCE(last_login, joined_date)) as INTEGER) as days
+                                    FROM users WHERE id IN ({ph}) AND id != ? AND active=1
+                                  ) WHERE days >= 14 ORDER BY days DESC LIMIT 5''',
+                              ids + [user_id]).fetchall()
+        if inactive:
+            sample = ', '.join(f'{r["name"]} ({r["days"]}T)' for r in inactive[:3])
+            vorschlaege.append({
+                'icon': '⚠',
+                'titel': f'Kontrollgespräche überfällig ({len(inactive)} Partner)',
+                'detail': f'Z.B.: {sample}',
+                'prompt': f'Erstell mir eine Anrufliste mit den {len(inactive)} inaktivsten Partnern + 3 Gesprächs-Einstiegs-Fragen pro Person.',
+            })
+
+    # 3. Großverträge der letzten 7 Tage gratulieren
+    if len(ids) > 1:
+        big = db.execute(f'''SELECT u.name, c.einheiten, c.client_name FROM contracts c
+                            JOIN users u ON c.owner_id = u.id
+                            WHERE c.owner_id IN ({ph})
+                            AND c.status='abgeschlossen'
+                            AND c.einheiten >= 2000
+                            AND date(COALESCE(c.abschluss_date, c.created_at)) >= date('now','-7 days')
+                            ORDER BY c.einheiten DESC LIMIT 5''', ids).fetchall()
+        if big:
+            names = ', '.join(r['name'] for r in big[:3])
+            vorschlaege.append({
+                'icon': '🏆',
+                'titel': f'{len(big)} Großverträge diese Woche — gratulieren!',
+                'detail': f'{names}{" + weitere" if len(big) > 3 else ""}',
+                'prompt': f'Schreib mir eine Gratulations-Push-Nachricht für {names} (kurz, persönlich, motivierend).',
+            })
+
+    # 4. Wochenplanung (jeden Sonntag/Montag)
+    if today.weekday() in (0, 6):  # Mo / So
+        vorschlaege.append({
+            'icon': '📅',
+            'titel': 'Neue Woche planen',
+            'detail': 'Ziele, Termine, Fokus-Themen für die nächsten 7 Tage festlegen',
+            'prompt': f'Mach mir eine Wochenplanung für KW {today.isocalendar()[1]}: 3 Top-Ziele · 5 wichtigste Termine · 2 Themen die ich pushen sollte. Berücksichtige meine aktuellen KPIs.',
+        })
+
+    db.close()
+    return vorschlaege[:4]  # max 4 Vorschläge
 
 
 @app.route('/api/assistentin/chat', methods=['POST'])
 @login_required
 def api_assistentin_chat():
-    """Sende Nachricht an die Assistentin → Tool-Use-Loop → Antwort."""
+    """Sende Nachricht an die Assistentin → Tool-Use-Loop → Antwort. ADMIN ONLY."""
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'Nur Admin'}), 403
     payload = request.get_json(silent=True) or {}
     user_msg = (payload.get('message') or '').strip() if request.is_json else (request.form.get('message') or '').strip()
     if not user_msg:
@@ -7521,7 +7608,9 @@ gib dem User direkt den Link aus dem Tool-Result. Nicht nur reden — TUN.
 @app.route('/assistentin/dokument/<doc_id>')
 @login_required
 def assistentin_dokument(doc_id):
-    """Druckfertige HTML-Page eines erstellten Dokuments."""
+    """Druckfertige HTML-Page eines erstellten Dokuments. ADMIN ONLY."""
+    if not current_user.has_admin_access:
+        return redirect(url_for('dashboard'))
     db = get_db()
     db.execute('''CREATE TABLE IF NOT EXISTS assist_documents (
                   id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL,
@@ -7544,7 +7633,9 @@ def assistentin_dokument(doc_id):
 @app.route('/assistentin/praesentation/<pres_id>')
 @login_required
 def assistentin_praesentation(pres_id):
-    """HTML-Slideshow Viewer."""
+    """HTML-Slideshow Viewer. ADMIN ONLY."""
+    if not current_user.has_admin_access:
+        return redirect(url_for('dashboard'))
     db = get_db()
     db.execute('''CREATE TABLE IF NOT EXISTS assist_presentations (
                   id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL,
@@ -8424,7 +8515,16 @@ def webhook_lead(token):
 @app.route('/webhook-setup')
 @login_required
 def webhook_setup():
+    # Sicherheit: Webhook-Erstellung nur ab Stufe 2 (LREP+) oder Admin.
+    # Verhindert dass jeder REP unbegrenzt Public-Lead-URLs anlegen kann.
     db = get_db()
+    user_row = db.execute('SELECT manual_career_level, COALESCE(advanced_mode,0) as adv FROM users WHERE id=?',
+                          (current_user.id,)).fetchone()
+    lvl = (user_row['manual_career_level'] or 1) if user_row else 1
+    if not (current_user.has_admin_access or lvl >= 2 or (user_row and user_row['adv'])):
+        db.close()
+        flash('Webhooks sind ab Stufe 2 (LREP) verfügbar. Sprich mit deinem Strukturhöher.', 'info')
+        return redirect(url_for('dashboard'))
     tokens = db.execute('SELECT * FROM webhook_tokens WHERE owner_id=? ORDER BY id DESC', (current_user.id,)).fetchall()
     db.close()
     return render_template('webhook_setup.html', tokens=tokens)
