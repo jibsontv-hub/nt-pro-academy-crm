@@ -1132,7 +1132,7 @@
             </div>
         </div>
         <nav class="sidebar-nav">
-            <!-- Always-visible: Dashboard + KI-Coach (Badge) -->
+            <!-- Always-visible: Dashboard + KI-Coach (Badge) + Anleitung -->
             <a href="/dashboard" class="nav-link {% if request.path == '/dashboard' %}active{% endif %}">
                 <span class="nav-icon">▦</span> Dashboard
             </a>
@@ -1141,6 +1141,10 @@
                 {% if coach_alerts and coach_alerts > 0 %}
                 <span style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ coach_alerts }}</span>
                 {% endif %}
+            </a>
+            {# System-Anleitung — für JEDEN Partner sichtbar (alle Stufen) #}
+            <a href="/guide" class="nav-link {% if request.path == '/guide' %}active{% endif %}">
+                <span class="nav-icon">📖</span> Anleitung
             </a>
             {# SOS-Inbox: für Sponsor (REP-Notruf) — Always-visible ab Stufe 2, rote Badge wenn offen #}
             {% if (feature_tier or 1) >= 2 %}

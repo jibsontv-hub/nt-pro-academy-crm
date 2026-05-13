@@ -8183,6 +8183,23 @@ def admin_impressum():
     return render_template('admin_impressum.html', fields=IMPRESSUM_FIELDS, data=data)
 
 
+@app.route('/guide')
+@login_required
+def guide():
+    """System-Anleitung — stufenspezifisch. Jeder Partner sieht hier wie er
+    das CRM systematisch nutzen soll: Tagesablauf, Tools, Aufstieg, Best
+    Practices. Für alle Stufen sichtbar, Inhalt passt sich an Level an."""
+    career = get_career_level_for_user(current_user.id)
+    cur_level = career['level']
+    next_level = get_next_level(cur_level)
+    # Lead-Link auch im Guide bewerben
+    lead_token = get_or_create_lead_token(current_user.id)
+    lead_link = f"{CANONICAL_URL.rstrip('/')}/start?ref={lead_token}"
+    return render_template('guide.html',
+        career=career, next_level=next_level, lead_link=lead_link,
+        is_admin=current_user.has_admin_access)
+
+
 @app.route('/whats-new')
 @login_required
 def whats_new():
