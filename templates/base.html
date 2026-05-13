@@ -1159,6 +1159,12 @@
 
             {% set ftier = feature_tier or 1 %}
 
+            {# ═══ HEUTE — prominenter Top-Link für ALLE Stufen (Outreach/Close-Pattern) ═══ #}
+            <a href="/heute" class="nav-link {% if request.path == '/heute' %}active{% endif %}"
+               style="background:linear-gradient(135deg,rgba(34,197,94,0.18),rgba(34,197,94,0.06));border-left:3px solid #22c55e;color:#16a34a;font-weight:800;margin-bottom:6px">
+                <span class="nav-icon">⚡</span> Heute · was JETZT zu tun ist
+            </a>
+
             {% if ftier <= 1 %}
             <!-- ══════════════ STUFE 1 (REP) — Strukki-Reality: Bewerber + Team von Tag 1 sichtbar ══════════════
                  User-Korrektur: 'Bewerber, Grundseminar, Strukturbaum, Team-Übersicht, Team-Kalender, Posteingang
@@ -1283,8 +1289,15 @@
                     <a href="/team" class="nav-link {% if request.path == '/team' or '/partner/' in request.path or '/team/inaktiv' in request.path %}active{% endif %}"><span class="nav-icon">◈</span> Team-Übersicht</a>
                     <a href="/struktur" class="nav-link {% if '/struktur' in request.path %}active{% endif %}"><span class="nav-icon">⬢</span> Strukturbaum</a>
                     <a href="/provisionen" class="nav-link {% if '/provisionen' in request.path %}active{% endif %}"><span class="nav-icon">€</span> Provisionen</a>
-                    <a href="/ranking" class="nav-link {% if '/ranking' in request.path or '/tracking' in p and q_focus != 'vk' %}active{% endif %}"><span class="nav-icon">▲</span> Ranking & Tracking</a>
                     <a href="/ziele" class="nav-link {% if '/ziele' in request.path or ('/quoten' in request.path) %}active{% endif %}"><span class="nav-icon">◎</span> Ziele{% if ftier >= 3 %} & Quoten{% endif %}</a>
+                </div>
+            </details>
+
+            {# Reports — selten genutzt, default zu (entrümpelt aus Karriere-Block) #}
+            <details class="nav-group" data-group="reports" {% if '/ranking' in p or '/tracking' in p or '/trophaeen' in p %}open{% endif %}>
+                <summary>Reports</summary>
+                <div class="nav-group-items">
+                    <a href="/ranking" class="nav-link {% if '/ranking' in request.path or '/tracking' in p and q_focus != 'vk' %}active{% endif %}"><span class="nav-icon">▲</span> Ranking & Tracking</a>
                     <a href="/trophaeen" class="nav-link {% if '/trophaeen' in request.path %}active{% endif %}"><span class="nav-icon">★</span> Trophäen</a>
                 </div>
             </details>

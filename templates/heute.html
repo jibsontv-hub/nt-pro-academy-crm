@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Heute · Pro Academy{% endblock %}
+{% block page_title %}Heute{% endblock %}
+
+{% block content %}
+<style>
+.heute-wrap { max-width: 720px; margin: 0 auto; padding: 0 4px; }
+.dmo-strip {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 8px; margin-bottom: 18px;
+}
+.dmo-tile {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; text-align: center; position: relative; overflow: hidden;
+}
+.dmo-tile.done { border-color: #22c55e; background: linear-gradient(135deg,var(--surface),color-mix(in srgb,#22c55e 8%,var(--surface))); }
+.dmo-num { font-size: 26px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1; }
+.dmo-num small { font-size: 14px; color: var(--text-muted); font-weight: 600; }
+.dmo-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; margin-top: 6px; }
+.dmo-bar { height: 3px; background: var(--bg-2); border-radius: 999px; margin-top: 8px; overflow: hidden; }
+.dmo-bar-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #d4a843); transition: width 0.4s; }
+.dmo-tile.done .dmo-bar-fill { background: #22c55e; }
+.streak-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: linear-gradient(135deg, #f59e0b15, #d9770615);
+    border: 1px solid #f59e0b40; color: #d97706;
+    padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
+}
+
+/* Single Task Card */
+.task-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+    padding: 26px; margin-bottom: 14px; position: relative;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+}
+.task-card.priority-100 { border-left: 4px solid #ef4444; }
+.task-card.priority-90 { border-left: 4px solid #f59e0b; }
+.task-card.priority-85 { border-left: 4px solid #f59e0b; }
+.task-card.priority-80 { border-left: 4px solid #3b82f6; }
+.task-card.priority-70 { border-left: 4px solid #8b5cf6; }
+.task-card.priority-60 { border-left: 4px solid #10b981; }
+.task-card.priority-50 { border-left: 4px solid #06b6d4; }
+
+.task-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
+.task-icon { font-size: 28px; line-height: 1; }
+.task-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 6px; line-height: 1.2; }
+.task-phone { font-size: 14px; color: var(--text-muted); margin-bottom: 14px; }
+.task-phone a { color: var(--gold); text-decoration: none; font-weight: 700; }
+.task-reason {
+    background: var(--bg-2); border-left: 3px solid var(--gold);
+    padding: 12px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5;
+    color: var(--text); margin-bottom: 18px;
+}
+.task-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.btn-task {
+    padding: 14px 12px; border-radius: 12px; font-size: 14px; font-weight: 700;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    cursor: pointer; transition: all 0.15s; font-family: inherit;
+}
+.btn-task:hover { transform: translateY(-1px); }
+.btn-done { background: #22c55e; border-color: #22c55e; color: #fff; }
+.btn-done:hover { background: #16a34a; box-shadow: 0 4px 12px rgba(34,197,94,0.35); }
+.btn-snooze { background: var(--bg-2); border-color: var(--border); color: var(--text); }
+.btn-skip { background: var(--bg-2); border-color: var(--border); color: var(--text-muted); }
+
+.up-next { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; margin: 22px 0 10px; }
+.up-next-list { display: flex; flex-direction: column; gap: 8px; }
+.up-next-item {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+    font-size: 13px; opacity: 0.7;
+}
+.up-next-item .un-icon { font-size: 16px; }
+.up-next-item .un-name { font-weight: 700; color: var(--text); }
+.up-next-item .un-reason { color: var(--text-muted); font-size: 12px; flex: 1; }
+
+.empty-state {
+    text-align: center; padding: 60px 30px;
+    background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #22c55e 6%, var(--surface)));
+    border: 2px solid #22c55e40; border-radius: 18px;
+}
+.empty-state .es-icon { font-size: 56px; margin-bottom: 14px; }
+.empty-state h2 { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+.empty-state p { color: var(--text-muted); font-size: 14px; line-height: 1.5; max-width: 400px; margin: 0 auto 18px; }
+
+@media (max-width: 600px) {
+    .task-card { padding: 18px; }
+    .task-title { font-size: 19px; }
+    .task-actions { grid-template-columns: 1fr; }
+    .btn-task { font-size: 15px; padding: 14px; }
+}
+</style>
+
+<div class="heute-wrap">
+    {# DMO-Strip oben #}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+            <div style="font-size:13px;color:var(--text-muted);font-weight:600">Dein DMO-Tagessoll heute</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                <a href="/einstellungen#dmo" style="color:var(--gold);text-decoration:none">Anpassen</a>
+            </div>
+        </div>
+        {% if dmo.streak >= 1 %}
+        <div class="streak-pill">🔥 {{ dmo.streak }}-Tage-Streak</div>
+        {% endif %}
+    </div>
+    <div class="dmo-strip">
+        <div class="dmo-tile {% if dmo.actual.calls >= dmo.target.calls %}done{% endif %}">
+            <div class="dmo-num">{{ dmo.actual.calls }}<small>/{{ dmo.target.calls }}</small></div>
+            <div class="dmo-label">Anrufe</div>
+            <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.calls / dmo.target.calls * 100) if dmo.target.calls else 0 }}%"></div></div>
+        </div>
+        <div class="dmo-tile {% if dmo.actual.followups >= dmo.target.followups %}done{% endif %}">
+            <div class="dmo-num">{{ dmo.actual.followups }}<small>/{{ dmo.target.followups }}</small></div>
+            <div class="dmo-label">Follow-ups</div>
+            <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.followups / dmo.target.followups * 100) if dmo.target.followups else 0 }}%"></div></div>
+        </div>
+        <div class="dmo-tile {% if dmo.actual.termine >= dmo.target.termine %}done{% endif %}">
+            <div class="dmo-num">{{ dmo.actual.termine }}<small>/{{ dmo.target.termine }}</small></div>
+            <div class="dmo-label">Termine</div>
+            <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.termine / dmo.target.termine * 100) if dmo.target.termine else 0 }}%"></div></div>
+        </div>
+        {% if dmo.target.recruiting > 0 %}
+        <div class="dmo-tile {% if dmo.actual.recruiting >= dmo.target.recruiting %}done{% endif %}">
+            <div class="dmo-num">{{ dmo.actual.recruiting }}<small>/{{ dmo.target.recruiting }}</small></div>
+            <div class="dmo-label">Recruiting</div>
+            <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.recruiting / dmo.target.recruiting * 100) if dmo.target.recruiting else 0 }}%"></div></div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Aktive Task Card oder Empty State #}
+    <div id="taskContainer">
+        {% if stack and stack | length > 0 %}
+            {% set t = stack[0] %}
+            <div class="task-card priority-{{ t.priority }}" data-task-key="{{ t.task_key }}" data-task-type="{{ t.task_type }}" data-target-id="{{ t.target_id or '' }}">
+                <div class="task-meta">
+                    <span class="task-icon">{{ t.icon }}</span>
+                    <span>JETZT · Aufgabe 1 von {{ stack | length }}</span>
+                </div>
+                <div class="task-title">{{ t.title }}</div>
+                {% if t.target_phone %}
+                <div class="task-phone">📞 <a href="tel:{{ t.target_phone }}">{{ t.target_phone }}</a></div>
+                {% endif %}
+                <div class="task-reason">{{ t.reason }}</div>
+                <div class="task-actions">
+                    <button class="btn-task btn-done" onclick="actionTask('done')">✓ Erledigt</button>
+                    <button class="btn-task btn-snooze" onclick="actionTask('snooze', 60)">⏰ +1h</button>
+                    <button class="btn-task btn-skip" onclick="actionTask('skip')">→ Skip</button>
+                </div>
+                {% if t.target_id %}
+                <div style="margin-top:12px;text-align:center">
+                    <a href="/partner/{{ t.target_id }}/profil" style="font-size:12px;color:var(--text-muted);text-decoration:none">→ Profil ansehen</a>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if stack | length > 1 %}
+            <div class="up-next">Danach kommt</div>
+            <div class="up-next-list">
+                {% for t in stack[1:] %}
+                <div class="up-next-item">
+                    <span class="un-icon">{{ t.icon }}</span>
+                    <span class="un-name">{{ t.target_name }}</span>
+                    <span class="un-reason">{{ t.reason[:80] }}{% if t.reason | length > 80 %}…{% endif %}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% else %}
+            <div class="empty-state">
+                <div class="es-icon">{% if dmo.all_done %}🏆{% else %}🌅{% endif %}</div>
+                <h2>{% if dmo.all_done %}Tagesziel erreicht!{% else %}Ruhig heute{% endif %}</h2>
+                <p>
+                    {% if dmo.all_done %}
+                    Du hast deine DMO erfüllt: {{ dmo.actual.calls }} Anrufe, {{ dmo.actual.followups }} Follow-ups, {{ dmo.actual.termine }} Termine. Streak {{ dmo.streak }} Tage. Stark!
+                    {% else %}
+                    Keine kritischen Aufgaben in deinem Team. Nutze die Zeit für proaktive Akquise oder Coaching.
+                    {% endif %}
+                </p>
+                <a href="/dashboard" class="btn btn-primary">→ Zum Dashboard</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
+async function actionTask(outcome, snoozeMinutes = null) {
+    const card = document.querySelector('.task-card[data-task-key]');
+    if (!card) return;
+    const body = {
+        task_key: card.dataset.taskKey,
+        task_type: card.dataset.taskType,
+        target_user_id: card.dataset.targetId || null,
+        outcome: outcome,
+    };
+    if (snoozeMinutes) body.snooze_minutes = snoozeMinutes;
+
+    // Visuelles Feedback
+    card.style.opacity = '0.5';
+    card.style.transform = outcome === 'done' ? 'scale(0.95)' : 'translateX(-30px)';
+    card.style.transition = 'all 0.3s';
+
+    try {
+        const resp = await fetch('/api/today/action', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+            body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            // Reload für nächste Karte (einfacher als JS-Re-Render)
+            setTimeout(() => location.reload(), 300);
+        } else {
+            card.style.opacity = '1';
+            card.style.transform = 'none';
+            alert('Fehler: ' + (data.error || 'unbekannt'));
+        }
+    } catch (e) {
+        card.style.opacity = '1';
+        card.style.transform = 'none';
+        console.error(e);
+    }
+}
+</script>
+{% endblock %}

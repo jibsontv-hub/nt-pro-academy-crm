@@ -5,6 +5,43 @@
 {% block content %}
 <div style="max-width:780px">
 
+    {# DMO-Tagessoll — direkt oben, das ist der wichtigste Hebel #}
+    <div class="card" id="dmo">
+        <div class="card-title">⚡ Mein DMO-Tagessoll</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:18px">
+            <strong>Daily Method of Operation</strong> — die fixe Zahl an Aktivitäten pro Tag.
+            Erscheint oben in der „Heute"-Ansicht. Aktivitäten zählen, nicht Umsatz.
+            <br>Default für REPs: 3-3-3 · LREP+: 5-5-5-3 (Eric Worre Standard).
+        </p>
+        <form method="POST" action="/einstellungen/dmo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px">
+            <div class="form-group">
+                <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Anrufe / Tag</label>
+                <input type="number" name="calls" min="0" max="50" value="{{ dmo_target.calls }}" required
+                       style="font-size:24px;font-weight:800;text-align:center;padding:10px">
+            </div>
+            <div class="form-group">
+                <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Follow-ups</label>
+                <input type="number" name="followups" min="0" max="50" value="{{ dmo_target.followups }}" required
+                       style="font-size:24px;font-weight:800;text-align:center;padding:10px">
+            </div>
+            <div class="form-group">
+                <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Termine</label>
+                <input type="number" name="termine" min="0" max="50" value="{{ dmo_target.termine }}" required
+                       style="font-size:24px;font-weight:800;text-align:center;padding:10px">
+            </div>
+            <div class="form-group">
+                <label style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Recruiting</label>
+                <input type="number" name="recruiting" min="0" max="50" value="{{ dmo_target.recruiting }}" required
+                       style="font-size:24px;font-weight:800;text-align:center;padding:10px">
+            </div>
+            <div style="grid-column:1/-1;display:flex;gap:10px;align-items:center;justify-content:flex-end">
+                <button type="button" onclick="document.querySelector('input[name=calls]').value=3;document.querySelector('input[name=followups]').value=3;document.querySelector('input[name=termine]').value=3;document.querySelector('input[name=recruiting]').value=0;return false" class="btn btn-secondary btn-sm">3-3-3 (REP)</button>
+                <button type="button" onclick="document.querySelector('input[name=calls]').value=5;document.querySelector('input[name=followups]').value=5;document.querySelector('input[name=termine]').value=5;document.querySelector('input[name=recruiting]').value=3;return false" class="btn btn-secondary btn-sm">5-5-5-3 (Worre)</button>
+                <button type="submit" class="btn btn-primary">Speichern</button>
+            </div>
+        </form>
+    </div>
+
     <!-- Anzeige & Theme -->
     <div class="card">
         <div class="card-title">🎨 Anzeige & Theme</div>

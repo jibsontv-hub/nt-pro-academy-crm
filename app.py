@@ -5131,6 +5131,49 @@ def init_db():
             value TEXT
         );
 
+        -- DMO (Daily Method of Operation) — Tagessoll pro User
+        -- Defaults: REP=3-3-3, LREP+=5-5-5
+        CREATE TABLE IF NOT EXISTS dmo_targets (
+            user_id INTEGER PRIMARY KEY,
+            calls_target INTEGER DEFAULT 3,
+            followups_target INTEGER DEFAULT 3,
+            termine_target INTEGER DEFAULT 3,
+            recruiting_target INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        -- /heute Task-Stack: Snooze + Skip + Done Tracking
+        -- task_key = stable Identifier (z.B. "drift:42", "approval:123", "lead:99")
+        -- damit Done/Skip nicht doppelt erscheinen
+        CREATE TABLE IF NOT EXISTS today_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            task_key TEXT NOT NULL,
+            task_type TEXT NOT NULL,  -- drift, approval, pipeline_push, coaching, hot_lead
+            target_user_id INTEGER,    -- über wen geht die Task
+            outcome TEXT NOT NULL,     -- done, snooze, skip
+            snooze_until TEXT,         -- ISO timestamp wenn snooze
+            note TEXT,                 -- optional Notiz vom User
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (target_user_id) REFERENCES users(id)
+        );
+
+        -- DMO-Activity-Counter: was hat User heute getan
+        -- Wird incrementiert wenn Anruf protokolliert / Termin erledigt / Follow-up gemacht
+        CREATE TABLE IF NOT EXISTS dmo_activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            datum TEXT NOT NULL,
+            calls INTEGER DEFAULT 0,
+            followups INTEGER DEFAULT 0,
+            termine INTEGER DEFAULT 0,
+            recruiting INTEGER DEFAULT 0,
+            UNIQUE(user_id, datum),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS email_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -6263,6 +6306,357 @@ def effective_career_for_user(user_id, db=None):
 # ============================================================================
 
 
+# ============================================================================
+# /HEUTE — Single Source of Truth für „Was JETZT tun"
+# Inspired by: Outreach Task Queue, Close Inbox, Eric Worre DMO, Gary Keller ONE Thing
+# ============================================================================
+
+def get_dmo_target(user_id, db=None):
+    """Tagessoll für DMO. Default: REP=3-3-3-0, LREP+=5-5-5-3."""
+    own_db = db is None
+    if own_db:
+        db = get_db()
+    row = db.execute('SELECT * FROM dmo_targets WHERE user_id=?', (user_id,)).fetchone()
+    if row:
+        target = {'calls': row['calls_target'], 'followups': row['followups_target'],
+                  'termine': row['termine_target'], 'recruiting': row['recruiting_target']}
+    else:
+        # Default basierend auf Stufe (REP=einfach, LREP+=Worre-Standard)
+        career = effective_career_for_user(user_id, db)
+        if career['level'] >= 2:
+            target = {'calls': 5, 'followups': 5, 'termine': 5, 'recruiting': 3}
+        else:
+            target = {'calls': 3, 'followups': 3, 'termine': 3, 'recruiting': 0}
+    if own_db:
+        db.close()
+    return target
+
+
+def get_dmo_status(user_id, db=None):
+    """Aktueller DMO-Stand: heute getan vs. Soll. Plus Streak (Tage in Folge alle Targets erreicht)."""
+    own_db = db is None
+    if own_db:
+        db = get_db()
+    today_iso = date.today().isoformat()
+    target = get_dmo_target(user_id, db)
+    row = db.execute('SELECT calls, followups, termine, recruiting FROM dmo_activity WHERE user_id=? AND datum=?',
+                     (user_id, today_iso)).fetchone()
+    actual = {
+        'calls': row['calls'] if row else 0,
+        'followups': row['followups'] if row else 0,
+        'termine': row['termine'] if row else 0,
+        'recruiting': row['recruiting'] if row else 0,
+    }
+    # Aus contracts/appointments/assigned_tasks zusätzlich automatisch zählen
+    auto_termine_today = db.execute(
+        "SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(termin_date)=? AND status='erledigt'",
+        (user_id, today_iso)).fetchone()['c']
+    actual['termine'] = max(actual['termine'], auto_termine_today)
+    # Streak: Tage in Folge wo alle 3 Hauptmetriken (calls/followups/termine) erreicht
+    streak = 0
+    for d_offset in range(0, 30):
+        check_date = (date.today() - timedelta(days=d_offset)).isoformat()
+        r = db.execute('SELECT calls, followups, termine FROM dmo_activity WHERE user_id=? AND datum=?',
+                       (user_id, check_date)).fetchone()
+        if not r:
+            if d_offset == 0:
+                continue  # heute zählt nicht für Reset wenn noch nichts da
+            break
+        if (r['calls'] >= target['calls'] and r['followups'] >= target['followups']
+                and r['termine'] >= target['termine']):
+            streak += 1
+        else:
+            break
+    if own_db:
+        db.close()
+    return {
+        'target': target, 'actual': actual, 'streak': streak,
+        'all_done': (actual['calls'] >= target['calls']
+                     and actual['followups'] >= target['followups']
+                     and actual['termine'] >= target['termine']),
+        'progress_pct': min(100, int((actual['calls'] + actual['followups'] + actual['termine'])
+                                     / max(1, target['calls'] + target['followups'] + target['termine']) * 100))
+    }
+
+
+def increment_dmo(user_id, kind, count=1, db=None):
+    """Counter für Calls/Followups/Termine/Recruiting hochzählen.
+    kind: 'calls' | 'followups' | 'termine' | 'recruiting'"""
+    if kind not in ('calls', 'followups', 'termine', 'recruiting'):
+        return
+    own_db = db is None
+    if own_db:
+        db = get_db()
+    today_iso = date.today().isoformat()
+    db.execute('INSERT OR IGNORE INTO dmo_activity (user_id, datum) VALUES (?, ?)',
+               (user_id, today_iso))
+    db.execute(f'UPDATE dmo_activity SET {kind} = {kind} + ? WHERE user_id=? AND datum=?',
+               (count, user_id, today_iso))
+    if own_db:
+        db.commit()
+        db.close()
+
+
+def get_today_stack(user_id, max_items=5, db=None):
+    """KONSOLIDIERT 4 alte Funktionen (coach_actions / ki_recommendations /
+    coach_plan_today / today_zielgespraeche) zu EINER priorisierten Liste.
+
+    Prio-Score:
+      P0=100 — Drift-Risiko (>5T inaktiv UND vor Stufen-Schwelle)
+      P1=90  — Pipeline-Push (REP nahe LREP / LREP nahe HREP / HREP nahe CREP)
+      P2=85  — Stagnations-Sequenz Tag 14+ (Sponsor-Anruf-Pflicht)
+      P3=80  — Pending Approval (>2 Tage)
+      P4=70  — Stagnations-Sequenz Tag 7 (Sprachnachricht senden)
+      P5=60  — Coaching-Lücke (>14T)
+      P6=50  — Hot-Lead (24h Bewerbung)
+
+    Skipped/Snoozed Tasks von heute werden nicht erneut gezeigt.
+    """
+    own_db = db is None
+    if own_db:
+        db = get_db()
+    today = date.today()
+    today_iso = today.isoformat()
+    # Heute bereits behandelte Tasks (done/skip/snooze in der Zukunft)
+    handled = db.execute('''
+        SELECT task_key, outcome, snooze_until FROM today_actions
+        WHERE user_id=? AND date(created_at) = date(?)
+    ''', (user_id, today_iso)).fetchall()
+    handled_keys = set()
+    for h in handled:
+        if h['outcome'] in ('done', 'skip'):
+            handled_keys.add(h['task_key'])
+        elif h['outcome'] == 'snooze' and h['snooze_until']:
+            try:
+                if datetime.fromisoformat(h['snooze_until']) > datetime.now():
+                    handled_keys.add(h['task_key'])
+            except Exception:
+                pass
+
+    descendants = get_all_descendants(user_id)
+    if not descendants:
+        if own_db:
+            db.close()
+        return []
+
+    ph = ','.join('?' * len(descendants))
+    stack = []
+
+    # ─── P0: Drift-Risiko vor Stufen-Schwelle ───
+    drift_rows = db.execute(f'''
+        SELECT u.id, u.name, u.phone, u.manual_career_level,
+               COALESCE(SUM(c.einheiten), 0) + COALESCE(u.initial_eh, 0) as own_eh,
+               (SELECT MAX(created_at) FROM activity_log WHERE user_id=u.id) as last_active
+        FROM users u
+        LEFT JOIN contracts c ON c.owner_id=u.id AND c.status='abgeschlossen' AND c.recherche_status='freigegeben'
+        WHERE u.id IN ({ph}) AND u.active=1
+        GROUP BY u.id
+    ''', descendants).fetchall()
+    for r in drift_rows:
+        last = r['last_active']
+        if not last:
+            continue
+        try:
+            days_inactive = (today - datetime.strptime(last[:10], '%Y-%m-%d').date()).days
+        except Exception:
+            continue
+        if days_inactive < 5:
+            continue
+        # vor Stufen-Schwelle? (≥80% bis nächste Stufe)
+        career = effective_career_for_user(r['id'], db)
+        next_lvl = next((cl for cl in CAREER_LEVELS if cl['level'] == career['level'] + 1), None)
+        if not next_lvl:
+            continue
+        progress = (r['own_eh'] / next_lvl['min_eh']) if next_lvl['min_eh'] else 0
+        if progress < 0.7:
+            continue
+        key = f'drift:{r["id"]}'
+        if key in handled_keys:
+            continue
+        stack.append({
+            'task_key': key, 'task_type': 'drift',
+            'priority': 100,
+            'target_id': r['id'], 'target_name': r['name'], 'target_phone': r['phone'],
+            'title': f'Anrufen: {r["name"]}',
+            'reason': f'{days_inactive}T inaktiv, kurz vor {next_lvl["short"]} ({int(progress*100)}%). Reaktivieren!',
+            'action': 'call',
+            'icon': '🔥',
+        })
+
+    # ─── P1: Pipeline-Push (REP→LREP, LREP→HREP, HREP→CREP) ───
+    for r in drift_rows:
+        if r['id'] in [t['target_id'] for t in stack]:
+            continue
+        career = effective_career_for_user(r['id'], db)
+        next_lvl = next((cl for cl in CAREER_LEVELS if cl['level'] == career['level'] + 1), None)
+        if not next_lvl or next_lvl['min_eh'] == 0:
+            continue
+        total = eh_total(r['id'], db)
+        progress = total / next_lvl['min_eh']
+        if progress < 0.8:
+            continue
+        eh_remaining = max(0, next_lvl['min_eh'] - total)
+        key = f'push:{r["id"]}:{next_lvl["short"]}'
+        if key in handled_keys:
+            continue
+        stack.append({
+            'task_key': key, 'task_type': 'pipeline_push',
+            'priority': 90,
+            'target_id': r['id'], 'target_name': r['name'], 'target_phone': r['phone'],
+            'title': f'{next_lvl["short"]}-Push: {r["name"]}',
+            'reason': f'Nur noch {int(eh_remaining)} EH bis {next_lvl["short"]}. Mit ihm Plan für die Woche machen!',
+            'action': 'call',
+            'icon': '🚀',
+        })
+
+    # ─── P2 + P4: Stagnations-Sequenz (Tag 7 Sprachnachricht / Tag 14 Anruf) ───
+    for r in drift_rows:
+        if r['id'] in [t['target_id'] for t in stack]:
+            continue
+        last = r['last_active']
+        if not last:
+            continue
+        try:
+            days_inactive = (today - datetime.strptime(last[:10], '%Y-%m-%d').date()).days
+        except Exception:
+            continue
+        if days_inactive >= 14:
+            key = f'stag14:{r["id"]}'
+            if key in handled_keys:
+                continue
+            stack.append({
+                'task_key': key, 'task_type': 'stagnation_call',
+                'priority': 85,
+                'target_id': r['id'], 'target_name': r['name'], 'target_phone': r['phone'],
+                'title': f'Anrufen: {r["name"]}',
+                'reason': f'{days_inactive}T komplett still. Ein persönlicher Anruf reaktiviert. Frame: "Ich vermisse dich im Team".',
+                'action': 'call',
+                'icon': '☎️',
+            })
+        elif 7 <= days_inactive < 14:
+            key = f'stag7:{r["id"]}'
+            if key in handled_keys:
+                continue
+            stack.append({
+                'task_key': key, 'task_type': 'stagnation_voice',
+                'priority': 70,
+                'target_id': r['id'], 'target_name': r['name'], 'target_phone': r['phone'],
+                'title': f'Sprachnachricht: {r["name"]}',
+                'reason': f'{days_inactive}T inaktiv. Eine 30-Sek-Sprachnachricht (kein Druck) hat 10x höhere Rückmelderate als Text.',
+                'action': 'voice',
+                'icon': '🎙️',
+            })
+
+    # ─── P3: Pending Approval > 2 Tage ───
+    pending_rows = db.execute(f'''
+        SELECT c.id as contract_id, c.client_name, c.einheiten, c.created_at,
+               u.id as owner_id, u.name as owner_name, u.phone as owner_phone
+        FROM contracts c
+        JOIN users u ON c.owner_id = u.id
+        WHERE c.owner_id IN ({ph}) AND c.recherche_status IN ('ausstehend', '')
+          AND c.status='abgeschlossen'
+          AND date(c.created_at) <= date('now', '-2 days')
+        ORDER BY c.created_at ASC
+        LIMIT 5
+    ''', descendants).fetchall()
+    for r in pending_rows:
+        key = f'approval:{r["contract_id"]}'
+        if key in handled_keys:
+            continue
+        stack.append({
+            'task_key': key, 'task_type': 'approval',
+            'priority': 80,
+            'target_id': r['owner_id'], 'target_name': r['owner_name'], 'target_phone': r['owner_phone'],
+            'title': f'Vertrag freigeben: {r["client_name"]}',
+            'reason': f'{r["einheiten"]:.0f} EH von {r["owner_name"]}. Wartet seit Tagen auf Recherche.',
+            'action': 'approve',
+            'extra_id': r['contract_id'],
+            'icon': '✅',
+        })
+
+    # ─── P5: Coaching-Lücke > 14T ───
+    coaching_rows = db.execute(f'''
+        SELECT u.id, u.name, u.phone,
+               (SELECT MAX(created_at) FROM coaching_notes WHERE target_user_id=u.id) as last_coaching
+        FROM users u
+        WHERE u.id IN ({ph}) AND u.active=1
+    ''', descendants).fetchall()
+    for r in coaching_rows:
+        if r['id'] in [t['target_id'] for t in stack]:
+            continue
+        last_c = r['last_coaching']
+        days_no_coaching = 999
+        if last_c:
+            try:
+                days_no_coaching = (today - datetime.strptime(last_c[:10], '%Y-%m-%d').date()).days
+            except Exception:
+                pass
+        if days_no_coaching < 14:
+            continue
+        key = f'coaching:{r["id"]}'
+        if key in handled_keys:
+            continue
+        stack.append({
+            'task_key': key, 'task_type': 'coaching',
+            'priority': 60,
+            'target_id': r['id'], 'target_name': r['name'], 'target_phone': r['phone'],
+            'title': f'Coaching-Slot: {r["name"]}',
+            'reason': f'{days_no_coaching if days_no_coaching < 999 else "noch nie"} Tage kein Coaching. Plane einen 1:1-Termin diese Woche.',
+            'action': 'schedule',
+            'icon': '🎯',
+        })
+
+    # ─── P6: Hot-Lead (frische Bewerbung 24h) ───
+    lead_rows = db.execute('''
+        SELECT id, name, phone, source, created_at FROM leads
+        WHERE owner_id=? AND liste_typ='rk'
+          AND date(created_at) >= date('now', '-1 days')
+        ORDER BY created_at DESC LIMIT 5
+    ''', (user_id,)).fetchall()
+    for r in lead_rows:
+        key = f'lead:{r["id"]}'
+        if key in handled_keys:
+            continue
+        stack.append({
+            'task_key': key, 'task_type': 'hot_lead',
+            'priority': 50,
+            'target_id': None, 'target_name': r['name'], 'target_phone': r['phone'],
+            'title': f'Bewerber anrufen: {r["name"]}',
+            'reason': f'Frisch eingegangen über {r["source"] or "Direkt"}. Erstkontakt JETZT (<24h) verdoppelt Conversion.',
+            'action': 'call',
+            'extra_id': r['id'],
+            'icon': '🌟',
+        })
+
+    if own_db:
+        db.close()
+
+    # Nach Priorität sortieren, max_items zurückgeben
+    stack.sort(key=lambda x: -x['priority'])
+    return stack[:max_items]
+
+
+def record_today_action(user_id, task_key, task_type, outcome,
+                         target_user_id=None, snooze_until=None, note=None):
+    """Schreibt Done/Snooze/Skip in today_actions. Bei Done auch DMO-Counter incrementieren."""
+    db = get_db()
+    db.execute('''INSERT INTO today_actions
+                  (user_id, task_key, task_type, target_user_id, outcome, snooze_until, note)
+                  VALUES (?, ?, ?, ?, ?, ?, ?)''',
+               (user_id, task_key, task_type, target_user_id, outcome, snooze_until, note))
+    if outcome == 'done':
+        # DMO-Counter automatisch hochzählen je nach Task-Typ
+        if task_type in ('drift', 'pipeline_push', 'stagnation_call', 'coaching'):
+            increment_dmo(user_id, 'calls', 1, db)
+        elif task_type == 'stagnation_voice':
+            increment_dmo(user_id, 'followups', 1, db)
+        elif task_type == 'hot_lead':
+            increment_dmo(user_id, 'recruiting', 1, db)
+    db.commit()
+    db.close()
+# ============================================================================
+
+
 def build_tree(user_id, db):
     """Rekursiv Strukturbaum aufbauen mit allen Stats"""
     user = db.execute('SELECT * FROM users WHERE id = ? AND active = 1', (user_id,)).fetchone()
@@ -6348,6 +6742,17 @@ def get_team_stats(user_id, include_self=True):
 @app.route('/')
 def index():
     if current_user.is_authenticated:
+        # Smart-Routing nach Tageszeit:
+        # vor 12 Uhr → /heute (Tasks abarbeiten)
+        # ab 12 Uhr → /dashboard (Ergebnisse prüfen)
+        # Override via ?go=dashboard oder ?go=heute (für Sidebar-Klicks)
+        go = request.args.get('go')
+        if go == 'dashboard':
+            return redirect(url_for('dashboard'))
+        if go == 'heute':
+            return redirect(url_for('heute'))
+        if datetime.now().hour < 12:
+            return redirect(url_for('heute'))
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
@@ -9501,7 +9906,8 @@ def einstellungen():
         return redirect(url_for('einstellungen'))
     user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     db.close()
-    return render_template('einstellungen.html', user=user)
+    dmo_target = get_dmo_target(current_user.id)
+    return render_template('einstellungen.html', user=user, dmo_target=dmo_target)
 
 
 @app.route('/api/vision-seen', methods=['POST'])
@@ -10876,6 +11282,92 @@ def owner_queue():
     for q in queue:
         counts[q['type']] = counts.get(q['type'], 0) + 1
     return render_template('owner_queue.html', queue=queue, counts=counts, total=len(queue))
+
+
+# ============================================================================
+# /HEUTE — Single Task Card View (Pattern aus Outreach/Close/Apollo)
+# ============================================================================
+@app.route('/heute')
+@login_required
+def heute():
+    """Single-Action-Card Modus. Pattern: Outreach Task Queue + Eric Worre DMO.
+    Zeigt EINE Aufgabe nach der anderen — nach Done/Snooze/Skip kommt die nächste."""
+    stack = get_today_stack(current_user.id, max_items=5)
+    dmo = get_dmo_status(current_user.id)
+    return render_template('heute.html',
+        stack=stack, dmo=dmo, today_iso=date.today().isoformat())
+
+
+@app.route('/api/today/action', methods=['POST'])
+@login_required
+def api_today_action():
+    """Erfasst Done/Snooze/Skip auf einer Today-Task. Returnt nächste Task + DMO-Update."""
+    data = request.get_json(silent=True) or {}
+    task_key = (data.get('task_key') or '').strip()
+    task_type = (data.get('task_type') or '').strip()
+    outcome = (data.get('outcome') or '').strip()
+    target_user_id = data.get('target_user_id')
+    note = (data.get('note') or '').strip() or None
+
+    if outcome not in ('done', 'skip', 'snooze') or not task_key or not task_type:
+        return jsonify({'ok': False, 'error': 'invalid params'}), 400
+
+    snooze_until = None
+    if outcome == 'snooze':
+        snooze_minutes = int(data.get('snooze_minutes') or 60)
+        snooze_until = (datetime.now() + timedelta(minutes=snooze_minutes)).isoformat()
+
+    record_today_action(current_user.id, task_key, task_type, outcome,
+                         target_user_id=target_user_id, snooze_until=snooze_until, note=note)
+
+    # Nächste Stack-Position liefern
+    new_stack = get_today_stack(current_user.id, max_items=5)
+    new_dmo = get_dmo_status(current_user.id)
+    return jsonify({
+        'ok': True, 'stack': new_stack, 'dmo': new_dmo,
+        'all_done': len(new_stack) == 0
+    })
+
+
+@app.route('/api/dmo/increment', methods=['POST'])
+@login_required
+def api_dmo_increment():
+    """Manueller DMO-Counter +1 (z.B. wenn User außerhalb /heute einen Anruf macht)."""
+    data = request.get_json(silent=True) or {}
+    kind = (data.get('kind') or '').strip()
+    count = int(data.get('count') or 1)
+    if kind not in ('calls', 'followups', 'termine', 'recruiting'):
+        return jsonify({'ok': False, 'error': 'invalid kind'}), 400
+    increment_dmo(current_user.id, kind, count)
+    return jsonify({'ok': True, 'dmo': get_dmo_status(current_user.id)})
+
+
+@app.route('/einstellungen/dmo', methods=['POST'])
+@login_required
+def settings_dmo():
+    """User setzt sein eigenes DMO-Tagessoll."""
+    try:
+        calls = max(0, int(request.form.get('calls', 3)))
+        followups = max(0, int(request.form.get('followups', 3)))
+        termine = max(0, int(request.form.get('termine', 3)))
+        recruiting = max(0, int(request.form.get('recruiting', 0)))
+    except (ValueError, TypeError):
+        flash('Ungültige Eingabe', 'error')
+        return redirect(url_for('einstellungen'))
+    db = get_db()
+    db.execute('''INSERT INTO dmo_targets (user_id, calls_target, followups_target, termine_target, recruiting_target, updated_at)
+                  VALUES (?, ?, ?, ?, ?, ?)
+                  ON CONFLICT(user_id) DO UPDATE SET
+                    calls_target=excluded.calls_target,
+                    followups_target=excluded.followups_target,
+                    termine_target=excluded.termine_target,
+                    recruiting_target=excluded.recruiting_target,
+                    updated_at=excluded.updated_at''',
+               (current_user.id, calls, followups, termine, recruiting, datetime.now().isoformat()))
+    db.commit()
+    db.close()
+    flash('DMO-Tagessoll gespeichert.', 'success')
+    return redirect(url_for('einstellungen'))
 
 
 # JSON-API: Approval inline ohne Page-Reload
