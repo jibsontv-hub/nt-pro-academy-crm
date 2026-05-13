@@ -352,7 +352,6 @@ textarea.in { resize: vertical; min-height: 70px; }
             {# TIER F.1 — Trust-Bar unter H1 (Marketing-Audit Empfehlung) #}
             <div style="display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 22px">
                 <span style="font-size:11px;color:#cbd5e1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:99px;font-weight:600">✓ Persönliche Beratung</span>
-                <span style="font-size:11px;color:#cbd5e1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:99px;font-weight:600">✓ Partner Ergo Pro</span>
                 <span style="font-size:11px;color:#cbd5e1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:99px;font-weight:600">✓ Antwort in 24-48h</span>
                 <span style="font-size:11px;color:#cbd5e1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:5px 11px;border-radius:99px;font-weight:600">✓ Kein Hardsell</span>
             </div>
@@ -371,11 +370,11 @@ textarea.in { resize: vertical; min-height: 70px; }
             {# TIER F.1 — Path-Tabs DIREKT über der Form (statt 600px weiter unten).
                Marketing-Audit: ohne Tab über Form ist der Hint-Text-Verweis „↑ wechseln" UX-Bruch. #}
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:-4px -4px 16px;padding:4px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px">
-                <button type="button" id="pathFormTabBeratung" data-pathtab="beratung" class="path-tab-mini active" style="padding:11px 10px;background:rgba(212,168,67,0.18);color:#fff;border:none;border-radius:7px;font-weight:700;font-size:13px;cursor:pointer;transition:all 0.15s">
-                    💡 Beratung für mich
-                </button>
-                <button type="button" id="pathFormTabKarriere" data-pathtab="karriere" class="path-tab-mini" style="padding:11px 10px;background:transparent;color:#94a3b8;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;transition:all 0.15s">
+                <button type="button" id="pathFormTabKarriere" data-pathtab="karriere" class="path-tab-mini active" style="padding:11px 10px;background:rgba(212,168,67,0.18);color:#fff;border:none;border-radius:7px;font-weight:700;font-size:13px;cursor:pointer;transition:all 0.15s">
                     🚀 Karriere im Vertrieb
+                </button>
+                <button type="button" id="pathFormTabBeratung" data-pathtab="beratung" class="path-tab-mini" style="padding:11px 10px;background:transparent;color:#94a3b8;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;transition:all 0.15s">
+                    💡 Beratung für mich
                 </button>
             </div>
 
@@ -436,7 +435,7 @@ textarea.in { resize: vertical; min-height: 70px; }
 
             {% if error %}<div class="error-box">⚠️ {{ error }}</div>{% endif %}
 
-            <input type="hidden" name="interesse" id="intHidden" value="beratung">
+            <input type="hidden" name="interesse" id="intHidden" value="karriere">
 
             <label class="fl">Name *</label>
             <input class="in" type="text" name="name" required placeholder="Max Mustermann" autocomplete="name">
@@ -535,12 +534,12 @@ textarea.in { resize: vertical; min-height: 70px; }
         <div class="section-h" style="text-align:center">Was suchst du?</div>
         <h2 class="section-h2" style="text-align:center">Wähl deinen Pfad.</h2>
         <div class="path-tabs">
-            <button class="path-tab active" data-pathtab="beratung" type="button">
+            <button class="path-tab" data-pathtab="beratung" type="button">
                 <div class="pt-icon">💡</div>
                 <div class="pt-label">Beratung für mich</div>
                 <div class="pt-sub">Mit Geld besser umgehen, absichern, Vermögen aufbauen</div>
             </button>
-            <button class="path-tab" data-pathtab="karriere" type="button">
+            <button class="path-tab active" data-pathtab="karriere" type="button">
                 <div class="pt-icon">🚀</div>
                 <div class="pt-label">Eigenes Business aufbauen</div>
                 <div class="pt-sub">Im Team mitmachen, Quereinstieg, Karriere im Vertrieb</div>
@@ -713,9 +712,15 @@ textarea.in { resize: vertical; min-height: 70px; }
     }
     tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.pathtab)));
 
+    // Default = KARRIERE (Strukturlinks zeigen Rekrutierung als Erstes).
+    // Nur wenn explizit ?ziel=beratung (oder ?ziel=vk) → Beratung-Tab aktiv.
     const url = new URL(window.location.href);
     const ziel = url.searchParams.get('ziel');
-    if (ziel === 'karriere' || ziel === 'rk') activate('karriere');
+    if (ziel === 'beratung' || ziel === 'vk') {
+        activate('beratung');
+    } else {
+        activate('karriere');
+    }
 })();
 
 // 3-Step Karriere-Quiz Logik (TIER F.3)
