@@ -2755,11 +2755,16 @@ def get_straenge_for_user(user_id, db=None):
     for d in direct:
         chain_ids = [d['id']] + get_all_descendants(d['id'])
         ph = ','.join('?' * len(chain_ids))
-        eh = db.execute(
+        # FIX: contracts + initial_eh (Altsystem-Übernahme) für korrekte Strang-EH
+        contract_eh = db.execute(
             f'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
             chain_ids
         ).fetchone()['s']
-        straenge.append({'id': d['id'], 'name': d['name'], 'eh': float(eh)})
+        initial_eh = db.execute(
+            f'SELECT COALESCE(SUM(initial_eh),0) as s FROM users WHERE id IN ({ph})',
+            chain_ids
+        ).fetchone()['s']
+        straenge.append({'id': d['id'], 'name': d['name'], 'eh': float(contract_eh + initial_eh)})
     straenge.sort(key=lambda s: -s['eh'])
     if own_db:
         db.close()
@@ -2883,10 +2888,7 @@ def _get_career_criteria_status_uncached(user_id):
         db.close()
         return None
 
-    own_eh = db.execute(
-        'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"',
-        (user_id,)
-    ).fetchone()['s']
+    own_eh = eh_own(user_id, db)  # FIX: inkl. initial_eh (Altsystem-Übernahme)
     contracts = db.execute(
         'SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"',
         (user_id,)
@@ -2899,7 +2901,8 @@ def _get_career_criteria_status_uncached(user_id):
     total_eh = own_eh + team_eh
     db.close()
 
-    current = career_for_row(user['manual_career_level'], own_eh)
+    # FIX: Aktuelle Stufe basiert auf total_eh (Schwellen-Logik), nicht nur own_eh
+    current = career_for_row(user['manual_career_level'], total_eh)
     next_level = next((cl for cl in CAREER_LEVELS if cl['level'] == current['level'] + 1), None)
     if not next_level:
         return {
@@ -3550,22 +3553,11 @@ def get_smart_insights(scope_user_id=None):
 
 
 def get_career_level_for_user(user_id):
-    """Stufe eines Users: max(manual_career_level, calculated_from_eh)."""
-    db = get_db()
-    user = db.execute('SELECT manual_career_level FROM users WHERE id = ?', (user_id,)).fetchone()
-    own_eh = db.execute('SELECT COALESCE(SUM(einheiten), 0) as s FROM contracts WHERE owner_id = ? AND status = "abgeschlossen" AND recherche_status = "freigegeben"', (user_id,)).fetchone()['s']
-    db.close()
-    earned_level = 1
-    for cl in CAREER_LEVELS:
-        if own_eh >= cl['min_eh']:
-            earned_level = cl['level']
-        else:
-            break
-    final = max(user['manual_career_level'] or 1, earned_level) if user else earned_level
-    for cl in CAREER_LEVELS:
-        if cl['level'] == final:
-            return cl
-    return CAREER_LEVELS[0]
+    """Stufe eines Users: max(manual_career_level, calculated_from_TOTAL_eh).
+    FIX: Nutzt total_eh (eigen + Team + initial), weil CAREER_LEVELS Schwellen
+    explizit 'gesamt_eh = eigen + Team' verlangt (Zeile 152-194).
+    Vorher: nur own_eh → LREP/HREP-Schwellen wurden für Solisten berechnet, nicht für Teams."""
+    return effective_career_for_user(user_id)
 
 
 # === 6-Monats-Zyklus ===
@@ -5390,19 +5382,9 @@ def calculate_commissions_for_contract(contract_id):
         user = db.execute('SELECT * FROM users WHERE id = ? AND active = 1', (current_id,)).fetchone()
         if not user:
             break
-        own_eh = db.execute(
-            'SELECT COALESCE(SUM(einheiten), 0) as s FROM contracts WHERE owner_id = ? AND status = "abgeschlossen" AND recherche_status = "freigegeben"',
-            (user['id'],)
-        ).fetchone()['s']
-        earned = 1
-        for cl in CAREER_LEVELS:
-            if own_eh >= cl['min_eh']:
-                earned = cl['level']
-            else:
-                break
-        manual = user['manual_career_level'] or 1
-        final_level = max(manual, earned)
-        career = next((c for c in CAREER_LEVELS if c['level'] == final_level), CAREER_LEVELS[0])
+        # FIX: CAREER_LEVELS verlangt 'gesamt_eh = eigen + Team' für ALLE Stufen ab LREP.
+        # Vorher: nur own_eh → LREP/HREP bekamen REP-Provision (zu niedrig).
+        career = effective_career_for_user(user['id'], db)
         chain.append({
             'user_id': user['id'],
             'level': career['level'],
@@ -6147,29 +6129,98 @@ def get_user_total_eh(user_id, include_team=False):
     return contract_eh + initial
 
 
+# ============================================================================
+# SINGLE SOURCE OF TRUTH für EH-Berechnung
+# ============================================================================
+# WICHTIG: Diese Funktionen sind die EINZIGEN korrekten Quellen für EH-Werte.
+# Wenn Partner sich beschweren dass Zahlen nicht stimmen → diese Funktionen nutzen.
+# CAREER_LEVELS sagt explizit 'gesamt_eh = eigen + Team' für ALLE Stufen ab LREP.
+# Daher MUSS für Stufen-Bestimmung + Provision IMMER total_eh genutzt werden.
+
+def eh_own(user_id, db=None):
+    """Eigene EH eines Users: contracts + initial_eh. Single Source of Truth."""
+    own_db = db or get_db()
+    contract_eh = own_db.execute(
+        'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"',
+        (user_id,)
+    ).fetchone()['s']
+    initial = own_db.execute(
+        'SELECT COALESCE(initial_eh,0) as s FROM users WHERE id=?',
+        (user_id,)
+    ).fetchone()
+    initial_val = initial['s'] if initial else 0
+    if db is None:
+        own_db.close()
+    return int(contract_eh + initial_val)
+
+
+def eh_team_only(user_id, db=None):
+    """Nur Team-EH (Downline ohne den User selbst): rekursiv über alle Ebenen."""
+    own_db = db or get_db()
+    descendants = get_all_descendants(user_id)
+    if not descendants:
+        if db is None:
+            own_db.close()
+        return 0
+    placeholders = ','.join('?' * len(descendants))
+    contract_eh = own_db.execute(
+        f'SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id IN ({placeholders}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+        descendants
+    ).fetchone()['s']
+    initial = own_db.execute(
+        f'SELECT COALESCE(SUM(initial_eh),0) as s FROM users WHERE id IN ({placeholders})',
+        descendants
+    ).fetchone()['s']
+    if db is None:
+        own_db.close()
+    return int(contract_eh + initial)
+
+
+def eh_total(user_id, db=None):
+    """Gesamt-EH: eigen + Team. Maßgeblich für Stufen-Schwellen und Provision."""
+    return eh_own(user_id, db) + eh_team_only(user_id, db)
+
+
+def earned_career_for_user(user_id, db=None):
+    """Stufe basierend auf Gesamt-EH (eigen+Team+initial). NICHT manual_career_level."""
+    total = eh_total(user_id, db)
+    earned_level = 1
+    for cl in CAREER_LEVELS:
+        if total >= cl['min_eh']:
+            earned_level = cl['level']
+        else:
+            break
+    return next((c for c in CAREER_LEVELS if c['level'] == earned_level), CAREER_LEVELS[0])
+
+
+def effective_career_for_user(user_id, db=None):
+    """Effektive Stufe = max(manuelle Stufe, durch Gesamt-EH erreichte Stufe).
+    Diese Funktion ist maßgeblich für ALLE Anzeige- und Provisions-Entscheidungen."""
+    own_db = db or get_db()
+    user = own_db.execute('SELECT manual_career_level FROM users WHERE id=?', (user_id,)).fetchone()
+    if db is None:
+        own_db.close()
+    if not user:
+        return CAREER_LEVELS[0]
+    earned = earned_career_for_user(user_id, db)
+    final_level = max(user['manual_career_level'] or 1, earned['level'])
+    return next((c for c in CAREER_LEVELS if c['level'] == final_level), CAREER_LEVELS[0])
+# ============================================================================
+
+
 def build_tree(user_id, db):
     """Rekursiv Strukturbaum aufbauen mit allen Stats"""
     user = db.execute('SELECT * FROM users WHERE id = ? AND active = 1', (user_id,)).fetchone()
     if not user:
         return None
     children_rows = db.execute('SELECT id FROM users WHERE parent_id = ? AND active = 1 ORDER BY name', (user_id,)).fetchall()
-    own_eh = db.execute('SELECT COALESCE(SUM(einheiten), 0) as s FROM contracts WHERE owner_id = ? AND status = "abgeschlossen" AND recherche_status = "freigegeben"', (user_id,)).fetchone()['s']
+    own_eh = eh_own(user_id, db)  # FIX: inkl. initial_eh
     contracts = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id = ? AND status = "abgeschlossen" AND recherche_status = "freigegeben"', (user_id,)).fetchone()['c']
     appointments_done = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id = ? AND status = "erledigt"', (user_id,)).fetchone()['c']
     leads = db.execute('SELECT COUNT(*) as c FROM leads WHERE owner_id = ?', (user_id,)).fetchone()['c']
 
-    # FIX: korrekte Stufe = max(manuelle Stufe, durch EH erreichte Stufe)
-    earned_level = 1
-    for cl in CAREER_LEVELS:
-        if own_eh >= cl['min_eh']:
-            earned_level = cl['level']
-        else:
-            break
-    final_level = max(user['manual_career_level'] or 1, earned_level)
-    career = next((c for c in CAREER_LEVELS if c['level'] == final_level), CAREER_LEVELS[0])
-
     children = []
-    team_eh = own_eh
+    team_eh = own_eh  # Aggregator: own + Summe aller Sub-Trees
     team_size = 1
     for ch in children_rows:
         sub = build_tree(ch['id'], db)
@@ -6177,6 +6228,17 @@ def build_tree(user_id, db):
             children.append(sub)
             team_eh += sub['team_eh']
             team_size += sub['team_size']
+
+    # FIX: Stufe basiert auf total_eh (eigen + Team), nicht nur own_eh.
+    # CAREER_LEVELS sagt explizit 'gesamt_eh = eigen + Team' für ALLE Stufen ab LREP.
+    earned_level = 1
+    for cl in CAREER_LEVELS:
+        if team_eh >= cl['min_eh']:
+            earned_level = cl['level']
+        else:
+            break
+    final_level = max(user['manual_career_level'] or 1, earned_level)
+    career = next((c for c in CAREER_LEVELS if c['level'] == final_level), CAREER_LEVELS[0])
 
     return {
         'id': user['id'], 'name': user['name'], 'email': user['email'],
@@ -11230,9 +11292,11 @@ def _build_admin_dashboard_stats(user_id):
             'open_appointments': db.execute('SELECT COUNT(*) as c FROM appointments WHERE status = "geplant"').fetchone()['c'],
         }
         # ─── Top Performer ───
+        # FIX: einheiten = contracts + initial_eh (User mit Altsystem-Übernahme)
+        # career basiert auf total_eh (eigen + Team), nicht nur own_eh
         top_rows = db.execute('''
-            SELECT u.id, u.name, u.level, u.manual_career_level,
-                   COALESCE(SUM(c.einheiten), 0) as einheiten,
+            SELECT u.id, u.name, u.level, u.manual_career_level, u.initial_eh,
+                   COALESCE(SUM(c.einheiten), 0) + COALESCE(u.initial_eh, 0) as einheiten,
                    COUNT(c.id) as vertraege
             FROM users u
             LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND recherche_status = "freigegeben"
@@ -11242,13 +11306,14 @@ def _build_admin_dashboard_stats(user_id):
         top_performer = []
         for r in top_rows:
             d = dict(r)
-            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+            d['career'] = effective_career_for_user(r['id'], db)
             top_performer.append(d)
         stats['top_performer'] = top_performer
         # ─── Direkte Partner ───
+        # FIX: einheiten = contracts + initial_eh; career = effective (mit Team-EH)
         direct_rows = db.execute('''
             SELECT u.*, COUNT(c.id) as vertraege,
-                   COALESCE(SUM(c.einheiten), 0) as einheiten,
+                   COALESCE(SUM(c.einheiten), 0) + COALESCE(u.initial_eh, 0) as einheiten,
                    COALESCE(SUM(c.volumen), 0) as volumen
             FROM users u
             LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND recherche_status = "freigegeben"
@@ -11258,7 +11323,7 @@ def _build_admin_dashboard_stats(user_id):
         direct_partners = []
         for r in direct_rows:
             d = dict(r)
-            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+            d['career'] = effective_career_for_user(r['id'], db)
             try:
                 act = get_user_activity_today(r['id'])
                 d['active_today'] = act['active_today']
@@ -11791,7 +11856,7 @@ def dashboard():
 
         direct_rows = db.execute('''
             SELECT u.*, COUNT(c.id) as vertraege,
-                   COALESCE(SUM(c.einheiten), 0) as einheiten
+                   COALESCE(SUM(c.einheiten), 0) + COALESCE(u.initial_eh, 0) as einheiten
             FROM users u
             LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND recherche_status = "freigegeben"
             WHERE u.parent_id = ? AND u.active = 1
@@ -11800,7 +11865,8 @@ def dashboard():
         direct_team = []
         for r in direct_rows:
             d = dict(r)
-            d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+            # FIX: career = effective Stufe (mit Team-EH), nicht nur own
+            d['career'] = effective_career_for_user(r['id'], db)
             act = get_user_activity_today(r['id'])
             d['active_today'] = act['active_today']
             try:
@@ -12263,7 +12329,7 @@ def team():
                    COUNT(DISTINCT l.id) as leads_count,
                    COUNT(DISTINCT c.id) as contracts_count,
                    COALESCE(SUM(c.volumen), 0) as volumen,
-                   COALESCE(SUM(c.einheiten), 0) as einheiten,
+                   COALESCE(SUM(c.einheiten), 0) + COALESCE(u.initial_eh, 0) as einheiten,
                    (SELECT MAX(created_at) FROM activity_log WHERE user_id=u.id) as last_active,
                    (SELECT MAX(created_at) FROM coaching_notes WHERE target_user_id=u.id) as last_coaching
             FROM users u
@@ -12281,7 +12347,7 @@ def team():
                    COUNT(DISTINCT l.id) as leads_count,
                    COUNT(DISTINCT c.id) as contracts_count,
                    COALESCE(SUM(c.volumen), 0) as volumen,
-                   COALESCE(SUM(c.einheiten), 0) as einheiten,
+                   COALESCE(SUM(c.einheiten), 0) + COALESCE(u.initial_eh, 0) as einheiten,
                    (SELECT MAX(created_at) FROM activity_log WHERE user_id=u.id) as last_active,
                    (SELECT MAX(created_at) FROM coaching_notes WHERE target_user_id=u.id) as last_coaching
             FROM users u
@@ -12295,7 +12361,8 @@ def team():
     members = []
     for r in rows:
         d = dict(r)
-        d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+        # FIX: career = effective Stufe (mit Team-EH), nicht nur own
+        d['career'] = effective_career_for_user(r['id'], db)
         # Tage inaktiv berechnen
         try:
             if r['last_active']:
@@ -12470,9 +12537,10 @@ def partner_profil(uid):
     direct_dl = db.execute('SELECT * FROM users WHERE parent_id=? AND active=1 ORDER BY name', (uid,)).fetchall()
     direct_dl_with_career = []
     for d in direct_dl:
-        d_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (d['id'],)).fetchone()['s']
-        d_eh += d['initial_eh'] or 0
-        direct_dl_with_career.append({**dict(d), 'career': career_for_row(d['manual_career_level'], d_eh), 'eh': d_eh})
+        # FIX: Stufe basiert auf total_eh (eigen + Team), nicht nur own_eh.
+        # CAREER_LEVELS-Schwellen sind explizit gesamt_eh.
+        d_eh = eh_own(d['id'], db)
+        direct_dl_with_career.append({**dict(d), 'career': effective_career_for_user(d['id'], db), 'eh': d_eh})
     # Activity heatmap (90 Tage)
     heatmap = db.execute('''
         SELECT date(created_at) as d, COUNT(*) as c FROM activity_log
@@ -13261,7 +13329,8 @@ def struktur_news_page():
     top_list = []
     for r in top_rows:
         d = dict(r)
-        d['career'] = career_for_row(r['manual_career_level'], r['eh'])
+        # FIX: career soll Gesamt-Stufe sein (nicht basierend auf 30-Tage-Slice)
+        d['career'] = effective_career_for_user(r['id'], db)
         d['is_me'] = (r['id'] == current_user.id)
         top_list.append(d)
     # Aktivitäts-Feed — NUR Erfolge der ganzen Struktur (kein Routine-Lärm)
