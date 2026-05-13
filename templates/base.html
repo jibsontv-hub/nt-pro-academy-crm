@@ -706,6 +706,58 @@
             -webkit-text-fill-color: var(--text-muted);
         }
 
+        /* === FORM-INPUTS — IMMER theme-konform (häufigster Lesbarkeits-Bug) === */
+        input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]),
+        textarea, select {
+            color: var(--text);
+            background: var(--surface);
+        }
+        [data-theme="dark"] input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]),
+        [data-theme="dark"] textarea, [data-theme="dark"] select {
+            color: var(--text) !important;
+            background: var(--bg-2) !important;
+            border-color: var(--border) !important;
+        }
+        input::placeholder, textarea::placeholder { color: var(--text-soft); }
+
+        /* === TABLES im Dark-Mode === */
+        [data-theme="dark"] table { background: var(--surface); }
+        [data-theme="dark"] table th, [data-theme="dark"] table td { border-color: var(--border); color: var(--text); }
+        [data-theme="dark"] tbody tr:hover { background: var(--bg-2); }
+
+        /* === CODE / PRE === */
+        [data-theme="dark"] code, [data-theme="dark"] pre {
+            background: var(--bg-2) !important; color: var(--gold-light) !important;
+            border-color: var(--border) !important;
+        }
+
+        /* === LINKS === */
+        [data-theme="dark"] a:not([class*="btn"]):not([style*="color"]) { color: var(--gold-light); }
+        [data-theme="dark"] a:not([class*="btn"]):not([style*="color"]):hover { color: var(--gold); }
+
+        /* === TARGETED LIGHT-MODE-CATCH-ALLS — Top-Issues aus Audit ===
+           Vorsicht: nur Stellen catchen die NICHT auf bewusst-dunklen Cards sitzen.
+           Cards mit hardcodiertem Navy-Gradient (Coach-Hero / Command-Center)
+           bleiben auch im Light-Mode dunkel → weißer Text drauf bleibt korrekt. */
+
+        /* Hardcodierter Navy-Text (#0f1c3f) im Dark-Mode → unsichtbar auf dunklem BG */
+        [data-theme="dark"] [style*="color:#0f1c3f"]:not([style*="background:#"]):not([style*="background: #"]),
+        [data-theme="dark"] [style*="color: #0f1c3f"]:not([style*="background:#"]):not([style*="background: #"]) {
+            color: var(--text) !important;
+        }
+
+        /* Goldener Text (#f0c970, #d4a843) im Light-Mode auf goldenem BG → schlechter Kontrast → dunkles Gold */
+        :root:not([data-theme="dark"]) [style*="background:rgba(212,168,67"] [style*="color:#f0c970"],
+        :root:not([data-theme="dark"]) [style*="background:rgba(212,168,67"] [style*="color:#d4a843"] {
+            color: var(--gold) !important;
+        }
+
+        /* Disabled Inputs */
+        input:disabled, select:disabled, textarea:disabled {
+            background: var(--bg) !important; color: var(--text-muted) !important;
+            -webkit-text-fill-color: var(--text-muted);
+        }
+
         /* Theme-Toggle Button */
         .theme-toggle {
             display: inline-flex; align-items: center; justify-content: center;
