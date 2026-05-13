@@ -1122,6 +1122,31 @@ CLAUDE_TOOLS = [
 
 ASSISTENTIN_TOOLS = [
     {
+        'name': 'get_owner_briefing',
+        'description': 'Liefert das aktuelle Owner-Morgenbriefing mit Plan-Ampel (Tag X/30, EH-Stand vs Plan), Forecast Monatsende, „Heute persönlich" (Termine + Coachings), „Heute eskalieren" (alte Genehmigungen + Top-Performer mit 48h-Aktivitäts-Drop), Geld-Blocker (€-Hochrechnung hängender Recherchen) und „Neu 24h" (ungetouchte Leads, Bewerber >48h ohne Status). Antworte dem User basierend auf diesen Zahlen mit konkreten Empfehlungen — z.B. „Du bist 8% hinter Plan, fokussier dich heute auf Marc und Sabrina."',
+        'input_schema': {'type': 'object', 'properties': {}, 'required': []}
+    },
+    {
+        'name': 'get_owner_queue',
+        'description': 'Liefert die priorisierte Owner-Action-Queue: Hot-Leads (≤24h ungetoucht), pending Beförderungen, Drift-Top (48h-Aktivitäts-Drop unter Baseline), Geld-Blocker (Verträge >7T in Recherche pro Owner), Coachings heute. Sortiert nach Urgency. Ideal um den User durch seinen Morgen zu führen.',
+        'input_schema': {'type': 'object', 'properties': {}, 'required': []}
+    },
+    {
+        'name': 'list_team_drift',
+        'description': 'Liefert User aus dem Team die in den letzten 48h deutlich unter ihrer 30T-Aktivitäts-Baseline liegen (Drop-out-Frühwarnung). Pro User: Name, Phone, Baseline vs aktuell.',
+        'input_schema': {'type': 'object', 'properties': {}, 'required': []}
+    },
+    {
+        'name': 'list_pending_approvals',
+        'description': 'Liefert alle wartenden Beförderungs-Anträge im System mit Datum (für Najib zur manuellen Prüfung).',
+        'input_schema': {'type': 'object', 'properties': {}, 'required': []}
+    },
+    {
+        'name': 'list_blocked_provision',
+        'description': 'Liefert pro Owner die Anzahl Verträge in Recherche >7T und die geschätzte blockierte Provision in Euro. Für „wo ist Geld liegen geblieben?".',
+        'input_schema': {'type': 'object', 'properties': {}, 'required': []}
+    },
+    {
         'name': 'web_search',
         'description': 'Sucht im Web (DuckDuckGo) nach allgemeinen Informationen, Ortschaften, Anbietern, Themen. Gibt bis zu 5 Ergebnisse mit Titel + Link + Snippet zurück.',
         'input_schema': {
@@ -1320,6 +1345,72 @@ def _ddg_search(query, max_results=5):
 def execute_assistentin_tool(tool_name, tool_input, user):
     """Erweiterte Tools für /assistentin — Web-Search, Dokumente, Präsentationen, Locations."""
     try:
+        # ─── Owner-spezifische Tools (TIER E.4) ───
+        if tool_name == 'get_owner_briefing':
+            briefing = get_najib_morning_briefing(user.id)
+            if not briefing:
+                return {'error': 'Briefing konnte nicht geladen werden'}
+            return briefing
+
+        if tool_name == 'get_owner_queue':
+            return {'queue': get_owner_queue(user.id)}
+
+        if tool_name == 'list_team_drift':
+            briefing = get_najib_morning_briefing(user.id)
+            return {'drift_top': (briefing or {}).get('drift_top', [])}
+
+        if tool_name == 'list_pending_approvals':
+            db = get_db()
+            try:
+                rows = db.execute('''
+                    SELECT u.id, u.name, u.manual_career_level, u.pending_career_level, u.pending_at,
+                           p.name AS proposed_by
+                    FROM users u
+                    LEFT JOIN users p ON u.pending_by_user_id = p.id
+                    WHERE u.pending_career_level IS NOT NULL AND u.active = 1
+                    ORDER BY u.pending_at ASC
+                ''').fetchall()
+                pending = []
+                for r in rows:
+                    cur = next((c for c in CAREER_LEVELS if c['level'] == (r['manual_career_level'] or 1)), CAREER_LEVELS[0])
+                    nxt = next((c for c in CAREER_LEVELS if c['level'] == r['pending_career_level']), CAREER_LEVELS[0])
+                    pending.append({
+                        'id': r['id'], 'name': r['name'],
+                        'current': cur['short'], 'pending': nxt['short'],
+                        'proposed_by': r['proposed_by'] or '–',
+                        'pending_at': r['pending_at'],
+                    })
+                return {'pending_approvals': pending}
+            finally:
+                db.close()
+
+        if tool_name == 'list_blocked_provision':
+            db = get_db()
+            try:
+                descendants = [user.id] + get_all_descendants(user.id)
+                ph = ','.join('?' * len(descendants))
+                rows = db.execute(
+                    f"SELECT c.owner_id, u.name AS owner_name, "
+                    f"       COUNT(*) AS cnt, COALESCE(SUM(c.einheiten),0) AS eh "
+                    f"FROM contracts c JOIN users u ON u.id = c.owner_id "
+                    f"WHERE c.owner_id IN ({ph}) "
+                    f"AND c.status='abgeschlossen' "
+                    f"AND c.recherche_status IN ('offen','in_pruefung') "
+                    f"AND date(c.abschluss_date) <= date('now','-7 days') "
+                    f"GROUP BY c.owner_id ORDER BY eh DESC",
+                    descendants
+                ).fetchall()
+                blocked = [{
+                    'owner_id': r['owner_id'], 'owner_name': r['owner_name'],
+                    'verträge_in_recherche_alt': r['cnt'],
+                    'eh_blockiert': float(r['eh']),
+                    'eur_blockiert_geschätzt': round(r['eh'] * 9.50),
+                } for r in rows]
+                total_eur = sum(b['eur_blockiert_geschätzt'] for b in blocked)
+                return {'blocked_per_owner': blocked, 'total_eur_blockiert': total_eur}
+            finally:
+                db.close()
+
         if tool_name == 'web_search':
             q = (tool_input.get('query') or '').strip()
             if not q:
@@ -4011,16 +4102,40 @@ def admin_mail():
             db.close()
             return redirect(url_for('admin_mail'))
 
-        # Empfänger ermitteln
+        # TIER E.3 — Empfänger ermitteln (jetzt auch Strang-Filter + inaktiv-3T)
         if target == 'all':
             recipients = [r['email'] for r in db.execute('SELECT email FROM users WHERE active = 1').fetchall()]
         elif target == 'inactive':
             recipients = [r['email'] for r in db.execute('SELECT email FROM users WHERE active = 1 AND (last_login IS NULL OR last_login < datetime("now", "-7 days"))').fetchall()]
         elif target == 'silent':
             recipients = [r['email'] for r in db.execute('SELECT email FROM users WHERE active = 1 AND (last_login IS NULL OR last_login < datetime("now", "-30 days"))').fetchall()]
+        elif target == 'inactive_3d':
+            # Inaktiv ≥3T basierend auf activity_log (statt nur last_login — präziser)
+            recipients = [r['email'] for r in db.execute(
+                "SELECT u.email FROM users u WHERE u.active=1 "
+                "AND u.id NOT IN (SELECT user_id FROM activity_log WHERE created_at >= datetime('now','-3 days'))"
+            ).fetchall()]
+        elif target == 'no_eh_30d':
+            # Keine EH in letzten 30T — Drop-out-Risiko
+            recipients = [r['email'] for r in db.execute(
+                "SELECT u.email FROM users u WHERE u.active=1 "
+                "AND u.id NOT IN (SELECT owner_id FROM contracts WHERE status='abgeschlossen' "
+                "AND recherche_status='freigegeben' AND date(abschluss_date) >= date('now','-30 days'))"
+            ).fetchall()]
         elif target.startswith('level_'):
             lvl = int(target.split('_')[1])
             recipients = [r['email'] for r in db.execute('SELECT email FROM users WHERE active = 1 AND manual_career_level = ?', (lvl,)).fetchall()]
+        elif target.startswith('strang_'):
+            # Strang-Filter: alle User unter dem angegebenen LREP/HREP (transitiv)
+            try:
+                strang_root_id = int(target.split('_')[1])
+                chain = [strang_root_id] + get_all_descendants(strang_root_id)
+                ph2 = ','.join('?' * len(chain))
+                recipients = [r['email'] for r in db.execute(
+                    f'SELECT email FROM users WHERE id IN ({ph2}) AND active=1', chain
+                ).fetchall()]
+            except (ValueError, IndexError):
+                recipients = []
         else:
             recipients = []
 
@@ -4049,11 +4164,30 @@ Diese Nachricht wurde von {current_user.name} versendet.
         'all': db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1').fetchone()['c'],
         'inactive': db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1 AND (last_login IS NULL OR last_login < datetime("now", "-7 days"))').fetchone()['c'],
         'silent': db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1 AND (last_login IS NULL OR last_login < datetime("now", "-30 days"))').fetchone()['c'],
+        'inactive_3d': db.execute(
+            "SELECT COUNT(*) as c FROM users u WHERE u.active=1 "
+            "AND u.id NOT IN (SELECT user_id FROM activity_log WHERE created_at >= datetime('now','-3 days'))"
+        ).fetchone()['c'],
+        'no_eh_30d': db.execute(
+            "SELECT COUNT(*) as c FROM users u WHERE u.active=1 "
+            "AND u.id NOT IN (SELECT owner_id FROM contracts WHERE status='abgeschlossen' "
+            "AND recherche_status='freigegeben' AND date(abschluss_date) >= date('now','-30 days'))"
+        ).fetchone()['c'],
     }
     for cl in CAREER_LEVELS:
         counts[f'level_{cl["level"]}'] = db.execute('SELECT COUNT(*) as c FROM users WHERE active = 1 AND manual_career_level = ?', (cl['level'],)).fetchone()['c']
+    # TIER E.3 — Strang-Liste für Drop-Down (alle direkten Strang-Roots des Admins)
+    direct_strang = db.execute(
+        "SELECT id, name FROM users WHERE parent_id=? AND active=1 ORDER BY name",
+        (current_user.id,)
+    ).fetchall()
+    strang_options = []
+    for s in direct_strang:
+        chain = [s['id']] + get_all_descendants(s['id'])
+        strang_options.append({'id': s['id'], 'name': s['name'], 'count': len(chain)})
     db.close()
-    return render_template('admin_mail.html', counts=counts, all_levels=CAREER_LEVELS)
+    return render_template('admin_mail.html', counts=counts, all_levels=CAREER_LEVELS,
+                          strang_options=strang_options)
 
 
 # === ADMIN: BACKUP DOWNLOAD ===
@@ -6977,9 +7111,31 @@ def public_lead_capture():
                 owner_id = ref_user['id']
                 matched_berater_name = ref_user['name']
         if not owner_id:
-            # Fallback: Admin
-            admin = db.execute("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").fetchone()
-            owner_id = admin['id'] if admin else 1
+            # TIER E.1 — Auto-Assign: statt Fallback-Admin → Round-Robin im aktivsten Strang.
+            # Findet User mit niedrigster Lead-Last der letzten 14T und passendem
+            # liste_typ (vk → REPs/LREPs, rk → LREPs+ können recruiten).
+            # Bei Karriere-Anfragen: nur User mit ≥1 Coaching-Note in letzten 30T (= aktiver Coach).
+            min_level = 2 if interesse == 'karriere' else 1  # Karriere → LREP+, Beratung → ab REP
+            candidates = db.execute(
+                "SELECT u.id, u.name, "
+                "       (SELECT COUNT(*) FROM leads l "
+                "        WHERE l.owner_id=u.id AND l.source='public' "
+                "        AND l.created_at >= datetime('now','-14 days')) AS recent_load "
+                "FROM users u "
+                "WHERE u.active=1 AND u.role != 'admin' "
+                "AND COALESCE(u.manual_career_level,1) >= ? "
+                "ORDER BY recent_load ASC, u.id LIMIT 5",
+                (min_level,)
+            ).fetchall()
+            if candidates:
+                # Wähle den mit der niedrigsten Last (Round-Robin)
+                chosen = candidates[0]
+                owner_id = chosen['id']
+                matched_berater_name = chosen['name']
+            else:
+                # Fallback: Admin (wenn niemand qualifiziert)
+                admin = db.execute("SELECT id FROM users WHERE role = 'admin' AND active = 1 LIMIT 1").fetchone()
+                owner_id = admin['id'] if admin else 1
 
         # Existiert E-Mail schon?
         existing = db.execute('SELECT id FROM leads WHERE LOWER(email) = ?', (email,)).fetchone()
@@ -9823,6 +9979,120 @@ def get_najib_morning_briefing(user_id):
         return None
     finally:
         db.close()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# TIER E.2 — Auto-Mail-Sequenz für neue Bewerber/Leads
+# Vorher: Bewerber landet in Inbox, dann manuell ansprechen. Bei 80 Partnern
+# scheitert das. Jetzt: Auto-Sequenz die Owner FREE läuft, Najib sieht im
+# Briefing nur noch wer trotz Sequenz kalt blieb.
+# Cron via monitor_loop.sh stündlich.
+# ═══════════════════════════════════════════════════════════════════
+
+def run_lead_followup_sequence():
+    """Auto-Mail-Sequenz für public Leads.
+
+    Trigger pro Lead:
+      - 24h alt + status=neu + keine Mail gesendet → 'lead_confirmation'
+      - 72h alt + status=neu + nicht erreicht → 'lead_termin_vorschlag'
+      - 5T (120h) alt + status=neu + immer noch nicht reagiert → 'lead_last_chance'
+
+    Idempotent via push_log mit ref_key='followup-{lead_id}'.
+    Loggt jede Sequenz in email_log + push_log. Stoppt sobald Lead-Status sich
+    von 'neu' wegbewegt (kontakt/angebot/etc.).
+    """
+    db = get_db()
+    sent = {'confirmation': 0, 'vorschlag': 0, 'last_chance': 0}
+    try:
+        # Hol alle public Leads die status='neu' haben und ≥24h alt sind
+        leads = db.execute(
+            "SELECT l.id, l.name, l.email, l.created_at, l.owner_id, "
+            "       u.name AS owner_name, u.phone AS owner_phone, u.email AS owner_email "
+            "FROM leads l LEFT JOIN users u ON u.id = l.owner_id "
+            "WHERE l.source='public' AND l.status='neu' "
+            "AND l.created_at <= datetime('now','-24 hours') "
+            "AND l.created_at >= datetime('now','-7 days') "
+            "ORDER BY l.created_at"
+        ).fetchall()
+        for lead in leads:
+            lead_id = lead['id']
+            try:
+                created_dt = datetime.strptime(lead['created_at'][:19], '%Y-%m-%d %H:%M:%S')
+                hours_old = (datetime.now() - created_dt).total_seconds() / 3600
+            except (ValueError, TypeError):
+                continue
+
+            owner_label = lead['owner_name'] or 'Pro Academy'
+            base_url = (get_setting('canonical_url') or 'https://proacademy-business.de').rstrip('/')
+
+            # Stage 1: Confirmation (24-48h)
+            if 24 <= hours_old < 48:
+                if _push_already_sent(lead['owner_id'] or 0, 'lead_followup', f'confirm-{lead_id}'):
+                    continue
+                subject = f'Hallo {lead["name"]}, ich habe deine Anfrage erhalten'
+                text = (
+                    f"Hallo {lead['name']},\n\n"
+                    f"vielen Dank für deine Anfrage bei Pro Academy. Mein Name ist {owner_label} "
+                    f"und ich werde mich persönlich mit dir in Verbindung setzen.\n\n"
+                    f"Wir melden uns innerhalb von 1-2 Werktagen — meistens sogar deutlich schneller.\n\n"
+                    f"Falls dringend: schreib mir direkt zurück oder ruf an{(' (' + lead['owner_phone'] + ')') if lead.get('owner_phone') else ''}.\n\n"
+                    f"Beste Grüße,\n{owner_label}\nPro Academy")
+                ok, _ = send_email(lead['email'], subject, text, sent_by=None, category='signup')
+                if ok:
+                    _push_mark_sent(lead['owner_id'] or 0, 'lead_followup', f'confirm-{lead_id}')
+                    sent['confirmation'] += 1
+
+            # Stage 2: Termin-Vorschlag (72-96h)
+            elif 72 <= hours_old < 96:
+                if _push_already_sent(lead['owner_id'] or 0, 'lead_followup', f'vorschlag-{lead_id}'):
+                    continue
+                subject = f'{lead["name"]}, lass uns einen Termin finden'
+                text = (
+                    f"Hallo {lead['name']},\n\n"
+                    f"ich wollte nachfragen ob alles bei dir klar ist? Lass uns am besten einen "
+                    f"kurzen Termin finden — 15-20 Minuten reichen für ein Erstgespräch.\n\n"
+                    f"Wann passt es dir besser?\n"
+                    f"  • Diese Woche Vormittag\n"
+                    f"  • Diese Woche Abend (ab 18 Uhr)\n"
+                    f"  • Nächste Woche\n\n"
+                    f"Antworte einfach kurz mit deinem Wunsch — ich blocke dir den Slot.\n\n"
+                    f"Beste Grüße,\n{owner_label}")
+                ok, _ = send_email(lead['email'], subject, text, sent_by=None, category='signup')
+                if ok:
+                    _push_mark_sent(lead['owner_id'] or 0, 'lead_followup', f'vorschlag-{lead_id}')
+                    sent['vorschlag'] += 1
+
+            # Stage 3: Last-Chance (120-144h, ~5 Tage)
+            elif 120 <= hours_old < 144:
+                if _push_already_sent(lead['owner_id'] or 0, 'lead_followup', f'lastchance-{lead_id}'):
+                    continue
+                subject = f'{lead["name"]}, letzte Nachricht von mir'
+                text = (
+                    f"Hallo {lead['name']},\n\n"
+                    f"ich habe dich vor 5 Tagen kontaktiert und seitdem nichts gehört. Falls du "
+                    f"weiterhin Interesse hast — eine kurze Antwort genügt.\n\n"
+                    f"Falls du dich anders entschieden hast, ist das auch in Ordnung. Ich werde "
+                    f"keine weiteren Mails schicken.\n\n"
+                    f"Beste Grüße,\n{owner_label}")
+                ok, _ = send_email(lead['email'], subject, text, sent_by=None, category='signup')
+                if ok:
+                    _push_mark_sent(lead['owner_id'] or 0, 'lead_followup', f'lastchance-{lead_id}')
+                    sent['last_chance'] += 1
+        return sent
+    except Exception as e:
+        app.logger.warning(f'run_lead_followup_sequence fail: {e}')
+        return sent
+    finally:
+        db.close()
+
+
+@app.route('/api/admin/run-lead-followup', methods=['POST'])
+@login_required
+def api_run_lead_followup():
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    stats = run_lead_followup_sequence()
+    return jsonify({'ok': True, 'stats': stats})
 
 
 # ═══════════════════════════════════════════════════════════════════

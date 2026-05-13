@@ -61,6 +61,27 @@
                     <div style="font-size:12px;color:var(--text-muted)">{{ counts.silent }} Empfänger</div>
                 </div>
             </label>
+            {# TIER E.3 — präzisere Filter via activity_log + contracts #}
+            {% if counts.inactive_3d > 0 %}
+            <label class="target-card" style="cursor:pointer">
+                <input type="radio" name="target" value="inactive_3d" style="display:none">
+                <div class="target-inner" style="border-left:3px solid var(--orange)">
+                    <div style="font-size:22px">⚠</div>
+                    <div style="font-size:14px;font-weight:700;margin-top:6px">Inaktiv ≥3T (Aktivität)</div>
+                    <div style="font-size:12px;color:var(--text-muted)">{{ counts.inactive_3d }} Empfänger</div>
+                </div>
+            </label>
+            {% endif %}
+            {% if counts.no_eh_30d > 0 %}
+            <label class="target-card" style="cursor:pointer">
+                <input type="radio" name="target" value="no_eh_30d" style="display:none">
+                <div class="target-inner" style="border-left:3px solid var(--red)">
+                    <div style="font-size:22px">🔴</div>
+                    <div style="font-size:14px;font-weight:700;margin-top:6px">0 EH in 30T (Drop-out-Risiko)</div>
+                    <div style="font-size:12px;color:var(--text-muted)">{{ counts.no_eh_30d }} Empfänger</div>
+                </div>
+            </label>
+            {% endif %}
             {% for cl in all_levels %}
             {% if counts['level_' ~ cl.level] > 0 %}
             <label class="target-card" style="cursor:pointer">
@@ -72,6 +93,17 @@
                 </div>
             </label>
             {% endif %}
+            {% endfor %}
+            {# TIER E.3 — Strang-Filter (alle direkten Strang-Roots des Admins) #}
+            {% for s in strang_options %}
+            <label class="target-card" style="cursor:pointer">
+                <input type="radio" name="target" value="strang_{{ s.id }}" style="display:none">
+                <div class="target-inner" style="border-left:3px solid var(--gold)">
+                    <div style="font-size:22px">⬢</div>
+                    <div style="font-size:14px;font-weight:700;margin-top:6px">Strang: {{ s.name }}</div>
+                    <div style="font-size:12px;color:var(--text-muted)">{{ s.count }} im Strang</div>
+                </div>
+            </label>
             {% endfor %}
         </div>
     </div>

@@ -95,6 +95,17 @@ if stats['auto_approved_count']:
     print('auto-approve:', stats)
 " 2>&1 | grep -v '^$' >> $HEALTH_LOG
 
+    # ─── 1b4. Auto-Mail-Sequenz für Bewerber (TIER E.2) — alle 15 Min ───
+    # Confirmation 24h, Termin-Vorschlag 72h, Last-Chance 5T.
+    # Idempotent — Sequenz pro Lead nur 1× je Stage.
+    python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+from app import run_lead_followup_sequence
+stats = run_lead_followup_sequence()
+if any(stats.values()):
+    print('lead-followup:', stats)
+" 2>&1 | grep -v '^$' >> $HEALTH_LOG
+
     # ─── 1c. DB-Backup (1× pro Tag, zwischen 3-5 Uhr nachts) ─────────
     if [ "$CURRENT_HOUR" -ge 3 ] && [ "$CURRENT_HOUR" -lt 5 ] && [ "$LAST_BACKUP_DATE" != "$CURRENT_DATE" ]; then
         echo "[$(date)] Daily-Backup wird ausgelöst" | tee -a $HEALTH_LOG
