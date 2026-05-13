@@ -61,8 +61,8 @@
         }
         /* === DARK MODE === */
         [data-theme="dark"] {
-            --navy: #d4a843;        /* Gold als Akzent statt Navy */
-            --navy-light: #e8b958;
+            --navy: #1a2240;            /* echte Navy für Primary-Buttons + Brand */
+            --navy-light: #243059;
             --gold: #d4a843;
             --gold-light: #f0c970;
             --gold-soft: #2a2410;
@@ -85,10 +85,10 @@
             --orange: #fbbf24;
             --orange-soft: #2a1808;
             --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
-            --shadow-md: 0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.4);
-            --shadow-lg: 0 12px 32px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.4);
-            --shadow-gold: 0 8px 24px rgba(212,168,67,0.25);
-            --shadow-navy: 0 8px 24px rgba(0,0,0,0.5);
+            --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+            --shadow-gold: 0 0 0 rgba(0,0,0,0);  /* deaktiviert — Gold ist Akzent, kein Glow */
+            --shadow-navy: 0 4px 12px rgba(0,0,0,0.45);
         }
         /* Smooth Transitions zwischen Modes */
         body, .card, .sidebar, .topbar, .kpi-card, table, input, select, textarea, .btn, .nav-link {
@@ -99,80 +99,64 @@
            🟪 REVOLUT-STYLE COMPONENTS (Phase 1)
            =========================================================== */
 
-        /* Hero "Balance" Card — Gold-getönt, premium */
+        /* Hero "Balance" Card — ruhig, kein Glow, kein Billboard */
         .revo-hero {
-            background: linear-gradient(135deg, color-mix(in srgb, #d4a843 6%, var(--surface)), var(--surface));
-            border: 1px solid color-mix(in srgb, #d4a843 30%, var(--border));
-            border-radius: 24px;
-            padding: 32px 28px;
-            position: relative; overflow: hidden;
-            margin-bottom: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--gold);
+            border-radius: 10px;
+            padding: 18px 20px;
+            position: relative;
+            margin-bottom: 14px;
         }
         .revo-hero.navy {
-            background: linear-gradient(135deg, #0f1c3f, #1a2c5b) !important;
-            border: none !important; color: #fff;
+            border-left-color: var(--navy);
         }
-        .revo-hero.navy .revo-hero-label { color: rgba(255,255,255,0.6) !important; }
-        .revo-hero.navy .revo-hero-value { color: #d4a843 !important; }
-        .revo-hero.navy .revo-hero-sub { color: rgba(255,255,255,0.7) !important; }
-        .revo-hero.red {
-            background: linear-gradient(135deg, color-mix(in srgb, #ef4444 8%, var(--surface)), var(--surface));
-            border-color: color-mix(in srgb, #ef4444 30%, var(--border));
-        }
-        .revo-hero.green {
-            background: linear-gradient(135deg, color-mix(in srgb, #10b981 8%, var(--surface)), var(--surface));
-            border-color: color-mix(in srgb, #10b981 30%, var(--border));
-        }
-        .revo-hero::before {
-            content: ''; position: absolute; top: -40%; right: -20%;
-            width: 280px; height: 280px;
-            background: radial-gradient(circle, rgba(212,168,67,0.18) 0%, transparent 70%);
-            pointer-events: none;
-        }
-        .revo-hero > * { position: relative; z-index: 1; }
-        .revo-hero-label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
-        .revo-hero-value { font-size: 56px; font-weight: 800; letter-spacing: -2px; line-height: 1.1; margin: 8px 0 4px; color: var(--text); }
-        .revo-hero-value .unit { font-size: 22px; color: var(--text-muted); font-weight: 600; letter-spacing: -0.5px; margin-left: 6px; }
-        .revo-hero-sub { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+        .revo-hero.red { border-left-color: var(--red); }
+        .revo-hero.green { border-left-color: var(--green); }
+        .revo-hero-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+        .revo-hero-value { font-size: 26px; font-weight: 800; letter-spacing: -0.6px; line-height: 1.15; margin: 4px 0 2px; color: var(--text); font-variant-numeric: tabular-nums; }
+        .revo-hero-value .unit { font-size: 14px; color: var(--text-muted); font-weight: 600; letter-spacing: -0.2px; margin-left: 4px; }
+        .revo-hero-sub { font-size: 12px; color: var(--text-muted); font-weight: 500; }
         .revo-hero-sub .pos { color: var(--green); font-weight: 700; }
         .revo-hero-sub .neg { color: var(--red); font-weight: 700; }
         @media (max-width: 600px) {
-            .revo-hero { padding: 24px 20px; border-radius: 20px; }
-            .revo-hero-value { font-size: 44px; letter-spacing: -1.5px; }
+            .revo-hero { padding: 16px 18px; }
+            .revo-hero-value { font-size: 22px; letter-spacing: -0.4px; }
         }
 
-        /* Chip-Reihe (Eigen-EH, Team-EH etc) */
-        .revo-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        /* Chip-Reihe (Eigen-EH, Team-EH etc) — flat, dichter */
+        .revo-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
         .revo-chip {
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 18px; padding: 16px 18px;
+            border-radius: 8px; padding: 12px 14px;
         }
-        .revo-chip-l { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.3px; }
-        .revo-chip-v { font-size: 24px; font-weight: 700; letter-spacing: -0.6px; color: var(--text); margin-top: 4px; }
+        .revo-chip-l { font-size: 10px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; }
+        .revo-chip-v { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; color: var(--text); margin-top: 4px; font-variant-numeric: tabular-nums; }
         .revo-chip-d { font-size: 11px; color: var(--green); font-weight: 700; margin-top: 2px; }
         .revo-chip-d.neg { color: var(--red); }
-        /* Farbige Chips Varianten */
-        .revo-chip.gold { border-color: color-mix(in srgb, #d4a843 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #d4a843 6%, var(--surface))); }
-        .revo-chip.blue { border-color: color-mix(in srgb, #3b82f6 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #3b82f6 6%, var(--surface))); }
-        .revo-chip.green { border-color: color-mix(in srgb, #10b981 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #10b981 6%, var(--surface))); }
-        .revo-chip.purple { border-color: color-mix(in srgb, #a855f7 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #a855f7 6%, var(--surface))); }
-        .revo-chip.orange { border-color: color-mix(in srgb, #f59e0b 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #f59e0b 6%, var(--surface))); }
+        /* Farbige Chips Varianten — nur Akzent-Border-Top, kein Hintergrund-Tönung */
+        .revo-chip.gold { border-top: 2px solid var(--gold); }
+        .revo-chip.blue { border-top: 2px solid var(--blue); }
+        .revo-chip.green { border-top: 2px solid var(--green); }
+        .revo-chip.purple { border-top: 2px solid var(--purple); }
+        .revo-chip.orange { border-top: 2px solid var(--orange); }
         .revo-chip.red { border-color: color-mix(in srgb, #ef4444 30%, var(--border)); background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #ef4444 6%, var(--surface))); }
 
         /* Quick-Action-Bar (4 Tiles mit Round-Icon) */
-        .revo-quick-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0 24px; }
+        .revo-quick-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0 18px; }
         .revo-q {
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 16px; padding: 14px 8px; text-align: center;
-            cursor: pointer; transition: all 0.2s; text-decoration: none; color: var(--text);
+            border-radius: 8px; padding: 12px 8px; text-align: center;
+            cursor: pointer; transition: background 0.15s, border-color 0.15s; text-decoration: none; color: var(--text);
         }
-        .revo-q:hover { background: var(--bg-2); transform: translateY(-2px); }
+        .revo-q:hover { background: var(--bg-2); border-color: var(--border-strong); }
         .revo-q-i {
-            width: 38px; height: 38px; border-radius: 50%;
-            background: linear-gradient(135deg, var(--gold), var(--gold-light));
-            color: #0f1c3f; margin: 0 auto 6px;
+            width: 30px; height: 30px; border-radius: 6px;
+            background: var(--bg-2); border: 1px solid var(--border);
+            color: var(--text); margin: 0 auto 6px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 17px; font-weight: 800;
+            font-size: 14px; font-weight: 700;
         }
         .revo-q-l { font-size: 11px; color: var(--text-muted); font-weight: 600; }
         @media (max-width: 360px) { .revo-quick-bar { grid-template-columns: repeat(2, 1fr); } }
@@ -180,42 +164,41 @@
         /* Listen-Item Style (Top Performer, Team-Liste, Recent Activity etc.) */
         .revo-list { display: flex; flex-direction: column; }
         .revo-item {
-            display: flex; align-items: center; gap: 14px;
-            padding: 14px 0; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 0; border-bottom: 1px solid var(--border);
             text-decoration: none; color: var(--text);
-            transition: all 0.15s;
+            transition: background 0.12s;
         }
         .revo-item:last-child { border-bottom: none; }
-        .revo-item:hover { background: var(--bg-2); padding-left: 8px; padding-right: 8px; border-radius: 12px; }
+        .revo-item:hover { background: var(--bg-2); padding-left: 8px; padding-right: 8px; border-radius: 6px; }
         .revo-item-ic {
-            width: 42px; height: 42px; border-radius: 50%;
+            width: 30px; height: 30px; border-radius: 6px;
             background: var(--bg-2); border: 1px solid var(--border);
             display: flex; align-items: center; justify-content: center;
-            font-size: 14px; font-weight: 700; color: var(--text-muted);
+            font-size: 12px; font-weight: 700; color: var(--text-muted);
             flex-shrink: 0;
         }
-        .revo-item-ic.gold { background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: #0f1c3f; border-color: transparent; }
-        .revo-item-ic.green { background: var(--green); color: #fff; border-color: transparent; }
-        .revo-item-ic.red { background: var(--red); color: #fff; border-color: transparent; }
-        .revo-item-name { font-weight: 600; font-size: 14px; color: var(--text); }
+        .revo-item-ic.gold { background: var(--gold-soft); color: var(--gold); border-color: var(--gold); }
+        .revo-item-ic.green { background: var(--green-soft); color: var(--green); border-color: var(--green); }
+        .revo-item-ic.red { background: var(--red-soft); color: var(--red); border-color: var(--red); }
+        .revo-item-name { font-weight: 600; font-size: 13px; color: var(--text); }
         .revo-item-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-        .revo-item-amt { margin-left: auto; font-weight: 700; color: var(--gold); font-size: 14px; white-space: nowrap; }
-        .revo-item-arrow { color: var(--text-soft); font-size: 14px; margin-left: 6px; }
+        .revo-item-amt { margin-left: auto; font-weight: 700; color: var(--text); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .revo-item-arrow { color: var(--text-soft); font-size: 12px; margin-left: 6px; }
 
-        /* Status-Pill */
-        .revo-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+        /* Status-Pill — kantig statt rund */
+        .revo-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
         .revo-pill.on { background: var(--green-soft); color: var(--green); }
         .revo-pill.off { background: var(--red-soft); color: var(--red); }
         .revo-pill.warn { background: var(--orange-soft); color: var(--orange); }
 
-        /* Section-Header (für Listen) */
+        /* Section-Header (für Listen) — Title-Case statt All-Caps */
         .revo-section-h {
             display: flex; align-items: center; justify-content: space-between;
-            font-size: 13px; font-weight: 700; color: var(--text-muted);
-            text-transform: uppercase; letter-spacing: 0.6px;
-            margin: 24px 0 8px;
+            font-size: 12px; font-weight: 700; color: var(--text-muted);
+            margin: 18px 0 8px;
         }
-        .revo-section-h a { font-size: 12px; color: var(--gold); text-decoration: none; text-transform: none; letter-spacing: 0; font-weight: 600; }
+        .revo-section-h a { font-size: 12px; color: var(--gold); text-decoration: none; font-weight: 600; }
 
         /* Floating-Action-Button (FAB) — Mobile Primary CTA */
         .revo-fab {
@@ -276,71 +259,75 @@
            bekommen den Revolut-Vibe ohne Templates anzufassen
            =========================================================== */
 
-        /* Cards: größerer Radius, sanftere Borders, mehr Atem */
+        /* Cards: subtil, business-grade — kleinere Radien, kein Gold-Glow */
         .card {
-            border-radius: 18px !important;
-            padding: 22px !important;
+            border-radius: 10px !important;
+            padding: 18px !important;
             border: 1px solid var(--border) !important;
             box-shadow: none !important;
         }
         .card:hover { transform: none !important; }
         .card-title {
-            font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px;
+            font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
             color: var(--text-muted); font-weight: 700;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             border: none !important;
         }
 
-        /* KPI-Cards: rund + farbige Akzent-Bar (Banking + Persönlichkeit) */
+        /* KPI-Cards: ruhige Surface, nur 3px Akzent-Bar (kein Gradient-Confetti) */
         .kpi-card {
-            border-radius: 18px !important;
-            padding: 18px 20px 18px 22px !important;
+            border-radius: 10px !important;
+            padding: 14px 16px 14px 18px !important;
             border: 1px solid var(--border) !important;
+            background: var(--surface) !important;
             box-shadow: none !important;
             position: relative !important;
             overflow: hidden;
         }
         .kpi-card::before {
-            content: ''; position: absolute; left: 0; top: 16px; bottom: 16px;
-            width: 4px; background: var(--accent, var(--gold));
-            border-radius: 0 4px 4px 0; display: block !important;
+            content: ''; position: absolute; left: 0; top: 14px; bottom: 14px;
+            width: 3px; background: var(--accent, var(--gold));
+            border-radius: 0 3px 3px 0; display: block !important;
         }
-        .kpi-card.gold { --accent: #d4a843; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #d4a843 8%, var(--surface))) !important; }
-        .kpi-card.blue { --accent: #3b82f6; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #3b82f6 8%, var(--surface))) !important; }
-        .kpi-card.green { --accent: #10b981; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #10b981 8%, var(--surface))) !important; }
-        .kpi-card.purple { --accent: #a855f7; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #a855f7 8%, var(--surface))) !important; }
-        .kpi-card.orange { --accent: #f59e0b; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #f59e0b 8%, var(--surface))) !important; }
-        .kpi-card.navy { --accent: #0f1c3f; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #0f1c3f 8%, var(--surface))) !important; }
-        .kpi-card.red { --accent: #ef4444; background: linear-gradient(135deg, var(--surface), color-mix(in srgb, #ef4444 8%, var(--surface))) !important; }
+        .kpi-card.gold { --accent: var(--gold); }
+        .kpi-card.blue { --accent: var(--blue); }
+        .kpi-card.green { --accent: var(--green); }
+        .kpi-card.purple { --accent: var(--purple); }
+        .kpi-card.orange { --accent: var(--orange); }
+        .kpi-card.navy { --accent: var(--navy); }
+        .kpi-card.red { --accent: var(--red); }
         .kpi-label {
             font-size: 11px; color: var(--text-muted) !important;
             text-transform: none !important; letter-spacing: 0.2px !important;
             font-weight: 600 !important;
         }
         .kpi-value {
-            font-size: 32px !important; font-weight: 800 !important;
-            letter-spacing: -1px !important; line-height: 1 !important;
-            margin: 6px 0 4px !important;
+            font-size: 22px !important; font-weight: 800 !important;
+            letter-spacing: -0.5px !important; line-height: 1.1 !important;
+            margin: 4px 0 2px !important;
+            font-variant-numeric: tabular-nums;
         }
         .kpi-sub { font-size: 11px; color: var(--text-soft); }
 
-        /* Buttons: rund + premium */
+        /* Buttons: kompakt, business-grade — Navy als Primary, Gold nur als gezielter Akzent */
         .btn {
-            border-radius: 12px !important;
-            padding: 11px 18px !important;
-            font-weight: 700 !important;
+            border-radius: 8px !important;
+            padding: 9px 14px !important;
+            font-weight: 600 !important;
             letter-spacing: -0.1px;
         }
-        .btn-sm { padding: 8px 14px !important; border-radius: 10px !important; }
+        .btn-sm { padding: 6px 11px !important; border-radius: 6px !important; }
         .btn-primary {
-            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%) !important;
-            color: #0f1c3f !important;
-            border: none !important;
-            box-shadow: 0 4px 14px rgba(212,168,67,0.25) !important;
+            background: var(--navy) !important;
+            color: #fff !important;
+            border: 1px solid var(--navy) !important;
+            box-shadow: none !important;
         }
         .btn-primary:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(212,168,67,0.35) !important;
+            background: var(--navy-light) !important;
+            border-color: var(--navy-light) !important;
+            box-shadow: none !important;
+            transform: none !important;
         }
         .btn-secondary {
             background: var(--bg-2) !important;
@@ -349,15 +336,17 @@
         }
         .btn-secondary:hover { background: var(--surface) !important; border-color: var(--border-strong) !important; }
         .btn-gold {
-            background: linear-gradient(135deg, var(--gold), var(--gold-light)) !important;
-            color: #0f1c3f !important; border: none !important;
+            background: var(--gold) !important;
+            color: #0f1c3f !important; border: 1px solid var(--gold) !important;
+            box-shadow: none !important;
         }
+        .btn-gold:hover { background: var(--gold-light) !important; border-color: var(--gold-light) !important; }
 
-        /* Inputs/Forms: large, friendly, banking-app feel */
+        /* Inputs/Forms: dichter, ohne Gold-Glow im Focus */
         input, select, textarea {
-            border-radius: 12px !important;
-            padding: 14px 16px !important;
-            font-size: 15px !important;
+            border-radius: 8px !important;
+            padding: 9px 12px !important;
+            font-size: 13px !important;
             border: 1px solid var(--border) !important;
             background: var(--bg-2) !important;
             box-shadow: none !important;
@@ -365,48 +354,49 @@
         input:focus, select:focus, textarea:focus {
             border-color: var(--gold) !important;
             background: var(--surface) !important;
-            box-shadow: 0 0 0 4px rgba(212,168,67,0.15) !important;
+            box-shadow: 0 0 0 2px rgba(212,168,67,0.18) !important;
         }
         label {
-            font-size: 12px !important;
-            text-transform: none !important;
-            letter-spacing: 0.1px !important;
+            font-size: 11px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.4px !important;
             color: var(--text-muted) !important;
-            font-weight: 600 !important;
-            margin-bottom: 6px !important;
+            font-weight: 700 !important;
+            margin-bottom: 5px !important;
         }
 
-        /* Tables: cleaner, weniger Borders, mehr Air */
+        /* Tables: dichter — mehr Zeilen pro Screen */
         table { border-collapse: separate !important; border-spacing: 0 !important; }
         th {
             font-size: 10px !important;
             text-transform: uppercase !important;
-            letter-spacing: 0.7px !important;
+            letter-spacing: 0.6px !important;
             color: var(--text-soft) !important;
             font-weight: 700 !important;
-            padding: 10px 14px !important;
+            padding: 8px 12px !important;
             border-bottom: 1px solid var(--border) !important;
         }
         td {
-            padding: 14px !important;
+            padding: 9px 12px !important;
             border-bottom: 1px solid var(--border) !important;
-            font-size: 14px !important;
+            font-size: 13px !important;
         }
         tr:last-child td { border-bottom: none !important; }
         tr:hover td { background: var(--bg-2) !important; }
 
-        /* Status-Badges: Pill-Stil */
+        /* Status-Badges: kompakter, kleinere Radien (4px statt 99px) */
         .status-badge, .stufe-pill {
-            border-radius: 99px !important;
-            padding: 4px 12px !important;
-            font-size: 11px !important;
+            border-radius: 4px !important;
+            padding: 2px 8px !important;
+            font-size: 10px !important;
             font-weight: 700 !important;
+            letter-spacing: 0.3px !important;
         }
 
-        /* Filter-Buttons (z.B. Lead-Filter) */
+        /* Filter-Buttons: kantig statt rund-pillig */
         .filter-btn {
-            border-radius: 99px !important;
-            padding: 8px 14px !important;
+            border-radius: 6px !important;
+            padding: 6px 12px !important;
             font-size: 12px !important;
             font-weight: 600 !important;
         }
@@ -437,32 +427,32 @@
             *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
         }
 
-        /* Page-Container Padding auf Mobile — luftiger, premium */
+        /* Page-Container Padding auf Mobile — dichter, business-grade */
         @media (max-width: 768px) {
-            .content { padding: 20px 18px 32px !important; }
-            .card { padding: 22px !important; border-radius: 18px !important; margin-bottom: 16px !important; }
-            .kpi-card { padding: 18px 20px !important; }
-            .kpi-value { font-size: 28px !important; }
-            .topbar { padding: 14px 18px !important; }
-            .topbar-title { font-size: 19px !important; }
-            /* Tabellen: lesbar bleiben */
-            th { padding: 10px 12px !important; }
-            td { padding: 12px !important; font-size: 13px !important; }
-            /* Hero-Karten brauchen mehr Atem */
-            .revo-hero { padding: 28px 22px !important; border-radius: 22px !important; margin-bottom: 18px !important; }
-            .revo-hero-value { font-size: 42px !important; }
-            /* Section-Headers haben mehr Atem */
-            .revo-section-h { margin: 28px 0 12px !important; }
-            /* Quick-Bar nicht so eng */
-            .revo-quick-bar { gap: 12px !important; margin: 18px 0 22px !important; }
-            .revo-q { padding: 18px 8px !important; border-radius: 18px !important; }
-            /* List-Items mehr Höhe */
-            .revo-item { padding: 16px 0 !important; gap: 16px !important; }
-            /* Forms — nicht so gedrückt */
-            .form-grid { grid-template-columns: 1fr !important; gap: 14px !important; }
-            input, select, textarea { padding: 16px 18px !important; font-size: 16px !important; }
-            label { font-size: 13px !important; margin-bottom: 8px !important; }
-            .btn { padding: 14px 22px !important; font-size: 14px !important; }
+            .content { padding: 16px 14px 28px !important; }
+            .card { padding: 16px !important; border-radius: 10px !important; margin-bottom: 12px !important; }
+            .kpi-card { padding: 14px 16px !important; }
+            .kpi-value { font-size: 22px !important; }
+            .topbar { padding: 12px 16px !important; }
+            .topbar-title { font-size: 17px !important; }
+            /* Tabellen */
+            th { padding: 8px 10px !important; }
+            td { padding: 9px 10px !important; font-size: 13px !important; }
+            /* Hero-Karten */
+            .revo-hero { padding: 20px 18px !important; border-radius: 12px !important; margin-bottom: 14px !important; }
+            .revo-hero-value { font-size: 30px !important; }
+            /* Section-Headers */
+            .revo-section-h { margin: 20px 0 10px !important; }
+            /* Quick-Bar */
+            .revo-quick-bar { gap: 10px !important; margin: 14px 0 18px !important; }
+            .revo-q { padding: 14px 8px !important; border-radius: 10px !important; }
+            /* List-Items */
+            .revo-item { padding: 12px 0 !important; gap: 14px !important; }
+            /* Forms — nutzbar bleiben (Mobile-Touch braucht 16px font sonst zoom-in) */
+            .form-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
+            input, select, textarea { padding: 11px 14px !important; font-size: 16px !important; }
+            label { font-size: 12px !important; margin-bottom: 5px !important; }
+            .btn { padding: 11px 18px !important; font-size: 14px !important; }
         }
 
         /* Grids: konsistente Spacing */
@@ -739,18 +729,7 @@
             -moz-osx-font-smoothing: grayscale;
             text-rendering: optimizeLegibility;
         }
-        /* Modernes Ambient-Light Background — subtle Glow-Effekte */
-        body::before {
-            content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-            background:
-                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(184,144,46,0.05), transparent 60%),
-                radial-gradient(ellipse 60% 40% at 100% 50%, rgba(15,28,63,0.04), transparent 60%);
-        }
-        [data-theme="dark"] body::before {
-            background:
-                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212,168,67,0.08), transparent 60%),
-                radial-gradient(ellipse 60% 40% at 100% 50%, rgba(96,165,250,0.05), transparent 60%);
-        }
+        /* Body bleibt flat — kein Ambient-Glow (sah wie Casino-Mood-Light aus) */
 
         /* Sidebar — Premium Glassmorphism */
         .sidebar {
@@ -795,27 +774,21 @@
             letter-spacing: 1.3px; color: var(--text-soft); font-weight: 700;
         }
         .nav-link {
-            display: flex; align-items: center; gap: 11px; padding: 10px 12px;
-            color: var(--text-muted); text-decoration: none; font-size: 13px;
-            border-radius: 9px; transition: all 0.18s ease; font-weight: 500;
-            margin-bottom: 2px; position: relative;
+            display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+            color: var(--text-muted); text-decoration: none; font-size: 12.5px;
+            border-radius: 6px; transition: background 0.12s, color 0.12s; font-weight: 500;
+            margin-bottom: 1px; position: relative;
         }
         .nav-link:hover {
-            background: var(--bg); color: var(--text);
-            transform: translateX(2px);
+            background: var(--bg-2); color: var(--text);
         }
         .nav-link.active {
-            background: linear-gradient(135deg, rgba(212,168,67,0.18) 0%, rgba(212,168,67,0.05) 100%);
-            color: var(--gold) !important; font-weight: 800 !important;
-            box-shadow: inset 4px 0 0 var(--gold);
-            position: relative;
+            background: var(--bg-2);
+            color: var(--text) !important; font-weight: 700 !important;
+            box-shadow: inset 2px 0 0 var(--gold);
         }
-        .nav-link.active::after {
-            content: '●'; position: absolute; right: 14px; top: 50%;
-            transform: translateY(-50%); color: var(--gold); font-size: 8px;
-        }
-        .nav-link.active .nav-icon { opacity: 1 !important; transform: scale(1.1); }
-        .nav-icon { font-size: 14px; width: 18px; text-align: center; opacity: 0.85; }
+        .nav-link.active .nav-icon { opacity: 1 !important; }
+        .nav-icon { font-size: 13px; width: 16px; text-align: center; opacity: 0.7; }
         /* Collapse-Gruppen */
         .nav-group { margin-top: 6px; }
         .nav-group > summary {
@@ -1679,26 +1652,27 @@
     </script>
     {% endif %}
 
-    <!-- Achievement-Unlock Modal mit Confetti -->
+    <!-- Achievement-Unlock Modal — ruhig, business-grade (kein Confetti, kein Bouncen) -->
     {% if current_user.is_authenticated %}
     <canvas id="confettiCanvas" style="display:none;position:fixed;inset:0;z-index:10000;pointer-events:none;width:100vw;height:100vh"></canvas>
-    <div id="achievementModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.85);z-index:10001;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(12px)">
-        <div id="achievementCard" style="background:linear-gradient(135deg,var(--surface),var(--bg-2));border-radius:24px;padding:48px 40px;max-width:480px;width:100%;text-align:center;border:2px solid var(--gold);box-shadow:0 25px 80px rgba(0,0,0,0.5);position:relative;animation:popIn 0.5s cubic-bezier(0.16, 1, 0.3, 1)">
-            <div style="font-size:14px;color:var(--gold);text-transform:uppercase;letter-spacing:3px;font-weight:900;margin-bottom:14px">⭐ Neue Trophäe ⭐</div>
-            <div id="achievementIcon" style="font-size:96px;line-height:1;margin:8px 0;animation:bounce 0.6s ease infinite alternate"></div>
-            <div id="achievementName" style="font-size:28px;font-weight:900;color:var(--text);letter-spacing:-0.7px;margin-top:8px"></div>
-            <div id="achievementDesc" style="font-size:14px;color:var(--text-muted);margin-top:8px;line-height:1.5"></div>
-            <div id="achievementTier" style="display:inline-block;margin-top:14px;padding:5px 14px;border-radius:99px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px"></div>
-            <div style="margin-top:24px;display:flex;gap:10px;justify-content:center">
-                <button id="achievementNext" style="display:none;padding:11px 22px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit;font-size:13px">Nächste →</button>
-                <button onclick="closeAchievementModal()" class="btn btn-gold" style="font-size:14px;padding:13px 28px">🎉 Weiter so!</button>
+    <div id="achievementModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10001;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)">
+        <div id="achievementCard" style="background:var(--surface);border-radius:10px;padding:28px 32px;max-width:420px;width:100%;text-align:left;border:1px solid var(--border);border-left:3px solid var(--gold);box-shadow:var(--shadow-lg);position:relative">
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:10px">Neue Trophäe</div>
+            <div style="display:flex;align-items:center;gap:14px;margin-top:6px">
+                <div id="achievementIcon" style="font-size:32px;line-height:1;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;flex-shrink:0"></div>
+                <div style="flex:1">
+                    <div id="achievementName" style="font-size:18px;font-weight:700;color:var(--text);letter-spacing:-0.3px"></div>
+                    <div id="achievementTier" style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px"></div>
+                </div>
             </div>
-            <div id="achievementCounter" style="margin-top:14px;font-size:11px;color:var(--text-soft)"></div>
+            <div id="achievementDesc" style="font-size:13px;color:var(--text-muted);margin-top:14px;line-height:1.55"></div>
+            <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+                <button id="achievementNext" style="display:none;padding:8px 14px;background:var(--bg-2);color:var(--text);border:1px solid var(--border);border-radius:6px;font-weight:600;cursor:pointer;font-family:inherit;font-size:12px">Nächste</button>
+                <button onclick="closeAchievementModal()" class="btn btn-primary" style="font-size:12px;padding:8px 16px">Schließen</button>
+            </div>
+            <div id="achievementCounter" style="margin-top:10px;font-size:11px;color:var(--text-soft)"></div>
         </div>
     </div>
-    <style>
-        @keyframes bounce { from { transform: translateY(-4px); } to { transform: translateY(4px); } }
-    </style>
     <script>
         let _achievementsQueue = [];
         let _achievementIdx = 0;
@@ -1731,13 +1705,13 @@
             if (_achievementsQueue.length > 1) {
                 counter.textContent = `${_achievementIdx+1} von ${_achievementsQueue.length} neuen Trophäen`;
                 nextBtn.style.display = (_achievementIdx < _achievementsQueue.length - 1) ? 'inline-block' : 'none';
-                nextBtn.onclick = () => { _achievementIdx++; showAchievement(); fireConfetti(); };
+                nextBtn.onclick = () => { _achievementIdx++; showAchievement(); };
             } else {
                 counter.textContent = '';
                 nextBtn.style.display = 'none';
             }
             document.getElementById('achievementModal').style.display = 'flex';
-            fireConfetti();
+            // Confetti deaktiviert — business-grade
         }
         function closeAchievementModal() {
             document.getElementById('achievementModal').style.display = 'none';
@@ -1747,61 +1721,12 @@
             _achievementsQueue = []; _achievementIdx = 0;
         }
 
-        // Confetti Engine
-        let _confettiAnim = null;
-        function fireConfetti() {
-            const cv = document.getElementById('confettiCanvas');
-            cv.style.display = 'block';
-            cv.width = window.innerWidth; cv.height = window.innerHeight;
-            const ctx = cv.getContext('2d');
-            const colors = ['#d4a843','#b8902e','#3b82f6','#10b981','#a78bfa','#f59e0b','#ec4899'];
-            const particles = [];
-            for (let i=0; i<150; i++) {
-                particles.push({
-                    x: window.innerWidth/2 + (Math.random()-0.5)*100,
-                    y: window.innerHeight/2,
-                    vx: (Math.random()-0.5)*16,
-                    vy: -Math.random()*16 - 4,
-                    size: Math.random()*6 + 4,
-                    color: colors[Math.floor(Math.random()*colors.length)],
-                    rot: Math.random()*Math.PI,
-                    vrot: (Math.random()-0.5)*0.4,
-                    gravity: 0.4
-                });
-            }
-            cancelAnimationFrame(_confettiAnim);
-            const start = Date.now();
-            function frame() {
-                ctx.clearRect(0,0,cv.width,cv.height);
-                let alive = 0;
-                particles.forEach(p => {
-                    p.vy += p.gravity;
-                    p.x += p.vx; p.y += p.vy;
-                    p.rot += p.vrot;
-                    if (p.y < cv.height + 30) {
-                        alive++;
-                        ctx.save();
-                        ctx.translate(p.x, p.y);
-                        ctx.rotate(p.rot);
-                        ctx.fillStyle = p.color;
-                        ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
-                        ctx.restore();
-                    }
-                });
-                if (alive > 0 && Date.now() - start < 4500) {
-                    _confettiAnim = requestAnimationFrame(frame);
-                } else {
-                    stopConfetti();
-                }
-            }
-            frame();
-        }
+        // Confetti deaktiviert — wir sind ein Business-CRM, kein Pokemon-Sammelspiel.
+        // Stubs bleiben damit alte Aufrufe nicht crashen.
+        function fireConfetti() { /* no-op — entfernt für serious-business Look */ }
         function stopConfetti() {
-            cancelAnimationFrame(_confettiAnim);
             const cv = document.getElementById('confettiCanvas');
-            const ctx = cv.getContext('2d');
-            ctx.clearRect(0,0,cv.width,cv.height);
-            cv.style.display = 'none';
+            if (cv) cv.style.display = 'none';
         }
         // Auto-Check beim Pageload
         setTimeout(fetchAchievements, 800);
