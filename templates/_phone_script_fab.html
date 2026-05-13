@@ -1,0 +1,285 @@
+{# Floating-Action-Button + Modal für Telefon-Skripte.
+   Wird auf /termine, /namensliste, /vertraege, /aufgaben inkludiert.
+   Lädt /api/phone-scripts.json lazy beim ersten Öffnen. #}
+<style>
+.psfab-btn {
+    position: fixed; bottom: 24px; right: 24px;
+    width: 56px; height: 56px;
+    background: var(--navy); color: var(--gold);
+    border: 1px solid var(--gold);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 20px rgba(15,28,63,0.28);
+    cursor: pointer; z-index: 9000;
+    font-family: inherit; font-size: 11px;
+    font-weight: 800; letter-spacing: 0.4px;
+    transition: transform 0.15s, box-shadow 0.15s;
+    text-decoration: none; line-height: 1.1; text-align: center;
+}
+.psfab-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(15,28,63,0.36); }
+.psfab-btn .psfab-ic {
+    display: block; font-size: 18px; font-weight: 900;
+    margin-bottom: 2px;
+}
+@media (max-width: 600px) {
+    .psfab-btn { bottom: 20px; right: 16px; }
+}
+
+.psfab-modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(15,28,63,0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9100;
+    display: none;
+    align-items: flex-start; justify-content: center;
+    padding: 40px 16px 16px;
+    overflow-y: auto;
+}
+.psfab-modal-bg.open { display: flex; }
+@media (max-width: 768px) {
+    .psfab-modal-bg { backdrop-filter: none; -webkit-backdrop-filter: none; padding: 12px; }
+}
+
+.psfab-modal {
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 100%; max-width: 580px;
+    max-height: calc(100vh - 64px);
+    display: flex; flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+    overflow: hidden;
+}
+.psfab-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+}
+.psfab-head-title {
+    font-size: 14px; font-weight: 800; color: var(--text);
+    letter-spacing: -0.1px;
+}
+.psfab-head-sub {
+    font-size: 11px; color: var(--text-muted);
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;
+    margin-bottom: 2px;
+}
+.psfab-close {
+    margin-left: auto; background: none; border: none;
+    color: var(--text-muted); cursor: pointer;
+    font-size: 20px; line-height: 1; padding: 4px 8px;
+    border-radius: 4px; font-family: inherit;
+}
+.psfab-close:hover { background: var(--border); color: var(--text); }
+
+.psfab-tabs {
+    display: flex; gap: 2px;
+    padding: 8px 12px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+}
+.psfab-tab {
+    flex: 1; padding: 8px 10px;
+    background: transparent; border: none;
+    color: var(--text-muted); font-weight: 700; font-size: 12px;
+    cursor: pointer; border-radius: 4px;
+    font-family: inherit;
+    transition: all 0.15s;
+}
+.psfab-tab:hover { color: var(--text); background: var(--surface); }
+.psfab-tab.active {
+    color: var(--navy); background: var(--surface);
+    box-shadow: inset 0 0 0 1.5px var(--gold);
+}
+[data-theme="dark"] .psfab-tab.active { color: var(--gold); }
+
+.psfab-body {
+    flex: 1; overflow-y: auto;
+    padding: 12px 16px;
+}
+.psfab-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px; margin-bottom: 8px;
+    background: var(--bg-2);
+}
+.psfab-card-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 6px;
+}
+.psfab-card-title {
+    font-size: 12px; font-weight: 800; color: var(--text);
+    letter-spacing: -0.1px; flex: 1;
+}
+.psfab-card-text {
+    font-size: 13px; color: var(--text); line-height: 1.55;
+    white-space: pre-wrap;
+}
+.psfab-card-copy {
+    background: var(--navy); color: var(--gold);
+    border: 1px solid var(--navy);
+    padding: 5px 10px; border-radius: 4px;
+    font-size: 11px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+    transition: all 0.15s; white-space: nowrap;
+}
+.psfab-card-copy:hover { background: var(--navy-light); }
+.psfab-card-copy.ok {
+    background: var(--green); color: #fff; border-color: var(--green);
+}
+
+.psfab-foot {
+    padding: 10px 18px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-2);
+    display: flex; align-items: center; gap: 12px;
+    font-size: 12px; color: var(--text-muted);
+}
+.psfab-foot a {
+    color: var(--gold); text-decoration: none; font-weight: 700;
+    margin-left: auto;
+}
+
+.psfab-loading, .psfab-empty {
+    text-align: center; padding: 32px 12px;
+    color: var(--text-soft); font-size: 13px;
+}
+</style>
+
+<button type="button" class="psfab-btn" onclick="psFabOpen()" aria-label="Telefon-Skripte öffnen">
+    <span class="psfab-ic">P</span>
+    <span>Skripte</span>
+</button>
+
+<div class="psfab-modal-bg" id="psFabModal" onclick="psFabBgClick(event)">
+    <div class="psfab-modal" onclick="event.stopPropagation()">
+        <div class="psfab-head">
+            <div>
+                <div class="psfab-head-sub">Quickaccess</div>
+                <div class="psfab-head-title">Telefon-Skripte</div>
+            </div>
+            <button type="button" class="psfab-close" onclick="psFabClose()" aria-label="Schließen">×</button>
+        </div>
+        <div class="psfab-tabs" id="psFabTabs"></div>
+        <div class="psfab-body" id="psFabBody">
+            <div class="psfab-loading">Lade …</div>
+        </div>
+        <div class="psfab-foot">
+            <span>Tipp: Esc zum Schließen</span>
+            <a href="/skripte">Alle ansehen →</a>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    let psData = null;
+    let psActiveTab = null;
+
+    window.psFabOpen = function() {
+        document.getElementById('psFabModal').classList.add('open');
+        document.body.style.overflow = 'hidden';
+        if (!psData) psFabLoad();
+    };
+
+    window.psFabClose = function() {
+        document.getElementById('psFabModal').classList.remove('open');
+        document.body.style.overflow = '';
+    };
+
+    window.psFabBgClick = function(ev) {
+        if (ev.target.id === 'psFabModal') psFabClose();
+    };
+
+    document.addEventListener('keydown', function(ev) {
+        if (ev.key === 'Escape') {
+            const m = document.getElementById('psFabModal');
+            if (m && m.classList.contains('open')) psFabClose();
+        }
+    });
+
+    function psFabLoad() {
+        fetch('/api/phone-scripts.json', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(d => { psData = d; psFabRender(); })
+            .catch(() => {
+                document.getElementById('psFabBody').innerHTML =
+                    '<div class="psfab-empty">Konnte Skripte nicht laden.</div>';
+            });
+    }
+
+    function psFabRender() {
+        const tabsEl = document.getElementById('psFabTabs');
+        tabsEl.innerHTML = '';
+        if (!psActiveTab && psData.categories.length) psActiveTab = psData.categories[0].key;
+        psData.categories.forEach(c => {
+            const count = (psData.scripts[c.key] || []).length;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'psfab-tab' + (c.key === psActiveTab ? ' active' : '');
+            btn.textContent = c.label + ' · ' + count;
+            btn.onclick = () => { psActiveTab = c.key; psFabRender(); };
+            tabsEl.appendChild(btn);
+        });
+        renderBody();
+    }
+
+    function renderBody() {
+        const body = document.getElementById('psFabBody');
+        const list = (psData.scripts[psActiveTab] || []);
+        if (!list.length) {
+            body.innerHTML = '<div class="psfab-empty">Keine Skripte in dieser Kategorie.</div>';
+            return;
+        }
+        body.innerHTML = '';
+        list.forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'psfab-card';
+            const head = document.createElement('div');
+            head.className = 'psfab-card-head';
+            const titleEl = document.createElement('div');
+            titleEl.className = 'psfab-card-title';
+            titleEl.textContent = s.titel;
+            const copyBtn = document.createElement('button');
+            copyBtn.type = 'button';
+            copyBtn.className = 'psfab-card-copy';
+            copyBtn.textContent = 'Kopieren';
+            copyBtn.onclick = () => psFabCopy(copyBtn, s.text);
+            head.appendChild(titleEl);
+            head.appendChild(copyBtn);
+            const textEl = document.createElement('div');
+            textEl.className = 'psfab-card-text';
+            textEl.textContent = s.text;
+            card.appendChild(head);
+            card.appendChild(textEl);
+            body.appendChild(card);
+        });
+    }
+
+    function psFabCopy(btn, text) {
+        const orig = btn.textContent;
+        const done = () => {
+            btn.textContent = 'Kopiert';
+            btn.classList.add('ok');
+            setTimeout(() => { btn.textContent = orig; btn.classList.remove('ok'); }, 1500);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done).catch(() => fallback(text, done));
+        } else {
+            fallback(text, done);
+        }
+    }
+    function fallback(text, done) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(ta);
+    }
+})();
+</script>

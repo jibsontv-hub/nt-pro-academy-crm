@@ -1142,6 +1142,15 @@
                 <span style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ coach_alerts }}</span>
                 {% endif %}
             </a>
+            {# SOS-Inbox: für Sponsor (REP-Notruf) — Always-visible ab Stufe 2, rote Badge wenn offen #}
+            {% if (feature_tier or 1) >= 2 %}
+            <a href="/sos" class="nav-link {% if request.path == '/sos' %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between{% if sos_unread and sos_unread > 0 %};border-left:2px solid var(--red);padding-left:10px{% endif %}">
+                <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">🆘</span> SOS-Anfragen</span>
+                {% if sos_unread and sos_unread > 0 %}
+                <span style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ sos_unread }}</span>
+                {% endif %}
+            </a>
+            {% endif %}
 
             {% set ftier = feature_tier or 1 %}
 
@@ -1628,6 +1637,105 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeVision();
         });
+    </script>
+    {% endif %}
+
+    <!-- ─── SOS-Knopf — niedrigschwelliger Hilferuf an Sponsor (NUR für REPs / ftier=1) ─── -->
+    {% if current_user.is_authenticated and (feature_tier or 1) <= 1 %}
+    <button id="sosBtn" onclick="openSos()" type="button"
+            style="position:fixed;bottom:24px;right:20px;z-index:9500;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--red);color:var(--text);padding:10px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:var(--shadow-md);display:flex;align-items:center;gap:8px;font-family:inherit"
+            title="Direktnachricht an deinen Sponsor (max 5/Tag)">
+        <span style="font-size:14px">🆘</span> Hilfe vom Sponsor
+    </button>
+
+    <div id="sosModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10002;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(6px)" onclick="if(event.target===this) closeSos()">
+        <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:10px;padding:24px 26px;max-width:480px;width:100%;box-shadow:var(--shadow-lg)">
+            <div style="font-size:11px;color:var(--red);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px">SOS an Sponsor</div>
+            <div style="font-size:16px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin-bottom:4px">Brauchst du grad Hilfe?</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;line-height:1.55">Wähle eine Vorlage oder schreib selbst — dein Sponsor bekommt sofort eine Push-Notification.</div>
+
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+                <button type="button" class="sos-tpl" data-tpl="einwand" data-msg="Ich hab grad nen Einwand und weiß nicht weiter">▸ Ich hab nen Einwand und weiß nicht weiter</button>
+                <button type="button" class="sos-tpl" data-tpl="anruf" data-msg="Können wir kurz telefonieren?">▸ Können wir kurz telefonieren?</button>
+                <button type="button" class="sos-tpl" data-tpl="moralisch" data-msg="Mir geht's nicht gut, ich brauch dich kurz">▸ Mir geht's nicht gut, ich brauch dich kurz</button>
+                <button type="button" class="sos-tpl" data-tpl="termin" data-msg="Brauch nochmal kurz Hilfe vor meinem Termin">▸ Brauch Hilfe vor meinem Termin</button>
+            </div>
+
+            <textarea id="sosCustom" placeholder="Oder eigene Nachricht…" rows="2" style="width:100%;font-family:inherit;font-size:13px;resize:vertical;min-height:60px"></textarea>
+
+            <div id="sosError" style="display:none;margin-top:10px;padding:8px 12px;background:var(--red-soft);color:var(--red);border-radius:6px;font-size:12px"></div>
+
+            <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+                <button type="button" onclick="closeSos()" class="btn btn-secondary" style="font-size:12px">Abbrechen</button>
+                <button type="button" id="sosSendBtn" onclick="sendSos()" class="btn btn-primary" style="font-size:12px;margin-left:auto">Push senden</button>
+            </div>
+            <div style="font-size:10px;color:var(--text-soft);margin-top:10px;text-align:right">Limit: 5 SOS / Tag</div>
+        </div>
+    </div>
+
+    <style>
+      .sos-tpl { background:var(--bg-2);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:6px;font-size:13px;text-align:left;cursor:pointer;font-family:inherit;transition:background 0.12s,border-color 0.12s }
+      .sos-tpl:hover { background:var(--surface);border-color:var(--gold) }
+      .sos-tpl.selected { background:var(--gold-soft);border-color:var(--gold);color:var(--gold) }
+      @media (max-width:768px) {
+        #sosBtn { bottom: 78px; }  /* Platz für Bottom-Nav falls aktiv */
+      }
+    </style>
+
+    <script>
+      let _sosTpl = '';
+      function openSos() {
+        document.getElementById('sosModal').style.display = 'flex';
+        document.querySelectorAll('.sos-tpl').forEach(b => {
+          b.classList.remove('selected');
+          b.onclick = () => {
+            document.querySelectorAll('.sos-tpl').forEach(x => x.classList.remove('selected'));
+            b.classList.add('selected');
+            _sosTpl = b.dataset.tpl;
+            document.getElementById('sosCustom').value = b.dataset.msg;
+          };
+        });
+        _sosTpl = '';
+        document.getElementById('sosCustom').value = '';
+        document.getElementById('sosError').style.display = 'none';
+      }
+      function closeSos() {
+        document.getElementById('sosModal').style.display = 'none';
+      }
+      async function sendSos() {
+        const msg = document.getElementById('sosCustom').value.trim();
+        const err = document.getElementById('sosError');
+        const btn = document.getElementById('sosSendBtn');
+        if (!msg) { err.textContent = 'Schreib kurz worum es geht.'; err.style.display='block'; return; }
+        btn.disabled = true; btn.textContent = 'Sende …';
+        try {
+          const res = await fetch('/api/sos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ template: _sosTpl, message: msg })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            closeSos();
+            if (typeof showToast === 'function') {
+              showToast('Sponsor wurde benachrichtigt — er meldet sich gleich.', 'success');
+            } else {
+              alert('Sponsor wurde benachrichtigt — er meldet sich gleich.');
+            }
+          } else {
+            err.textContent = data.error || 'Fehler beim Senden.';
+            err.style.display = 'block';
+          }
+        } catch (e) {
+          err.textContent = 'Verbindungsfehler.';
+          err.style.display = 'block';
+        } finally {
+          btn.disabled = false; btn.textContent = 'Push senden';
+        }
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.getElementById('sosModal').style.display === 'flex') closeSos();
+      });
     </script>
     {% endif %}
 

@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Admin: Telefon-Skripte – Pro Academy{% endblock %}
+{% block page_title %}Admin: Telefon-Skripte{% endblock %}
+
+{% block content %}
+
+<style>
+.ps-admin-card { padding: 18px 20px; }
+.ps-admin-card .card-title { margin-bottom: 14px; }
+.ps-kat-pill {
+    display: inline-flex; align-items: center;
+    padding: 3px 9px; border-radius: 4px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+    background: var(--navy); color: var(--gold);
+    border: 1px solid var(--gold);
+}
+.ps-row {
+    display: grid; grid-template-columns: 56px 1fr auto;
+    gap: 14px; align-items: start;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.ps-row:last-child { border-bottom: none; }
+.ps-row-sort {
+    font-size: 13px; font-weight: 700; color: var(--text-muted);
+    text-align: center; padding-top: 8px;
+}
+.ps-row-titel { font-size: 14px; font-weight: 700; color: var(--text); }
+.ps-row-text {
+    font-size: 13px; color: var(--text-muted); line-height: 1.55;
+    margin-top: 4px; white-space: pre-wrap;
+}
+.ps-row-actions { display: flex; gap: 6px; align-items: flex-start; }
+.ps-edit-form {
+    display: none;
+    grid-column: 1 / -1;
+    margin-top: 10px; padding-top: 12px;
+    border-top: 1px dashed var(--border);
+}
+.ps-edit-form.open { display: block; }
+.ps-edit-form .form-grid {
+    display: grid; grid-template-columns: 100px 1fr 1fr; gap: 10px;
+    margin-bottom: 10px;
+}
+.ps-edit-form textarea { min-height: 110px; font-family: inherit; }
+.ps-edit-form .form-row {
+    display: flex; gap: 8px; margin-top: 8px;
+}
+@media (max-width: 720px) {
+    .ps-row { grid-template-columns: 1fr auto; }
+    .ps-row-sort { display: none; }
+    .ps-edit-form .form-grid { grid-template-columns: 1fr; }
+}
+.ps-hint {
+    background: var(--bg-2); border: 1px solid var(--border);
+    border-left: 3px solid var(--navy);
+    padding: 12px 14px; border-radius: 6px;
+    font-size: 13px; color: var(--text); line-height: 1.55;
+}
+</style>
+
+<div class="ps-hint">
+    <strong>Telefon-Skripte für alle REPs.</strong> Templates die hier angelegt werden,
+    erscheinen auf <code>/skripte</code> sowie im Floating-Action-Button von
+    Termine, Namensliste, Verträge und Aufgaben.
+    Variablen wie <code>{Nachname}</code>, <code>{Empfehlungsgeber}</code>, <code>{Datum}</code>
+    sind reine Platzhalter — der REP ersetzt sie im Kopf.
+</div>
+
+<!-- ─── Neues Skript anlegen ─── -->
+<div class="card ps-admin-card" style="margin-top:16px">
+    <div class="card-title">Neues Skript anlegen</div>
+    <form method="POST">
+        <input type="hidden" name="action" value="add">
+        <div style="display:grid;grid-template-columns:200px 100px 1fr;gap:12px;margin-bottom:10px">
+            <div class="form-group">
+                <label>Kategorie *</label>
+                <select name="kategorie" required>
+                    {% for k, l in categories %}
+                    <option value="{{ k }}">{{ l }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Sortierung</label>
+                <input type="number" name="sortierung" value="0" min="0" max="9999">
+            </div>
+            <div class="form-group">
+                <label>Titel *</label>
+                <input type="text" name="titel" required maxlength="80" placeholder="z.B. Standard-Einstieg">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Text *</label>
+            <textarea name="text" required rows="4"
+                placeholder="Hallo Frau {Nachname}, hier ist {Vorname} von der Ergo Pro Academy …"
+                style="width:100%;font-family:inherit;font-size:13px;line-height:1.55;padding:10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text);resize:vertical"></textarea>
+        </div>
+        <div style="margin-top:14px">
+            <button type="submit" class="btn btn-primary">+ Skript anlegen</button>
+        </div>
+    </form>
+</div>
+
+<!-- ─── Skripte pro Kategorie ─── -->
+{% for kat, label in categories %}
+<div class="card ps-admin-card" style="margin-top:16px">
+    <div class="card-title" style="display:flex;align-items:center;gap:10px">
+        <span class="ps-kat-pill">{{ label }}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0">
+            {{ grouped[kat] | length }} Skript(e)
+        </span>
+    </div>
+
+    {% if grouped[kat] %}
+        {% for s in grouped[kat] %}
+        <div class="ps-row" id="ps-row-{{ s.id }}">
+            <div class="ps-row-sort">#{{ s.sortierung }}</div>
+            <div>
+                <div class="ps-row-titel">{{ s.titel }}</div>
+                <div class="ps-row-text">{{ s.text }}</div>
+            </div>
+            <div class="ps-row-actions">
+                <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="psToggleEdit({{ s.id }})">Bearbeiten</button>
+                <form method="POST" style="display:inline"
+                      onsubmit="return confirm('Skript wirklich löschen?')">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="script_id" value="{{ s.id }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Löschen</button>
+                </form>
+            </div>
+
+            <form method="POST" class="ps-edit-form" id="ps-edit-{{ s.id }}">
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="script_id" value="{{ s.id }}">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Sortierung</label>
+                        <input type="number" name="sortierung" value="{{ s.sortierung }}" min="0" max="9999">
+                    </div>
+                    <div class="form-group">
+                        <label>Kategorie</label>
+                        <select name="kategorie">
+                            {% for k, l in categories %}
+                            <option value="{{ k }}" {% if k == s.kategorie %}selected{% endif %}>{{ l }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Titel</label>
+                        <input type="text" name="titel" value="{{ s.titel }}" required maxlength="80">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Text</label>
+                    <textarea name="text" required rows="4"
+                        style="width:100%;font-family:inherit;font-size:13px;line-height:1.55;padding:10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text);resize:vertical">{{ s.text }}</textarea>
+                </div>
+                <div class="form-row">
+                    <button type="submit" class="btn btn-primary btn-sm">Speichern</button>
+                    <button type="button" class="btn btn-secondary btn-sm"
+                            onclick="psToggleEdit({{ s.id }})">Abbrechen</button>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div style="text-align:center;padding:28px;color:var(--text-soft);font-size:13px">
+            Noch keine Skripte in dieser Kategorie.
+        </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<script>
+function psToggleEdit(id) {
+    const el = document.getElementById('ps-edit-' + id);
+    if (el) el.classList.toggle('open');
+}
+</script>
+
+{% endblock %}

@@ -3543,6 +3543,25 @@ def inject_career():
             ctx['newsletter_unread'] = cached_nl
         except Exception:
             ctx['newsletter_unread'] = 0
+        # SOS-Anfragen: offene SOS für mich als Sponsor (nur für ftier >= 2 — REPs senden, nicht empfangen)
+        try:
+            if ctx.get('feature_tier', 1) >= 2:
+                skey = f'ctx:sos_unread:{current_user.id}'
+                cached_sos = cache_get(skey)
+                if cached_sos is None:
+                    db_sos = get_db()
+                    sos_row = db_sos.execute(
+                        'SELECT COUNT(*) c FROM sos_messages WHERE sponsor_user_id=? AND seen_at IS NULL',
+                        (current_user.id,)
+                    ).fetchone()
+                    db_sos.close()
+                    cached_sos = sos_row['c'] if sos_row else 0
+                    cache_set(skey, cached_sos, ttl=120)
+                ctx['sos_unread'] = cached_sos
+            else:
+                ctx['sos_unread'] = 0
+        except Exception:
+            ctx['sos_unread'] = 0
         return ctx
     # Nicht-authentifizierte User (Login, Register, Public Pages) — leeres aber valides dict
     return {
@@ -3557,6 +3576,7 @@ def inject_career():
         'vision_needed': False,
         'patch_unread': 0,
         'newsletter_unread': 0,
+        'sos_unread': 0,
     }
 
 
@@ -4164,6 +4184,198 @@ def genehmigung_reject(uid):
     return redirect(url_for('admin_genehmigungen'))
 
 
+# ═══════════════════════════════════════════════════════════════════
+# TELEFON-SKRIPTE (Quickaccess für Anrufe)
+# ═══════════════════════════════════════════════════════════════════
+
+PHONE_SCRIPT_CATEGORIES = [
+    ('einstieg', 'Einstieg'),
+    ('einwand',  'Einwand-Behandlung'),
+    ('abschluss','Abschluss'),
+]
+PHONE_SCRIPT_KAT_KEYS = {k for k, _ in PHONE_SCRIPT_CATEGORIES}
+
+
+def _phone_scripts_grouped():
+    """Liefert dict {kategorie: [rows]} mit nur Admin-Templates (owner_user_id IS NULL)."""
+    db = get_db()
+    rows = db.execute(
+        'SELECT id, kategorie, titel, text, sortierung '
+        'FROM phone_scripts WHERE owner_user_id IS NULL '
+        'ORDER BY kategorie, sortierung, id'
+    ).fetchall()
+    db.close()
+    grouped = {k: [] for k, _ in PHONE_SCRIPT_CATEGORIES}
+    for r in rows:
+        if r['kategorie'] in grouped:
+            grouped[r['kategorie']].append(dict(r))
+    return grouped
+
+
+@app.route('/skripte')
+@login_required
+def phone_scripts():
+    """REP-View: liest Admin-Templates, gruppiert nach Kategorie. Tab via ?tab=…"""
+    grouped = _phone_scripts_grouped()
+    tab = request.args.get('tab', 'einstieg')
+    if tab not in PHONE_SCRIPT_KAT_KEYS:
+        tab = 'einstieg'
+    counts = {k: len(v) for k, v in grouped.items()}
+    return render_template('skripte.html',
+        grouped=grouped, tab=tab, counts=counts,
+        categories=PHONE_SCRIPT_CATEGORIES)
+
+
+@app.route('/api/phone-scripts.json')
+@login_required
+def phone_scripts_api():
+    """JSON für FAB-Modal: alle Admin-Templates gruppiert."""
+    return jsonify({
+        'categories': [{'key': k, 'label': l} for k, l in PHONE_SCRIPT_CATEGORIES],
+        'scripts': _phone_scripts_grouped(),
+    })
+
+
+@app.route('/admin/phone-scripts', methods=['GET', 'POST'])
+@login_required
+def admin_phone_scripts():
+    """Admin-CRUD für Telefon-Skript-Templates (alle REPs sehen sie)."""
+    if not current_user.has_admin_access:
+        flash('Nur Admins haben Zugriff', 'error')
+        return redirect(url_for('dashboard'))
+
+    db = get_db()
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add':
+            kat = request.form.get('kategorie', '').strip()
+            titel = request.form.get('titel', '').strip()
+            text = request.form.get('text', '').strip()
+            sort = request.form.get('sortierung', '0').strip() or '0'
+            if kat not in PHONE_SCRIPT_KAT_KEYS:
+                flash('Ungültige Kategorie', 'error')
+            elif not titel or not text:
+                flash('Titel und Text sind Pflicht', 'error')
+            else:
+                try:
+                    sort_int = int(sort)
+                except ValueError:
+                    sort_int = 0
+                db.execute(
+                    'INSERT INTO phone_scripts (owner_user_id, kategorie, titel, text, sortierung) '
+                    'VALUES (NULL, ?, ?, ?, ?)',
+                    (kat, titel, text, sort_int))
+                db.commit()
+                flash('Skript hinzugefügt', 'success')
+        elif action == 'update':
+            try:
+                sid = int(request.form.get('script_id', '0'))
+            except ValueError:
+                sid = 0
+            kat = request.form.get('kategorie', '').strip()
+            titel = request.form.get('titel', '').strip()
+            text = request.form.get('text', '').strip()
+            sort = request.form.get('sortierung', '0').strip() or '0'
+            if sid and kat in PHONE_SCRIPT_KAT_KEYS and titel and text:
+                try:
+                    sort_int = int(sort)
+                except ValueError:
+                    sort_int = 0
+                db.execute(
+                    'UPDATE phone_scripts '
+                    'SET kategorie=?, titel=?, text=?, sortierung=? '
+                    'WHERE id=? AND owner_user_id IS NULL',
+                    (kat, titel, text, sort_int, sid))
+                db.commit()
+                flash('Skript aktualisiert', 'success')
+            else:
+                flash('Ungültige Eingaben', 'error')
+        elif action == 'delete':
+            try:
+                sid = int(request.form.get('script_id', '0'))
+            except ValueError:
+                sid = 0
+            if sid:
+                db.execute(
+                    'DELETE FROM phone_scripts WHERE id=? AND owner_user_id IS NULL',
+                    (sid,))
+                db.commit()
+                flash('Skript gelöscht', 'info')
+        db.close()
+        cache_invalidate('phone_scripts:')
+        return redirect(url_for('admin_phone_scripts'))
+
+    rows = db.execute(
+        'SELECT id, kategorie, titel, text, sortierung '
+        'FROM phone_scripts WHERE owner_user_id IS NULL '
+        'ORDER BY kategorie, sortierung, id'
+    ).fetchall()
+    db.close()
+    grouped = {k: [] for k, _ in PHONE_SCRIPT_CATEGORIES}
+    for r in rows:
+        if r['kategorie'] in grouped:
+            grouped[r['kategorie']].append(dict(r))
+    return render_template('admin_phone_scripts.html',
+        grouped=grouped, categories=PHONE_SCRIPT_CATEGORIES)
+
+
+PHONE_SCRIPT_DEFAULTS = [
+    ('einstieg', 10, 'Standard-Einstieg',
+        'Hallo Frau {Nachname}, hier ist {Vorname} von der Ergo Pro Academy. '
+        'Ich melde mich kurz wegen Ihrer Anfrage zur finanziellen Absicherung — '
+        'haben Sie 2 Minuten, dass ich Ihnen kurz erkläre, worum es geht?'),
+    ('einstieg', 20, 'Empfehlung als Aufhänger',
+        'Hallo Frau {Nachname}, hier {Vorname}. {Empfehlungsgeber} hat mir Ihren Namen gegeben — '
+        'wir hatten letzte Woche ein Gespräch über finanzielle Vorsorge. Er meinte, '
+        'für Sie wäre das auch interessant. Passt es gerade kurz?'),
+    ('einstieg', 30, 'Termin-Bestätigung am Tag X',
+        'Hallo Frau {Nachname}, {Vorname} hier. Wir haben für heute {Uhrzeit} unser Gespräch — '
+        'ich wollte nur schnell bestätigen, dass es bei Ihnen passt und wir uns dann '
+        '{Ort/Telefon} sehen. Alles klar bei Ihnen?'),
+
+    ('einwand', 10, '"Ich hab keine Zeit"',
+        'Verstehe ich total — ich nehme Ihnen auch keine 30 Minuten. '
+        'Es geht nur darum, dass ich in 5 Minuten sehe, ob es überhaupt Sinn macht, '
+        'dass wir uns mal hinsetzen. Wann passt es Ihnen besser: morgen Vormittag oder Abend?'),
+    ('einwand', 20, '"Ich hab schon eine Versicherung"',
+        'Genau deshalb rufe ich an. Die meisten Kunden, mit denen ich spreche, haben schon was — '
+        'und 8 von 10 zahlen entweder zu viel oder sind in der wichtigsten Sparte gar nicht abgesichert. '
+        'Wir schauen einfach kurz drauf — kostet nichts, dauert 15 Minuten. Wann passt es?'),
+    ('einwand', 30, '"Ich überleg''s mir / muss erst mit Partner reden"',
+        'Klar, das ist eine Entscheidung, die man nicht aus dem Bauch trifft. '
+        'Genau dafür ist das erste Gespräch da: Sie kriegen alle Infos, gehen damit zu Ihrem Partner, '
+        'und dann entscheiden Sie. Lass uns einfach den Termin setzen — Mittwoch 18 Uhr oder Donnerstag 19 Uhr?'),
+
+    ('abschluss', 10, 'Alternativ-Termin (Klassiker)',
+        'Super, dann lass uns das fix machen — wann passt es Ihnen besser: '
+        'Mittwoch 18 Uhr oder Donnerstag 19 Uhr?'),
+    ('abschluss', 20, 'Verbindlich + Adresse',
+        'Perfekt. Dann notiere ich {Datum} um {Uhrzeit} bei Ihnen zuhause / online über Zoom. '
+        'Ich schicke Ihnen gleich eine kurze SMS mit der Bestätigung — '
+        'wenn etwas dazwischenkommt, melden Sie sich bitte spätestens 24 Stunden vorher, ja?'),
+    ('abschluss', 30, 'Nach Termin: Folge-Termin setzen',
+        'Schön, dass es gepasst hat. Wie besprochen schicke ich Ihnen bis {Datum} die Zusammenstellung. '
+        'Lass uns gleich den Folgetermin setzen, damit wir alles in Ruhe durchgehen können — '
+        '{Tag1} oder {Tag2}, was passt besser?'),
+]
+
+
+def seed_phone_scripts(db):
+    """Seedet 9 Default-Templates beim ersten Run (idempotent: läuft nur wenn Tabelle leer)."""
+    try:
+        n = db.execute('SELECT COUNT(*) AS c FROM phone_scripts').fetchone()['c']
+        if n > 0:
+            return
+        for kat, sort, titel, text in PHONE_SCRIPT_DEFAULTS:
+            db.execute(
+                'INSERT INTO phone_scripts (owner_user_id, kategorie, titel, text, sortierung) '
+                'VALUES (NULL, ?, ?, ?, ?)',
+                (kat, titel, text, sort))
+        db.commit()
+    except Exception as e:
+        print(f'seed_phone_scripts warning: {e}')
+
+
 def init_db():
     db = get_db()
     db.executescript('''
@@ -4593,7 +4805,32 @@ def init_db():
             error TEXT,
             FOREIGN KEY (sent_by) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS sos_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rep_user_id INTEGER NOT NULL,
+            sponsor_user_id INTEGER NOT NULL,
+            template TEXT,
+            message TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            seen_at TEXT,
+            FOREIGN KEY (rep_user_id) REFERENCES users(id),
+            FOREIGN KEY (sponsor_user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS phone_scripts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_user_id INTEGER,
+            kategorie TEXT NOT NULL,
+            titel TEXT NOT NULL,
+            text TEXT NOT NULL,
+            sortierung INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (owner_user_id) REFERENCES users(id)
+        );
     ''')
+
+    seed_phone_scripts(db)
 
     # === Performance: DB-Indexes ===
     try:
@@ -4627,8 +4864,12 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_users_lead_token ON users(lead_token) WHERE lead_token IS NOT NULL;
             CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
             CREATE INDEX IF NOT EXISTS idx_password_resets_user ON password_resets(user_id, used_at);
+            -- SOS-Messages für Sponsor-Lookup (offene Anfragen)
+            CREATE INDEX IF NOT EXISTS idx_sos_sponsor_open ON sos_messages(sponsor_user_id, seen_at);
+            CREATE INDEX IF NOT EXISTS idx_sos_rep_date ON sos_messages(rep_user_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_newsletter_kat_pub ON newsletter_items(kategorie, published_at DESC);
             CREATE INDEX IF NOT EXISTS idx_deploy_log_date ON deploy_log(deployed_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_phone_scripts_kat ON phone_scripts(kategorie, sortierung, id);
             CREATE INDEX IF NOT EXISTS idx_daily_checkins_user_date ON daily_checkins(user_id, datum DESC);
         ''')
     except Exception as e:
@@ -7098,6 +7339,111 @@ def inbox():
             'sent_at': r['sent_at'],
         })
     return render_template('inbox.html', notifications=notifications)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SOS — niedrigschwelliger Hilferuf vom REP an seinen Sponsor (parent_id)
+# Statistisch hohe Drop-out-Quote in Woche 3-4 weil Newcomer sich allein
+# fühlen — der SOS-Knopf ist die einzige direkte „ich brauch dich"-Brücke.
+# Rate-Limit: 5 SOS pro Tag pro REP gegen Spam.
+# ═══════════════════════════════════════════════════════════════════
+SOS_TEMPLATES = [
+    ('einwand', 'Ich hab grad nen Einwand und weiß nicht weiter'),
+    ('anruf',   'Können wir kurz telefonieren?'),
+    ('moralisch', 'Mir geht\'s nicht gut, ich brauch dich kurz'),
+    ('termin',  'Brauch nochmal kurz Hilfe vor meinem Termin'),
+]
+SOS_MAX_PER_DAY = 5
+
+
+@app.route('/api/sos', methods=['POST'])
+@login_required
+def api_sos():
+    """REP sendet SOS an seinen Sponsor (parent_id). Push + DB-Eintrag."""
+    db = get_db()
+    # Sponsor ermitteln
+    me = db.execute('SELECT parent_id FROM users WHERE id=?', (current_user.id,)).fetchone()
+    if not me or not me['parent_id']:
+        db.close()
+        return jsonify({'error': 'Du hast (noch) keinen Sponsor hinterlegt — sprich mit deinem Admin.'}), 400
+    sponsor_id = me['parent_id']
+    # Rate-Limit: max SOS_MAX_PER_DAY pro Kalendertag
+    today_count = db.execute(
+        "SELECT COUNT(*) AS c FROM sos_messages WHERE rep_user_id=? AND date(created_at) = date('now', 'localtime')",
+        (current_user.id,)
+    ).fetchone()['c']
+    if today_count >= SOS_MAX_PER_DAY:
+        db.close()
+        return jsonify({'error': f'Tageslimit erreicht ({SOS_MAX_PER_DAY}/Tag) — falls dringend: Anruf-Knopf nutzen.'}), 429
+    # Payload
+    data = request.get_json(silent=True) or {}
+    template = (data.get('template') or '').strip()[:40]
+    message = (data.get('message') or '').strip()[:500]
+    if not message:
+        # Falls kein Custom-Text: Template als Message verwenden
+        tpl_text = next((t for k, t in SOS_TEMPLATES if k == template), '')
+        message = tpl_text or 'Brauche kurz Hilfe.'
+    # Speichern
+    cur = db.execute(
+        'INSERT INTO sos_messages (rep_user_id, sponsor_user_id, template, message) VALUES (?, ?, ?, ?)',
+        (current_user.id, sponsor_id, template or None, message)
+    )
+    sos_id = cur.lastrowid
+    db.commit()
+    db.close()
+    # Push an Sponsor — urgent + roter Tag
+    try:
+        send_push_to_user(
+            sponsor_id,
+            f'🆘 SOS von {current_user.name}',
+            message[:140],
+            url='/sos',
+            urgent=True,
+            tag='sos',
+            push_type='sos_alert',
+        )
+    except Exception as e:
+        app.logger.warning(f'SOS-Push fail u{sponsor_id}: {e}')
+    cache_invalidate(f'ctx:sos_unread:{sponsor_id}')
+    return jsonify({'ok': True, 'sos_id': sos_id, 'message': 'Sponsor wurde benachrichtigt.'})
+
+
+@app.route('/api/sos/<int:sos_id>/seen', methods=['POST'])
+@login_required
+def api_sos_seen(sos_id):
+    """Sponsor markiert SOS als gesehen/erledigt."""
+    db = get_db()
+    row = db.execute('SELECT sponsor_user_id FROM sos_messages WHERE id=?', (sos_id,)).fetchone()
+    if not row:
+        db.close()
+        return jsonify({'error': 'Nicht gefunden'}), 404
+    if row['sponsor_user_id'] != current_user.id and not current_user.has_admin_access:
+        db.close()
+        return jsonify({'error': 'Kein Zugriff'}), 403
+    db.execute("UPDATE sos_messages SET seen_at = datetime('now') WHERE id=?", (sos_id,))
+    db.commit()
+    db.close()
+    cache_invalidate(f'ctx:sos_unread:{current_user.id}')
+    return jsonify({'ok': True})
+
+
+@app.route('/sos')
+@login_required
+def sos_inbox():
+    """Sponsor-View: alle SOS-Anfragen meiner Downliner — offen oben, History unten."""
+    db = get_db()
+    rows = db.execute('''
+        SELECT s.id, s.rep_user_id, s.message, s.template, s.created_at, s.seen_at,
+               u.name AS rep_name, u.phone AS rep_phone
+        FROM sos_messages s
+        JOIN users u ON u.id = s.rep_user_id
+        WHERE s.sponsor_user_id = ?
+        ORDER BY (s.seen_at IS NULL) DESC, s.created_at DESC
+        LIMIT 100
+    ''', (current_user.id,)).fetchall()
+    db.close()
+    open_count = sum(1 for r in rows if not r['seen_at'])
+    return render_template('sos_inbox.html', rows=rows, open_count=open_count)
 
 
 @app.route('/impressum')

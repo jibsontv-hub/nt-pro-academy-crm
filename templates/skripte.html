@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Telefon-Skripte – Pro Academy{% endblock %}
+{% block page_title %}Telefon-Skripte{% endblock %}
+{% block topbar_actions %}
+{% if current_user.has_admin_access %}
+<a href="/admin/phone-scripts" class="btn btn-secondary">Verwalten</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<style>
+.ps-page-hint {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    padding: 12px 16px; border-radius: 6px;
+    font-size: 13px; color: var(--text); line-height: 1.55;
+    margin-bottom: 14px;
+}
+.ps-tab-bar {
+    display: flex; gap: 4px;
+    background: var(--bg-2); padding: 4px;
+    border-radius: 8px; border: 1px solid var(--border);
+    margin-bottom: 16px;
+}
+.ps-tab-bar a {
+    flex: 1; text-align: center; padding: 10px 12px;
+    border-radius: 6px; text-decoration: none;
+    color: var(--text-muted); font-weight: 700; font-size: 13px;
+    transition: all 0.15s;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.ps-tab-bar a:hover { color: var(--text); background: var(--surface); }
+.ps-tab-bar a.active {
+    background: var(--surface); color: var(--navy);
+    box-shadow: 0 1px 2px rgba(15,23,42,0.06), inset 0 0 0 1.5px var(--gold);
+}
+[data-theme="dark"] .ps-tab-bar a.active { color: var(--gold); }
+.ps-tab-bar a .count {
+    background: color-mix(in srgb, currentColor 15%, transparent);
+    padding: 1px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 800;
+}
+.ps-tab-bar a.active .count { background: var(--gold); color: var(--navy); }
+
+.ps-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px 16px;
+    margin-bottom: 10px;
+    display: grid; grid-template-columns: 1fr auto; gap: 12px;
+    align-items: start;
+}
+.ps-card-title {
+    font-size: 13px; font-weight: 700; color: var(--text);
+    letter-spacing: -0.1px; margin-bottom: 6px;
+}
+.ps-card-text {
+    font-size: 13px; color: var(--text); line-height: 1.6;
+    white-space: pre-wrap;
+}
+.ps-copy-btn {
+    background: var(--navy); color: var(--gold);
+    border: 1px solid var(--navy);
+    padding: 7px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s;
+    font-family: inherit; white-space: nowrap;
+    min-width: 86px;
+}
+.ps-copy-btn:hover { background: var(--navy-light); }
+.ps-copy-btn.ok {
+    background: var(--green); color: #fff; border-color: var(--green);
+}
+
+.ps-empty {
+    text-align: center; padding: 36px 20px;
+    color: var(--text-soft); font-size: 13px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px;
+}
+@media (max-width: 600px) {
+    .ps-card { grid-template-columns: 1fr; }
+    .ps-copy-btn { width: 100%; }
+}
+</style>
+
+<div class="ps-page-hint">
+    <strong>Schnell-Zugriff während des Telefonats.</strong>
+    Tab wählen, Skript suchen, mit "Kopieren" in die Zwischenablage holen — oder einfach ablesen.
+    Variablen wie <code>{Nachname}</code> ersetzt du im Kopf.
+</div>
+
+<div class="ps-tab-bar">
+    {% for k, l in categories %}
+    <a href="?tab={{ k }}" class="{% if tab == k %}active{% endif %}">
+        <span>{{ l }}</span>
+        <span class="count">{{ counts[k] }}</span>
+    </a>
+    {% endfor %}
+</div>
+
+{% if grouped[tab] %}
+    {% for s in grouped[tab] %}
+    <div class="ps-card">
+        <div>
+            <div class="ps-card-title">{{ s.titel }}</div>
+            <div class="ps-card-text" id="ps-text-{{ s.id }}">{{ s.text }}</div>
+        </div>
+        <button type="button" class="ps-copy-btn" data-target="ps-text-{{ s.id }}"
+                onclick="psCopy(this)">Kopieren</button>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="ps-empty">
+        Noch keine Skripte in dieser Kategorie.
+        {% if current_user.has_admin_access %}
+        <br><a href="/admin/phone-scripts" style="color:var(--gold);font-weight:700">+ Anlegen</a>
+        {% endif %}
+    </div>
+{% endif %}
+
+<script>
+function psCopy(btn) {
+    const targetId = btn.dataset.target;
+    const el = document.getElementById(targetId);
+    if (!el) return;
+    const text = el.innerText;
+    const orig = btn.innerText;
+    const done = () => {
+        btn.innerText = 'Kopiert';
+        btn.classList.add('ok');
+        setTimeout(() => {
+            btn.innerText = orig;
+            btn.classList.remove('ok');
+        }, 1500);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(() => psCopyFallback(text, done));
+    } else {
+        psCopyFallback(text, done);
+    }
+}
+function psCopyFallback(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); }
+    catch (e) { /* silent */ }
+    document.body.removeChild(ta);
+}
+</script>
+
+{% endblock %}
