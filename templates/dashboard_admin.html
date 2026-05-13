@@ -4,6 +4,67 @@
 
 {% block content %}
 
+{# TIER 1.5 — Today-Pace-Banner für Admin (eigene Aktivität) #}
+{% if today_pace %}
+{% set _bg = 'linear-gradient(135deg,#7f1d1d 0%,#1a2c5b 100%)' if today_pace.status == 'rot' else
+             ('linear-gradient(135deg,#92400e 0%,#1a2c5b 100%)' if today_pace.status == 'gelb' else
+              'linear-gradient(135deg,#065f46 0%,#1a2c5b 100%)') %}
+<a href="/aufgaben" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:{{ _bg }};color:#fff;border-radius:8px;text-decoration:none;margin-bottom:14px;border-left:3px solid var(--gold)">
+  <div style="font-size:22px">{% if today_pace.status == 'rot' %}⚠{% elif today_pace.status == 'gelb' %}◷{% else %}✓{% endif %}</div>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:11px;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Heute-Pflicht (eigen)</div>
+    <div style="font-size:15px;font-weight:700;margin-top:2px">
+      {% if today_pace.anrufe_soll %}{{ today_pace.anrufe_ist }}/{{ today_pace.anrufe_soll }} Anrufe{% endif %}
+      {% if today_pace.anrufe_soll and today_pace.termine_soll %} · {% endif %}
+      {% if today_pace.termine_soll %}{{ today_pace.termine_ist }}/{{ today_pace.termine_soll }} Termine{% endif %}
+    </div>
+  </div>
+  <div style="font-size:11px;background:var(--gold);color:#0f1c3f;padding:5px 10px;border-radius:6px;font-weight:800">Aufgaben →</div>
+</a>
+{% endif %}
+
+{# TIER 3.16 — Pin-Bar Coaching-Slots der nächsten 7 Tage #}
+{% if upcoming_coaching %}
+<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:8px;margin-bottom:14px;flex-wrap:wrap">
+  <div style="font-size:11px;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-right:6px">▢ Diese Woche dran</div>
+  {% for c in upcoming_coaching[:6] %}
+  <a href="/coaching/{{ c.target_user_id }}" style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);font-size:12px;font-weight:600">
+    {{ c.name }}
+    <span style="font-size:10px;color:var(--text-muted);font-weight:500">
+      {% if c.days_until == 0 %}heute{% elif c.days_until == 1 %}morgen{% else %}+{{ c.days_until }}T{% endif %}
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# TIER 2.9 — „Mein Coach-Plan heute" für direkte REPs #}
+{% if coach_plan %}
+<div class="card" style="border-left:3px solid var(--gold);margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Mein Coach-Plan heute</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">{{ coach_plan|length }} REP{% if coach_plan|length != 1 %}s{% endif %} brauchen heute deine Aufmerksamkeit</div>
+        </div>
+        <a href="/team" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">Alle →</a>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+        {% for r in coach_plan %}
+        <div style="display:flex;align-items:center;gap:12px;padding:9px 11px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid {% if r.urgency >= 90 %}var(--red){% elif r.urgency >= 70 %}var(--orange){% else %}var(--gold){% endif %};border-radius:6px">
+            <a href="/partner/{{ r.rep_id }}/profil" style="flex:1;color:var(--text);text-decoration:none;font-weight:600;font-size:13px">
+                {{ r.name }}
+                <span style="font-size:11px;color:var(--text-muted);font-weight:500;margin-left:6px">— {{ r.reasons | join(' · ') }}</span>
+            </a>
+            {% if r.phone %}
+            <a href="tel:{{ r.phone }}" class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--green);font-size:11px">↻ Anruf</a>
+            {% endif %}
+            <a href="/coaching/{{ r.rep_id }}" class="btn btn-sm btn-secondary" style="font-size:11px">📝 Notiz</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- ============================================
      🤖 COACH HERO — animierter Mentor mit To-Do
      ============================================ -->
@@ -123,18 +184,31 @@
 
         {% if admin_personal.strang_status %}
         <div style="margin-top:18px">
-            <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.8px;font-weight:700;margin-bottom:10px">Strang-Performance · Diesen Monat</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.8px;font-weight:700">Strang-Performance · Diesen Monat (vs. Vormonat)</div>
+              <a href="/struktur" style="font-size:11px;color:var(--gold);text-decoration:none;font-weight:600">Drill-Down →</a>
+            </div>
             <div style="display:flex;flex-direction:column;gap:6px">
+                {# TIER 3.13 — Strang-Zeile mit Trend-Pfeil, Inaktiv-Count, Coach-the-Coach Score #}
                 {% for s in admin_personal.strang_status[:5] %}
-                <a href="/partner/{{ s.id }}/profil" style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;text-decoration:none;color:#fff;transition:all 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+                {% set trend_color = '#34d399' if s.trend == 'up' else ('#f87171' if s.trend == 'down' else 'rgba(255,255,255,0.5)') %}
+                {% set trend_icon = '▲' if s.trend == 'up' else ('▼' if s.trend == 'down' else '·') %}
+                <a href="/struktur?focus={{ s.id }}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-left:2px solid {{ trend_color }};border-radius:10px;text-decoration:none;color:#fff;transition:all 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
                     <div style="width:32px;height:32px;border-radius:50%;overflow:hidden;background:#1a2c5b;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid rgba(212,168,67,0.4);flex-shrink:0">
                         {% if s.photo %}<img loading="lazy" decoding="async" src="{{ s.photo }}" alt="" style="width:100%;height:100%;object-fit:cover">{% else %}{{ s.name[:2]|upper }}{% endif %}
                     </div>
                     <div style="flex:1;min-width:0">
                         <div style="font-weight:700;font-size:13px">{{ s.name }}</div>
-                        <div style="font-size:10px;color:rgba(255,255,255,0.5)">{{ s.partners }} Partner gesamt</div>
+                        <div style="font-size:10px;color:rgba(255,255,255,0.5);display:flex;gap:8px;flex-wrap:wrap">
+                            <span>{{ s.partners }} Partner</span>
+                            {% if s.inactive_count > 0 %}<span style="color:#f87171;font-weight:700">{{ s.inactive_count }} inaktiv</span>{% endif %}
+                            <span>· {{ s.coaching_30d }} Coachings/30T</span>
+                        </div>
                     </div>
-                    <div style="font-weight:800;color:#d4a843;font-size:14px">{{ "{:,.0f}".format(s.eh_month).replace(",", ".") }} EH</div>
+                    <div style="text-align:right">
+                        <div style="font-weight:800;color:#d4a843;font-size:14px">{{ "{:,.0f}".format(s.eh_month).replace(",", ".") }} EH</div>
+                        <div style="font-size:10px;color:{{ trend_color }};font-weight:700;margin-top:1px">{{ trend_icon }} {{ s.pct_change|abs }}%</div>
+                    </div>
                 </a>
                 {% endfor %}
             </div>

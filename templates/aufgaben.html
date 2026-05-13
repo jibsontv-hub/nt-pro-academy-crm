@@ -35,6 +35,37 @@
 
 <!-- ✏️ Eigene Todos -->
 <div class="card">
+    {# TIER 2.12 — Aufgaben vom Sponsor (oberste Prio, oben drüber) #}
+    {% if assigned_tasks %}
+    {% set open_tasks = assigned_tasks | selectattr('completed_at', 'none') | list %}
+    {% if open_tasks %}
+    <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:8px;padding:14px 16px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:10px">▸ Vom Strukturhöher · {{ open_tasks|length }} offen</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+            {% for t in open_tasks %}
+            <div id="atask-{{ t.id }}" style="display:flex;align-items:center;gap:12px;padding:9px 11px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px">
+                <button type="button" onclick="completeAssignedTask({{ t.id }})" style="all:unset;cursor:pointer;width:22px;height:22px;border-radius:5px;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Erledigt"></button>
+                <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:13px;color:var(--text)">{{ t.title }}</div>
+                    {% if t.description %}<div style="font-size:11px;color:var(--text-muted);margin-top:2px">{{ t.description }}</div>{% endif %}
+                    <div style="font-size:10px;color:var(--text-soft);margin-top:2px">Von {{ t.from_name }} · {{ t.created_at[:16] }}{% if t.due_date %} · ⏰ bis {{ t.due_date }}{% endif %}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <script>
+    async function completeAssignedTask(taskId) {
+        try {
+            const res = await fetch(`/api/assigned-tasks/${taskId}/complete`, {method: 'POST'});
+            const data = await res.json();
+            if (data.ok) document.getElementById('atask-' + taskId)?.remove();
+        } catch (e) { alert('Fehler beim Speichern'); }
+    }
+    </script>
+    {% endif %}
+    {% endif %}
+
     <div class="card-title">✏️ Meine eigenen Todos</div>
     <form method="POST" action="/aufgaben/eigene/neu" style="display:flex;gap:8px;margin-bottom:14px">
         <input type="text" name="title" placeholder="Was willst du heute schaffen?" required maxlength="200" style="flex:1">
@@ -130,4 +161,5 @@
 </div>
 {% endif %}
 
+{% include "_phone_script_fab.html" %}
 {% endblock %}

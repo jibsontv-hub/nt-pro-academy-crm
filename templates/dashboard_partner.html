@@ -31,6 +31,80 @@
 </a>
 {% endif %}
 
+{# TIER 2.11 — Aufstiegs-Banner sticky für LREP+ — direkter Blick auf nächste Stufe #}
+{% if feature_tier >= 2 and career_criteria and career_criteria.next_level %}
+{% set nl = career_criteria.next_level %}
+{% set total_eh_now = career_criteria.total_eh or 0 %}
+{% set min_needed = nl.min_eh or 1 %}
+{% set pct = (total_eh_now / min_needed * 100) if min_needed > 0 else 100 %}
+{% if pct > 100 %}{% set pct = 100 %}{% endif %}
+{% set eh_remaining = (min_needed - total_eh_now) if total_eh_now < min_needed else 0 %}
+<div class="card" style="margin-bottom:14px;border-left:3px solid {{ nl.color }}">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+        <div>
+            <div style="font-size:11px;color:{{ nl.color }};text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Pfad zu {{ nl.short }} · {{ nl.name }}</div>
+            <div style="font-size:18px;font-weight:800;color:var(--text);margin-top:2px;letter-spacing:-0.3px">
+                {{ "%.0f"|format(pct) }}% · {{ "{:,.0f}".format(total_eh_now).replace(",", ".") }} / {{ "{:,.0f}".format(min_needed).replace(",", ".") }} EH
+            </div>
+        </div>
+        <div style="text-align:right">
+            {% if eh_remaining > 0 %}
+            <div style="font-size:13px;color:var(--text);font-weight:700">Noch <span class="money" style="color:{{ nl.color }}">{{ "{:,.0f}".format(eh_remaining).replace(",", ".") }}</span> EH</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ career_criteria.completed_count or 0 }}/{{ career_criteria.total_count or 0 }} Kriterien</div>
+            {% else %}
+            <div style="font-size:13px;color:var(--green);font-weight:700">EH-Schwelle erreicht ✓</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ career_criteria.completed_count or 0 }}/{{ career_criteria.total_count or 0 }} Kriterien</div>
+            {% endif %}
+        </div>
+    </div>
+    <div style="height:6px;background:var(--bg-2);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:{{ pct }}%;background:{{ nl.color }};transition:width 0.6s"></div>
+    </div>
+</div>
+{% endif %}
+
+{# TIER 3.16 — Pin-Bar Coaching-Slots der nächsten 7 Tage #}
+{% if upcoming_coaching and feature_tier >= 2 %}
+<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:8px;margin-bottom:14px;flex-wrap:wrap">
+  <div style="font-size:11px;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-right:6px">▢ Diese Woche dran</div>
+  {% for c in upcoming_coaching[:6] %}
+  <a href="/coaching/{{ c.target_user_id }}" style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);font-size:12px;font-weight:600">
+    {{ c.name }}
+    <span style="font-size:10px;color:var(--text-muted);font-weight:500">
+      {% if c.days_until == 0 %}heute{% elif c.days_until == 1 %}morgen{% else %}+{{ c.days_until }}T{% endif %}
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# TIER 2.9 — „Mein Coach-Plan heute" für LREPs/HREPs (ftier >= 2) #}
+{% if coach_plan and feature_tier >= 2 %}
+<div class="card" style="border-left:3px solid var(--gold);margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Mein Coach-Plan heute</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">{{ coach_plan|length }} REP{% if coach_plan|length != 1 %}s{% endif %} brauchen heute deine Aufmerksamkeit</div>
+        </div>
+        <a href="/team" style="font-size:12px;color:var(--gold);text-decoration:none;font-weight:600">Alle →</a>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+        {% for r in coach_plan %}
+        <div style="display:flex;align-items:center;gap:12px;padding:9px 11px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid {% if r.urgency >= 90 %}var(--red){% elif r.urgency >= 70 %}var(--orange){% else %}var(--gold){% endif %};border-radius:6px">
+            <a href="/partner/{{ r.rep_id }}/profil" style="flex:1;color:var(--text);text-decoration:none;font-weight:600;font-size:13px">
+                {{ r.name }}
+                <span style="font-size:11px;color:var(--text-muted);font-weight:500;margin-left:6px">— {{ r.reasons | join(' · ') }}</span>
+            </a>
+            {% if r.phone %}
+            <a href="tel:{{ r.phone }}" class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--green);font-size:11px">↻ Anruf</a>
+            {% endif %}
+            <a href="/coaching/{{ r.rep_id }}" class="btn btn-sm btn-secondary" style="font-size:11px">📝 Notiz</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 {% if is_starter and feature_tier == 1 %}
 <!-- 🚀 Starter-Banner: prominent zur Roadmap führen -->
 <a href="/onboarding/roadmap" style="display:flex;align-items:center;gap:14px;padding:16px 18px;background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border-radius:18px;text-decoration:none;margin-bottom:16px;border:1px solid rgba(212,168,67,0.4);box-shadow:0 6px 20px rgba(0,0,0,0.2)">

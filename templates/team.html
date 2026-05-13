@@ -13,7 +13,7 @@
     <div class="table-wrap">
         <table id="mainTable">
             <thead>
-                <tr><th>Name / Login</th><th>Karriere-Stufe</th><th>Hierarchie</th><th>Strukturhöher</th><th>Telefon</th><th>Dabei seit</th><th>Verträge</th><th>EH</th><th>Volumen</th><th>Aktionen</th></tr>
+                <tr><th>Name / Login</th><th>Stufe</th><th>Aktivität</th><th>Coaching</th><th>Hierarchie</th><th>Telefon</th><th>Verträge</th><th>EH</th><th>Volumen</th><th>Aktionen</th></tr>
             </thead>
             <tbody>
                 {% for m in members %}
@@ -38,13 +38,36 @@
                         {% if m.role == 'admin' %}<span class="stufe-pill" style="background:var(--gold-soft);color:var(--gold);font-size:9px;padding:1px 6px;margin-left:3px">⚡ ADMIN</span>{% elif m.is_co_admin %}<span class="stufe-pill" style="background:rgba(167,139,250,0.15);color:var(--purple);font-size:9px;padding:1px 6px;margin-left:3px">⚡ CO-ADMIN</span>{% endif %}
                         <div style="font-size:10px;color:var(--text-soft);margin-top:2px">{{ m.career.name }}</div>
                     </td>
+                    {# TIER 2.10 — Tage inaktiv mit Farbcode (rot >7T, gelb 3-7T, grün <3T) #}
+                    <td>
+                        {% if m.days_inactive >= 999 %}
+                          <span style="font-size:11px;color:var(--text-soft)">nie</span>
+                        {% elif m.days_inactive >= 7 %}
+                          <span class="status-badge" style="background:var(--red-soft);color:var(--red)">{{ m.days_inactive }}T still</span>
+                        {% elif m.days_inactive >= 3 %}
+                          <span class="status-badge" style="background:var(--orange-soft);color:var(--orange)">{{ m.days_inactive }}T</span>
+                        {% else %}
+                          <span class="status-badge" style="background:var(--green-soft);color:var(--green)">aktiv</span>
+                        {% endif %}
+                    </td>
+                    {# TIER 3.14 — Tage seit letztem Coaching-Touch #}
+                    <td>
+                        {% if m.days_since_coaching is none %}
+                          <span class="status-badge" style="background:var(--red-soft);color:var(--red)">nie</span>
+                        {% elif m.days_since_coaching > 30 %}
+                          <span class="status-badge" style="background:var(--red-soft);color:var(--red)">{{ m.days_since_coaching }}T</span>
+                        {% elif m.days_since_coaching > 14 %}
+                          <span class="status-badge" style="background:var(--orange-soft);color:var(--orange)">{{ m.days_since_coaching }}T</span>
+                        {% else %}
+                          <span class="status-badge" style="background:var(--green-soft);color:var(--green)">{{ m.days_since_coaching }}T</span>
+                        {% endif %}
+                    </td>
                     <td>
                         <span class="level-dot level-{{ m.level if m.level <= 5 else 'other' }}"></span>
                         Ebene {{ m.level }}
+                        {% if m.parent_name %}<div style="font-size:10px;color:var(--text-soft);margin-top:2px">↳ {{ m.parent_name }}</div>{% endif %}
                     </td>
-                    <td>{{ m.parent_name or '– Top –' }}</td>
                     <td>{{ m.phone or '–' }}</td>
-                    <td>{{ m.joined_date }}</td>
                     <td>{{ m.contracts_count }}</td>
                     <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(m.einheiten).replace(",", ".") }}</strong></td>
                     <td class="money">{{ "{:,.0f}".format(m.volumen).replace(",", ".") }} €</td>

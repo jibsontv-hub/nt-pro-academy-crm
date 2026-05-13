@@ -296,6 +296,85 @@ function useStarter(el) {
 
 </div>
 
+<!-- TIER 2.12 — Aufgaben dem REP zuweisen -->
+<div class="card" style="border-left:3px solid var(--gold);margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div>
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Aufgaben für {{ member.name }}</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">{{ open_for_rep|length }} offen · zuweisen + Push an REP</div>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('assignTaskBox').style.display='block'" style="font-size:12px">+ Aufgabe zuweisen</button>
+    </div>
+
+    <div id="assignTaskBox" style="display:none;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px">
+        <input type="text" id="atTitle" placeholder="Aufgaben-Titel (z.B. „5 Kalt-Akquise-Anrufe heute")" style="width:100%;margin-bottom:8px" maxlength="200">
+        <textarea id="atDesc" placeholder="Optionaler Detail-Text" rows="2" style="width:100%;margin-bottom:8px" maxlength="1000"></textarea>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label style="font-size:11px;color:var(--text-muted)">Bis wann:</label>
+            <input type="date" id="atDue" style="font-size:13px">
+            <button type="button" onclick="assignTask({{ member.id }})" class="btn btn-primary btn-sm" style="margin-left:auto">Push senden</button>
+            <button type="button" onclick="document.getElementById('assignTaskBox').style.display='none'" class="btn btn-secondary btn-sm">Abbrechen</button>
+        </div>
+        <div id="atErr" style="display:none;margin-top:8px;font-size:11px;color:var(--red)"></div>
+    </div>
+
+    {% if open_for_rep or assigned_by_me %}
+    <div style="display:flex;flex-direction:column;gap:6px">
+        {% for t in open_for_rep %}
+        <div id="task-{{ t.id }}" style="display:flex;align-items:center;gap:12px;padding:9px 11px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px">
+            <div style="flex:1">
+                <div style="font-weight:600;font-size:13px;color:var(--text)">{{ t.title }}</div>
+                {% if t.description %}<div style="font-size:11px;color:var(--text-muted);margin-top:2px">{{ t.description }}</div>{% endif %}
+                <div style="font-size:10px;color:var(--text-soft);margin-top:2px">Von {{ t.from_name }} · {{ t.created_at[:16] }}{% if t.due_date %} · ⏰ bis {{ t.due_date }}{% endif %}</div>
+            </div>
+            <button type="button" onclick="deleteTask({{ t.id }})" class="btn btn-secondary btn-sm" style="font-size:11px" title="Zurückziehen">×</button>
+        </div>
+        {% endfor %}
+        {% for t in assigned_by_me if t.completed_at %}
+        <div style="display:flex;align-items:center;gap:12px;padding:7px 11px;background:var(--green-soft);border:1px solid var(--border);border-radius:6px;opacity:0.6">
+            <div style="flex:1">
+                <div style="font-weight:600;font-size:12px;color:var(--text);text-decoration:line-through">{{ t.title }}</div>
+                <div style="font-size:10px;color:var(--green)">✓ erledigt {{ t.completed_at[:16] }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:14px">Noch keine Aufgaben zugewiesen.</div>
+    {% endif %}
+</div>
+
+<script>
+async function assignTask(repId) {
+    const title = document.getElementById('atTitle').value.trim();
+    const desc = document.getElementById('atDesc').value.trim();
+    const due = document.getElementById('atDue').value;
+    const err = document.getElementById('atErr');
+    if (!title) { err.textContent = 'Titel fehlt.'; err.style.display='block'; return; }
+    try {
+        const res = await fetch(`/api/coaching/${repId}/assign-task`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({title, description: desc, due_date: due})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            location.reload();
+        } else {
+            err.textContent = data.error || 'Fehler';
+            err.style.display = 'block';
+        }
+    } catch (e) { err.textContent = 'Verbindungsfehler'; err.style.display = 'block'; }
+}
+async function deleteTask(taskId) {
+    if (!confirm('Aufgabe zurückziehen?')) return;
+    try {
+        const res = await fetch(`/api/assigned-tasks/${taskId}/delete`, {method: 'POST'});
+        const data = await res.json();
+        if (data.ok) document.getElementById('task-' + taskId)?.remove();
+    } catch (e) {}
+}
+</script>
+
 <!-- Coaching-Historie -->
 {% if notes %}
 <div class="card">

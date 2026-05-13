@@ -4833,6 +4833,23 @@ def init_db():
             FOREIGN KEY (sponsor_user_id) REFERENCES users(id)
         );
 
+        -- TIER 2.12 — Aufgaben die LREP/HREP einem direkten REP zuweisen kann.
+        -- Unterschied zu daily_tasks (level-gebunden, gilt für ALLE einer Stufe)
+        -- und personal_todos (selbst-erstellt, privat): hier weist EIN User
+        -- direkt EINEM anderen User eine spezifische Aufgabe zu.
+        CREATE TABLE IF NOT EXISTS assigned_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_user_id INTEGER NOT NULL,
+            to_user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            due_date TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            completed_at TEXT,
+            FOREIGN KEY (from_user_id) REFERENCES users(id),
+            FOREIGN KEY (to_user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS phone_scripts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             owner_user_id INTEGER,
@@ -4882,6 +4899,9 @@ def init_db():
             -- SOS-Messages für Sponsor-Lookup (offene Anfragen)
             CREATE INDEX IF NOT EXISTS idx_sos_sponsor_open ON sos_messages(sponsor_user_id, seen_at);
             CREATE INDEX IF NOT EXISTS idx_sos_rep_date ON sos_messages(rep_user_id, created_at);
+            -- Assigned-Tasks (TIER 2.12) für REP-Lookup (offene Tasks von Sponsor)
+            CREATE INDEX IF NOT EXISTS idx_assigned_tasks_to ON assigned_tasks(to_user_id, completed_at);
+            CREATE INDEX IF NOT EXISTS idx_assigned_tasks_from ON assigned_tasks(from_user_id);
             CREATE INDEX IF NOT EXISTS idx_newsletter_kat_pub ON newsletter_items(kategorie, published_at DESC);
             CREATE INDEX IF NOT EXISTS idx_deploy_log_date ON deploy_log(deployed_at DESC);
             CREATE INDEX IF NOT EXISTS idx_phone_scripts_kat ON phone_scripts(kategorie, sortierung, id);
@@ -7552,6 +7572,151 @@ def sos_inbox():
     return render_template('sos_inbox.html', rows=rows, open_count=open_count)
 
 
+# ═══════════════════════════════════════════════════════════════════
+# TIER 2.12 — Assigned-Tasks: LREP/HREP weist seinem direkten REP
+# eine spezifische Aufgabe zu. REP sieht sie auf /aufgaben.
+# ═══════════════════════════════════════════════════════════════════
+
+def _user_is_upline_of(upline_id, target_id):
+    """True wenn upline_id ein Vorfahre von target_id ist (direkt oder transitiv)."""
+    if upline_id == target_id:
+        return False
+    db = get_db()
+    try:
+        cur = target_id
+        for _ in range(20):  # Tiefe-Limit gegen endlose Loops
+            row = db.execute('SELECT parent_id FROM users WHERE id=?', (cur,)).fetchone()
+            if not row or not row['parent_id']:
+                return False
+            if row['parent_id'] == upline_id:
+                return True
+            cur = row['parent_id']
+        return False
+    finally:
+        db.close()
+
+
+@app.route('/api/coaching/<int:rep_id>/assign-task', methods=['POST'])
+@login_required
+def api_assign_task(rep_id):
+    """LREP/HREP weist einem Downliner eine Task zu. Permission-Check: muss Upline sein."""
+    if not _user_is_upline_of(current_user.id, rep_id) and not current_user.has_admin_access:
+        return jsonify({'error': 'Du kannst nur Downliner Aufgaben zuweisen'}), 403
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()[:200]
+    description = (data.get('description') or '').strip()[:1000]
+    due_date = (data.get('due_date') or '').strip()[:10] or None
+    if not title:
+        return jsonify({'error': 'Titel fehlt'}), 400
+    db = get_db()
+    cur = db.execute(
+        'INSERT INTO assigned_tasks (from_user_id, to_user_id, title, description, due_date) '
+        'VALUES (?, ?, ?, ?, ?)',
+        (current_user.id, rep_id, title, description, due_date)
+    )
+    task_id = cur.lastrowid
+    db.commit()
+    db.close()
+    # Push an REP
+    try:
+        send_push_to_user(
+            rep_id,
+            f'📝 Neue Aufgabe von {current_user.name}',
+            title[:140],
+            url='/aufgaben',
+            urgent=False,
+            tag='task-assigned',
+            push_type='task_assigned',
+        )
+    except Exception:
+        pass
+    cache_invalidate(f'ctx:assigned_unread:{rep_id}')
+    return jsonify({'ok': True, 'task_id': task_id})
+
+
+@app.route('/api/assigned-tasks/<int:task_id>/complete', methods=['POST'])
+@login_required
+def api_assigned_task_complete(task_id):
+    """REP markiert eine ihm zugewiesene Aufgabe als erledigt."""
+    db = get_db()
+    row = db.execute('SELECT to_user_id, from_user_id, title FROM assigned_tasks WHERE id=?',
+                     (task_id,)).fetchone()
+    if not row:
+        db.close()
+        return jsonify({'error': 'Nicht gefunden'}), 404
+    if row['to_user_id'] != current_user.id and not current_user.has_admin_access:
+        db.close()
+        return jsonify({'error': 'Kein Zugriff'}), 403
+    db.execute("UPDATE assigned_tasks SET completed_at = datetime('now') WHERE id=?", (task_id,))
+    db.commit()
+    db.close()
+    cache_invalidate(f'ctx:assigned_unread:{current_user.id}')
+    # Push an Sponsor (Bestätigung)
+    try:
+        send_push_to_user(
+            row['from_user_id'],
+            f'✓ {current_user.name} hat erledigt',
+            row['title'][:140],
+            url=f'/coaching/{current_user.id}',
+            urgent=False,
+            tag='task-done',
+            push_type='task_completed',
+        )
+    except Exception:
+        pass
+    return jsonify({'ok': True})
+
+
+@app.route('/api/assigned-tasks/<int:task_id>/delete', methods=['POST'])
+@login_required
+def api_assigned_task_delete(task_id):
+    """LREP/HREP löscht eine zugewiesene Aufgabe (zurückziehen)."""
+    db = get_db()
+    row = db.execute('SELECT from_user_id, to_user_id FROM assigned_tasks WHERE id=?',
+                     (task_id,)).fetchone()
+    if not row:
+        db.close()
+        return jsonify({'error': 'Nicht gefunden'}), 404
+    if row['from_user_id'] != current_user.id and not current_user.has_admin_access:
+        db.close()
+        return jsonify({'error': 'Kein Zugriff'}), 403
+    db.execute('DELETE FROM assigned_tasks WHERE id=?', (task_id,))
+    db.commit()
+    db.close()
+    cache_invalidate(f'ctx:assigned_unread:{row["to_user_id"]}')
+    return jsonify({'ok': True})
+
+
+def get_assigned_tasks_for_user(user_id, only_open=True):
+    """Tasks die diesem User zugewiesen wurden (von Sponsor)."""
+    db = get_db()
+    where_open = ' AND a.completed_at IS NULL' if only_open else ''
+    rows = db.execute(
+        f'SELECT a.id, a.title, a.description, a.due_date, a.created_at, a.completed_at, '
+        f'       u.name AS from_name '
+        f'FROM assigned_tasks a JOIN users u ON u.id = a.from_user_id '
+        f'WHERE a.to_user_id=?{where_open} ORDER BY a.completed_at IS NULL DESC, a.created_at DESC',
+        (user_id,)
+    ).fetchall()
+    db.close()
+    return [dict(r) for r in rows]
+
+
+def get_assigned_tasks_by_user(user_id, only_open=True):
+    """Tasks die DIESER User VERGEBEN hat (an Downliner)."""
+    db = get_db()
+    where_open = ' AND a.completed_at IS NULL' if only_open else ''
+    rows = db.execute(
+        f'SELECT a.id, a.title, a.description, a.due_date, a.created_at, a.completed_at, '
+        f'       u.name AS to_name, u.id AS to_user_id '
+        f'FROM assigned_tasks a JOIN users u ON u.id = a.to_user_id '
+        f'WHERE a.from_user_id=?{where_open} ORDER BY a.completed_at IS NULL DESC, a.created_at DESC',
+        (user_id,)
+    ).fetchall()
+    db.close()
+    return [dict(r) for r in rows]
+
+
 @app.route('/impressum')
 def impressum_page():
     """Öffentliches Impressum — rendert aus app_settings."""
@@ -9191,6 +9356,10 @@ def _get_admin_personal_dashboard_uncached(user_id):
     eh_remaining = max(0, monthly_target - eh_this_month)
     eh_per_day_needed = round(eh_remaining / days_left, 1)
     # Strang-Status pro direkter Sub-Struktur
+    # TIER 3.13 — erweitert um Vormonat (für Trend-Pfeil), Inaktiv-Count
+    # und Coaching-Frequenz (für Coach-the-Coach-Auswertung)
+    prev_month_d = (date.today().replace(day=1) - timedelta(days=1))
+    prev_month = prev_month_d.strftime('%Y-%m')
     direct = db.execute('SELECT id, name, photo_path FROM users WHERE parent_id=? AND active=1 ORDER BY name', (user_id,)).fetchall()
     strang_status = []
     for d in direct:
@@ -9201,10 +9370,44 @@ def _get_admin_personal_dashboard_uncached(user_id):
                                 AND status="abgeschlossen" AND recherche_status="freigegeben"
                                 AND strftime("%Y-%m", abschluss_date) = ?''',
                           chain + [cur_month]).fetchone()['s']
+        s_eh_prev = db.execute(f'''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
+                                    WHERE owner_id IN ({cph})
+                                      AND status="abgeschlossen" AND recherche_status="freigegeben"
+                                      AND strftime("%Y-%m", abschluss_date) = ?''',
+                                chain + [prev_month]).fetchone()['s']
+        # Inaktiv-Count: User in dieser Strang die letzten 3 Tage 0 Aktivität hatten
+        inactive_count = db.execute(f'''SELECT COUNT(*) c FROM users WHERE id IN ({cph}) AND active=1
+                                         AND id NOT IN (
+                                             SELECT user_id FROM activity_log
+                                             WHERE user_id IN ({cph})
+                                             AND created_at >= datetime('now','-3 days')
+                                         )''',
+                                    chain + chain).fetchone()['c']
+        # Coaching-Notes letzten 30 Tage IM Strang (vom LREP an seine REPs)
+        coaching_30d = db.execute(f'''SELECT COUNT(*) c FROM coaching_notes
+                                       WHERE author_user_id=? AND target_user_id IN ({cph})
+                                       AND created_at >= datetime('now','-30 days')''',
+                                  [d['id']] + chain).fetchone()['c']
+        # Trend-Berechnung
+        if s_eh_prev > 0:
+            pct_change = ((s_eh - s_eh_prev) / s_eh_prev) * 100
+        else:
+            pct_change = 100 if s_eh > 0 else 0
+        if pct_change >= 10:
+            trend = 'up'
+        elif pct_change <= -10:
+            trend = 'down'
+        else:
+            trend = 'flat'
         strang_status.append({
             'id': d['id'], 'name': d['name'], 'photo': d['photo_path'],
             'eh_month': float(s_eh),
+            'eh_prev_month': float(s_eh_prev),
+            'pct_change': round(pct_change, 1),
+            'trend': trend,
             'partners': len(chain),
+            'inactive_count': inactive_count,
+            'coaching_30d': coaching_30d,
         })
     strang_status.sort(key=lambda x: -x['eh_month'])
     db.close()
@@ -9551,6 +9754,146 @@ def _build_admin_dashboard_stats(user_id):
     return stats  # cache_set erfolgt durch cache_swr-Wrapper
 
 
+def get_upcoming_coaching_slots(user_id, days=7):
+    """TIER 3.16 — Coaching-Sessions die in den nächsten X Tagen anstehen.
+
+    Quelle: coaching_notes.next_session_date wo author_user_id = me.
+    Liefert Liste {target_user_id, name, next_session_date, days_until, note_excerpt}.
+    """
+    db = get_db()
+    try:
+        rows = db.execute('''
+            SELECT cn.target_user_id, cn.next_session_date, cn.note,
+                   u.name AS target_name
+            FROM coaching_notes cn
+            JOIN users u ON u.id = cn.target_user_id
+            WHERE cn.author_user_id = ?
+              AND cn.next_session_date IS NOT NULL
+              AND date(cn.next_session_date) >= date('now')
+              AND date(cn.next_session_date) <= date('now', '+' || ? || ' days')
+            GROUP BY cn.target_user_id
+            HAVING cn.created_at = MAX(cn.created_at)
+            ORDER BY cn.next_session_date
+            LIMIT 10
+        ''', (user_id, days)).fetchall()
+        today = date.today()
+        result = []
+        for r in rows:
+            try:
+                d = datetime.strptime(r['next_session_date'][:10], '%Y-%m-%d').date()
+                days_until = (d - today).days
+            except Exception:
+                days_until = 0
+            result.append({
+                'target_user_id': r['target_user_id'],
+                'name': r['target_name'],
+                'next_session_date': r['next_session_date'],
+                'days_until': days_until,
+                'note_excerpt': (r['note'] or '')[:60],
+            })
+        return result
+    except Exception as e:
+        app.logger.warning(f'get_upcoming_coaching_slots fail: {e}')
+        return []
+    finally:
+        db.close()
+
+
+def get_coach_plan_today(user_id, max_items=8):
+    """TIER 2.9 — „Mein Coach-Plan heute" für LREPs/HREPs.
+
+    Liefert priorisierte Liste der direkten REPs die HEUTE Hilfe brauchen:
+      1. Inaktiv ≥3 Tage (höchste Prio, rot)
+      2. Hängende Recherchen >5T (gelb)
+      3. Fortschritt ≥80% bis zur nächsten Stufe (gold — bald-Beförderungs-Push)
+      4. Streak gerade gerissen (gestern aktiv, heute noch nichts)
+
+    Ein LREP soll auf einen Blick sehen: WEN ruf ich heute an, in welcher Reihenfolge.
+    Statt aus 4 Pages zusammenpuzzeln (/team, /team/inaktiv, /coach, /sos).
+    """
+    db = get_db()
+    today = date.today()
+    try:
+        directs = db.execute(
+            'SELECT id, name, phone, manual_career_level FROM users '
+            'WHERE parent_id=? AND active=1 ORDER BY name',
+            (user_id,)
+        ).fetchall()
+        if not directs:
+            db.close()
+            return []
+        plan = []
+        for d in directs:
+            rep_id = d['id']
+            # 1) Letzte Aktivität
+            la_row = db.execute(
+                'SELECT MAX(created_at) AS la FROM activity_log WHERE user_id=?', (rep_id,)
+            ).fetchone()
+            days_inactive = 999
+            if la_row and la_row['la']:
+                try:
+                    la_date = datetime.strptime(la_row['la'][:10], '%Y-%m-%d').date()
+                    days_inactive = (today - la_date).days
+                except Exception:
+                    pass
+            # 2) Hängende Recherchen
+            hanging = db.execute(
+                "SELECT COUNT(*) AS c FROM contracts WHERE owner_id=? AND status='abgeschlossen' "
+                "AND recherche_status IN ('offen','in_pruefung') "
+                "AND date(abschluss_date) <= date('now', '-5 days')",
+                (rep_id,)
+            ).fetchone()['c']
+            # 3) Fortschritt zum nächsten Level
+            own_eh = db.execute(
+                'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                'WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"',
+                (rep_id,)
+            ).fetchone()['s']
+            cur_lvl = d['manual_career_level'] or 1
+            next_level = next((cl for cl in CAREER_LEVELS if cl['level'] == cur_lvl + 1), None)
+            progress_pct = 0
+            if next_level and next_level['min_eh'] > 0:
+                # Für Aufstiegs-Push reicht own_eh als Heuristik (LREP+ braucht volles total_eh
+                # — aber für REP→LREP Indikator reicht own_eh als „bald reif")
+                progress_pct = min(100, (own_eh / next_level['min_eh']) * 100)
+            # Reason + Priority bestimmen
+            reasons = []
+            urgency = 0
+            if days_inactive >= 7:
+                reasons.append(f'{days_inactive} Tage still')
+                urgency = max(urgency, 100)
+            elif days_inactive >= 3:
+                reasons.append(f'{days_inactive} Tage still')
+                urgency = max(urgency, 60)
+            if hanging > 0:
+                reasons.append(f'{hanging} hängende Recherche{"n" if hanging != 1 else ""}')
+                urgency = max(urgency, 70)
+            if progress_pct >= 80 and next_level:
+                reasons.append(f'{round(progress_pct)}% bis {next_level["short"]}')
+                urgency = max(urgency, 80)
+            if not reasons:
+                continue
+            plan.append({
+                'rep_id': rep_id,
+                'name': d['name'],
+                'phone': d['phone'] or '',
+                'reasons': reasons,
+                'urgency': urgency,
+                'days_inactive': days_inactive,
+            })
+        # Sortiert: höchste Urgency oben
+        plan.sort(key=lambda x: -x['urgency'])
+        return plan[:max_items]
+    except Exception as e:
+        app.logger.warning(f'get_coach_plan_today fail: {e}')
+        return []
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 def get_today_pace(user_id):
     """Berechnet Heute-Soll-vs-Ist für REP-Aktivierung.
 
@@ -9692,6 +10035,11 @@ def dashboard():
         streak_days = (s_row['streak_days'] or 0) if s_row else 0
         vision_needed = not _has_vision_today(current_user.id)
         admin_personal = get_admin_personal_dashboard(current_user.id)
+        # TIER 2.9 + 1.5 — Coach-Plan + Today-Pace auch für Admin
+        coach_plan = get_coach_plan_today(current_user.id)
+        today_pace = get_today_pace(current_user.id)
+        # TIER 3.16 — Pin-Bar Coaching-Slots der nächsten 7 Tage
+        upcoming_coaching = get_upcoming_coaching_slots(current_user.id, days=7)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -9712,7 +10060,9 @@ def dashboard():
             ai_briefing=ai_briefing, deadlines=deadlines,
             coach_actions=coach_actions, structure_dist=structure_dist,
             forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news,
-            streak_days=streak_days, vision_needed=vision_needed
+            streak_days=streak_days, vision_needed=vision_needed,
+            coach_plan=coach_plan, today_pace=today_pace,
+            upcoming_coaching=upcoming_coaching
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -9804,6 +10154,14 @@ def dashboard():
         vision_needed = not _has_vision_today(current_user.id)
         # TIER 1.5 — Heute-Soll-vs-Ist-Banner (Activation-Hebel)
         today_pace = get_today_pace(current_user.id)
+        # TIER 2.9 — „Mein Coach-Plan heute" für LREPs/HREPs (ftier >= 2)
+        coach_plan = []
+        upcoming_coaching = []
+        my_career_level = (career or {}).get('level', 1)
+        if my_career_level >= 2 or current_user.role == 'admin':
+            coach_plan = get_coach_plan_today(current_user.id)
+            # TIER 3.16 — Pin-Bar nächste 7 Coaching-Slots
+            upcoming_coaching = get_upcoming_coaching_slots(current_user.id, days=7)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -9819,7 +10177,8 @@ def dashboard():
             deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist,
             forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news,
             streak_days=streak_days, vision_needed=vision_needed,
-            today_pace=today_pace,
+            today_pace=today_pace, coach_plan=coach_plan,
+            upcoming_coaching=upcoming_coaching,
             admin_personal=None  # nur Admin hat das — Partner nicht
         )
 
@@ -10190,13 +10549,18 @@ def termin_delete(tid):
 @login_required
 def team():
     db = get_db()
+    # TIER 2.10 + 3.14 — JOIN auf last_active (activity_log) UND last_coaching (coaching_notes)
+    # Sortier-Default: inaktivste oben — Führungs-Tool, kein Buchhaltungs-Listing.
+    # TIER 2.12: hängende assigned_tasks anzeigen (zugewiesen an mich oder von mir)
     if current_user.role == 'admin':
         rows = db.execute('''
             SELECT u.*, p.name as parent_name,
                    COUNT(DISTINCT l.id) as leads_count,
                    COUNT(DISTINCT c.id) as contracts_count,
                    COALESCE(SUM(c.volumen), 0) as volumen,
-                   COALESCE(SUM(c.einheiten), 0) as einheiten
+                   COALESCE(SUM(c.einheiten), 0) as einheiten,
+                   (SELECT MAX(created_at) FROM activity_log WHERE user_id=u.id) as last_active,
+                   (SELECT MAX(created_at) FROM coaching_notes WHERE target_user_id=u.id) as last_coaching
             FROM users u
             LEFT JOIN users p ON u.parent_id = p.id
             LEFT JOIN leads l ON l.owner_id = u.id
@@ -10212,7 +10576,9 @@ def team():
                    COUNT(DISTINCT l.id) as leads_count,
                    COUNT(DISTINCT c.id) as contracts_count,
                    COALESCE(SUM(c.volumen), 0) as volumen,
-                   COALESCE(SUM(c.einheiten), 0) as einheiten
+                   COALESCE(SUM(c.einheiten), 0) as einheiten,
+                   (SELECT MAX(created_at) FROM activity_log WHERE user_id=u.id) as last_active,
+                   (SELECT MAX(created_at) FROM coaching_notes WHERE target_user_id=u.id) as last_coaching
             FROM users u
             LEFT JOIN users p ON u.parent_id = p.id
             LEFT JOIN leads l ON l.owner_id = u.id
@@ -10220,11 +10586,34 @@ def team():
             WHERE u.id IN ({ph}) AND u.active = 1
             GROUP BY u.id ORDER BY u.level, u.name
         ''', ids).fetchall()
+    today = date.today()
     members = []
     for r in rows:
         d = dict(r)
         d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+        # Tage inaktiv berechnen
+        try:
+            if r['last_active']:
+                la = datetime.strptime(r['last_active'][:10], '%Y-%m-%d').date()
+                d['days_inactive'] = (today - la).days
+            else:
+                d['days_inactive'] = 999
+        except Exception:
+            d['days_inactive'] = 999
+        # Tage seit letztem Coaching
+        try:
+            if r['last_coaching']:
+                lc = datetime.strptime(r['last_coaching'][:10], '%Y-%m-%d').date()
+                d['days_since_coaching'] = (today - lc).days
+            else:
+                d['days_since_coaching'] = None
+        except Exception:
+            d['days_since_coaching'] = None
         members.append(d)
+    # Sortier-Default für nicht-admin: inaktivste oben (LREP-Führungs-View).
+    # Admin kriegt klassisch nach Level/Name (Najib will Hierarchie-Sicht).
+    if current_user.role != 'admin':
+        members.sort(key=lambda x: (-x['days_inactive'], x['name']))
     db.close()
     return render_template('team.html', members=members, all_levels=CAREER_LEVELS)
 
@@ -10591,9 +10980,11 @@ def aufgaben():
     personal = db.execute('SELECT * FROM personal_todos WHERE user_id=? AND datum=? ORDER BY done, id',
                           (current_user.id, today)).fetchall()
     db.close()
+    # TIER 2.12 — Vom Sponsor zugewiesene Tasks
+    assigned = get_assigned_tasks_for_user(current_user.id, only_open=False)
     return render_template('aufgaben.html',
         tasks=tasks, user_status=user_status, today=today, career=user_career,
-        history=history, personal_todos=personal)
+        history=history, personal_todos=personal, assigned_tasks=assigned)
 
 
 @app.route('/aufgaben/eigene/neu', methods=['POST'])
@@ -10997,6 +11388,10 @@ def coaching(uid):
     heatmap = get_activity_heatmap(uid, days=180)
     konv_starter = get_konversations_starter(uid)
     diagnosis = heuristic_coaching_diagnosis(uid)
+    # TIER 2.12 — Assigned-Tasks die ICH diesem REP gegeben hab + alle die er offen hat
+    assigned_by_me = [t for t in get_assigned_tasks_by_user(current_user.id, only_open=False)
+                      if t.get('to_user_id') == uid]
+    open_for_rep = [t for t in get_assigned_tasks_for_user(uid, only_open=True)]
     return render_template('coaching.html',
         member=dict(member), career=career, next_career=next_career,
         own_eh=own_eh,
@@ -11004,7 +11399,8 @@ def coaching(uid):
                'pending_research': pending_research, 'avg_termine_per_close': avg_termine_per_close,
                'downline_count': downline_count, 'full_team': full_team, 'ob_score': ob_score},
         recent_activity=recent_activity, notes=notes, tipps=tipps,
-        heatmap=heatmap, konv_starter=konv_starter, diagnosis=diagnosis)
+        heatmap=heatmap, konv_starter=konv_starter, diagnosis=diagnosis,
+        assigned_by_me=assigned_by_me, open_for_rep=open_for_rep)
 
 
 # === KI-COACH ===
@@ -11032,7 +11428,29 @@ def coach_briefing():
 @login_required
 def struktur():
     db = get_db()
-    if current_user.role == 'admin':
+    # TIER 3.15 — ?focus=lrep_id Drill-Down: zeigt Strang ab dieser ID
+    # Statt 80-Personen-Wand kann HREP gezielt einen LREP-Strang anschauen.
+    focus_raw = request.args.get('focus')
+    focus_id = None
+    focus_user = None
+    if focus_raw:
+        try:
+            focus_id = int(focus_raw)
+            # Permission-Check: Admin oder Upline des Focus-User
+            if not current_user.has_admin_access:
+                desc = get_all_descendants(current_user.id)
+                if focus_id != current_user.id and focus_id not in desc:
+                    focus_id = None
+            if focus_id:
+                focus_user = db.execute('SELECT id, name FROM users WHERE id=? AND active=1', (focus_id,)).fetchone()
+                if not focus_user:
+                    focus_id = None
+        except (ValueError, TypeError):
+            focus_id = None
+    if focus_id:
+        trees = [build_tree(focus_id, db)]
+        trees = [t for t in trees if t]
+    elif current_user.role == 'admin':
         # Admin: alle Top-Level User (keine Eltern oder Eltern, die nicht in der DB sind)
         top_users = db.execute('SELECT id FROM users WHERE active = 1 AND (parent_id IS NULL OR parent_id NOT IN (SELECT id FROM users WHERE active = 1)) ORDER BY name').fetchall()
         trees = [build_tree(u['id'], db) for u in top_users]
@@ -11041,7 +11459,8 @@ def struktur():
         trees = [build_tree(current_user.id, db)]
         trees = [t for t in trees if t]
     db.close()
-    return render_template('struktur.html', trees=trees, all_levels=CAREER_LEVELS)
+    return render_template('struktur.html', trees=trees, all_levels=CAREER_LEVELS,
+                           focus_user=dict(focus_user) if focus_user else None)
 
 
 @app.route('/profil/photo', methods=['POST'])
