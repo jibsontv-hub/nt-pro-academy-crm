@@ -83,9 +83,51 @@
         </div>
     </div>
 
+    {# Mein-Kalender-Filter: Toggle direkte Strange ein/aus #}
+    {% if is_my_calendar and direct_partners_for_filter %}
+    <div style="margin-bottom:14px;padding:12px 14px;background:var(--bg-2);border-radius:10px;border:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:8px">
+            🔍 Filter · was im Kalender erscheint
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+            {# „Nur meine" — Default, kein include-Param #}
+            {% set is_only_me = (include_strange | length == 0) %}
+            <a href="?{% if year != today_iso[:4]|int or month != today_iso[5:7]|int %}year={{ year }}&month={{ month }}&{% endif %}root={{ root.id }}"
+               class="filter-pill"
+               style="padding:6px 12px;border-radius:18px;font-size:12px;font-weight:600;text-decoration:none;border:1px solid {% if is_only_me %}#22c55e;background:#22c55e15;color:#16a34a{% else %}var(--border);background:var(--surface);color:var(--text-muted){% endif %}">
+                {% if is_only_me %}✓ {% endif %}Nur meine Termine
+            </a>
+            {% for p in direct_partners_for_filter %}
+                {% set is_active = p.id in include_strange %}
+                {% if is_active %}
+                    {% set new_include = include_strange | reject('equalto', p.id) | list %}
+                {% else %}
+                    {% set new_include = include_strange + [p.id] %}
+                {% endif %}
+                <a href="?{% if year != today_iso[:4]|int or month != today_iso[5:7]|int %}year={{ year }}&month={{ month }}&{% endif %}root={{ root.id }}{% if new_include %}&include={{ new_include | join(',') }}{% endif %}"
+                   class="filter-pill"
+                   style="padding:6px 12px;border-radius:18px;font-size:12px;font-weight:600;text-decoration:none;border:1px solid {% if is_active %}var(--gold);background:var(--gold-soft);color:var(--gold){% else %}var(--border);background:var(--surface);color:var(--text-muted){% endif %}">
+                    {% if is_active %}✓ {% endif %}+ {{ p.name.split()[0] }}-Strang
+                </a>
+            {% endfor %}
+            {# Alle direkten Stränge auf einmal #}
+            {% set all_ids = direct_partners_for_filter | map(attribute='id') | list %}
+            {% set is_all_active = include_strange | length == direct_partners_for_filter | length and include_strange | length > 0 %}
+            <a href="?{% if year != today_iso[:4]|int or month != today_iso[5:7]|int %}year={{ year }}&month={{ month }}&{% endif %}root={{ root.id }}{% if not is_all_active %}&include=all{% endif %}"
+               class="filter-pill"
+               style="padding:6px 12px;border-radius:18px;font-size:12px;font-weight:600;text-decoration:none;border:1px solid {% if is_all_active %}#a855f7;background:#a855f715;color:#9333ea{% else %}var(--border);background:var(--surface);color:var(--text-muted){% endif %}">
+                {% if is_all_active %}✓ {% endif %}Alle Stränge
+            </a>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:8px">
+            💡 Termine in denen du Teilnehmer bist (z.B. 1:1-Coachings) werden immer angezeigt.
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Strang-View ist immer GESAMT — keine Member-Splittung mehr.
          Wer was hat erkennt man am Farb-Dot im Termin und in der Legende unten. -->
-    {% if members and members | length > 1 %}
+    {% if members and members | length > 1 and not is_my_calendar %}
     <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;padding:8px 12px;background:var(--bg-2);border-radius:8px;border-left:3px solid var(--gold)">
         ▦ Gesamtkalender: <strong style="color:var(--text)">{{ root.name }}</strong> + {{ members | length - 1 }} Strukturpartner — alle Termine zusammen, farbcodiert.
     </div>

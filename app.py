@@ -957,7 +957,7 @@ def build_user_context(user_id):
         db.close()
         return None
 
-    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['s']
+    own_eh = eh_own(user_id, db)  # FIX: inkl. initial_eh
     week_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben" AND date(abschluss_date) >= date("now","-7 days")', (user_id,)).fetchone()['s']
     contracts = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (user_id,)).fetchone()['c']
     pending_recherche = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (user_id,)).fetchone()['c']
@@ -984,9 +984,10 @@ def build_user_context(user_id):
     # Wer ist 3+ Tage still
     inactive_3d = [u for u in inactive_today if u['days_inactive'] >= 3]
     inactive_3d_names = ', '.join([f"{u['name']} ({u['days_inactive']}T)" for u in inactive_3d[:8]]) or '–'
-    career = career_for_row(user['manual_career_level'], own_eh)
+    # FIX: Stufe basiert auf total_eh (eigen + Team), nicht nur own_eh — wie CAREER_LEVELS verlangt
+    career = effective_career_for_user(user_id, db)
     next_lvl = next((c for c in CAREER_LEVELS if c['level'] == career['level'] + 1), None)
-    eh_to_go = max(0, next_lvl['min_eh'] - own_eh) if next_lvl else 0
+    eh_to_go = max(0, next_lvl['min_eh'] - (own_eh + team_eh)) if next_lvl else 0
 
     deadlines = get_production_deadlines()
 
@@ -2079,9 +2080,11 @@ def heuristic_weekly_briefing(user_id):
     pending = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (user_id,)).fetchone()['c']
     db.close()
 
-    career = career_for_row(user['manual_career_level'], own_eh)
+    # FIX: career basiert auf total_eh — wie CAREER_LEVELS verlangt
+    career = effective_career_for_user(user_id)
+    total_eh_for_progress = eh_total(user_id)
     next_lvl = next((c for c in CAREER_LEVELS if c['level'] == career['level'] + 1), None)
-    eh_to_go = max(0, next_lvl['min_eh'] - own_eh) if next_lvl else 0
+    eh_to_go = max(0, next_lvl['min_eh'] - total_eh_for_progress) if next_lvl else 0
     first_name = user['name'].split()[0]
 
     # === Dynamische Bausteine ===
@@ -2186,7 +2189,7 @@ def heuristic_coaching_diagnosis(target_user_id):
         db.close()
         return None
 
-    own_eh = db.execute('SELECT COALESCE(SUM(einheiten),0) as s FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (target_user_id,)).fetchone()['s']
+    own_eh = eh_own(target_user_id, db)  # FIX: inkl. initial_eh
     contracts = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"', (target_user_id,)).fetchone()['c']
     termine = db.execute('SELECT COUNT(*) as c FROM appointments WHERE owner_id=? AND status="erledigt"', (target_user_id,)).fetchone()['c']
     pending = db.execute('SELECT COUNT(*) as c FROM contracts WHERE owner_id=? AND recherche_status IN ("ausstehend","")', (target_user_id,)).fetchone()['c']
@@ -2195,7 +2198,8 @@ def heuristic_coaching_diagnosis(target_user_id):
     db.close()
 
     avg_t = (termine / contracts) if contracts > 0 else 0
-    career = career_for_row(target['manual_career_level'], own_eh)
+    # FIX: career basiert auf total_eh
+    career = effective_career_for_user(target_user_id)
     first_name = target['name'].split()[0]
 
     # Stärken identifizieren
@@ -4210,7 +4214,7 @@ def admin_aktivitaet():
     rows = db.execute('''
         SELECT u.id, u.name, u.email, u.last_login, u.login_count, u.joined_date,
                u.manual_career_level, p.name as upline_name,
-               COALESCE(SUM(c.einheiten), 0) as einheiten
+               COALESCE(SUM(c.einheiten), 0) + COALESCE(u.initial_eh, 0) as einheiten
         FROM users u
         LEFT JOIN users p ON u.parent_id = p.id
         LEFT JOIN contracts c ON c.owner_id = u.id AND c.status = "abgeschlossen" AND c.recherche_status = "freigegeben"
@@ -4222,7 +4226,8 @@ def admin_aktivitaet():
     today_str = date.today().strftime('%Y-%m-%d')
     for r in rows:
         d = dict(r)
-        d['career'] = career_for_row(r['manual_career_level'], r['einheiten'])
+        # FIX: career = effective Stufe (mit Team-EH)
+        d['career'] = effective_career_for_user(r['id'], db)
         # Tage seit letztem Login
         if r['last_login']:
             try:
@@ -5952,16 +5957,33 @@ def strang_color(partner_id):
     return _CALENDAR_COLORS[partner_id % len(_CALENDAR_COLORS)]
 
 
-def get_team_calendar_data(root_user_id, year, month, mono_color=None):
-    """Alle Termine im Team (root + alle Downlines) für gegebenen Monat.
-    Spezialfall root_user_id == '__global__': alle aktiven User systemweit.
-    mono_color: wenn gesetzt, alle Termine bekommen DIESE EINE Farbe (Upline-Sicht
-    eines Direkt-Strangs — Najib will Niesa's Strang in einer Farbe sehen).
+def get_team_calendar_data(root_user_id, year, month, mono_color=None,
+                            scope='strang', include_strange=None, viewer_id=None):
+    """Termine für Kalender-Ansicht.
+    scope:
+      - 'strang' (default): root + alle Descendants (ein vollständiger Strang)
+      - 'self_only': NUR root's eigene Termine + Termine wo viewer attendee ist
+      - 'self_plus': root's eigene Termine + zusätzlich gewählte Stränge (include_strange)
+      - 'global': alle aktiven User systemweit (Admin)
+    include_strange: Liste von User-IDs deren Stränge zusätzlich eingeblendet werden
+                     (nur relevant wenn scope='self_plus')
+    viewer_id: Der User der den Kalender öffnet — Termine wo viewer attendee ist
+               werden IMMER eingeblendet (z.B. 1:1-Coachings vom Mentor)
+    mono_color: wenn gesetzt, alle Termine bekommen DIESE Farbe.
     Returns: dict {appointments, members_with_colors}"""
     db = get_db()
-    if root_user_id == '__global__':
+    if root_user_id == '__global__' or scope == 'global':
         ids = [r['id'] for r in db.execute('SELECT id FROM users WHERE active=1').fetchall()]
-    else:
+    elif scope == 'self_only':
+        ids = [root_user_id]
+    elif scope == 'self_plus':
+        ids = [root_user_id]
+        if include_strange:
+            for partner_id in include_strange:
+                ids.extend([partner_id] + get_all_descendants(partner_id))
+        # dedup
+        ids = list(dict.fromkeys(ids))
+    else:  # 'strang' default
         ids = [root_user_id] + get_all_descendants(root_user_id)
     placeholders = ','.join('?' * len(ids))
     members = db.execute(f'SELECT id, name, photo_path FROM users WHERE id IN ({placeholders}) AND active=1 ORDER BY name', ids).fetchall()
@@ -5987,10 +6009,43 @@ def get_team_calendar_data(root_user_id, year, month, mono_color=None):
         ORDER BY a.termin_date, a.termin_time
     ''', ids + [start_date, end_date]).fetchall()
     appts_list = []
+    seen_ids = set()
     for a in appts:
         d = dict(a)
         d['color'] = color_map.get(a['owner_id'], '#94a3b8')
         appts_list.append(d)
+        seen_ids.add(a['id'])
+
+    # IMMER zusätzlich: Termine wo viewer attendee ist (z.B. 1:1-Coaching vom Mentor)
+    # Diese werden auch in self_only-Sicht angezeigt
+    if viewer_id:
+        attendee_appts = db.execute('''
+            SELECT a.*, u.name as owner_name
+            FROM appointments a
+            JOIN users u ON a.owner_id = u.id
+            WHERE a.attendee_ids LIKE ? OR a.attendee_ids LIKE ? OR a.attendee_ids LIKE ? OR a.attendee_ids = ?
+              AND date(a.termin_date) >= date(?) AND date(a.termin_date) < date(?)
+            ORDER BY a.termin_date, a.termin_time
+        ''', (f'%[{viewer_id}]%', f'%,{viewer_id},%', f'%,{viewer_id}]%', f'[{viewer_id}]',
+              start_date, end_date)).fetchall()
+        for a in attendee_appts:
+            if a['id'] in seen_ids:
+                continue
+            try:
+                atts = [int(x) for x in json.loads(a['attendee_ids'] or '[]') if str(x).isdigit()]
+                if viewer_id not in atts:
+                    continue
+            except Exception:
+                continue
+            # Dieser Termin gehört zu jemand anderem, aber viewer ist attendee
+            d = dict(a)
+            d['color'] = '#3b82f6'  # blau für "ich bin Teilnehmer"
+            d['_attendee_view'] = True
+            appts_list.append(d)
+            seen_ids.add(a['id'])
+        # Sortieren nach Datum/Zeit
+        appts_list.sort(key=lambda x: (x.get('termin_date') or '', x.get('termin_time') or ''))
+
     db.close()
     return {'appointments': appts_list, 'members': members_list}
 
@@ -13894,7 +13949,52 @@ def team_kalender():
         # current_user ist parent von root → Najib-Sicht auf eine direkte Struktur
         if target_row and target_row['parent_id'] == current_user.id and root['id'] != current_user.id:
             mono = strang_color(root['id'])
-    data = get_team_calendar_data(root['id'], year, month, mono_color=mono)
+
+    # ─── Scope-Logik: wenn Najib seinen EIGENEN Kalender öffnet (?root=<my_id>),
+    # zeige NUR seine Termine — nicht die seiner Downliner. Plus optional Filter-Stränge
+    # via ?include=<id1>,<id2> einblenden.
+    scope = 'strang'  # default
+    include_strange = []
+    direct_partners_for_filter = []
+    if isinstance(root['id'], int) and root['id'] == current_user.id:
+        # Mein-Kalender-Modus
+        include_param = request.args.get('include', '').strip()
+        if include_param == 'all':
+            # Toggle: alle direkten Stränge inkludieren
+            db_dp = get_db()
+            include_strange = [r['id'] for r in db_dp.execute(
+                'SELECT id FROM users WHERE parent_id=? AND active=1',
+                (current_user.id,)
+            ).fetchall()]
+            db_dp.close()
+            scope = 'self_plus' if include_strange else 'self_only'
+        elif include_param:
+            include_strange = [int(x) for x in include_param.split(',') if x.strip().isdigit()]
+            # Permission: nur direkte Partner zulassen
+            db_dp = get_db()
+            allowed_ids = {r['id'] for r in db_dp.execute(
+                'SELECT id FROM users WHERE parent_id=? AND active=1',
+                (current_user.id,)
+            ).fetchall()}
+            db_dp.close()
+            include_strange = [i for i in include_strange if i in allowed_ids]
+            scope = 'self_plus' if include_strange else 'self_only'
+        else:
+            scope = 'self_only'
+        # Liste der direkten Partner für die Filter-Toggle-UI
+        db_dp = get_db()
+        direct_partners_for_filter = [dict(r) for r in db_dp.execute(
+            'SELECT id, name, photo_path FROM users WHERE parent_id=? AND active=1 ORDER BY name',
+            (current_user.id,)
+        ).fetchall()]
+        db_dp.close()
+
+    data = get_team_calendar_data(
+        root['id'], year, month,
+        mono_color=mono, scope=scope,
+        include_strange=include_strange or None,
+        viewer_id=current_user.id
+    )
     # Booking-View: wenn current_user den Strukturleiter (parent) anschaut UND kein Admin ist,
     # eigene 1:1-Termine voll sichtbar — fremde als anonymes „Belegt" maskieren
     # (Downliner sieht Verfügbarkeit, kann freie Slots zum Buchen erkennen)
@@ -13951,7 +14051,11 @@ def team_kalender():
         next_year=next_year, next_month=next_month,
         today_iso=today.isoformat(),
         partner_filter=int(partner_filter) if partner_filter and partner_filter.isdigit() else None,
-        is_sub_root=bool(root_param)
+        is_sub_root=bool(root_param),
+        # Mein-Kalender-Filter: aktive includes + verfügbare direkte Partner
+        is_my_calendar=(isinstance(root['id'], int) and root['id'] == current_user.id),
+        include_strange=include_strange,
+        direct_partners_for_filter=direct_partners_for_filter
     )
 
 
