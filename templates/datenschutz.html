@@ -42,7 +42,24 @@ a:hover { text-decoration: underline; }
     <div class="sub">Stand: Mai 2026 · Pro Academy Control Hub</div>
 
     <h2>1. Verantwortlicher</h2>
-    <p>Najib Tchatikpi · Pro Academy<br>E-Mail: najib@ntpro.de</p>
+    <p>{{ contact_name or 'Pro Academy' }}<br>
+    Kontakt: siehe <a href="/impressum">Impressum</a>{% if contact_email %} oder per <a href="#" id="dsContact">verschlüsselter Kontakt</a>{% endif %}</p>
+    {% if contact_email %}
+    <script>
+      (function(){
+        // Email obfuscation: erst nach Klick sichtbar (verhindert Bot-Scraping)
+        var lnk = document.getElementById('dsContact');
+        if (!lnk) return;
+        var parts = '{{ contact_email }}'.split('@');
+        if (parts.length !== 2) return;
+        lnk.addEventListener('click', function(e){
+          e.preventDefault();
+          var addr = parts[0] + '@' + parts[1];
+          window.location.href = 'mailto:' + addr;
+        });
+      })();
+    </script>
+    {% endif %}
 
     <h2>2. Zweck der Datenverarbeitung</h2>
     <p>Wir verarbeiten deine Daten ausschließlich zur Verwaltung deiner Mitgliedschaft im Pro Academy Strukturvertrieb sowie zur Bearbeitung deiner Anfragen.</p>
@@ -80,7 +97,7 @@ a:hover { text-decoration: underline; }
     </ul>
 
     <div class="box">
-        💡 <strong>Schreibe einfach an <a href="mailto:najib@ntpro.de">najib@ntpro.de</a></strong> — wir bearbeiten alle Anfragen innerhalb von 30 Tagen.
+        💡 <strong>Anfragen bitte über das <a href="/impressum">Impressum</a> oder die im Verantwortlichen-Abschnitt verlinkte Adresse</strong> — wir bearbeiten alle Anfragen innerhalb von 30 Tagen.
     </div>
 
     <h2>8. Sicherheit</h2>

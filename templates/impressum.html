@@ -25,9 +25,22 @@
 
   <div class="imp-h">Kontakt</div>
   <div class="imp-line">
-    {% if data.imp_email %}E-Mail: <a href="mailto:{{ data.imp_email }}" style="color:var(--gold);text-decoration:none">{{ data.imp_email }}</a><br>{% endif %}
+    {% if data.imp_email %}E-Mail: <span id="impEmail" data-u="{{ data.imp_email.split('@')[0] }}" data-d="{{ data.imp_email.split('@')[1] if '@' in data.imp_email else '' }}" style="color:var(--text-muted);font-style:italic">[Mail-Adresse — klick zum Anzeigen]</span><br>{% endif %}
     {% if data.imp_telefon %}Telefon: <a href="tel:{{ data.imp_telefon }}" style="color:var(--gold);text-decoration:none">{{ data.imp_telefon }}</a>{% endif %}
   </div>
+  {% if data.imp_email %}
+  <script>
+  (function(){
+    var el = document.getElementById('impEmail');
+    if (!el) return;
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', function(){
+      var addr = el.dataset.u + '@' + el.dataset.d;
+      el.innerHTML = '<a href="mailto:' + addr + '" style="color:var(--gold);text-decoration:none">' + addr + '</a>';
+    });
+  })();
+  </script>
+  {% endif %}
 
   {% if data.imp_ust or data.imp_handelsregister %}
   <div class="imp-h">Rechtliches</div>

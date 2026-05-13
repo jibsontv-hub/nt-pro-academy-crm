@@ -3382,8 +3382,10 @@ def design_mockups():
 
 @app.route('/datenschutz')
 def datenschutz():
-    """Öffentliche Datenschutz-Seite."""
-    return render_template('datenschutz.html')
+    """Öffentliche Datenschutz-Seite. Email aus Impressum-Settings (User-konfigurierbar)."""
+    contact_email = get_setting('imp_email', '')
+    contact_name = get_setting('imp_name', 'Pro Academy')
+    return render_template('datenschutz.html', contact_email=contact_email, contact_name=contact_name)
 
 
 # === ADMIN: CO-ADMIN-TOGGLE ===
@@ -5365,11 +5367,15 @@ def index():
 @app.route('/login/magic-request', methods=['POST'])
 def login_magic_request():
     """Magic-Link-Login: User trägt nur E-Mail ein, bekommt Klick-Link.
-    Anti-Enumeration: gibt immer dieselbe Erfolgsmeldung zurück."""
+    Anti-Enumeration + Rate-Limit gegen Spam."""
     email = (request.form.get('email') or '').strip().lower()
     if not email or '@' not in email:
         flash('Bitte gültige E-Mail eingeben.', 'error')
         return redirect(url_for('login'))
+    ip = request.remote_addr or 'unknown'
+    # Rate-Limit (DB-cross-worker)
+    if not _reset_rate_limit_db_ok(email, ip):
+        return render_template('magic_link_sent.html', email_used=email)
     db = get_db()
     # Sicherheit: Magic-Link nur wenn User schonmal eingeloggt war (last_login IS NOT NULL).
     # Frische Accounts müssen erstmals mit E-Mail+Passwort rein — danach ist Magic-Link offen.
@@ -7169,7 +7175,7 @@ _RESET_RL_WINDOW = 300   # 5 Minuten
 _RESET_RL_MAX = 3        # max 3 requests pro window
 
 def _reset_rate_limit_ok(key):
-    """Returns True if request erlaubt, False bei rate-limit-hit. Cleanup-Side-Effekt."""
+    """In-Memory Per-Worker Rate-Limit (Best-Effort)."""
     import time as _t
     now = _t.time()
     window_start = now - _RESET_RL_WINDOW
@@ -7179,11 +7185,53 @@ def _reset_rate_limit_ok(key):
         return False
     timestamps.append(now)
     _RESET_RL[key] = timestamps
-    # Garbage-Collect: alte Einträge löschen
     if len(_RESET_RL) > 2000:
         for k in list(_RESET_RL.keys()):
             if not any(t > window_start for t in _RESET_RL[k]):
                 _RESET_RL.pop(k, None)
+    return True
+
+
+def _reset_rate_limit_db_ok(email_or_phone, ip):
+    """DB-basiertes Rate-Limit (cross-worker auf PA Multi-Worker-Setup).
+    - Pro Email/Phone: max 2 Reset-Anfragen pro 30 Minuten
+    - Pro IP: max 8 Reset-Anfragen pro Stunde
+    Returns True if request erlaubt, False bei rate-limit-hit."""
+    if not email_or_phone and not ip:
+        return True
+    db = get_db()
+    try:
+        # 1) Per Email: über JOIN auf users
+        if email_or_phone and '@' in email_or_phone:
+            n_email = db.execute('''SELECT COUNT(*) c FROM password_resets pr
+                                    JOIN users u ON pr.user_id=u.id
+                                    WHERE LOWER(u.email)=?
+                                    AND pr.created_at >= datetime('now','-30 minutes')''',
+                               (email_or_phone.lower(),)).fetchone()['c']
+            # Auch magic_link_tokens prüfen
+            n_email += db.execute('''SELECT COUNT(*) c FROM magic_link_tokens m
+                                     JOIN users u ON m.user_id=u.id
+                                     WHERE LOWER(u.email)=?
+                                     AND m.created_at >= datetime('now','-30 minutes')''',
+                                (email_or_phone.lower(),)).fetchone()['c']
+            if n_email >= 2:
+                db.close()
+                return False
+        # 2) Per IP
+        if ip:
+            n_ip = db.execute('''SELECT COUNT(*) c FROM password_resets
+                                 WHERE ip=? AND created_at >= datetime('now','-1 hour')''',
+                            (ip,)).fetchone()['c']
+            n_ip += db.execute('''SELECT COUNT(*) c FROM magic_link_tokens
+                                  WHERE ip=? AND created_at >= datetime('now','-1 hour')''',
+                             (ip,)).fetchone()['c']
+            if n_ip >= 8:
+                db.close()
+                return False
+    except Exception:
+        pass
+    db.close()
+    return True
     return True
 
 
@@ -7198,10 +7246,10 @@ def passwort_vergessen():
         ip = request.remote_addr or 'unknown'
         identifier = (request.form.get('email') or request.form.get('phone') or '').strip().lower()
         rl_key = f'{ip}|{identifier}'
-        if not _reset_rate_limit_ok(rl_key):
-            flash('Zu viele Reset-Versuche. Bitte 5 Minuten warten und nochmal versuchen.', 'error')
-            return render_template('passwort_vergessen.html', sent=False, method=request.form.get('method', 'email'),
-                                   send_status=None)
+        if not _reset_rate_limit_ok(rl_key) or not _reset_rate_limit_db_ok(identifier, ip):
+            # Anti-Enum: Erfolgsmeldung statt Block-Hinweis (so weiß ein Angreifer nichts)
+            return render_template('passwort_vergessen.html', sent=True, method=request.form.get('method', 'email'),
+                                   send_status='ok', send_error=None, target_label=identifier)
         email = (request.form.get('email') or '').strip().lower()
         phone = (request.form.get('phone') or '').strip()
         method = (request.form.get('method') or 'email').lower()
@@ -7225,17 +7273,20 @@ def passwort_vergessen():
                 base = (request.url_root or '').rstrip('/')
                 reset_url = f"{base}/passwort-zuruecksetzen/{token}"
                 text = (f"Hallo {row['name']},\n\n"
-                        f"Du hast einen Passwort-Reset für Pro Academy angefordert.\n"
-                        f"Klick zum Zurücksetzen (Link gültig 2 Stunden):\n\n{reset_url}\n\n"
-                        f"Wenn du das nicht warst, ignoriere diese Mail einfach.\n\nProAcademy")
+                        f"Es wurde ein Passwort-Reset für deinen Pro-Academy-Account angefordert.\n"
+                        f"Falls DU das warst, klick zum Zurücksetzen (Link gültig 2 Stunden):\n\n{reset_url}\n\n"
+                        f"Falls du das NICHT warst — einfach ignorieren. Niemand kann ohne diesen Link rein.\n"
+                        f"Anfrage kam von IP: {ip}\n\nProAcademy")
                 html = (f'<p>Hallo {row["name"]},</p>'
-                        f'<p>Du hast einen Passwort-Reset für <strong>Pro Academy</strong> angefordert.</p>'
+                        f'<p>Es wurde ein <strong>Passwort-Reset für deinen Pro-Academy-Account</strong> angefordert.</p>'
+                        f'<p>Falls <strong>DU</strong> das warst:</p>'
                         f'<p style="margin:24px 0"><a href="{reset_url}" style="background:#d4a843;color:#0f1c3f;'
                         f'padding:14px 26px;border-radius:10px;text-decoration:none;font-weight:800;display:inline-block">'
                         f'→ Passwort jetzt zurücksetzen</a></p>'
-                        f'<p style="color:#64748b;font-size:13px">Link gilt 2 Stunden. Wenn der Button nicht klickbar ist, '
-                        f'kopier diese URL in den Browser:<br><code style="background:#f3f4f6;padding:4px 8px;border-radius:4px">{reset_url}</code></p>'
-                        f'<p style="color:#64748b;font-size:12px;margin-top:30px">War das nicht du? Einfach ignorieren — niemand kann ohne den Link dein Passwort ändern.</p>')
+                        f'<p style="color:#64748b;font-size:13px">Link gilt 2 Stunden.</p>'
+                        f'<p style="color:#64748b;font-size:12px;margin-top:30px;padding-top:14px;border-top:1px solid #e5e8ee">'
+                        f'<strong>Falls du das NICHT warst:</strong> einfach ignorieren — niemand kann ohne diesen Link rein.<br>'
+                        f'Anfrage kam von IP: <code>{ip}</code>. Bei wiederholten Mails: gib uns Bescheid.</p>')
                 ok, err = send_email(row['email'], 'Passwort zurücksetzen — Pro Academy', text,
                                      body_html=html, sent_by=None,
                                      reply_to=admin_email, category='password_reset',
