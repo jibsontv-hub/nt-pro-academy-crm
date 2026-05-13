@@ -1117,6 +1117,82 @@ ASSISTENTIN_TOOLS = [
             'required': ['titel']
         }
     },
+    {
+        'name': 'list_my_calendar',
+        'description': 'Listet die nächsten Termine des Users (heute, morgen, nächste 14 Tage). Zeigt Titel, Zeit, Klient, Typ. Wird genutzt um zu wissen was ansteht.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'days_ahead': {'type': 'integer', 'default': 14},
+                'only_today': {'type': 'boolean', 'default': False},
+            }
+        }
+    },
+    {
+        'name': 'schedule_termin',
+        'description': 'Legt einen neuen Termin in den Kalender des Users. Pflicht: title, termin_date.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'title': {'type': 'string'},
+                'termin_date': {'type': 'string', 'description': 'YYYY-MM-DD'},
+                'termin_time': {'type': 'string', 'description': 'HH:MM (optional)'},
+                'duration_min': {'type': 'integer', 'default': 60},
+                'typ': {'type': 'string', 'description': 'kundentermin, partnergesprach, onboarding, followup, sonstiges', 'default': 'sonstiges'},
+                'client_name': {'type': 'string'},
+                'notizen': {'type': 'string'},
+            },
+            'required': ['title', 'termin_date']
+        }
+    },
+    {
+        'name': 'compose_email_draft',
+        'description': 'Erstellt einen E-Mail-Entwurf für den User. NICHT versenden — gibt nur den fertigen Text zurück. User kann den Text dann selbst kopieren oder freigeben.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'to_name': {'type': 'string', 'description': 'Empfänger-Name (für Anrede)'},
+                'subject': {'type': 'string'},
+                'kontext': {'type': 'string', 'description': 'Worum gehts? Stichworte oder kurze Beschreibung'},
+                'tonalitaet': {'type': 'string', 'description': 'professionell / locker / herzlich', 'default': 'professionell'},
+            },
+            'required': ['subject', 'kontext']
+        }
+    },
+    {
+        'name': 'meeting_briefing',
+        'description': 'Holt alle Infos zu einem geplanten Termin und macht ein Vorbereitungs-Briefing: Wer? Wann? Worum gehts? Hintergrund über die Person aus dem CRM. ID aus list_my_calendar.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'termin_id': {'type': 'integer'},
+            },
+            'required': ['termin_id']
+        }
+    },
+    {
+        'name': 'search_team_members',
+        'description': 'Durchsucht die eigene Downline nach Personen — by Name oder Filter (z.B. „Stufe 2", „seit 30 Tagen aktiv"). Liefert Liste mit ID, Name, Stufe, Stats.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'name_query': {'type': 'string', 'description': 'optional Name-Substring'},
+                'min_career_level': {'type': 'integer', 'description': 'optional 2/3/4/5'},
+                'only_inactive_days': {'type': 'integer', 'description': 'optional: nur User die >X Tage inaktiv'},
+                'limit': {'type': 'integer', 'default': 20},
+            }
+        }
+    },
+    {
+        'name': 'weekly_plan_generator',
+        'description': 'Generiert einen Wochenplan für den User basierend auf KPIs, anstehenden Terminen, Eingabeschluss-Status. Schlägt Fokus-Themen vor.',
+        'input_schema': {
+            'type': 'object',
+            'properties': {
+                'week_offset': {'type': 'integer', 'description': '0=diese Woche, 1=nächste, default 0', 'default': 0},
+            }
+        }
+    },
 ]
 
 
@@ -1226,6 +1302,173 @@ def execute_assistentin_tool(tool_name, tool_input, user):
             db.commit()
             db.close()
             return {'success': True, 'todo_id': tid, 'message': f'TODO „{titel}" für {faellig} angelegt'}
+
+        if tool_name == 'list_my_calendar':
+            days = max(1, min(int(tool_input.get('days_ahead', 14)), 60))
+            only_today = bool(tool_input.get('only_today', False))
+            today_iso = date.today().isoformat()
+            end_iso = (date.today() + timedelta(days=0 if only_today else days)).isoformat()
+            db = get_db()
+            rows = db.execute('''SELECT id, title, client_name, termin_date, termin_time, typ, status, duration_min
+                                 FROM appointments WHERE owner_id=? AND date(termin_date) BETWEEN date(?) AND date(?)
+                                 ORDER BY termin_date, termin_time LIMIT 30''',
+                            (user.id, today_iso, end_iso)).fetchall()
+            db.close()
+            return {'today': today_iso, 'count': len(rows), 'termine': [dict(r) for r in rows]}
+
+        if tool_name == 'schedule_termin':
+            title = (tool_input.get('title') or '').strip()
+            tdate = (tool_input.get('termin_date') or '').strip()
+            if not title or not tdate:
+                return {'error': 'title + termin_date erforderlich'}
+            db = get_db()
+            cur = db.execute('''INSERT INTO appointments
+                (owner_id, title, client_name, termin_date, termin_time, typ, status, notizen, duration_min)
+                VALUES (?,?,?,?,?,?,?,?,?)''',
+                (user.id, title[:200],
+                 (tool_input.get('client_name') or '')[:200] or None,
+                 tdate, tool_input.get('termin_time') or None,
+                 tool_input.get('typ', 'sonstiges'), 'geplant',
+                 (tool_input.get('notizen') or '')[:500] or None,
+                 int(tool_input.get('duration_min', 60))))
+            tid = cur.lastrowid
+            db.commit()
+            db.close()
+            return {'success': True, 'termin_id': tid,
+                    'message': f'Termin „{title}" am {tdate}{" um " + tool_input.get("termin_time", "") if tool_input.get("termin_time") else ""} angelegt'}
+
+        if tool_name == 'compose_email_draft':
+            subject = (tool_input.get('subject') or '').strip()[:200]
+            kontext = (tool_input.get('kontext') or '').strip()[:1000]
+            to_name = (tool_input.get('to_name') or '').strip()[:100]
+            ton = (tool_input.get('tonalitaet') or 'professionell').lower()
+            if not subject or not kontext:
+                return {'error': 'subject + kontext erforderlich'}
+            anrede = f'Hallo {to_name}' if to_name else 'Hallo'
+            if ton == 'herzlich':
+                anrede = f'Lieber {to_name}' if to_name else 'Liebe Grüße vorab'
+            elif ton == 'locker':
+                anrede = f'Hi {to_name}' if to_name else 'Hi'
+            user_first = (user.name or 'Najib').split()[0]
+            # Echte Mail erst nach User-Approval — gib nur Entwurf zurück
+            return {
+                'subject': subject,
+                'body_text': f'{anrede},\n\n{kontext}\n\nBeste Grüße\n{user_first}',
+                'tonalitaet': ton,
+                'message': f'Entwurf bereit für „{subject}". Übernimm den Text in deine E-Mail-App, oder lass mich ihn schicken.',
+                'note': 'Aus Sicherheitsgründen versendet die Assistentin keine externe Mail automatisch. Kopier den Text in dein Mail-Programm oder gib explizit „bitte senden an X@Y" frei.',
+            }
+
+        if tool_name == 'meeting_briefing':
+            tid = int(tool_input.get('termin_id', 0))
+            if not tid:
+                return {'error': 'termin_id fehlt'}
+            db = get_db()
+            t = db.execute('''SELECT a.*, u.name as owner_name FROM appointments a
+                              JOIN users u ON a.owner_id = u.id WHERE a.id=?''', (tid,)).fetchone()
+            if not t:
+                db.close()
+                return {'error': f'Termin {tid} nicht gefunden'}
+            # Permission: owner oder admin oder in attendees
+            allowed = (t['owner_id'] == user.id) or user.has_admin_access
+            attendee_names = []
+            try:
+                if t['attendee_ids']:
+                    att_ids = [int(x) for x in json.loads(t['attendee_ids']) if str(x).isdigit()]
+                    if user.id in att_ids:
+                        allowed = True
+                    if att_ids:
+                        ph = ','.join('?' * len(att_ids))
+                        rows = db.execute(f'SELECT name FROM users WHERE id IN ({ph})', att_ids).fetchall()
+                        attendee_names = [r['name'] for r in rows]
+            except Exception:
+                pass
+            if not allowed:
+                db.close()
+                return {'error': 'Keine Berechtigung für diesen Termin'}
+            # Hintergrund-Info zum Owner
+            owner_history = db.execute('''SELECT COUNT(*) c FROM appointments
+                                          WHERE owner_id=? AND status='erledigt' ''', (t['owner_id'],)).fetchone()['c']
+            db.close()
+            return {
+                'termin': {
+                    'id': t['id'], 'title': t['title'], 'date': t['termin_date'], 'time': t['termin_time'],
+                    'typ': t['typ'], 'status': t['status'],
+                    'duration_min': t['duration_min'],
+                    'client_name': t['client_name'],
+                    'notizen': t['notizen'],
+                },
+                'owner': {'name': t['owner_name'], 'erledigte_termine_total': owner_history},
+                'attendees': attendee_names,
+                'briefing_hint': 'Bereite die Talking-Points vor: 1) Aktueller Stand der Person, 2) Was war beim letzten Mal, 3) Was ist das Ziel dieses Termins.',
+            }
+
+        if tool_name == 'search_team_members':
+            name_q = (tool_input.get('name_query') or '').strip().lower()
+            min_lvl = tool_input.get('min_career_level')
+            inact_days = tool_input.get('only_inactive_days')
+            limit = min(int(tool_input.get('limit', 20)), 50)
+            descs = get_all_descendants(user.id)
+            if not descs:
+                return {'count': 0, 'members': [], 'note': 'Du hast noch keine Downline.'}
+            ph = ','.join('?' * len(descs))
+            sql = f'''SELECT id, name, email, phone, manual_career_level,
+                             COALESCE(initial_eh,0) as initial_eh,
+                             CAST(julianday('now') - julianday(COALESCE(last_login, joined_date)) as INTEGER) as days_inactive
+                      FROM users WHERE id IN ({ph}) AND active=1'''
+            args = list(descs)
+            if name_q:
+                sql += ' AND LOWER(name) LIKE ?'
+                args.append(f'%{name_q}%')
+            if min_lvl:
+                sql += ' AND COALESCE(manual_career_level,1) >= ?'
+                args.append(int(min_lvl))
+            sql += ' ORDER BY name LIMIT ?'
+            args.append(limit)
+            db = get_db()
+            rows = db.execute(sql, args).fetchall()
+            db.close()
+            results = [dict(r) for r in rows]
+            if inact_days is not None:
+                results = [r for r in results if (r.get('days_inactive') or 0) >= int(inact_days)]
+            return {'count': len(results), 'members': results}
+
+        if tool_name == 'weekly_plan_generator':
+            offset = int(tool_input.get('week_offset', 0))
+            today = date.today()
+            week_start = today + timedelta(days=-today.weekday() + 7 * offset)
+            week_end = week_start + timedelta(days=6)
+            db = get_db()
+            ids = [user.id] + get_all_descendants(user.id)
+            ph = ','.join('?' * len(ids))
+            n_termine = db.execute(f'''SELECT COUNT(*) c FROM appointments
+                                       WHERE owner_id=? AND date(termin_date) BETWEEN date(?) AND date(?)''',
+                                  (user.id, week_start.isoformat(), week_end.isoformat())).fetchone()['c']
+            n_team_termine = db.execute(f'''SELECT COUNT(*) c FROM appointments
+                                            WHERE owner_id IN ({ph}) AND date(termin_date) BETWEEN date(?) AND date(?)''',
+                                       ids + [week_start.isoformat(), week_end.isoformat()]).fetchone()['c']
+            week_eh_so_far = db.execute("""SELECT COALESCE(SUM(einheiten),0) s FROM contracts
+                                          WHERE owner_id=? AND status='abgeschlossen'
+                                          AND date(abschluss_date)>=date('now','-7 days')""",
+                                       (user.id,)).fetchone()['s'] or 0
+            db.close()
+            try:
+                deadlines = get_production_deadlines()
+                eingabe_in = (deadlines.get('eingabeschluss') - today).days if deadlines and deadlines.get('eingabeschluss') else None
+            except Exception:
+                eingabe_in = None
+            return {
+                'week_label': f'KW {week_start.isocalendar()[1]} ({week_start.isoformat()} – {week_end.isoformat()})',
+                'meine_termine_woche': n_termine,
+                'team_termine_woche': n_team_termine,
+                'eh_letzte_7_tage': int(week_eh_so_far),
+                'eingabeschluss_in_tagen': eingabe_in,
+                'fokus_vorschlag': (
+                    'ZVGs mit Stufe 2+ Partnern' if (eingabe_in is not None and eingabe_in <= 0 >= -10) else
+                    'Eingabeschluss-Push: offene Verträge klären' if (eingabe_in is not None and 0 < eingabe_in <= 7) else
+                    'Pipeline ausbauen: 5 neue Erstgespräche planen'
+                ),
+            }
 
         return {'error': f'Unbekanntes Assistentin-Tool: {tool_name}'}
     except Exception as e:
@@ -7611,24 +7854,44 @@ def api_assistentin_chat():
 DEIN STIL:
 - Direkt, hilfsbereit, professionell, freundlich. Du sprichst Deutsch und duzt.
 - KURZE Antworten. Erst handeln (Tool nutzen), dann kurz bestätigen.
-- Du fragst NICHT 100 Mal nach — wenn du genug weißt, machst du.
+- Du fragst NICHT 100 Mal nach — wenn du genug Infos hast, machst du.
+- Du denkst MIT — wenn jemand sagt „mach mir was für unser Q3-Meeting", überlegst du proaktiv: wer kommt, wann, was wird gebraucht.
 
-DEINE WERKZEUGE:
-- web_search(query) — sucht im Web nach allem (Anbieter, Themen, Infos, Personen)
+DEINE 11 WERKZEUGE:
+
+🔍 RECHERCHE
+- web_search(query) — sucht im Web (Anbieter, Themen, Personen, Aktuelles)
 - find_event_locations(stadt, art, personen, budget_pp) — Restaurants/Tagungshotels/Konferenzräume
-- create_document(titel, untertitel, sektionen) — Memo, Brief, Konzept als druckfertige PDF
-- create_presentation(titel, autor, slides) — HTML-Slideshow (kann durchgeklickt + gedruckt werden)
-- add_personal_todo(titel, beschreibung, faellig_am) — persönliche TODOs anlegen
 
-WAS DU MACHST:
-- „Such mir nen Italiener in München für 12 Personen am Freitag" → find_event_locations
-- „Erstell mir ein Konzept für unser Q3-Event" → create_document mit ausgearbeitetem Inhalt
-- „Mach mir 5 Folien zur Vision von Pro Academy" → create_presentation, du baust den Inhalt selbst aus
-- „Erinner mich morgen an Anruf bei Hans" → add_personal_todo
-- „Wie ist der aktuelle Leitzins?" → web_search
+📅 KALENDER & TERMINE
+- list_my_calendar(days_ahead, only_today) — was steht an?
+- schedule_termin(title, termin_date, termin_time, ...) — neuen Termin in den Kalender legen
+- meeting_briefing(termin_id) — alle Infos + Vorbereitung für einen Termin
+- weekly_plan_generator(week_offset) — Wochenplan mit KPIs + Fokus-Vorschlag
 
-WICHTIG: Nutze Tools AKTIV. Wenn du Locations findest oder ein Dokument erstellt hast,
-gib dem User direkt den Link aus dem Tool-Result. Nicht nur reden — TUN.
+👥 TEAM
+- search_team_members(name_query, min_career_level, only_inactive_days) — Personen aus Downline finden
+
+📝 DOKUMENTE
+- create_document(titel, untertitel, sektionen) — Memo, Brief, Konzept als druckfertige Page
+- create_presentation(titel, autor, slides) — HTML-Slideshow
+- compose_email_draft(to_name, subject, kontext, tonalitaet) — E-Mail-Entwurf bauen (NICHT senden — User übernimmt)
+
+✓ AUFGABEN
+- add_personal_todo(titel, beschreibung, faellig_am) — persönliche TODOs
+
+WIE DU ARBEITEST:
+1. ERST KONTEXT HOLEN bei Anfragen die Daten brauchen:
+   „Was steht morgen an?" → list_my_calendar(only_today=False, days_ahead=2) ZUERST
+   „Brief an Hans" → search_team_members(„Hans") falls Hans im Team
+2. PROAKTIV DENKEN:
+   „Mach mir Brief an meinen Strukturhöher" → schau ob du den Namen kennst, falls nicht: frag KURZ einmal
+3. KETTE TOOLS:
+   „Bereite das Meeting heute mit Niesa vor" → list_my_calendar(only_today=True) → meeting_briefing(id) → ggf. add_personal_todo für Vorbereitung
+4. NIEMALS Mails wirklich versenden — nur Entwürfe. User übernimmt Versand.
+5. Dokumente/Präsentationen: gib den Link aus dem Tool-Result zurück, sag „öffne den Link, mit Cmd+P → PDF speichern".
+
+WICHTIG: Tools AKTIV nutzen. Nicht nur reden — TUN.
 """
 
     text, tool_log, err = claude_chat_with_assistentin_tools(history, system_prompt, current_user)
