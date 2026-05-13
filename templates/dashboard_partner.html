@@ -38,7 +38,7 @@
     <div style="font-size:11px;color:#8b5cf6;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">▸ HREP-Beschleuniger · Dein 1 Hebel diese Woche</div>
     <div style="margin-top:8px;font-size:15px;font-weight:700;color:var(--text)">
         {% if hrep_path.blocker == 'diversifikation' %}
-          Diversifikation ist der Bottleneck — größter Strang macht {{ hrep_path.biggest_pct }}% (Limit: 70%)
+          Größter Bereich macht {{ hrep_path.biggest_pct }}% deiner EH (max erlaubt: 70%)
         {% elif hrep_path.blocker == 'eh' %}
           Noch <span style="color:#8b5cf6">{{ hrep_path.eh_total_remaining }} EH</span> bis HREP — bei aktueller Pace ca. {{ hrep_path.weeks_until_hrep }} Wochen
         {% else %}
@@ -50,7 +50,7 @@
     </div>
     <div style="margin-top:10px;display:flex;gap:8px">
         <a href="/coaching/{{ hrep_path.focus_strang_id }}" class="btn btn-primary btn-sm" style="font-size:12px">→ {{ hrep_path.focus_strang_name }} coachen</a>
-        <a href="/struktur?focus={{ hrep_path.focus_strang_id }}" class="btn btn-secondary btn-sm" style="font-size:12px">Strang ansehen</a>
+        <a href="/struktur?focus={{ hrep_path.focus_strang_id }}" class="btn btn-secondary btn-sm" style="font-size:12px">Bereich ansehen</a>
     </div>
 </div>
 {% endif %}

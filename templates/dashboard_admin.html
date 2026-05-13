@@ -157,7 +157,7 @@
                 </div>
                 <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:6px">
                     {% if admin_personal.eh_remaining > 0 %}
-                    Noch <strong style="color:#fff">{{ "{:,.0f}".format(admin_personal.eh_remaining).replace(",", ".") }} EH</strong> in {{ admin_personal.days_left }} Tagen — das sind <strong style="color:#d4a843">{{ admin_personal.eh_per_day_needed }} EH/Tag</strong> pro Strang
+                    Noch <strong style="color:#fff">{{ "{:,.0f}".format(admin_personal.eh_remaining).replace(",", ".") }} EH</strong> in {{ admin_personal.days_left }} Tagen — das sind <strong style="color:#d4a843">{{ admin_personal.eh_per_day_needed }} EH/Tag</strong> pro Bereich
                     {% else %}
                     🏆 <strong style="color:#34d399">Ziel erreicht!</strong> Jetzt drauflegen — die nächste Stufe wartet.
                     {% endif %}
@@ -193,7 +193,7 @@
         {% if admin_personal.strang_status %}
         <div style="margin-top:18px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-              <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.8px;font-weight:700">Strang-Performance · Diesen Monat (vs. Vormonat)</div>
+              <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.8px;font-weight:700">Deine Bereiche · Diesen Monat (vs. Vormonat)</div>
               <a href="/struktur" style="font-size:11px;color:var(--gold);text-decoration:none;font-weight:600">Drill-Down →</a>
             </div>
             <div style="display:flex;flex-direction:column;gap:6px">
@@ -226,10 +226,14 @@
 </div>
 {% endif %}
 
-{# === ZULETZT GEÖFFNET — Pin-Bar (LearningSuite-Style Quick-Resume) === #}
+{# Zuletzt geöffnet — collapsed, nur bei Bedarf (Audit: gehört auf /team, nicht Dashboard) #}
 {% if recent_partners and recent_partners|length > 0 %}
-<div class="recent-pin-bar">
-    <div class="recent-pin-label">⏱ Zuletzt geöffnet</div>
+<details style="margin-bottom:14px">
+<summary style="cursor:pointer;list-style:none;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:space-between">
+    <span>⏱ Zuletzt geöffnete Partner ({{ recent_partners|length }})</span>
+    <span style="color:var(--text-soft);font-weight:500;font-size:10px">aufklappen ▾</span>
+</summary>
+<div class="recent-pin-bar" style="margin-top:6px">
     <div class="recent-pin-items">
         {% for p in recent_partners %}
         <a href="/partner/{{ p.id }}/profil" class="recent-pin-item">
@@ -243,6 +247,7 @@
         {% endfor %}
     </div>
 </div>
+</details>
 <style>
     .recent-pin-bar {
         display: flex; align-items: center; gap: 12px;
@@ -447,53 +452,58 @@
 </div>
 
 <!-- 🗂 ADMIN-VERWALTUNG — Tile-Grid (LearningSuite-Style, premium-Navy/Gold) -->
-<div class="revo-section-h" style="margin-top:24px">⚙ Verwaltung</div>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px">
+<details style="margin-top:24px;margin-bottom:24px">
+<summary style="cursor:pointer;list-style:none;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;justify-content:space-between">
+    <span>⚙ Verwaltung — Schnell-Zugang (6 Tools)</span>
+    <span style="color:var(--text-soft);font-weight:500;font-size:10px">aufklappen ▾</span>
+</summary>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:6px">
     <a href="/admin/genehmigungen" class="adm-tile">
         <div class="adm-tile-icon">✓</div>
         <div>
-            <div class="adm-tile-title">Genehmigungen
+            <div class="adm-tile-title">Beförderungen
                 {% if pending_count and pending_count > 0 %}<span class="adm-tile-badge">{{ pending_count }}</span>{% endif %}
             </div>
-            <div class="adm-tile-sub">Anmeldungen freigeben</div>
+            <div class="adm-tile-sub">Stufen-Anträge freigeben</div>
         </div>
     </a>
     <a href="/admin/push" class="adm-tile">
         <div class="adm-tile-icon">📨</div>
         <div>
-            <div class="adm-tile-title">Push-Broadcast</div>
+            <div class="adm-tile-title">Push senden</div>
             <div class="adm-tile-sub">Push an alle Partner</div>
         </div>
     </a>
     <a href="/admin/vorschlaege" class="adm-tile">
         <div class="adm-tile-icon">💬</div>
         <div>
-            <div class="adm-tile-title">Vorschläge</div>
-            <div class="adm-tile-sub">Partner-Feedback prüfen</div>
-        </div>
-    </a>
-    <a href="/admin/aktivitaet" class="adm-tile">
-        <div class="adm-tile-icon">▦</div>
-        <div>
-            <div class="adm-tile-title">Aktivitäts-Log</div>
-            <div class="adm-tile-sub">Wer macht was wann</div>
+            <div class="adm-tile-title">Partner-Vorschläge</div>
+            <div class="adm-tile-sub">Feedback prüfen</div>
         </div>
     </a>
     <a href="/admin/inbox" class="adm-tile">
-        <div class="adm-tile-icon">📥</div>
+        <div class="adm-tile-icon">🌐</div>
         <div>
-            <div class="adm-tile-title">Bewerber-Inbox</div>
-            <div class="adm-tile-sub">Externe Bewerbungen</div>
+            <div class="adm-tile-title">Anmeldungen</div>
+            <div class="adm-tile-sub">Aus dem Web</div>
+        </div>
+    </a>
+    <a href="/admin/mail" class="adm-tile">
+        <div class="adm-tile-icon">📨</div>
+        <div>
+            <div class="adm-tile-title">Mail an Team</div>
+            <div class="adm-tile-sub">Subgruppen ansprechen</div>
         </div>
     </a>
     <a href="/team" class="adm-tile">
         <div class="adm-tile-icon">👥</div>
         <div>
-            <div class="adm-tile-title">Mitglieder</div>
-            <div class="adm-tile-sub">Alle Partner verwalten</div>
+            <div class="adm-tile-title">Alle Mitglieder</div>
+            <div class="adm-tile-sub">Team-Liste verwalten</div>
         </div>
     </a>
 </div>
+</details>
 <style>
     .adm-tile {
         display: flex; align-items: center; gap: 14px;
