@@ -5174,6 +5174,19 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
+        -- Manuelle EH-Einträge: Najib trägt EH direkt ein die nicht im System
+        -- als Vertrag erfasst sind (z.B. off-record, Bonus-EH, externe Verträge).
+        -- Werden zur eh_this_month-Berechnung addiert UND in der Monatsziel-Card sichtbar.
+        CREATE TABLE IF NOT EXISTS manual_eh_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            datum TEXT NOT NULL,         -- ISO-Datum YYYY-MM-DD
+            eh REAL NOT NULL,
+            note TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS email_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -11924,6 +11937,51 @@ def admin_owner_ziel():
     return render_template('admin_owner_ziel.html', monthly_target=cur_target)
 
 
+@app.route('/api/dashboard/manual-eh', methods=['POST'])
+@login_required
+def api_manual_eh_add():
+    """Manuelle EH-Einträge hinzufügen — z.B. off-record Verträge die nicht im
+    System als contract erfasst sind. Werden zur Monatsziel-Card addiert."""
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    try:
+        eh = float((request.form.get('eh') or request.json.get('eh') if request.is_json else request.form.get('eh', '0')).strip() or '0')
+    except (ValueError, TypeError, AttributeError):
+        return jsonify({'ok': False, 'error': 'invalid eh'}), 400
+    if eh <= 0 or eh > 100000:
+        return jsonify({'ok': False, 'error': 'eh muss zwischen 0 und 100000 liegen'}), 400
+    note = (request.form.get('note') or (request.json.get('note') if request.is_json else '') or '').strip()[:200]
+    datum = (request.form.get('datum') or '').strip() or date.today().isoformat()
+    db = get_db()
+    db.execute('INSERT INTO manual_eh_entries (user_id, datum, eh, note) VALUES (?, ?, ?, ?)',
+               (current_user.id, datum, eh, note or None))
+    db.commit()
+    db.close()
+    cache_invalidate('adm_pers:'); cache_invalidate('najib_briefing:')
+    if request.headers.get('Accept', '').startswith('application/json') or request.is_json:
+        return jsonify({'ok': True, 'eh': eh, 'datum': datum})
+    flash(f'Manuelle EH eingetragen: {eh:.0f} EH am {datum}', 'success')
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/api/dashboard/manual-eh/<int:entry_id>/delete', methods=['POST'])
+@login_required
+def api_manual_eh_delete(entry_id):
+    """Manuellen EH-Eintrag löschen."""
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    db = get_db()
+    db.execute('DELETE FROM manual_eh_entries WHERE id=? AND user_id=?',
+               (entry_id, current_user.id))
+    db.commit()
+    db.close()
+    cache_invalidate('adm_pers:'); cache_invalidate('najib_briefing:')
+    if request.headers.get('Accept', '').startswith('application/json') or request.is_json:
+        return jsonify({'ok': True})
+    flash('Eintrag gelöscht.', 'success')
+    return redirect(url_for('dashboard'))
+
+
 def _get_admin_personal_dashboard_uncached(user_id):
     """Persönliches Command-Center für den Admin/Top-Performer.
     Zeigt: Monats-EH-Ziel, GP-Gespräche, Zielgespräche, Strang-Status."""
@@ -11941,11 +11999,22 @@ def _get_admin_personal_dashboard_uncached(user_id):
     descendants = [user_id] + get_all_descendants(user_id)
     ph = ','.join('?' * len(descendants))
     cur_month = date.today().strftime('%Y-%m')
-    eh_this_month = db.execute(f'''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
+    eh_this_month_contracts = db.execute(f'''SELECT COALESCE(SUM(einheiten),0) as s FROM contracts
                                     WHERE owner_id IN ({ph})
                                       AND status="abgeschlossen" AND recherche_status="freigegeben"
                                       AND strftime("%Y-%m", abschluss_date) = ?''',
                                 descendants + [cur_month]).fetchone()['s']
+    # Manuelle EH-Einträge dieses Monats addieren (Najib trägt off-record EH direkt ein)
+    eh_this_month_manual = db.execute('''SELECT COALESCE(SUM(eh),0) as s FROM manual_eh_entries
+                                          WHERE user_id=? AND strftime("%Y-%m", datum) = ?''',
+                                       (user_id, cur_month)).fetchone()['s']
+    eh_this_month = eh_this_month_contracts + eh_this_month_manual
+    # Liste der manuellen Einträge dieses Monats für UI-Anzeige (mit Lösch-Möglichkeit)
+    manual_entries = [dict(r) for r in db.execute('''
+        SELECT id, datum, eh, note, created_at FROM manual_eh_entries
+        WHERE user_id=? AND strftime("%Y-%m", datum) = ?
+        ORDER BY datum DESC, id DESC
+    ''', (user_id, cur_month)).fetchall()]
     # GP-Gespräche (Termin mit typ='kundentermin' oder 'erstgespraech' diesen Monat)
     gp_count = db.execute(f'''SELECT COUNT(*) as c FROM appointments
                                WHERE owner_id IN ({ph})
@@ -12032,6 +12101,9 @@ def _get_admin_personal_dashboard_uncached(user_id):
     return {
         'monthly_target': monthly_target,
         'eh_this_month': float(eh_this_month),
+        'eh_this_month_contracts': float(eh_this_month_contracts),
+        'eh_this_month_manual': float(eh_this_month_manual),
+        'manual_entries': manual_entries,
         'eh_remaining': eh_remaining,
         'eh_per_day_needed': eh_per_day_needed,
         'days_passed': days_passed,
@@ -12828,7 +12900,8 @@ def dashboard():
             najib_briefing=najib_briefing,
             zielgespraeche_heute=zielgespraeche_heute,
             hrep_pipeline=hrep_pipeline,
-            bewerber_funnel=bewerber_funnel
+            bewerber_funnel=bewerber_funnel,
+            today_iso=date.today().isoformat()
         )
     else:
         stats = get_team_stats(current_user.id)

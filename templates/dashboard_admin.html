@@ -319,8 +319,47 @@
             </div>
         </div>
 
-        <div style="background:rgba(255,255,255,0.08);border-radius:99px;height:12px;overflow:hidden;margin-bottom:18px">
+        <div style="background:rgba(255,255,255,0.08);border-radius:99px;height:12px;overflow:hidden;margin-bottom:14px">
             <div style="height:100%;width:{{ admin_personal.pct if admin_personal.pct < 100 else 100 }}%;background:linear-gradient(90deg,#d4a843,#f0c970);border-radius:99px;box-shadow:0 0 12px rgba(212,168,67,0.5);transition:width 0.6s"></div>
+        </div>
+
+        {# Manueller EH-Eintrag — Najib trägt off-record EH direkt ein #}
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+                <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">
+                    ✎ EH manuell eintragen
+                    {% if admin_personal.eh_this_month_manual > 0 %}
+                    <span style="color:#d4a843;text-transform:none;letter-spacing:0;font-weight:700;margin-left:6px">· {{ "{:,.0f}".format(admin_personal.eh_this_month_manual).replace(",", ".") }} EH manuell</span>
+                    {% endif %}
+                </div>
+                {% if admin_personal.manual_entries %}
+                <button type="button" onclick="document.getElementById('manualEhList').classList.toggle('hidden')" style="background:none;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);font-size:10px;padding:3px 8px;border-radius:6px;cursor:pointer">{{ admin_personal.manual_entries|length }} Eintrag{% if admin_personal.manual_entries|length != 1 %}e{% endif %} ▾</button>
+                {% endif %}
+            </div>
+            <form method="POST" action="/api/dashboard/manual-eh" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                <input type="number" name="eh" step="0.1" min="0.1" max="100000" placeholder="z.B. 250" required
+                       style="flex:0 0 120px;padding:8px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:14px;font-weight:700">
+                <input type="text" name="note" maxlength="200" placeholder="Notiz (z.B. Bonus Müller)"
+                       style="flex:1;min-width:140px;padding:8px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:13px">
+                <input type="date" name="datum" value="{{ today_iso if today_iso else '' }}"
+                       style="padding:8px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#fff;font-size:12px">
+                <button type="submit" style="background:#d4a843;color:#0f1c3f;border:none;padding:8px 14px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">+ EH</button>
+            </form>
+            {% if admin_personal.manual_entries %}
+            <div id="manualEhList" class="hidden" style="margin-top:10px;display:flex;flex-direction:column;gap:4px">
+                {% for me in admin_personal.manual_entries %}
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(0,0,0,0.2);border-radius:6px;font-size:12px">
+                    <span style="color:#d4a843;font-weight:800;min-width:60px">{{ "{:,.0f}".format(me.eh).replace(",", ".") }} EH</span>
+                    <span style="color:rgba(255,255,255,0.5);font-size:11px;min-width:80px">{{ me.datum }}</span>
+                    <span style="flex:1;color:rgba(255,255,255,0.7)">{{ me.note or '–' }}</span>
+                    <form method="POST" action="/api/dashboard/manual-eh/{{ me.id }}/delete" style="display:inline" onsubmit="return confirm('Eintrag wirklich löschen?')">
+                        <button type="submit" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:14px;padding:2px 6px" title="Löschen">×</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            <style>.hidden { display: none !important; }</style>
+            {% endif %}
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
