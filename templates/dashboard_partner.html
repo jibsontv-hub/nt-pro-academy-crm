@@ -31,8 +31,9 @@
 </a>
 {% endif %}
 
-{# TIER 4.17 — HREP-Beschleuniger: WELCHER REP muss diese Woche wachsen? #}
-{% if hrep_path and hrep_path.focus_strang_id %}
+{# TIER 4.17 — HREP-Beschleuniger: NUR für LREPs (ftier=2) zeigen, REPs sollen
+   sich nicht mit HREP-Pfad ablenken #}
+{% if feature_tier == 2 and hrep_path and hrep_path.focus_strang_id %}
 <div class="card" style="border-left:3px solid #8b5cf6;background:linear-gradient(135deg,rgba(139,92,246,0.06),var(--surface));margin-bottom:14px">
     <div style="font-size:11px;color:#8b5cf6;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">▸ HREP-Beschleuniger · Dein 1 Hebel diese Woche</div>
     <div style="margin-top:8px;font-size:15px;font-weight:700;color:var(--text)">
@@ -86,24 +87,12 @@
 </div>
 {% endif %}
 
-{# TIER 3.16 — Pin-Bar Coaching-Slots der nächsten 7 Tage #}
-{% if upcoming_coaching and feature_tier >= 2 %}
-<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:8px;margin-bottom:14px;flex-wrap:wrap">
-  <div style="font-size:11px;color:var(--blue);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-right:6px">▢ Diese Woche dran</div>
-  {% for c in upcoming_coaching[:6] %}
-  <a href="/coaching/{{ c.target_user_id }}" style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);font-size:12px;font-weight:600">
-    {{ c.name }}
-    <span style="font-size:10px;color:var(--text-muted);font-weight:500">
-      {% if c.days_until == 0 %}heute{% elif c.days_until == 1 %}morgen{% else %}+{{ c.days_until }}T{% endif %}
-    </span>
-  </a>
-  {% endfor %}
-</div>
-{% endif %}
-
-{# TIER 2.9 — „Mein Coach-Plan heute" für LREPs/HREPs (ftier >= 2) #}
-{% if coach_plan and feature_tier >= 2 %}
+{# Konsolidierte Coach-Plan-Card (TIER 2.9 + 3.16 zusammengelegt) — eine Card
+   mit „Heute kritisch" oben und „Diese Woche dran" als Chip-Reihe unten.
+   Spart eine ganze Card im Dashboard-Stack. #}
+{% if (coach_plan or upcoming_coaching) and feature_tier >= 2 %}
 <div class="card" style="border-left:3px solid var(--gold);margin-bottom:14px">
+    {% if coach_plan %}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div>
             <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Mein Coach-Plan heute</div>
@@ -125,6 +114,20 @@
         </div>
         {% endfor %}
     </div>
+    {% endif %}
+    {% if upcoming_coaching %}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;{% if coach_plan %}margin-top:14px;padding-top:12px;border-top:1px solid var(--border){% endif %}">
+        <div style="font-size:10px;color:var(--blue);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;margin-right:4px">▢ Diese Woche</div>
+        {% for c in upcoming_coaching[:6] %}
+        <a href="/coaching/{{ c.target_user_id }}" style="display:inline-flex;align-items:center;gap:6px;padding:4px 9px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--text);font-size:12px;font-weight:600">
+            {{ c.name }}
+            <span style="font-size:10px;color:var(--text-muted);font-weight:500">
+                {% if c.days_until == 0 %}heute{% elif c.days_until == 1 %}morgen{% else %}+{{ c.days_until }}T{% endif %}
+            </span>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
 {% endif %}
 
@@ -140,84 +143,9 @@
 </a>
 {% endif %}
 
-<!-- ============================================
-     🤖 COACH HERO — animierter Mentor mit To-Do
-     ============================================ -->
-<div class="card" style="background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 50%,#0a132d 100%);color:#fff;border:none;position:relative;overflow:hidden;padding:24px 22px">
-    <div style="position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,67,0.25) 0%,transparent 70%);pointer-events:none"></div>
-    <div style="position:relative;z-index:1;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap">
-        <!-- Animierte Avatar-Figur (echtes Foto + lebendige Animation) -->
-        <div class="ntcoach-avatar" style="width:84px;height:84px;flex-shrink:0;position:relative;animation:ntcoachSway 6s ease-in-out infinite">
-            <div style="position:absolute;inset:0;border-radius:50%;overflow:hidden;box-shadow:0 8px 24px rgba(212,168,67,0.5),0 0 0 3px #d4a843;animation:ntcoachBreathe 4s ease-in-out infinite;background:#0f1c3f">
-                <img src="/static/icons/coach-figure-200.jpg?v=8" alt="Coach" style="width:100%;height:100%;object-fit:cover;display:block">
-            </div>
-            <div style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(212,168,67,0.4);animation:ntcoachPulse 2.4s ease-out infinite;pointer-events:none"></div>
-            <div style="position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(212,168,67,0.2);animation:ntcoachPulse 2.4s ease-out infinite 1.2s;pointer-events:none"></div>
-            <div style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;border-radius:50%;background:#34d399;border:3px solid #0f1c3f;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;z-index:2;animation:ntcoachStatusPulse 2s ease-in-out infinite">●</div>
-        </div>
-        <div style="flex:1;min-width:200px">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
-                <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">🤖 Coach · {{ greeting.greeting if greeting else 'Servus!' }}</div>
-                {% if streak_days and streak_days > 0 %}
-                <span style="background:linear-gradient(135deg,#f59e0b,#dc2626);color:#fff;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:800;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 8px rgba(245,158,11,0.4)">🔥 {{ streak_days }} Tag{% if streak_days != 1 %}e{% endif %} Streak</span>
-                {% endif %}
-            </div>
-            <div style="font-size:18px;font-weight:800;margin-top:4px;line-height:1.3">
-                {% if coach_actions %}Was du <span style="color:#d4a843">heute reißt</span>:{% else %}Heute alles abgehakt. Was bringt's morgen?{% endif %}
-            </div>
-        </div>
-    </div>
-    {% if coach_actions %}
-    <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;margin-top:18px">
-        {% for a in coach_actions %}
-        <a href="{{ a.action_url or '#' }}" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:14px;text-decoration:none;color:#fff;transition:all 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
-            <div style="font-size:20px;flex-shrink:0">{{ a.icon }}</div>
-            <div style="flex:1;min-width:0">
-                <div style="font-size:14px;font-weight:700;color:#fff">{{ a.title }}</div>
-                <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px">{{ a.detail }}</div>
-            </div>
-            <span style="background:{% if a.priority == 'critical' %}#ef4444{% elif a.priority == 'high' %}#d4a843{% else %}rgba(255,255,255,0.15){% endif %};color:{% if a.priority in ['critical','high'] %}#0f1c3f{% else %}#fff{% endif %};padding:5px 12px;border-radius:8px;font-size:11px;font-weight:800;white-space:nowrap">{{ a.action_label or 'Los →' }}</span>
-        </a>
-        {% endfor %}
-    </div>
-    <div style="text-align:center;margin-top:12px">
-        <a href="/assistent" style="color:#d4a843;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.3px">💬 Mit Coach chatten →</a>
-    </div>
-    {% else %}
-    <div style="position:relative;z-index:1;background:rgba(255,255,255,0.05);border-radius:12px;padding:14px;margin-top:14px;text-align:center;font-size:13px;color:rgba(255,255,255,0.85)">
-        🎉 Alles abgehakt! Frag Coach was als Nächstes ansteht: <a href="/assistent" style="color:#d4a843;font-weight:700">Chat öffnen →</a>
-    </div>
-    {% endif %}
-</div>
-<style>
-/* Sanftes Wiegen — leichte Rotation links/rechts wie ein lebender Mensch */
-@keyframes ntcoachSway {
-    0%, 100% { transform: rotate(-1.5deg) translateY(0); }
-    25% { transform: rotate(1deg) translateY(-2px); }
-    50% { transform: rotate(-0.5deg) translateY(0); }
-    75% { transform: rotate(1.5deg) translateY(-1px); }
-}
-/* Atmen — Bild leicht skalieren wie Brustkorb-Atmung */
-@keyframes ntcoachBreathe {
-    0%, 100% { transform: scale(1); box-shadow: 0 8px 24px rgba(212,168,67,0.4), 0 0 0 3px #d4a843; }
-    50% { transform: scale(1.025); box-shadow: 0 12px 30px rgba(212,168,67,0.55), 0 0 0 3px #f0c970; }
-}
-/* Augen-Blinzeln (subtle dunkler Streifen über Augen-Höhe) */
-@keyframes ntcoachBlink {
-    0%, 92%, 96%, 100% { opacity: 0; transform: scaleY(0.1); }
-    93%, 95% { opacity: 1; transform: scaleY(1); }
-}
-/* Pulse-Ring nach außen */
-@keyframes ntcoachPulse {
-    0% { opacity: 0.7; transform: scale(1); }
-    100% { opacity: 0; transform: scale(1.35); }
-}
-/* Status-Dot Glanz */
-@keyframes ntcoachStatusPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0.6), 0 0 0 3px #0f1c3f; }
-    50% { box-shadow: 0 0 0 8px rgba(52,211,153,0), 0 0 0 3px #0f1c3f; }
-}
-</style>
+{# Coach-Hero entfernt (Übersichts-Audit): doppelt zur konsolidierten Coach-
+   Plan-Card oben, animierter Avatar mit 3 Pulse-Ringen war Visual Noise.
+   Coach-Plan-Card UND KI-Coach-Sidebar-Link decken die Funktion ab. #}
 
 {# === ZULETZT GEÖFFNET — Pin-Bar (nur Stufe 2+, ab dann hat man genug Partner) === #}
 {% if recent_partners and recent_partners|length > 0 %}
@@ -263,9 +191,14 @@
     {% endif %}
 </div>
 
-<!-- 📅 MONATS- & HALBJAHRES-PROGRESS (der Strahl) -->
+<!-- 📅 MONATS- & HALBJAHRES-PROGRESS (collapsed by default — Reporting, kein Daily Driver) -->
 {% if period_stats %}
-<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#d4a843 4%,var(--surface)));border:1px solid color-mix(in srgb,#d4a843 25%,var(--border))">
+<details style="margin-bottom:14px">
+<summary style="cursor:pointer;list-style:none;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text);font-weight:700;display:flex;align-items:center;justify-content:space-between">
+  <span>📅 Monats- &amp; Halbjahres-Fortschritt</span>
+  <span style="color:var(--text-muted);font-weight:500;font-size:11px">aufklappen ▾</span>
+</summary>
+<div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,#d4a843 4%,var(--surface)));border:1px solid color-mix(in srgb,#d4a843 25%,var(--border));margin-top:6px">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px">
         <div>
             <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
@@ -303,6 +236,7 @@
         </div>
     </div>
 </div>
+</details>
 {% endif %}
 
 <!-- 🔮 AUTO-FORECAST — klappbar -->
@@ -393,22 +327,6 @@
         <div class="revo-q-l">Skripte</div>
     </a>
 </div>
-
-<!-- ☏ Telefon-Skripte · Quick-Card -->
-<a href="/skripte" style="display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--navy);border-radius:6px;padding:14px 16px;margin-bottom:14px">
-    <div style="display:flex;align-items:center;gap:14px">
-        <div style="width:40px;height:40px;border-radius:6px;background:var(--navy);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;letter-spacing:0.5px;flex-shrink:0">P</div>
-        <div style="flex:1;min-width:0">
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700">Telefon-Skripte</div>
-            <div style="font-size:14px;font-weight:700;color:var(--text);margin-top:2px">Einstieg · Einwand · Abschluss</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Vor dem nächsten Anruf öffnen — oder per Button auf Termine/Liste/Verträge/Aufgaben.</div>
-        </div>
-        {% if current_user.has_admin_access %}
-        <a href="/admin/phone-scripts" onclick="event.stopPropagation()" style="background:var(--bg-2);border:1px solid var(--border-strong);color:var(--text);padding:6px 12px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">Verwalten</a>
-        {% endif %}
-        <span style="color:var(--gold);font-weight:700;font-size:13px">→</span>
-    </div>
-</a>
 
 <!-- 📊 KPI-Chips -->
 <div class="revo-chips">

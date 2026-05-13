@@ -13,7 +13,7 @@
     <div class="table-wrap">
         <table id="mainTable">
             <thead>
-                <tr><th>Name / Login</th><th>Stufe</th><th>Aktivität</th><th>Coaching</th><th>Hierarchie</th><th>Telefon</th><th>Verträge</th><th>EH</th><th>Volumen</th><th>Aktionen</th></tr>
+                <tr><th>Name</th><th>Stufe</th><th>Aktivität</th><th>Coaching</th><th>Verträge</th><th>EH</th><th>Aktionen</th></tr>
             </thead>
             <tbody>
                 {% for m in members %}
@@ -30,6 +30,8 @@
                             <span>
                                 <span style="display:block">{{ m.name }} <span style="color:var(--gold);font-size:11px">→</span></span>
                                 <span style="font-size:11px;color:var(--text-soft);font-weight:500">{{ m.email }}</span>
+                                {# Hierarchie unter Name gemerged (Spalte gespart) #}
+                                {% if m.parent_name %}<span style="display:block;font-size:10px;color:var(--text-soft);font-weight:500;margin-top:1px">↳ {{ m.parent_name }} · Ebene {{ m.level }}</span>{% endif %}
                             </span>
                         </a>
                     </td>
@@ -62,15 +64,11 @@
                           <span class="status-badge" style="background:var(--green-soft);color:var(--green)">{{ m.days_since_coaching }}T</span>
                         {% endif %}
                     </td>
-                    <td>
-                        <span class="level-dot level-{{ m.level if m.level <= 5 else 'other' }}"></span>
-                        Ebene {{ m.level }}
-                        {% if m.parent_name %}<div style="font-size:10px;color:var(--text-soft);margin-top:2px">↳ {{ m.parent_name }}</div>{% endif %}
-                    </td>
-                    <td>{{ m.phone or '–' }}</td>
+                    {# Hierarchie + Telefon + Volumen entfernt (Übersichts-Audit):
+                       Hierarchie ist jetzt unter Name. Telefon steht im Profil.
+                       Volumen = EH/0.8 redundant. #}
                     <td>{{ m.contracts_count }}</td>
                     <td><strong class="money" style="color:var(--gold)">{{ "{:,.0f}".format(m.einheiten).replace(",", ".") }}</strong></td>
-                    <td class="money">{{ "{:,.0f}".format(m.volumen).replace(",", ".") }} €</td>
                     <td style="white-space:nowrap">
                         <a href="/coaching/{{ m.id }}" class="btn btn-primary btn-sm" title="Coaching-Karte" style="background:var(--gold);color:#fff">🎯</a>
                         {% if m.id != current_user.id %}
@@ -103,7 +101,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="10" style="text-align:center;color:var(--text-soft);padding:32px">
+                <tr><td colspan="7" style="text-align:center;color:var(--text-soft);padding:32px">
                     Noch keine Teammitglieder. <a href="/team/neu" style="color:var(--navy);font-weight:600">Hinzufügen →</a>
                 </td></tr>
                 {% endfor %}
