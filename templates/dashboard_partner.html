@@ -31,6 +31,29 @@
 </a>
 {% endif %}
 
+{# TIER 4.17 — HREP-Beschleuniger: WELCHER REP muss diese Woche wachsen? #}
+{% if hrep_path and hrep_path.focus_strang_id %}
+<div class="card" style="border-left:3px solid #8b5cf6;background:linear-gradient(135deg,rgba(139,92,246,0.06),var(--surface));margin-bottom:14px">
+    <div style="font-size:11px;color:#8b5cf6;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">▸ HREP-Beschleuniger · Dein 1 Hebel diese Woche</div>
+    <div style="margin-top:8px;font-size:15px;font-weight:700;color:var(--text)">
+        {% if hrep_path.blocker == 'diversifikation' %}
+          Diversifikation ist der Bottleneck — größter Strang macht {{ hrep_path.biggest_pct }}% (Limit: 70%)
+        {% elif hrep_path.blocker == 'eh' %}
+          Noch <span style="color:#8b5cf6">{{ hrep_path.eh_total_remaining }} EH</span> bis HREP — bei aktueller Pace ca. {{ hrep_path.weeks_until_hrep }} Wochen
+        {% else %}
+          EH + Diversifikation — beide kritisch
+        {% endif %}
+    </div>
+    <div style="margin-top:6px;padding:10px 12px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text)">
+        <strong style="color:#8b5cf6">Konkrete Aktion:</strong> {{ hrep_path.next_action }}
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+        <a href="/coaching/{{ hrep_path.focus_strang_id }}" class="btn btn-primary btn-sm" style="font-size:12px">→ {{ hrep_path.focus_strang_name }} coachen</a>
+        <a href="/struktur?focus={{ hrep_path.focus_strang_id }}" class="btn btn-secondary btn-sm" style="font-size:12px">Strang ansehen</a>
+    </div>
+</div>
+{% endif %}
+
 {# TIER 2.11 — Aufstiegs-Banner sticky für LREP+ — direkter Blick auf nächste Stufe #}
 {% if feature_tier >= 2 and career_criteria and career_criteria.next_level %}
 {% set nl = career_criteria.next_level %}

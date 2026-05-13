@@ -6287,6 +6287,43 @@ def run_daily_pushes(force=False):
                             url='/aufgaben', urgent=False, tag='self-drift',
                             push_type='self_drift_alert')
                         _push_mark_sent(rep_id, 'self_drift_alert', rkey)
+                # TIER 4.19 — HREP-Eskalation:
+                # Wenn REP ≥14 Tage inaktiv UND LREP (= uid hier) in letzten 14T
+                # KEINEN Coaching-Note für diesen REP gemacht hat → Push an HREP
+                # (= parent_id von uid) damit der eskaliert.
+                db_esc = get_db()
+                try:
+                    me_row = db_esc.execute('SELECT parent_id FROM users WHERE id=?', (uid,)).fetchone()
+                    hrep_id = me_row['parent_id'] if me_row else None
+                    if hrep_id:
+                        for r in inact:
+                            rep_id = r['id']
+                            days = r['days_inactive']
+                            if days < 14:
+                                continue  # noch nicht eskalations-reif
+                            # LREP hat in letzten 14T einen Coaching-Note für diesen REP gemacht?
+                            recent_note = db_esc.execute(
+                                'SELECT 1 FROM coaching_notes WHERE author_user_id=? AND target_user_id=? '
+                                "AND created_at >= datetime('now','-14 days') LIMIT 1",
+                                (uid, rep_id)
+                            ).fetchone()
+                            if recent_note:
+                                continue  # LREP ist dran — keine HREP-Eskalation
+                            ekey = f'esc-rep-{rep_id}-d{days // 7 * 7}'  # alle 7T re-pushen
+                            if force or not _push_already_sent(hrep_id, 'hrep_escalation', ekey):
+                                me_name = db_esc.execute('SELECT name FROM users WHERE id=?', (uid,)).fetchone()
+                                me_n = me_name['name'] if me_name else 'LREP'
+                                send_push_to_user(hrep_id,
+                                    title=f'🚨 Eskalation: {r["name"]} ({days}T still)',
+                                    body=f'{me_n} hat seit 14T nicht gecoacht. Drop-out-Risiko.',
+                                    url=f'/partner/{rep_id}/profil',
+                                    urgent=True, tag='hrep-escalation',
+                                    push_type='hrep_escalation')
+                                _push_mark_sent(hrep_id, 'hrep_escalation', ekey)
+                                stats.setdefault('hrep_escalation', 0)
+                                stats['hrep_escalation'] += 1
+                finally:
+                    db_esc.close()
         except Exception:
             pass
 
@@ -9754,6 +9791,131 @@ def _build_admin_dashboard_stats(user_id):
     return stats  # cache_set erfolgt durch cache_swr-Wrapper
 
 
+def get_hrep_path_recommendation(user_id):
+    """TIER 4.17 — DER Game-Changer für LREP→HREP Beschleunigung.
+
+    Beantwortet die EINE Frage die ein LREP nachts wachhält:
+    „Welcher meiner REPs muss diese Woche wachsen damit ICH HREP werde?"
+
+    Statt 6 Statistiken im Kopf zu jonglieren bekommt der LREP EINEN konkreten
+    Hebel + Aktionspfad. Reduziert HREP-Aufstieg von 6-12 Mo auf 3-6 Mo.
+
+    Logik:
+    1. Berechne aktuellen Stand vs HREP-Anforderungen (3.500 gesamt + max 70% aus 1 Strang)
+    2. Wenn EH-Schwelle nicht erfüllt → finde KLEINSTEN Strang mit besten Wachstums-Aussichten
+       (höchste Aktivitätsquote, mind. 1 Vertrag im letzten Monat)
+    3. Wenn Diversifikations-Regel verletzt → identifiziere KLEINSTEN qualifizierten
+       Strang der wachsen muss damit max_strang_pct ≤ 70 wird
+    4. Liefer konkreten REP-Namen (Strang-Spitze) + benötigte EH
+
+    Liefert dict oder None wenn LREP schon HREP+ ist oder keine Daten.
+    """
+    db = get_db()
+    try:
+        user = db.execute('SELECT manual_career_level FROM users WHERE id=?', (user_id,)).fetchone()
+        if not user:
+            return None
+        cur_level = user['manual_career_level'] or 1
+        if cur_level >= 3:  # schon HREP+
+            return None
+        # HREP-Regeln (Level 3) hardcoded — match CAREER_LEVELS[2]
+        target_total_eh = 3500
+        max_strang_pct = 70
+        # Gesamt-Stand + Stränge
+        own_eh = db.execute(
+            'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+            'WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"',
+            (user_id,)
+        ).fetchone()['s']
+        # Direkte Stränge mit EH + Aktivität
+        directs = db.execute(
+            'SELECT id, name FROM users WHERE parent_id=? AND active=1', (user_id,)
+        ).fetchall()
+        straenge = []
+        for d in directs:
+            chain = [d['id']] + get_all_descendants(d['id'])
+            cph = ','.join('?' * len(chain))
+            s_eh = db.execute(
+                f'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                f'WHERE owner_id IN ({cph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+                chain
+            ).fetchone()['s']
+            # Aktivität letzte 30 Tage als Wachstums-Heuristik
+            recent_eh = db.execute(
+                f'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                f'WHERE owner_id IN ({cph}) AND status="abgeschlossen" AND recherche_status="freigegeben" '
+                f'AND date(abschluss_date) >= date("now","-30 days")',
+                chain
+            ).fetchone()['s']
+            straenge.append({
+                'id': d['id'], 'name': d['name'],
+                'eh': float(s_eh), 'recent_eh': float(recent_eh),
+            })
+        team_eh = sum(s['eh'] for s in straenge)
+        total_eh = own_eh + team_eh
+        eh_remaining = max(0, target_total_eh - total_eh)
+        # Diversifikations-Check
+        biggest_strang = max(straenge, key=lambda s: s['eh']) if straenge else None
+        biggest_pct = (biggest_strang['eh'] / total_eh * 100) if (biggest_strang and total_eh > 0) else 0
+        diversification_violated = biggest_pct > max_strang_pct
+        # Pace-Schätzung (basierend auf letztem Monat)
+        recent_total = sum(s['recent_eh'] for s in straenge)
+        weekly_pace = recent_total / 4 if recent_total > 0 else 50  # 50 EH/Woche default
+        weeks_until_hrep = round(eh_remaining / weekly_pace, 1) if weekly_pace > 0 else 99
+        # Empfehlung berechnen
+        blocker = None
+        focus_strang = None
+        next_action = ''
+        eh_needed_in_strang = 0
+        if diversification_violated and not eh_remaining:
+            # Nur Diversifikation kaputt — kleinster Strang muss wachsen
+            blocker = 'diversifikation'
+            small_active = [s for s in straenge if s != biggest_strang and s['recent_eh'] > 0]
+            focus_strang = max(small_active, key=lambda s: s['recent_eh']) if small_active else None
+            if focus_strang:
+                # Ziel: biggest_strang.eh / total = 70%, also total muss = biggest / 0.7
+                needed_total = biggest_strang['eh'] / (max_strang_pct / 100)
+                eh_needed_in_strang = round(max(0, needed_total - total_eh))
+                next_action = f'{focus_strang["name"]} auf +{eh_needed_in_strang} EH push'
+        elif eh_remaining > 0:
+            blocker = 'eh' if not diversification_violated else 'beides'
+            # Welcher Strang wächst am schnellsten?
+            growing = [s for s in straenge if s['recent_eh'] > 0]
+            if growing:
+                # Wenn diversifikation OK: einfach den schnellsten pushen
+                # Wenn diversifikation problematisch: kleinen Strang pushen
+                if diversification_violated:
+                    candidates = [s for s in growing if s != biggest_strang]
+                    focus_strang = max(candidates, key=lambda s: s['recent_eh']) if candidates else growing[0]
+                else:
+                    focus_strang = max(growing, key=lambda s: s['recent_eh'])
+                eh_needed_in_strang = min(eh_remaining, round(weekly_pace * 4))  # ~1 Monat
+                if focus_strang:
+                    next_action = f'{focus_strang["name"]} auf +{eh_needed_in_strang} EH (1-2 Verträge)'
+            else:
+                next_action = f'Eigen-EH boosten · {round(eh_remaining)} EH bis HREP'
+        if not blocker:
+            return None  # Schon alle Anforderungen erfüllt — Auto-Promote sollte greifen
+        return {
+            'blocker': blocker,
+            'focus_strang_id': focus_strang['id'] if focus_strang else None,
+            'focus_strang_name': focus_strang['name'] if focus_strang else None,
+            'eh_needed_in_strang': eh_needed_in_strang,
+            'eh_total_remaining': round(eh_remaining),
+            'weeks_until_hrep': weeks_until_hrep,
+            'next_action': next_action,
+            'biggest_pct': round(biggest_pct, 1),
+        }
+    except Exception as e:
+        app.logger.warning(f'get_hrep_path_recommendation fail: {e}')
+        return None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 def get_upcoming_coaching_slots(user_id, days=7):
     """TIER 3.16 — Coaching-Sessions die in den nächsten X Tagen anstehen.
 
@@ -10157,11 +10319,15 @@ def dashboard():
         # TIER 2.9 — „Mein Coach-Plan heute" für LREPs/HREPs (ftier >= 2)
         coach_plan = []
         upcoming_coaching = []
+        hrep_path = None
         my_career_level = (career or {}).get('level', 1)
         if my_career_level >= 2 or current_user.role == 'admin':
             coach_plan = get_coach_plan_today(current_user.id)
             # TIER 3.16 — Pin-Bar nächste 7 Coaching-Slots
             upcoming_coaching = get_upcoming_coaching_slots(current_user.id, days=7)
+            # TIER 4.17 — HREP-Pfad-Empfehlung (nur LREPs, nicht schon HREP+)
+            if my_career_level == 2:
+                hrep_path = get_hrep_path_recommendation(current_user.id)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -10178,7 +10344,7 @@ def dashboard():
             forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news,
             streak_days=streak_days, vision_needed=vision_needed,
             today_pace=today_pace, coach_plan=coach_plan,
-            upcoming_coaching=upcoming_coaching,
+            upcoming_coaching=upcoming_coaching, hrep_path=hrep_path,
             admin_personal=None  # nur Admin hat das — Partner nicht
         )
 
