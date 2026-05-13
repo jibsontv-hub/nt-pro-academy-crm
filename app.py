@@ -10025,6 +10025,288 @@ def get_admin_personal_dashboard(user_id):
     return result
 
 
+def get_bewerber_funnel(user_id, days=30):
+    """HEBEL #3 — Bewerber-Funnel mit 4 Stufen für die letzten X Tage.
+
+    Klicks → Anmeldungen → 1. Termin → 1. Vertrag.
+    Pro Stufe: Zahl + Conversion-% zur vorherigen Stufe.
+    Najib sieht WO der größte Drop-out passiert (Pipeline zu dünn vs.
+    Newcomer-Drop vs. Verkaufs-Schwäche).
+
+    Returns dict {clicks, signups, first_termin, first_vertrag,
+    conv_signup, conv_termin, conv_vertrag}.
+    """
+    db = get_db()
+    try:
+        descendants = [user_id] + get_all_descendants(user_id)
+        ph = ','.join('?' * len(descendants))
+        # 1) Klicks (lead_link_clicks für ganzes Team)
+        clicks = db.execute(
+            f"SELECT COUNT(*) AS c FROM lead_link_clicks WHERE owner_id IN ({ph}) "
+            f"AND created_at >= datetime('now', ?)",
+            descendants + [f'-{days} days']
+        ).fetchone()['c']
+        # 2) Anmeldungen (public Leads)
+        signups = db.execute(
+            f"SELECT COUNT(*) AS c FROM leads WHERE owner_id IN ({ph}) "
+            f"AND source='public' AND created_at >= datetime('now', ?)",
+            descendants + [f'-{days} days']
+        ).fetchone()['c']
+        # 3) 1. Termine — Anmeldungen die einen Termin bekommen haben
+        # Heuristik: Termine die owner_id im Team haben + erstellt nach Lead
+        first_termin = db.execute(
+            f"SELECT COUNT(DISTINCT l.id) AS c FROM leads l "
+            f"JOIN appointments a ON a.owner_id = l.owner_id AND a.client_name = l.name "
+            f"WHERE l.owner_id IN ({ph}) AND l.source='public' "
+            f"AND l.created_at >= datetime('now', ?)",
+            descendants + [f'-{days} days']
+        ).fetchone()['c']
+        # 4) 1. Verträge — Anmeldungen die zu Vertrag wurden
+        first_vertrag = db.execute(
+            f"SELECT COUNT(DISTINCT l.id) AS c FROM leads l "
+            f"JOIN contracts c ON c.owner_id = l.owner_id "
+            f"WHERE l.owner_id IN ({ph}) AND l.source='public' "
+            f"AND l.created_at >= datetime('now', ?) "
+            f"AND c.created_at >= l.created_at "
+            f"AND c.status='abgeschlossen'",
+            descendants + [f'-{days} days']
+        ).fetchone()['c']
+        conv_signup = round((signups / clicks) * 100, 1) if clicks else 0
+        conv_termin = round((first_termin / signups) * 100, 1) if signups else 0
+        conv_vertrag = round((first_vertrag / first_termin) * 100, 1) if first_termin else 0
+        # Bottleneck identifizieren (kleinster Conversion-Wert)
+        bottleneck = None
+        if clicks > 0 and conv_signup < 5:
+            bottleneck = 'signup'  # Klicks bringen keine Anmeldungen
+        elif signups > 0 and conv_termin < 30:
+            bottleneck = 'termin'  # Anmeldungen werden nicht zu Terminen (Newcomer-Drop / lahmer Owner-Followup)
+        elif first_termin > 0 and conv_vertrag < 25:
+            bottleneck = 'vertrag'  # Termine konvertieren nicht (Skript-Problem / Closing)
+        return {
+            'days': days,
+            'clicks': clicks, 'signups': signups,
+            'first_termin': first_termin, 'first_vertrag': first_vertrag,
+            'conv_signup': conv_signup, 'conv_termin': conv_termin,
+            'conv_vertrag': conv_vertrag,
+            'bottleneck': bottleneck,
+        }
+    except Exception as e:
+        app.logger.warning(f'get_bewerber_funnel fail: {e}')
+        return None
+    finally:
+        db.close()
+
+
+def get_hrep_pipeline(user_id, max_items=8):
+    """HEBEL #2 — HREP-Pipeline: alle LREPs (Stufe 2) deiner Hierarchie,
+    sortiert nach Nähe zur HREP-Schwelle (3.500 EH gesamt + max 70% aus 1 Bereich).
+
+    Pro LREP: Total-EH, Diversifikations-Status, was konkret fehlt bis HREP.
+    Najib sieht in einer Liste: wer ist 90%? wer 80%? wer 50%? Wo lohnt der
+    Coaching-Hebel.
+
+    Returns Liste {id, name, phone, total_eh, pct, eh_remaining, biggest_pct,
+    diversification_ok, blocker, action}.
+    """
+    db = get_db()
+    try:
+        descendants = get_all_descendants(user_id)
+        if not descendants:
+            return []
+        ph_all = ','.join('?' * len(descendants))
+        # Alle LREPs (Stufe 2) in der Hierarchie
+        lreps = db.execute(
+            f'SELECT id, name, phone FROM users WHERE id IN ({ph_all}) '
+            f'AND active=1 AND COALESCE(manual_career_level,1) = 2 ORDER BY name',
+            descendants
+        ).fetchall()
+        target_eh = 3500
+        max_strang_pct = 70
+        pipeline = []
+        for lrep in lreps:
+            lid = lrep['id']
+            # Eigene + Team EH
+            own_eh = db.execute(
+                'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                'WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"',
+                (lid,)
+            ).fetchone()['s']
+            sub_desc = get_all_descendants(lid)
+            team_eh = 0
+            biggest_strang_eh = 0
+            if sub_desc:
+                ph = ','.join('?' * len(sub_desc))
+                team_eh = db.execute(
+                    f'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                    f'WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+                    sub_desc
+                ).fetchone()['s']
+                # Größter Bereich (direkter Downliner mit ganzem Sub-Team)
+                direct_dn = db.execute(
+                    'SELECT id FROM users WHERE parent_id=? AND active=1', (lid,)
+                ).fetchall()
+                for d in direct_dn:
+                    chain = [d['id']] + get_all_descendants(d['id'])
+                    cph = ','.join('?' * len(chain))
+                    s_eh = db.execute(
+                        f'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                        f'WHERE owner_id IN ({cph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+                        chain
+                    ).fetchone()['s']
+                    if s_eh > biggest_strang_eh:
+                        biggest_strang_eh = s_eh
+            total_eh = own_eh + team_eh
+            pct = round((total_eh / target_eh) * 100, 1) if target_eh else 0
+            eh_remaining = max(0, target_eh - total_eh)
+            biggest_pct = round((biggest_strang_eh / total_eh) * 100, 1) if total_eh > 0 else 0
+            div_ok = biggest_pct <= max_strang_pct
+            # Blocker bestimmen
+            if eh_remaining > 0 and not div_ok:
+                blocker = 'beides'
+                action = f'+{int(eh_remaining)} EH UND Diversifikation (größter Bereich {biggest_pct}%)'
+            elif eh_remaining > 0:
+                blocker = 'eh'
+                action = f'Noch +{int(eh_remaining)} EH bis HREP'
+            elif not div_ok:
+                blocker = 'diversifikation'
+                action = f'Diversifikation: größter Bereich {biggest_pct}% (max 70%)'
+            else:
+                blocker = None
+                action = 'Bereit für HREP — Auto-Promote sollte greifen'
+            pipeline.append({
+                'id': lid, 'name': lrep['name'], 'phone': lrep['phone'] or '',
+                'total_eh': float(total_eh), 'pct': pct, 'eh_remaining': int(eh_remaining),
+                'biggest_pct': biggest_pct, 'diversification_ok': div_ok,
+                'blocker': blocker, 'action': action,
+            })
+        # Sortieren nach Nähe (höchster pct oben — wer ist am nächsten am Ziel)
+        pipeline.sort(key=lambda x: -x['pct'])
+        return pipeline[:max_items]
+    except Exception as e:
+        app.logger.warning(f'get_hrep_pipeline fail: {e}')
+        return []
+    finally:
+        db.close()
+
+
+def get_today_zielgespraeche(user_id, max_items=5):
+    """HEBEL #1 — die 5 wichtigsten Zielgespräche heute, vom System priorisiert.
+
+    Najib will eigentlich nur ZG führen — System wählt aus 30+ Partnern die
+    5 Top-Prio (Drift / Beförderungs-Nähe / Coaching-Lücke / hängende
+    Approval) + schlägt freie Slots vor (10/11/14/15/16 Uhr, busy-aware).
+
+    Returns Liste {id, name, phone, prio, reasons, suggested_slot, eh_total}.
+    """
+    db = get_db()
+    today = date.today()
+    today_iso = today.isoformat()
+    try:
+        descendants = get_all_descendants(user_id)
+        if not descendants:
+            return []
+        candidates = []
+        for did in descendants[:60]:  # max 60 evaluieren (perf-cap)
+            u = db.execute('SELECT id, name, phone, manual_career_level FROM users WHERE id=? AND active=1', (did,)).fetchone()
+            if not u:
+                continue
+            prio = 0
+            reasons = []
+            # 1) Drift-Risiko (48h Aktivität < 25% Baseline der letzten 30T)
+            base_row = db.execute(
+                "SELECT COUNT(*) c FROM activity_log WHERE user_id=? AND created_at >= datetime('now','-30 days')",
+                (did,)
+            ).fetchone()
+            base_per_day = base_row['c'] / 30 if base_row['c'] else 0
+            cur_row = db.execute(
+                "SELECT COUNT(*) c FROM activity_log WHERE user_id=? AND created_at >= datetime('now','-2 days')",
+                (did,)
+            ).fetchone()
+            cur_per_day = cur_row['c'] / 2 if cur_row['c'] else 0
+            if base_per_day >= 1 and cur_per_day < base_per_day * 0.25:
+                prio += 100
+                reasons.append('48h still')
+            # 2) Nähe zur Beförderung (≥80% bis zur nächsten Stufe)
+            own_eh = db.execute(
+                'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                'WHERE owner_id=? AND status="abgeschlossen" AND recherche_status="freigegeben"',
+                (did,)
+            ).fetchone()['s']
+            sub_descendants = get_all_descendants(did)
+            team_eh = 0
+            if sub_descendants:
+                ph = ','.join('?' * len(sub_descendants))
+                team_eh = db.execute(
+                    f'SELECT COALESCE(SUM(einheiten),0) AS s FROM contracts '
+                    f'WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+                    sub_descendants
+                ).fetchone()['s']
+            total_eh = own_eh + team_eh
+            cur_lvl = u['manual_career_level'] or 1
+            next_level = next((cl for cl in CAREER_LEVELS if cl['level'] == cur_lvl + 1), None)
+            if next_level and next_level['min_eh'] > 0:
+                pct = (total_eh / next_level['min_eh']) * 100
+                if pct >= 80:
+                    prio += 90
+                    reasons.append(f'{int(pct)}% bis {next_level["short"]}')
+            # 3) Lange kein Coaching (>14 Tage seit letztem Note vom Owner)
+            last_coach = db.execute(
+                "SELECT MAX(created_at) AS lc FROM coaching_notes WHERE author_user_id=? AND target_user_id=?",
+                (user_id, did)
+            ).fetchone()
+            if last_coach and last_coach['lc']:
+                try:
+                    lc_date = datetime.strptime(last_coach['lc'][:10], '%Y-%m-%d').date()
+                    days_since = (today - lc_date).days
+                    if days_since > 14:
+                        prio += 70
+                        reasons.append(f'{days_since}T kein Coaching')
+                except Exception:
+                    pass
+            else:
+                prio += 70
+                reasons.append('nie gecoacht')
+            # 4) Pending Approval >2 Tage
+            pa_row = db.execute(
+                'SELECT pending_career_level, pending_at FROM users WHERE id=?', (did,)
+            ).fetchone()
+            if pa_row and pa_row['pending_career_level'] and pa_row['pending_at']:
+                try:
+                    pa_date = datetime.strptime(pa_row['pending_at'][:10], '%Y-%m-%d').date()
+                    if (today - pa_date).days >= 2:
+                        prio += 60
+                        reasons.append('Beförderung wartet')
+                except Exception:
+                    pass
+            if prio > 0:
+                candidates.append({
+                    'id': did, 'name': u['name'], 'phone': u['phone'] or '',
+                    'prio': prio, 'reasons': reasons, 'eh_total': float(total_eh),
+                    'next_short': next_level['short'] if next_level else '—',
+                })
+        candidates.sort(key=lambda c: -c['prio'])
+        top = candidates[:max_items]
+        # Slot-Vorschlag — freie Standard-Slots heute, busy-aware
+        standard_slots = ['10:00', '11:00', '14:00', '15:00', '16:00']
+        busy_today = db.execute(
+            "SELECT termin_time FROM appointments WHERE owner_id=? AND termin_date=? AND status NOT IN ('erledigt','abgesagt')",
+            (user_id, today_iso)
+        ).fetchall()
+        busy_times = {(a['termin_time'] or '')[:5] for a in busy_today}
+        free_slots = [s for s in standard_slots if s not in busy_times]
+        # Auch Vergangenheit-Slots ausfiltern (z.B. ist es schon 12 Uhr → 10:00 + 11:00 raus)
+        now_hhmm = datetime.now().strftime('%H:%M')
+        free_slots = [s for s in free_slots if s > now_hhmm]
+        for i, c in enumerate(top):
+            c['suggested_slot'] = free_slots[i] if i < len(free_slots) else '—'
+        return top
+    except Exception as e:
+        app.logger.warning(f'get_today_zielgespraeche fail: {e}')
+        return []
+    finally:
+        db.close()
+
+
 def get_najib_morning_briefing(user_id):
     """Owner-Briefing: konsolidierte Daten für die Top-Card am Admin-Dashboard.
 
@@ -11449,6 +11731,12 @@ def dashboard():
         upcoming_coaching = get_upcoming_coaching_slots(current_user.id, days=7)
         # TIER A (Owner-Audit) — Najib-Briefing-Card oben
         najib_briefing = get_najib_morning_briefing(current_user.id)
+        # HEBEL #1 — die 5 Top-Zielgespräche heute (Najib's Hauptaufgabe)
+        zielgespraeche_heute = get_today_zielgespraeche(current_user.id)
+        # HEBEL #2 — HREP-Pipeline (alle LREPs sortiert nach HREP-Nähe)
+        hrep_pipeline = get_hrep_pipeline(current_user.id)
+        # HEBEL #3 — Bewerber-Funnel 4 Stufen (Klicks→Anmeldung→Termin→Vertrag)
+        bewerber_funnel = get_bewerber_funnel(current_user.id, days=30)
         return render_template('dashboard_admin.html',
             total_users=total_users, total_leads=total_leads,
             total_contracts=total_contracts, total_volumen=total_volumen,
@@ -11472,7 +11760,10 @@ def dashboard():
             streak_days=streak_days, vision_needed=vision_needed,
             coach_plan=coach_plan, today_pace=today_pace,
             upcoming_coaching=upcoming_coaching,
-            najib_briefing=najib_briefing
+            najib_briefing=najib_briefing,
+            zielgespraeche_heute=zielgespraeche_heute,
+            hrep_pipeline=hrep_pipeline,
+            bewerber_funnel=bewerber_funnel
         )
     else:
         stats = get_team_stats(current_user.id)

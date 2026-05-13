@@ -96,6 +96,110 @@
    schon Plan-Ampel + eh_ist vs eh_soll_pace. Anrufe/Termine-Soll auf
    /aufgaben, nicht auf Dashboard. #}
 
+{# HEBEL #1 — „Heute deine 5 Zielgespräche" — Najibs Hauptaufgabe als HREP+ #}
+{% if zielgespraeche_heute %}
+<div class="card" style="border-left:3px solid var(--gold);margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">▸ Deine {{ zielgespraeche_heute|length }} Zielgespräche heute</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Wählen ist erledigt — System hat priorisiert. Du musst nur anrufen.</div>
+        </div>
+        <div style="font-size:11px;color:var(--text-soft)">Slots vorgeschlagen</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+        {% for zg in zielgespraeche_heute %}
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid {% if zg.prio >= 100 %}var(--red){% elif zg.prio >= 90 %}var(--gold){% else %}var(--orange){% endif %};border-radius:6px">
+            <div style="font-size:12px;color:var(--gold);font-weight:800;width:48px;flex-shrink:0;font-family:'JetBrains Mono',monospace">{{ zg.suggested_slot }}</div>
+            <div style="flex:1;min-width:0">
+                <a href="/partner/{{ zg.id }}/profil" style="color:var(--text);text-decoration:none;font-weight:700;font-size:13px">{{ zg.name }}</a>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ zg.reasons|join(' · ') }}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+                {% if zg.phone %}<a href="tel:{{ zg.phone }}" class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--green);font-size:11px">📞</a>{% endif %}
+                <a href="/coaching/{{ zg.id }}" class="btn btn-sm btn-secondary" style="font-size:11px">📝 Notiz</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{# HEBEL #3 — Bewerber-Funnel: 4 Stufen Klicks→Anmeldung→Termin→Vertrag.
+   Zeigt wo der größte Drop-out passiert. #}
+{% if bewerber_funnel and (bewerber_funnel.clicks > 0 or bewerber_funnel.signups > 0) %}
+<div class="card" style="border-left:3px solid var(--blue);margin-bottom:14px">
+    <div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--blue);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">📊 Bewerber-Funnel · letzte {{ bewerber_funnel.days }} Tage</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Wo passiert der größte Drop-out im Trichter?</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        {# Stufe 1: Klicks #}
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:14px 12px;text-align:center">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700">Klicks</div>
+            <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums">{{ bewerber_funnel.clicks }}</div>
+            <div style="font-size:10px;color:var(--text-soft);margin-top:2px">auf Lead-Links</div>
+        </div>
+        {# Stufe 2: Anmeldungen + Conv-% #}
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:14px 12px;text-align:center;{% if bewerber_funnel.bottleneck == 'signup' %}border-color:var(--red){% endif %}">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700">Anmeldungen</div>
+            <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums">{{ bewerber_funnel.signups }}</div>
+            <div style="font-size:10px;color:{% if bewerber_funnel.bottleneck == 'signup' %}var(--red);font-weight:700{% else %}var(--text-soft){% endif %};margin-top:2px">{{ bewerber_funnel.conv_signup }}% von Klicks{% if bewerber_funnel.bottleneck == 'signup' %} ⚠{% endif %}</div>
+        </div>
+        {# Stufe 3: Erste Termine + Conv-% #}
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:14px 12px;text-align:center;{% if bewerber_funnel.bottleneck == 'termin' %}border-color:var(--red){% endif %}">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700">1. Termine</div>
+            <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px;font-variant-numeric:tabular-nums">{{ bewerber_funnel.first_termin }}</div>
+            <div style="font-size:10px;color:{% if bewerber_funnel.bottleneck == 'termin' %}var(--red);font-weight:700{% else %}var(--text-soft){% endif %};margin-top:2px">{{ bewerber_funnel.conv_termin }}% von Anmeldungen{% if bewerber_funnel.bottleneck == 'termin' %} ⚠{% endif %}</div>
+        </div>
+        {# Stufe 4: Erste Verträge + Conv-% #}
+        <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:14px 12px;text-align:center;{% if bewerber_funnel.bottleneck == 'vertrag' %}border-color:var(--red){% endif %}">
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.4px;font-weight:700">1. Verträge</div>
+            <div style="font-size:24px;font-weight:800;color:var(--gold);margin-top:4px;font-variant-numeric:tabular-nums">{{ bewerber_funnel.first_vertrag }}</div>
+            <div style="font-size:10px;color:{% if bewerber_funnel.bottleneck == 'vertrag' %}var(--red);font-weight:700{% else %}var(--text-soft){% endif %};margin-top:2px">{{ bewerber_funnel.conv_vertrag }}% von Terminen{% if bewerber_funnel.bottleneck == 'vertrag' %} ⚠{% endif %}</div>
+        </div>
+    </div>
+    {% if bewerber_funnel.bottleneck %}
+    <div style="margin-top:10px;padding:8px 12px;background:var(--red-soft);border-radius:6px;font-size:12px;color:var(--red);font-weight:600">
+        {% if bewerber_funnel.bottleneck == 'signup' %}⚠ <strong>Engpass: Klicks → Anmeldungen</strong> — &lt;5%. Lead-Page (CTA, Hook) prüfen oder Klick-Quellen sind zu kalt.
+        {% elif bewerber_funnel.bottleneck == 'termin' %}⚠ <strong>Engpass: Anmeldungen → Termine</strong> — &lt;30%. Owner-Folgeup zu langsam, oder Bewerber kalt nach Anmeldung. Auto-Mail-Sequenz prüfen.
+        {% elif bewerber_funnel.bottleneck == 'vertrag' %}⚠ <strong>Engpass: Termine → Verträge</strong> — &lt;25%. Skript-Problem? Closing-Schwäche? Telefon-Skripte coachen.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{# HEBEL #2 — HREP-Pipeline: alle LREPs sortiert nach HREP-Nähe.
+   Direkter Hebel für „LREP-Stagnation" — siehst du wer kurz davor ist. #}
+{% if hrep_pipeline %}
+<div class="card" style="border-left:3px solid #8b5cf6;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div>
+            <div style="font-size:11px;color:#8b5cf6;text-transform:uppercase;letter-spacing:0.6px;font-weight:700">⬢ HREP-Pipeline · {{ hrep_pipeline|length }} LREP{% if hrep_pipeline|length != 1 %}s{% endif %}</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Wer ist nah dran? Wo lohnt sich heute der Coaching-Hebel?</div>
+        </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+        {% for lrep in hrep_pipeline %}
+        {% set bar_color = '#34d399' if lrep.pct >= 90 else ('#d4a843' if lrep.pct >= 70 else ('#f59e0b' if lrep.pct >= 50 else 'var(--text-muted)')) %}
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid {{ bar_color }};border-radius:6px">
+            <div style="width:46px;flex-shrink:0;text-align:right">
+                <div style="font-size:14px;font-weight:800;color:{{ bar_color }};letter-spacing:-0.3px">{{ "%.0f"|format(lrep.pct) }}%</div>
+            </div>
+            <div style="flex:1;min-width:0">
+                <a href="/coaching/{{ lrep.id }}" style="color:var(--text);text-decoration:none;font-weight:700;font-size:13px">{{ lrep.name }}</a>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:1px">{{ lrep.action }}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+                {% if lrep.phone %}<a href="tel:{{ lrep.phone }}" class="btn btn-sm" style="background:var(--green);color:#fff;border-color:var(--green);font-size:11px">📞</a>{% endif %}
+                <a href="/struktur?focus={{ lrep.id }}" class="btn btn-sm btn-secondary" style="font-size:11px">⬢ Bereich</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 {# TIER 3.16 — Pin-Bar Coaching-Slots der nächsten 7 Tage #}
 {% if upcoming_coaching %}
 <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:8px;margin-bottom:14px;flex-wrap:wrap">
