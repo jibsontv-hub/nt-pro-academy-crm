@@ -6483,7 +6483,10 @@ def get_today_stack(user_id, max_items=5, db=None):
             'icon': '🔥',
         })
 
-    # ─── P1: Pipeline-Push (REP→LREP, LREP→HREP, HREP→CREP) ───
+    # ─── P1: Pipeline-Push (REP→LREP @70%, LREP→HREP @70%, HREP→CREP @60%) ───
+    # Stufenspezifische Schwellen — REPs aggressiver pushen weil "viele 1er die nicht in 2 kommen".
+    # CREP ab 60% weil Diversifikations-Auflagen (2 Stränge à 1200) Zeit brauchen.
+    PUSH_THRESHOLDS = {1: 0.70, 2: 0.70, 3: 0.60, 4: 0.60, 5: 0.60}
     for r in drift_rows:
         if r['id'] in [t['target_id'] for t in stack]:
             continue
@@ -6493,20 +6496,43 @@ def get_today_stack(user_id, max_items=5, db=None):
             continue
         total = eh_total(r['id'], db)
         progress = total / next_lvl['min_eh']
-        if progress < 0.8:
+        threshold = PUSH_THRESHOLDS.get(career['level'], 0.80)
+        if progress < threshold:
             continue
         eh_remaining = max(0, next_lvl['min_eh'] - total)
         key = f'push:{r["id"]}:{next_lvl["short"]}'
         if key in handled_keys:
             continue
+        # Stufenspezifischer Reasoning-Text
+        if next_lvl['short'] == 'CREP':
+            # CREP braucht 2 qualifizierte Stränge à 1200 + Restbereich 1200
+            straenge = get_straenge_for_user(r['id'], db=db)
+            qualified = sum(1 for s in straenge if 1200 <= s['eh'] <= 4500)
+            reason = f'Nur noch {int(eh_remaining)} EH bis CREP. Hat {qualified}/2 qualifizierte Stränge (1200-4500 EH). Plan: 2. Strang aufbauen?'
+            icon = '👑'
+        elif next_lvl['short'] == 'HREP':
+            straenge = get_straenge_for_user(r['id'], db=db)
+            biggest = max((s['eh'] for s in straenge), default=0)
+            biggest_pct = (biggest / total * 100) if total > 0 else 0
+            if biggest_pct > 70:
+                reason = f'Bei {int(eh_remaining)} EH bis HREP, ABER 1 Strang macht {int(biggest_pct)}% (max. 70% erlaubt). Diversifizieren!'
+            else:
+                reason = f'Nur {int(eh_remaining)} EH bis HREP, Diversifikation passt. Push-Termin diese Woche!'
+            icon = '🎯'
+        elif next_lvl['short'] == 'LREP':
+            reason = f'Nur {int(eh_remaining)} EH bis LREP — der wichtigste Sprung! Plan für 2 Wochen machen.'
+            icon = '⚡'
+        else:
+            reason = f'Nur noch {int(eh_remaining)} EH bis {next_lvl["short"]}. Mit ihm Plan für die Woche machen!'
+            icon = '🚀'
         stack.append({
             'task_key': key, 'task_type': 'pipeline_push',
             'priority': 90,
             'target_id': r['id'], 'target_name': r['name'], 'target_phone': r['phone'],
             'title': f'{next_lvl["short"]}-Push: {r["name"]}',
-            'reason': f'Nur noch {int(eh_remaining)} EH bis {next_lvl["short"]}. Mit ihm Plan für die Woche machen!',
+            'reason': reason,
             'action': 'call',
-            'icon': '🚀',
+            'icon': icon,
         })
 
     # ─── P2 + P4: Stagnations-Sequenz (Tag 7 Sprachnachricht / Tag 14 Anruf) ───
@@ -6572,6 +6598,73 @@ def get_today_stack(user_id, max_items=5, db=None):
             'action': 'approve',
             'extra_id': r['contract_id'],
             'icon': '✅',
+        })
+
+    # ─── P5a: Bestand-Movement — REPs mit 0 EH in 14T (eingeschlafen, aber nicht ausgeloggt) ───
+    bestand_rows = db.execute(f'''
+        SELECT u.id, u.name, u.phone,
+               (SELECT COALESCE(SUM(einheiten), 0) FROM contracts
+                WHERE owner_id=u.id AND status='abgeschlossen' AND recherche_status='freigegeben'
+                  AND date(abschluss_date) >= date('now','-14 days')) as eh_14d,
+               (SELECT MAX(created_at) FROM activity_log WHERE user_id=u.id) as last_active
+        FROM users u
+        WHERE u.id IN ({ph}) AND u.active=1
+    ''', descendants).fetchall()
+    for r in bestand_rows:
+        if r['id'] in [t['target_id'] for t in stack]:
+            continue
+        # Eingeschlafen = aktiv im System (loggt ein), aber 0 EH in 14T
+        last = r['last_active']
+        if not last or r['eh_14d'] > 0:
+            continue
+        try:
+            days_inactive_login = (today - datetime.strptime(last[:10], '%Y-%m-%d').date()).days
+        except Exception:
+            continue
+        if days_inactive_login >= 7:
+            continue  # die fängt schon Stagnations-Sequenz ab
+        key = f'bestand:{r["id"]}'
+        if key in handled_keys:
+            continue
+        stack.append({
+            'task_key': key, 'task_type': 'bestand_movement',
+            'priority': 65,
+            'target_id': r['id'], 'target_name': r['name'], 'target_phone': r['phone'],
+            'title': f'Bewegung: {r["name"]}',
+            'reason': f'Loggt ein, aber 0 EH in 14T. „Eingeschlafen im Bestand". Mikro-Ziel geben: nur 1 Anruf heute (Tiny-Habits-Pattern).',
+            'action': 'call',
+            'icon': '⚙',
+        })
+
+    # ─── P5b: Bewerber-Hebel — REPs/LREPs ohne Bewerber-Lead in 30T ───
+    recruiting_rows = db.execute(f'''
+        SELECT u.id, u.name, u.phone,
+               (SELECT COUNT(*) FROM leads
+                WHERE owner_id=u.id AND liste_typ='rk'
+                  AND date(created_at) >= date('now','-30 days')) as new_recruits_30d,
+               u.manual_career_level
+        FROM users u
+        WHERE u.id IN ({ph}) AND u.active=1
+    ''', descendants).fetchall()
+    for r in recruiting_rows:
+        if r['id'] in [t['target_id'] for t in stack]:
+            continue
+        if r['new_recruits_30d'] > 0:
+            continue
+        # Nur REP+LREP — höhere Stufen sind nicht selbst rekrutierungsfokussiert
+        if (r['manual_career_level'] or 1) > 2:
+            continue
+        key = f'recruit:{r["id"]}'
+        if key in handled_keys:
+            continue
+        stack.append({
+            'task_key': key, 'task_type': 'recruiting_push',
+            'priority': 62,
+            'target_id': r['id'], 'target_name': r['name'], 'target_phone': r['phone'],
+            'title': f'Recruiting-Push: {r["name"]}',
+            'reason': f'0 neue Bewerber-Leads in 30T. Frage: „Wer aus deinem Umfeld könnte das auch?" — 3 Namen reichen.',
+            'action': 'call',
+            'icon': '🎲',
         })
 
     # ─── P5: Coaching-Lücke > 14T ───
@@ -12533,6 +12626,8 @@ def lead_neu():
              request.form.get('status', 'neu'), request.form.get('notizen', ''), liste_typ))
         db.commit()
         db.close()
+        # Auto-DMO-Increment: Bewerber-Lead → recruiting +1, Kunde-Lead → followups +1
+        increment_dmo(current_user.id, 'recruiting' if liste_typ == 'rk' else 'followups', 1)
         log_activity(current_user.id, 'lead_neu',
             f'{current_user.name} hat „{request.form["name"]}" zur {"Rekrutierungs" if liste_typ == "rk" else "Vertriebs"}-Liste hinzugefügt',
             icon='◇', color='purple')
@@ -12755,13 +12850,17 @@ def termine():
 def termin_neu():
     if request.method == 'POST':
         db = get_db()
+        new_status = request.form.get('status', 'geplant')
         db.execute('INSERT INTO appointments (owner_id, title, client_name, termin_date, termin_time, typ, status, notizen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             (current_user.id, request.form['title'], request.form.get('client_name', ''),
              request.form['termin_date'], request.form.get('termin_time', ''),
-             request.form.get('typ', 'kundentermin'), request.form.get('status', 'geplant'),
+             request.form.get('typ', 'kundentermin'), new_status,
              request.form.get('notizen', '')))
         db.commit()
         db.close()
+        # Auto-DMO: wenn Termin direkt als 'erledigt' angelegt → termine +1
+        if new_status == 'erledigt':
+            increment_dmo(current_user.id, 'termine', 1)
         log_activity(current_user.id, 'termin_neu',
             f'{current_user.name} hat Termin „{request.form["title"]}" für {request.form["termin_date"]} angelegt',
             icon='◷', color='blue')
@@ -12839,12 +12938,17 @@ def termin_edit(tid):
         db.close()
         return redirect(url_for('termine'))
     if request.method == 'POST':
+        new_status = request.form.get('status', 'geplant')
+        # Auto-DMO-Increment: wenn Termin neu auf 'erledigt' gesetzt wird → DMO termine +1
+        was_erledigt = (termin['status'] == 'erledigt')
         db.execute('UPDATE appointments SET title=?, client_name=?, termin_date=?, termin_time=?, typ=?, status=?, notizen=? WHERE id=?',
             (request.form['title'], request.form.get('client_name', ''),
              request.form['termin_date'], request.form.get('termin_time', ''),
-             request.form.get('typ', 'kundentermin'), request.form.get('status', 'geplant'),
+             request.form.get('typ', 'kundentermin'), new_status,
              request.form.get('notizen', ''), tid))
         db.commit()
+        if new_status == 'erledigt' and not was_erledigt and termin['owner_id']:
+            increment_dmo(termin['owner_id'], 'termine', 1)
         db.close()
         flash('Termin aktualisiert!', 'success')
         return redirect(url_for('termine'))
