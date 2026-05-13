@@ -1314,65 +1314,75 @@
 
             {% if current_user.has_admin_access %}
             {% set p = request.path %}
-            {% set sec_council = ('/admin/tagesaktion' in p) or ('/admin/content' in p) or ('/owner/queue' in p) %}
-            {% set sec_admin = (('/admin' in p) and not sec_council and not ('/admin/weiterbildung' in p)) %}
+            {% set sec_heute = ('/admin/tagesaktion' in p) or ('/admin/content' in p) or ('/admin/genehmigungen' in p) %}
+            {% set sec_team_admin = ('/admin/inbox' in p) or (p == '/admin/mail') %}
+            {% set sec_system = (('/admin' in p) and not sec_heute and not sec_team_admin and not ('/admin/weiterbildung' in p) and ('/owner/queue' not in p)) %}
 
-            {# TIER D — Owner-Queue ganz oben in Council, Gold-prominent #}
+            {# Owner-Queue als Hauptlink ganz oben — DEIN MORGEN-START #}
             <a href="/owner/queue" class="nav-link {% if '/owner/queue' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.22),rgba(212,168,67,0.06));color:var(--gold);font-weight:800;margin:6px 0">
-                <span class="nav-icon">▸</span> Owner-Queue
+                <span class="nav-icon">▸</span> Was heute zu tun ist
             </a>
 
-            <details class="nav-group" data-group="council" {% if sec_council %}open{% endif %}>
-                <summary>Admin · Council</summary>
-                <div class="nav-group-items">
-                    <a href="/admin/tagesaktion" class="nav-link {% if '/admin/tagesaktion' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.12),rgba(212,168,67,0.04));color:var(--gold);font-weight:800">
-                        <span class="nav-icon">🎯</span> Tagesaktion
-                    </a>
-                    <a href="/admin/content" class="nav-link {% if '/admin/content' in request.path %}active{% endif %}" style="background:linear-gradient(135deg,rgba(212,168,67,0.12),rgba(212,168,67,0.04));color:var(--gold);font-weight:800">
-                        <span class="nav-icon">📹</span> Content Engine
-                    </a>
-                </div>
-            </details>
-
-            <details class="nav-group" data-group="admin" {% if sec_admin %}open{% endif %}>
-                <summary>Administration</summary>
+            {# Heute machen — KI-Vorschläge + Genehmigungen #}
+            <details class="nav-group" data-group="heute" {% if sec_heute %}open{% endif %}>
+                <summary>Heute machen</summary>
                 <div class="nav-group-items">
                     <a href="/admin/genehmigungen" class="nav-link {% if '/admin/genehmigungen' in request.path %}active{% endif %}" style="display:flex;align-items:center;justify-content:space-between">
-                        <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">✓</span> Genehmigungen</span>
+                        <span style="display:flex;align-items:center;gap:11px"><span class="nav-icon">✓</span> Beförderungen</span>
                         {% if pending_count and pending_count > 0 %}
                         <span style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;font-weight:800;padding:1px 7px;min-width:18px;text-align:center">{{ pending_count }}</span>
                         {% endif %}
                     </a>
+                    <a href="/admin/tagesaktion" class="nav-link {% if '/admin/tagesaktion' in request.path %}active{% endif %}">
+                        <span class="nav-icon">🎯</span> KI-Tagesaktion
+                    </a>
+                    <a href="/admin/content" class="nav-link {% if '/admin/content' in request.path %}active{% endif %}">
+                        <span class="nav-icon">📹</span> Video-Ideen
+                    </a>
+                </div>
+            </details>
+
+            {# Team & Anmeldungen — wer ist neu, wen ansprechen #}
+            <details class="nav-group" data-group="team_admin" {% if sec_team_admin %}open{% endif %}>
+                <summary>Team & Anmeldungen</summary>
+                <div class="nav-group-items">
+                    <a href="/admin/inbox" class="nav-link {% if '/admin/inbox' in request.path %}active{% endif %}">
+                        <span class="nav-icon">🌐</span> Anmeldungen aus dem Web
+                    </a>
+                    <a href="/admin/mail" class="nav-link {% if request.path == '/admin/mail' %}active{% endif %}">
+                        <span class="nav-icon">📨</span> Mail an Team
+                    </a>
+                </div>
+            </details>
+
+            {# System — alles was selten gebraucht wird, default zu #}
+            <details class="nav-group" data-group="system" {% if sec_system %}open{% endif %}>
+                <summary>System</summary>
+                <div class="nav-group-items">
                     <a href="/admin/aufgaben" class="nav-link {% if '/admin/aufgaben' in request.path %}active{% endif %}">
-                        <span class="nav-icon">⚙</span> Aufgaben-Slots
+                        <span class="nav-icon">✓</span> Tagesaufgaben pro Stufe
                     </a>
                     <a href="/admin/phone-scripts" class="nav-link {% if '/admin/phone-scripts' in request.path %}active{% endif %}">
                         <span class="nav-icon">☏</span> Telefon-Skripte
-                    </a>
-                    <a href="/admin/inbox" class="nav-link {% if '/admin/inbox' in request.path %}active{% endif %}">
-                        <span class="nav-icon">📬</span> Bewerber-Inbox
                     </a>
                     <a href="/admin/vorschlaege" class="nav-link {% if '/admin/vorschlaege' in request.path %}active{% endif %}">
                         <span class="nav-icon">💡</span> Partner-Vorschläge
                     </a>
                     <a href="/admin/push" class="nav-link {% if '/admin/push' in request.path %}active{% endif %}">
-                        <span class="nav-icon">▶</span> Push-Notifications
+                        <span class="nav-icon">▶</span> Push senden
                     </a>
                     <a href="/admin/import" class="nav-link {% if '/admin/import' in request.path %}active{% endif %}">
                         <span class="nav-icon">↑</span> Partner-Import (CSV)
-                    </a>
-                    <a href="/admin/mail" class="nav-link {% if request.path == '/admin/mail' %}active{% endif %}">
-                        <span class="nav-icon">📨</span> E-Mail senden
                     </a>
                     {% if current_user.role == 'admin' %}
                     <a href="/admin/weiterbildung" class="nav-link {% if '/admin/weiterbildung' in request.path %}active{% endif %}">
                         <span class="nav-icon">📚</span> Weiterbildungs-Link
                     </a>
+                    <a href="/admin/ki-settings" class="nav-link {% if '/admin/ki-settings' in request.path %}active{% endif %}">
+                        <span class="nav-icon">🧠</span> KI-Verbindung
+                    </a>
                     <a href="/admin/email-settings" class="nav-link {% if '/admin/email-settings' in request.path %}active{% endif %}">
                         <span class="nav-icon">⚙</span> E-Mail-Server
-                    </a>
-                    <a href="/admin/ki-settings" class="nav-link {% if '/admin/ki-settings' in request.path %}active{% endif %}">
-                        <span class="nav-icon">🧠</span> KI-Power (Claude)
                     </a>
                     <a href="/admin/audit" class="nav-link {% if '/admin/audit' in request.path %}active{% endif %}">
                         <span class="nav-icon">🔍</span> Audit-Log
@@ -1384,11 +1394,8 @@
                         <span class="nav-icon">§</span> Impressum
                     </a>
                     {% endif %}
-                    <a href="/admin/aktivitaet" class="nav-link {% if '/admin/aktivitaet' in request.path %}active{% endif %}">
-                        <span class="nav-icon">◷</span> Aktivität
-                    </a>
                     <a href="/admin/backup" class="nav-link" download>
-                        <span class="nav-icon">↓</span> Backup herunterladen
+                        <span class="nav-icon">↓</span> Backup
                     </a>
                 </div>
             </details>
