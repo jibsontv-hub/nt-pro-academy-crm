@@ -848,6 +848,20 @@ def send_email(to, subject, body_text, body_html=None, sent_by=None, reply_to=No
     if not all([smtp_host, smtp_user, smtp_password]):
         return False, 'SMTP nicht konfiguriert. Geh zu Einstellungen → E-Mail-Versand.'
 
+    # E2E-Test-Schutz: wenn EMAIL_E2E_NO_SEND=1 gesetzt → kein echter SMTP-Send,
+    # email_log bekommt status='ok' mit Hinweis. Verhindert Reset-Mail-Spam an
+    # echte User wenn pre_push.sh wiederholt läuft. Production lässt diese Var leer.
+    if os.environ.get('EMAIL_E2E_NO_SEND') == '1':
+        try:
+            db = get_db()
+            db.execute('INSERT INTO email_log (sent_by, recipient, subject, status, error) VALUES (?, ?, ?, ?, ?)',
+                       (sent_by, to, subject, 'ok', 'EMAIL_E2E_NO_SEND=1 (test mode, no real send)'))
+            db.commit()
+            db.close()
+        except Exception:
+            pass
+        return True, None
+
     msg = MIMEMultipart('alternative')
     msg['Subject'] = subject
     msg['From'] = formataddr((sender_name, sender_email))

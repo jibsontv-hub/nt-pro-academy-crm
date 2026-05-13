@@ -36,9 +36,21 @@ if [ -n "$EXTERNAL_URL" ]; then
     echo "🌐 Mode: EXTERNAL  ($BASE_URL)"
 else
     BASE_URL="http://localhost:$PORT"
-    echo "🏠 Mode: LOCAL  (Flask wird auf Port $PORT gestartet)"
+    echo "🏠 Mode: LOCAL  (Flask wird auf Port $PORT gestartet · EMAIL_E2E_NO_SEND=1)"
     cd "$REPO_DIR"
-    FLASK_DEBUG=1 python3 -c "
+    # Stale-Flask killen falls Port belegt — sonst greift unser Code-Update
+    # (inkl. EMAIL_E2E_NO_SEND-Schutz) nicht und die alte Instanz beantwortet
+    # die Test-Requests mit altem Code.
+    STALE_PIDS=$(lsof -ti:$PORT 2>/dev/null)
+    if [ -n "$STALE_PIDS" ]; then
+        echo "   ⚠ Port $PORT belegt von PID(s) $STALE_PIDS — werden gekillt"
+        echo "$STALE_PIDS" | xargs kill -9 2>/dev/null
+        sleep 1
+    fi
+    # Wichtig: EMAIL_E2E_NO_SEND=1 verhindert dass der Email-E2E-Agent
+    # echte Reset-Mails an Najib (QA_USER) sendet wenn der Test läuft.
+    # Ohne diesen Schutz schickt jeder pre_push-Run eine Reset-Mail.
+    EMAIL_E2E_NO_SEND=1 FLASK_DEBUG=1 python3 -c "
 import app
 app.app.run(port=$PORT, debug=False, use_reloader=False, threaded=True)
 " > /tmp/pre_push_flask.log 2>&1 &
