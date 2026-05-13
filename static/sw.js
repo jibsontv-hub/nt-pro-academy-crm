@@ -1,9 +1,10 @@
-// NT Pro Academy — Service Worker v5
-// Stellt Offline-Fähigkeit + Push-Notifications bereit.
-// v5: NUKE-RESET — alte Caches werden ALLE gelöscht (nicht nur ältere Versionen),
-// und alle offenen Tabs kriegen FORCE_RELOAD damit sie sich frisch holen.
+// NT Pro Academy — Service Worker v6
+// v6: SWR (Stale-While-Revalidate) für HTML — App fühlt sich INSTANT an.
+// Vorher: Network-First → 1-3 Sek weißer Screen bei jedem Page-Load.
+// Jetzt: cached HTML wird SOFORT angezeigt, frisches HTML im Hintergrund
+// geladen + Cache aktualisiert. Beim nächsten Visit ist's frisch.
 
-const CACHE_VERSION = 'ntpro-v5';
+const CACHE_VERSION = 'ntpro-v6';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -76,23 +77,29 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // HTML: network-first
+    // HTML: Stale-While-Revalidate — INSTANT-Render aus Cache, Update im Hintergrund.
+    // Wenn nichts im Cache: Network. Wenn Network failt + nichts im Cache: Offline-Page.
     if (req.headers.get('accept') && req.headers.get('accept').includes('text/html')) {
         event.respondWith(
-            fetch(req)
-                .then(resp => {
-                    if (resp.ok) {
-                        const copy = resp.clone();
-                        caches.open(RUNTIME_CACHE).then(cache => cache.put(req, copy));
-                    }
-                    return resp;
+            caches.open(RUNTIME_CACHE).then(cache =>
+                cache.match(req).then(cached => {
+                    // Background-Fetch — Cache wird im Hintergrund aktualisiert
+                    const networkPromise = fetch(req).then(resp => {
+                        if (resp.ok) {
+                            cache.put(req, resp.clone());
+                        }
+                        return resp;
+                    }).catch(() => null);
+
+                    // Wenn cached vorhanden: SOFORT zurückgeben (kein weißer Screen).
+                    // Sonst auf Network warten.
+                    if (cached) return cached;
+                    return networkPromise.then(resp => resp || new Response(
+                        `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline</title></head><body style="font-family:system-ui;background:#0a0e1a;color:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:24px"><div><h1 style="font-size:32px;margin-bottom:12px">📡 Offline</h1><p style="color:#94a3b8">Keine Verbindung. Sobald du wieder online bist, läuft alles wieder normal.</p><button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#d4a843;color:#0f1c3f;border:none;border-radius:10px;font-weight:700;cursor:pointer">Erneut versuchen</button></div></body></html>`,
+                        { headers: { 'Content-Type': 'text/html' } }
+                    ));
                 })
-                .catch(() => {
-                    return caches.match(req).then(cached => {
-                        if (cached) return cached;
-                        return new Response(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline</title></head><body style="font-family:system-ui;background:#0a0e1a;color:#f1f5f9;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:24px"><div><h1 style="font-size:32px;margin-bottom:12px">📡 Offline</h1><p style="color:#94a3b8">Keine Verbindung. Sobald du wieder online bist, läuft alles wieder normal.</p><button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#d4a843;color:#0f1c3f;border:none;border-radius:10px;font-weight:700;cursor:pointer">Erneut versuchen</button></div></body></html>`, { headers: { 'Content-Type': 'text/html' } });
-                    });
-                })
+            )
         );
         return;
     }
