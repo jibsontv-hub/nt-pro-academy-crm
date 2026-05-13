@@ -4,6 +4,59 @@
 
 {% block content %}
 
+{# Persönlicher Lead-Link + Stats — der wichtigste Marketing-Kanal jedes GPs #}
+{% if lead_link %}
+<div class="card" style="border-left:3px solid var(--gold);margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div>
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">★ Mein persönlicher Lead-Link</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Teile auf Insta, WhatsApp, Stories — jeder Klick &amp; jede Anmeldung wird hier gemessen</div>
+        </div>
+    </div>
+
+    <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);word-break:break-all;display:flex;gap:8px;align-items:center;margin-bottom:14px">
+        <span id="my-lead-link" style="flex:1">{{ lead_link }}</span>
+        <button onclick="copyToClipboard('my-lead-link', this)" class="btn btn-secondary btn-sm" style="white-space:nowrap">📋 Kopieren</button>
+    </div>
+
+    {# 4-Spalten-Grid: Klicks heute / 7T / Anmeldungen heute / 7T + Conversion #}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:6px">
+        <div class="kpi-card" style="text-align:center">
+            <div class="kpi-label">Klicks heute</div>
+            <div class="kpi-value">{{ lead_stats.clicks_today }}</div>
+        </div>
+        <div class="kpi-card" style="text-align:center">
+            <div class="kpi-label">Klicks 7T</div>
+            <div class="kpi-value">{{ lead_stats.clicks_7d }}</div>
+        </div>
+        <div class="kpi-card gold" style="text-align:center">
+            <div class="kpi-label">Anmeldungen heute</div>
+            <div class="kpi-value" style="color:var(--gold)">{{ lead_stats.signups_today }}</div>
+        </div>
+        <div class="kpi-card gold" style="text-align:center">
+            <div class="kpi-label">Anmeldungen 7T</div>
+            <div class="kpi-value" style="color:var(--gold)">{{ lead_stats.signups_7d }}</div>
+        </div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)">
+        <div>30 Tage: <strong style="color:var(--text)">{{ lead_stats.clicks_30d }}</strong> Klicks · <strong style="color:var(--gold)">{{ lead_stats.signups_30d }}</strong> Anmeldungen</div>
+        <div>Conversion-Rate: <strong style="color:{% if lead_stats.conversion_pct >= 5 %}var(--green){% elif lead_stats.conversion_pct >= 1 %}var(--orange){% else %}var(--text-muted){% endif %}">{{ lead_stats.conversion_pct }}%</strong></div>
+        <div>Gesamt: <strong style="color:var(--text)">{{ lead_stats.clicks_total }}</strong> · <strong style="color:var(--gold)">{{ lead_stats.signups_total }}</strong></div>
+    </div>
+</div>
+<script>
+function copyToClipboard(elementId, btn) {
+    const text = document.getElementById(elementId).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Kopiert';
+        setTimeout(() => btn.textContent = orig, 1500);
+    });
+}
+</script>
+{% endif %}
+
 <div class="card" style="background:linear-gradient(135deg,var(--surface),color-mix(in srgb,var(--blue) 5%,var(--surface)));border:1px solid color-mix(in srgb,var(--blue) 25%,var(--border))">
     <div class="card-title" style="color:var(--blue)">▶ So funktioniert's</div>
     <ol style="font-size:13px;color:var(--text);line-height:1.8;padding-left:22px">

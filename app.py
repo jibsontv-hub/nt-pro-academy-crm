@@ -618,6 +618,81 @@ def _slugify_name(name):
     return s.strip('-')[:40] or 'partner'
 
 
+def record_lead_link_click(owner_id, ref_token, req):
+    """Loggt einen Klick auf den Lead-Link eines GPs.
+
+    Dedup: gleiche IP innerhalb 1h zählt als selber Visit (gegen Refresh-Spam).
+    """
+    try:
+        client_ip = req.headers.get('X-Forwarded-For', req.remote_addr or 'unknown').split(',')[0].strip()[:45]
+        ua = (req.headers.get('User-Agent') or '')[:200]
+        ref = (req.headers.get('Referer') or '')[:300]
+        db = get_db()
+        # Dedup-Check: gleiche IP + owner innerhalb 1h?
+        recent = db.execute(
+            "SELECT 1 FROM lead_link_clicks WHERE owner_id=? AND visitor_ip=? "
+            "AND created_at >= datetime('now','-1 hour') LIMIT 1",
+            (owner_id, client_ip)
+        ).fetchone()
+        if recent:
+            db.close()
+            return False
+        db.execute(
+            'INSERT INTO lead_link_clicks (owner_id, ref_token, visitor_ip, user_agent, referrer) '
+            'VALUES (?, ?, ?, ?, ?)',
+            (owner_id, ref_token, client_ip, ua, ref)
+        )
+        db.commit()
+        db.close()
+        cache_invalidate(f'lead_stats:{owner_id}')
+        return True
+    except Exception:
+        return False
+
+
+def get_lead_link_stats(owner_id):
+    """Liefert dict mit Lead-Link Statistiken für einen GP.
+
+    Returns:
+      clicks_today / clicks_7d / clicks_30d / clicks_total
+      signups_today / signups_7d / signups_30d / signups_total
+      conversion_pct (signups_30d / clicks_30d * 100)
+    """
+    ckey = f'lead_stats:{owner_id}'
+    cached = cache_get(ckey)
+    if cached is not None:
+        return cached
+    db = get_db()
+    try:
+        def _count(table, where_extra=''):
+            return db.execute(
+                f"SELECT COUNT(*) c FROM {table} WHERE owner_id=?{where_extra}",
+                (owner_id,)
+            ).fetchone()['c']
+        # Klicks
+        clicks_today = _count('lead_link_clicks', " AND date(created_at)=date('now')")
+        clicks_7d = _count('lead_link_clicks', " AND created_at >= datetime('now','-7 days')")
+        clicks_30d = _count('lead_link_clicks', " AND created_at >= datetime('now','-30 days')")
+        clicks_total = _count('lead_link_clicks')
+        # Signups (= public Leads)
+        signups_today = _count('leads', " AND source='public' AND date(created_at)=date('now')")
+        signups_7d = _count('leads', " AND source='public' AND created_at >= datetime('now','-7 days')")
+        signups_30d = _count('leads', " AND source='public' AND created_at >= datetime('now','-30 days')")
+        signups_total = _count('leads', " AND source='public'")
+        conversion_pct = round((signups_30d / clicks_30d) * 100, 1) if clicks_30d > 0 else 0
+        result = {
+            'clicks_today': clicks_today, 'clicks_7d': clicks_7d,
+            'clicks_30d': clicks_30d, 'clicks_total': clicks_total,
+            'signups_today': signups_today, 'signups_7d': signups_7d,
+            'signups_30d': signups_30d, 'signups_total': signups_total,
+            'conversion_pct': conversion_pct,
+        }
+        cache_set(ckey, result, ttl=60)  # 1 Min Cache
+        return result
+    finally:
+        db.close()
+
+
 def get_or_create_lead_token(user_id):
     """Liefert (oder erzeugt) einen sprechenden Lead-Token pro User.
     Format: name-slug (najib-tchatikpi). Auto-Upgrade alter Random-Tokens.
@@ -4850,6 +4925,20 @@ def init_db():
             FOREIGN KEY (to_user_id) REFERENCES users(id)
         );
 
+        -- Lead-Link Klicks pro GP — jeder Aufruf von /start?ref=<token>
+        -- wird hier geloggt. Erlaubt: „Wie viele haben auf MEINEN Link geklickt?"
+        -- + Conversion-Rate aus klicks → leads (via owner_id-Match).
+        CREATE TABLE IF NOT EXISTS lead_link_clicks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_id INTEGER NOT NULL,
+            ref_token TEXT,
+            visitor_ip TEXT,
+            user_agent TEXT,
+            referrer TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (owner_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS phone_scripts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             owner_user_id INTEGER,
@@ -4902,6 +4991,9 @@ def init_db():
             -- Assigned-Tasks (TIER 2.12) für REP-Lookup (offene Tasks von Sponsor)
             CREATE INDEX IF NOT EXISTS idx_assigned_tasks_to ON assigned_tasks(to_user_id, completed_at);
             CREATE INDEX IF NOT EXISTS idx_assigned_tasks_from ON assigned_tasks(from_user_id);
+            -- Lead-Link-Clicks: pro Owner aggregierbar nach Datum
+            CREATE INDEX IF NOT EXISTS idx_lead_clicks_owner_date ON lead_link_clicks(owner_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_lead_clicks_token ON lead_link_clicks(ref_token);
             CREATE INDEX IF NOT EXISTS idx_newsletter_kat_pub ON newsletter_items(kategorie, published_at DESC);
             CREATE INDEX IF NOT EXISTS idx_deploy_log_date ON deploy_log(deployed_at DESC);
             CREATE INDEX IF NOT EXISTS idx_phone_scripts_kat ON phone_scripts(kategorie, sortierung, id);
@@ -6828,7 +6920,7 @@ def public_lead_capture():
         db.commit()
         db.close()
 
-        # Push an Berater bei Termin-Wunsch
+        # Push an Berater bei Termin-Wunsch (höchste Prio, urgent)
         if termin_extra:
             try:
                 send_push_to_user(owner_id,
@@ -6838,6 +6930,21 @@ def public_lead_capture():
                     push_type='lead_won')
             except Exception:
                 pass
+        else:
+            # Push an Berater bei JEDEM neuen Lead via seinem Token
+            # (auch wenn ohne Termin-Wunsch — soll jeder GP merken wenn jemand
+            # über seinen Lead-Link kommt). Differenzierter Push-Typ als
+            # Termin-Wunsch.
+            if matched_berater_name:  # Token-Match → Lead kommt über Owner-Link
+                try:
+                    interesse_label = 'Karriere' if interesse == 'karriere' else 'Beratung'
+                    send_push_to_user(owner_id,
+                        title=f'🌐 Neue Anmeldung: {name}',
+                        body=f'{interesse_label} · {email} · über deinen Lead-Link',
+                        url=f'/meine-leads?typ={liste_typ}', urgent=False,
+                        tag='public_lead_signup', push_type='lead_signup')
+                except Exception:
+                    pass
 
         log_activity(owner_id, 'public_lead',
                     f'🌐 Neue öffentliche Anmeldung: {name} ({email}){termin_extra}',
@@ -6867,6 +6974,7 @@ def public_lead_capture():
     referred_by_prefill = request.args.get('ref', '').strip()
     matched_owner_display = ''
     # Token-Erkennung: 3-50 Zeichen, nur a-z0-9-
+    matched_owner_id = None
     if ref and 3 <= len(ref) <= 50:
         import re
         if re.match(r'^[a-z0-9-]+$', ref):
@@ -6875,9 +6983,13 @@ def public_lead_capture():
             ).fetchone()
             if owner:
                 ref_token = ref
+                matched_owner_id = owner['id']
                 referred_by_prefill = ''  # nicht nötig — Banner zeigt's
                 matched_owner_display = owner['name']
     db.close()
+    # Klick loggen wenn Token einem aktiven User zugeordnet werden konnte
+    if matched_owner_id and ref_token:
+        record_lead_link_click(matched_owner_id, ref_token, request)
     return render_template('public_lead.html',
                            referred_by=referred_by_prefill,
                            ref_token=ref_token,
@@ -7489,7 +7601,19 @@ def inbox():
         'birthday': ('Geburtstag', '◯'),
         'streak': ('Streak', '◉'),
         'registrierung': ('Neue Anmeldung', '◎'),
-        'audit-fail': ('Audit-Fail', '⚠'),
+        'lead_signup': ('Neue Anmeldung über deinen Link', '🌐'),
+        'lead_won': ('Lead WILL Termin', '📅'),
+        'sos_alert': ('SOS vom Partner', '🆘'),
+        'self_drift_alert': ('Drift-Reminder', '⏰'),
+        'hrep_escalation': ('Eskalation', '🚨'),
+        'task_assigned': ('Aufgabe vom Strukturhöher', '📝'),
+        'task_completed': ('Aufgabe erledigt', '✓'),
+        'midday_nudge': ('Halbzeit-Push', '⏰'),
+        'goal_achieved': ('Beförderung', '🎯'),
+        'contract_done': ('Neuer Vertrag', '◇'),
+        'birthday_partner': ('Partner-Geburtstag', '🎉'),
+        'birthday_customer': ('Kunden-Geburtstag', '🎂'),
+        'inactive_alert': ('Inaktive im Team', '⚠'),
     }
     notifications = []
     for r in rows:
@@ -9529,7 +9653,13 @@ def webhook_setup():
     db = get_db()
     tokens = db.execute('SELECT * FROM webhook_tokens WHERE owner_id=? ORDER BY id DESC', (current_user.id,)).fetchall()
     db.close()
-    return render_template('webhook_setup.html', tokens=tokens)
+    # Lead-Link-Stats: Klicks + Anmeldungen über persönlichen Link
+    lead_token = get_or_create_lead_token(current_user.id)
+    lead_link = f"{CANONICAL_URL.rstrip('/')}/start?ref={lead_token}"
+    lead_stats = get_lead_link_stats(current_user.id)
+    return render_template('webhook_setup.html', tokens=tokens,
+                          lead_link=lead_link, lead_token=lead_token,
+                          lead_stats=lead_stats)
 
 
 @app.route('/webhook-setup/create', methods=['POST'])
