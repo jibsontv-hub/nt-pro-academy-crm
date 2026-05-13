@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Owner-Queue · Pro Academy{% endblock %}
-{% block page_title %}Owner-Queue · Heute{% endblock %}
+{% block page_title %}Was du heute tun musst{% endblock %}
 
 {% block content %}
 
@@ -29,10 +29,10 @@
     <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Eine Page für deinen Morgen — alle Entscheidungen mit 1 Klick</div>
   </div>
   <div class="oq-counts">
-    {% if counts.hot_lead %}<span class="oq-pill" style="background:var(--red-soft);color:var(--red)">{{ counts.hot_lead }} Hot-Leads</span>{% endif %}
-    {% if counts.pending_approval %}<span class="oq-pill" style="background:var(--orange-soft);color:var(--orange)">{{ counts.pending_approval }} Genehmigungen</span>{% endif %}
-    {% if counts.drift_top %}<span class="oq-pill" style="background:var(--red-soft);color:var(--red)">{{ counts.drift_top }} Drift-Risiko</span>{% endif %}
-    {% if counts.geld_blocker %}<span class="oq-pill" style="background:var(--gold-soft);color:var(--gold)">{{ counts.geld_blocker }} Geld-Blocker</span>{% endif %}
+    {% if counts.hot_lead %}<span class="oq-pill" style="background:var(--red-soft);color:var(--red)">{{ counts.hot_lead }} neue Anmeldungen</span>{% endif %}
+    {% if counts.pending_approval %}<span class="oq-pill" style="background:var(--orange-soft);color:var(--orange)">{{ counts.pending_approval }} Beförderungen</span>{% endif %}
+    {% if counts.drift_top %}<span class="oq-pill" style="background:var(--red-soft);color:var(--red)">{{ counts.drift_top }} werden langsam</span>{% endif %}
+    {% if counts.geld_blocker %}<span class="oq-pill" style="background:var(--gold-soft);color:var(--gold)">{{ counts.geld_blocker }} blockiertes Geld</span>{% endif %}
     {% if counts.coaching_today %}<span class="oq-pill" style="background:var(--blue-soft);color:var(--blue)">{{ counts.coaching_today }} Coachings</span>{% endif %}
   </div>
 </div>
