@@ -29,9 +29,10 @@ cd $PROJECT
 LAST_FULL_AUDIT=0
 FULL_AUDIT_INTERVAL=$((6 * 3600))  # 6 Stunden
 LAST_DAILY_PUSH_DATE=""  # ISO-Datum des letzten Daily-Push (1× pro Tag)
+LAST_MIDDAY_PUSH_DATE="" # ISO-Datum des letzten Mittag-Re-Push (1× pro Tag, 13-15 Uhr)
 LAST_BACKUP_DATE=""      # ISO-Datum des letzten DB-Backups (1× pro Tag)
 
-echo "[$(date)] Monitor-Loop gestartet — auto-pull · daily-push · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
+echo "[$(date)] Monitor-Loop gestartet — auto-pull · daily-push 8-10 · midday-push 13-15 · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
 
 while true; do
     # ─── 0. Auto-Pull (Fallback wenn GitHub-Webhook fail) ───
@@ -67,6 +68,20 @@ _warm_cache_background()
         echo "[$(date)] Assistentin-Proaktiv-Push wird ausgelöst" | tee -a $HEALTH_LOG
         python3 $PROJECT/scripts/assistentin_proactive.py 2>&1 | tail -8 >> $HEALTH_LOG
         LAST_DAILY_PUSH_DATE=$CURRENT_DATE
+    fi
+
+    # ─── 1b2. Mittag-Re-Push (TIER 1.7) — 1× pro Tag zwischen 13-15 Uhr ─────
+    # Pusht alle REPs (ftier=1) die heute noch 0 Aktivität haben (keine Anrufe,
+    # keine neuen Termine, keine neuen Leads). „Halbzeit · 0 Aktionen heute".
+    if [ "$CURRENT_HOUR" -ge 13 ] && [ "$CURRENT_HOUR" -lt 15 ] && [ "$LAST_MIDDAY_PUSH_DATE" != "$CURRENT_DATE" ]; then
+        echo "[$(date)] Mittag-Re-Push wird ausgelöst (REPs ohne Heute-Aktion)" | tee -a $HEALTH_LOG
+        python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+from app import run_midday_pushes
+stats = run_midday_pushes(force=False)
+print('midday-stats:', stats)
+" 2>&1 | tail -5 >> $HEALTH_LOG
+        LAST_MIDDAY_PUSH_DATE=$CURRENT_DATE
     fi
 
     # ─── 1c. DB-Backup (1× pro Tag, zwischen 3-5 Uhr nachts) ─────────

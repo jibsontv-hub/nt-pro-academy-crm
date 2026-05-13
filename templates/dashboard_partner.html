@@ -6,6 +6,31 @@
 
 {% set is_starter = own_eh < 100 %}
 
+{# TIER 1.5 — HEUTE-SOLL-vs-IST Banner: ganz oben, vor allem anderen.
+   Zeigt Tagessoll aus weekly_goals/7 vs heute-Ist. Status: rot/gelb/grün. #}
+{% if today_pace %}
+{% set _bg = 'linear-gradient(135deg,#7f1d1d 0%,#1a2c5b 100%)' if today_pace.status == 'rot' else
+             ('linear-gradient(135deg,#92400e 0%,#1a2c5b 100%)' if today_pace.status == 'gelb' else
+              'linear-gradient(135deg,#065f46 0%,#1a2c5b 100%)') %}
+{% set _ic = '⚠' if today_pace.status == 'rot' else ('◷' if today_pace.status == 'gelb' else '✓') %}
+{% set _msg = ('Du bist hinten dran — leg jetzt los' if today_pace.status == 'rot' else
+              ('Du schaffst das — noch ein bisschen' if today_pace.status == 'gelb' else
+               'Tagessoll erreicht — weiter so')) %}
+<a href="/aufgaben" style="display:flex;align-items:center;gap:14px;padding:14px 18px;background:{{ _bg }};color:#fff;border-radius:8px;text-decoration:none;margin-bottom:14px;border-left:3px solid var(--gold)">
+  <div style="font-size:22px">{{ _ic }}</div>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:11px;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Heute-Pflicht</div>
+    <div style="font-size:15px;font-weight:700;margin-top:2px">
+      {% if today_pace.anrufe_soll %}{{ today_pace.anrufe_ist }}/{{ today_pace.anrufe_soll }} Anrufe{% endif %}
+      {% if today_pace.anrufe_soll and today_pace.termine_soll %} · {% endif %}
+      {% if today_pace.termine_soll %}{{ today_pace.termine_ist }}/{{ today_pace.termine_soll }} Termine{% endif %}
+    </div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.85);margin-top:2px">{{ _msg }}</div>
+  </div>
+  <div style="font-size:11px;background:var(--gold);color:#0f1c3f;padding:5px 10px;border-radius:6px;font-weight:800">Aufgaben →</div>
+</a>
+{% endif %}
+
 {% if is_starter and feature_tier == 1 %}
 <!-- 🚀 Starter-Banner: prominent zur Roadmap führen -->
 <a href="/onboarding/roadmap" style="display:flex;align-items:center;gap:14px;padding:16px 18px;background:linear-gradient(135deg,#0f1c3f,#1a2c5b);color:#fff;border-radius:18px;text-decoration:none;margin-bottom:16px;border:1px solid rgba(212,168,67,0.4);box-shadow:0 6px 20px rgba(0,0,0,0.2)">
@@ -266,11 +291,27 @@
         <div class="revo-q-i">€</div>
         <div class="revo-q-l">Vertrag</div>
     </a>
-    <a href="/assistent" class="revo-q">
-        <div class="revo-q-i">🤖</div>
-        <div class="revo-q-l">Coach</div>
+    <a href="/skripte" class="revo-q">
+        <div class="revo-q-i">P</div>
+        <div class="revo-q-l">Skripte</div>
     </a>
 </div>
+
+<!-- ☏ Telefon-Skripte · Quick-Card -->
+<a href="/skripte" style="display:block;text-decoration:none;color:inherit;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--navy);border-radius:6px;padding:14px 16px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:40px;height:40px;border-radius:6px;background:var(--navy);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;letter-spacing:0.5px;flex-shrink:0">P</div>
+        <div style="flex:1;min-width:0">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700">Telefon-Skripte</div>
+            <div style="font-size:14px;font-weight:700;color:var(--text);margin-top:2px">Einstieg · Einwand · Abschluss</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Vor dem nächsten Anruf öffnen — oder per Button auf Termine/Liste/Verträge/Aufgaben.</div>
+        </div>
+        {% if current_user.has_admin_access %}
+        <a href="/admin/phone-scripts" onclick="event.stopPropagation()" style="background:var(--bg-2);border:1px solid var(--border-strong);color:var(--text);padding:6px 12px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">Verwalten</a>
+        {% endif %}
+        <span style="color:var(--gold);font-weight:700;font-size:13px">→</span>
+    </div>
+</a>
 
 <!-- 📊 KPI-Chips -->
 <div class="revo-chips">

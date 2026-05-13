@@ -41,7 +41,7 @@
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,0.7);margin-top:6px">
             <span><strong style="color:#d4a843;font-size:18px">{{ p.total_done }} / {{ p.total_tasks }}</strong> Aufgaben</span>
-            <span>Tag <strong>{{ p.active_day }}</strong> von 7</span>
+            <span>Tag <strong>{{ p.active_day }}</strong> · Pfad bis LREP</span>
         </div>
     </div>
 </div>
@@ -49,14 +49,26 @@
 {% if p.completed %}
 <div class="card" style="background:linear-gradient(135deg,var(--green-soft),var(--surface));border:1px solid var(--green);text-align:center;padding:32px">
     <div style="font-size:48px">🏆</div>
-    <div style="font-size:22px;font-weight:900;color:var(--green);margin-top:8px">7 Tage abgeschlossen!</div>
+    <div style="font-size:22px;font-weight:900;color:var(--green);margin-top:8px">6-Monats-Pfad abgeschlossen!</div>
     <div style="font-size:14px;color:var(--text-muted);margin-top:6px">Du bist offiziell durch den Starter-Modus. Jetzt: <a href="/dashboard" style="color:var(--gold);font-weight:700">Vollgas geben →</a></div>
 </div>
 {% endif %}
 
-<!-- DAYS -->
-{% for day_num in range(1, 8) %}
-{% if day_num in p.days %}
+{# Day-Titel zentral — vorher hardcoded nur 1-7, jetzt komplett bis Tag 180 #}
+{% set day_titles = {
+    1: 'Setup & Einstieg', 2: 'Namensliste aufbauen', 3: 'Erste Termine',
+    4: 'Hauptprodukt verstehen', 5: 'Routine festigen', 6: 'Erster Vertrag',
+    7: 'Reflektion & Plan',
+    14: 'Wochenroutine etabliert', 21: '50 EH-Schwelle',
+    28: '1. Monat Bilanz', 42: '500 EH (kumuliert)',
+    56: 'Mentor-Slot fix · 5 GPs aktiv', 70: '800 EH — LREP-Schwelle nähert sich',
+    84: 'Erster GP solo', 90: 'LREP-Bereitschaft',
+    112: 'LREP erreicht ODER Plan B', 140: '1500 EH · 1. Team-Meeting',
+    180: '🏆 LREP stabil + HREP-Plan'
+} %}
+
+<!-- DAYS — alle Tage aus p.days dynamisch (1-180), nicht mehr hardcoded auf 7 -->
+{% for day_num in p.days.keys()|sort %}
 {% set day_tasks = p.days[day_num] %}
 {% set day_done = day_tasks | selectattr('done') | list | length %}
 {% set day_total = day_tasks | length %}
@@ -67,7 +79,7 @@
     <div class="day-head">
         <div class="day-num">{% if is_done %}✓{% else %}{{ day_num }}{% endif %}</div>
         <div style="flex:1">
-            <div class="day-title">Tag {{ day_num }}{% if day_num == 1 %} — Setup & Einstieg{% elif day_num == 2 %} — Namensliste aufbauen{% elif day_num == 3 %} — Erste Termine{% elif day_num == 4 %} — Hauptprodukt verstehen{% elif day_num == 5 %} — Routine festigen{% elif day_num == 6 %} — Erster Vertrag{% elif day_num == 7 %} — Reflektion & Plan{% endif %}</div>
+            <div class="day-title">Tag {{ day_num }}{% if day_titles.get(day_num) %} — {{ day_titles[day_num] }}{% endif %}</div>
             <div class="day-sub">{{ day_done }} / {{ day_total }} erledigt {% if is_locked %}· 🔒 in {{ day_num - p.active_day }} Tagen{% endif %}</div>
         </div>
     </div>
@@ -94,7 +106,6 @@
     </div>
     {% endfor %}
 </div>
-{% endif %}
 {% endfor %}
 
 {% endblock %}

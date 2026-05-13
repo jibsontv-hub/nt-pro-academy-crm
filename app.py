@@ -3113,16 +3113,31 @@ class User(UserMixin):
 
 
 def auto_promote_user(user_id):
-    """Befördert User automatisch wenn EH eine Stufe erlauben (nur hoch, nie runter)."""
+    """Befördert User automatisch wenn EH eine Stufe erlauben (nur hoch, nie runter).
+
+    BUGFIX: Vorher wurde nur own_eh geprüft — aber LREP/HREP/CREP-Schwellen sind
+    GESAMT-EH (eigen + Team). Jetzt korrekt mit total_eh."""
     db = get_db()
     user = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
     if not user:
         db.close()
         return
     own_eh = db.execute('SELECT COALESCE(SUM(einheiten), 0) as s FROM contracts WHERE owner_id = ? AND status = "abgeschlossen" AND recherche_status = "freigegeben"', (user_id,)).fetchone()['s']
+    # Team-EH: alle Downliner-Verträge (transitive Hierarchie)
+    descendants = get_all_descendants(user_id)
+    if descendants:
+        ph = ','.join('?' * len(descendants))
+        team_eh = db.execute(
+            f'SELECT COALESCE(SUM(einheiten), 0) AS s FROM contracts '
+            f'WHERE owner_id IN ({ph}) AND status="abgeschlossen" AND recherche_status="freigegeben"',
+            descendants
+        ).fetchone()['s']
+    else:
+        team_eh = 0
+    total_eh = own_eh + team_eh
     earned = 1
     for cl in CAREER_LEVELS:
-        if own_eh >= cl['min_eh']:
+        if total_eh >= cl['min_eh']:
             earned = cl['level']
         else:
             break
@@ -4341,7 +4356,7 @@ PHONE_SCRIPT_DEFAULTS = [
         'Genau deshalb rufe ich an. Die meisten Kunden, mit denen ich spreche, haben schon was — '
         'und 8 von 10 zahlen entweder zu viel oder sind in der wichtigsten Sparte gar nicht abgesichert. '
         'Wir schauen einfach kurz drauf — kostet nichts, dauert 15 Minuten. Wann passt es?'),
-    ('einwand', 30, '"Ich überleg''s mir / muss erst mit Partner reden"',
+    ('einwand', 30, '"Ich überleg\'s mir / muss erst mit Partner reden"',
         'Klar, das ist eine Entscheidung, die man nicht aus dem Bauch trifft. '
         'Genau dafür ist das erste Gespräch da: Sie kriegen alle Infos, gehen damit zu Ihrem Partner, '
         'und dann entscheiden Sie. Lass uns einfach den Termin setzen — Mittwoch 18 Uhr oder Donnerstag 19 Uhr?'),
@@ -6222,10 +6237,16 @@ def run_daily_pushes(force=False):
             pass
 
         # 2) INAKTIV-ALERT für Uplines (3+ Tage stille direkte Partner)
+        # BUGFIX: key war f'inact-{len(inact)}' — wenn morgens 2 inaktiv und nachmittags
+        # kommt der 3. dazu, blockierte gleicher Count-Key den neuen Push. Jetzt
+        # set-basiert: jeder neue Inaktiv-Set bekommt eigenen Key.
+        # PLUS: Push auch an REP selbst (nicht nur Sponsor) — REP sollte selbst merken
+        # dass er driftet, nicht nur outsourced an Upline.
         try:
             inact = get_inactive_team_members(uid, days=3, scope='direct')
             if inact:
-                key = f'inact-{len(inact)}'
+                ids_signature = ','.join(sorted(str(x['id']) for x in inact))
+                key = f'inact-set-{ids_signature[:120]}'
                 if force or not _push_already_sent(uid, 'inactive_alert', key):
                     names = ', '.join([f"{x['name']} ({x['days_inactive']}T)" for x in inact[:3]])
                     send_push_to_user(uid,
@@ -6234,6 +6255,18 @@ def run_daily_pushes(force=False):
                         url='/team/inaktiv', tag='inactive', push_type='inactive_alert')
                     _push_mark_sent(uid, 'inactive_alert', key)
                     stats['inactive_alert'] += 1
+                # PUSH AN REP SELBST (Drift-Check) — TIER 1.8
+                for r in inact:
+                    rep_id = r['id']
+                    days = r['days_inactive']
+                    rkey = f'self-drift-{days}'
+                    if force or not _push_already_sent(rep_id, 'self_drift_alert', rkey):
+                        send_push_to_user(rep_id,
+                            title=f'⏰ {days} Tage still — alles ok?',
+                            body='Ein kurzer Anruf reicht für 1 Termin. Wir schaffen das.',
+                            url='/aufgaben', urgent=False, tag='self-drift',
+                            push_type='self_drift_alert')
+                        _push_mark_sent(rep_id, 'self_drift_alert', rkey)
         except Exception:
             pass
 
@@ -6291,6 +6324,79 @@ def push_run_daily():
         return jsonify({'ok': False, 'error': 'admin only'}), 403
     force = request.args.get('force') == '1'
     stats = run_daily_pushes(force=force)
+    return jsonify({'ok': True, 'stats': stats})
+
+
+def run_midday_pushes(force=False):
+    """TIER 1.7 — Mittag-Re-Push: prüft 13-15 Uhr ob REP heute schon Aktion hatte.
+    Wenn NULL Aktivität (keine Anrufe, keine neuen Termine, keine neuen Leads) →
+    Push „Halbzeit · 0 Aktionen heute" mit konkretem Aktionspfad.
+
+    Idempotent via push_log key 'midday-YYYY-MM-DD' — max 1× pro Tag pro User.
+    Läuft nur für ftier=1 (REPs).
+    """
+    db = get_db()
+    today = date.today().isoformat()
+    # Alle aktiven REPs (ftier=1: manual_career_level <= 1, kein advanced_mode, kein admin)
+    rows = db.execute(
+        "SELECT id, name FROM users WHERE active=1 AND COALESCE(manual_career_level,1) <= 1 "
+        "AND COALESCE(advanced_mode,0) = 0 AND role != 'admin'"
+    ).fetchall()
+    db.close()
+    sent = 0
+    for r in rows:
+        uid = r['id']
+        # Idempotent
+        if not force and _push_already_sent(uid, 'midday_nudge', f'midday-{today}'):
+            continue
+        db2 = get_db()
+        try:
+            chk = db2.execute(
+                'SELECT 1 FROM daily_checkins WHERE user_id=? AND datum=? AND (anrufe>0 OR termine>0) LIMIT 1',
+                (uid, today)
+            ).fetchone()
+            has_action = chk is not None
+            if not has_action:
+                appts = db2.execute(
+                    "SELECT 1 FROM appointments WHERE owner_id=? AND date(created_at)=? LIMIT 1",
+                    (uid, today)
+                ).fetchone()
+                has_action = appts is not None
+            if not has_action:
+                leads_t = db2.execute(
+                    "SELECT 1 FROM leads WHERE owner_id=? AND date(created_at)=? LIMIT 1",
+                    (uid, today)
+                ).fetchone()
+                has_action = leads_t is not None
+        finally:
+            db2.close()
+        if has_action:
+            continue  # User ist schon dran — kein Nudge nötig
+        try:
+            send_push_to_user(
+                uid,
+                title='⏰ Halbzeit · 0 Aktionen heute',
+                body='5 Min reichen für 1 Termin. Heute ist noch was drin.',
+                url='/aufgaben',
+                urgent=False,
+                tag='midday',
+                push_type='midday_nudge',
+            )
+            _push_mark_sent(uid, 'midday_nudge', f'midday-{today}')
+            sent += 1
+        except Exception:
+            pass
+    return {'midday_nudge_sent': sent, 'rep_total': len(rows)}
+
+
+@app.route('/api/push/run-midday', methods=['POST', 'GET'])
+@login_required
+def push_run_midday():
+    """Mittag-Push manuell triggern (Admin)."""
+    if not current_user.has_admin_access:
+        return jsonify({'ok': False, 'error': 'admin only'}), 403
+    force = request.args.get('force') == '1'
+    stats = run_midday_pushes(force=force)
     return jsonify({'ok': True, 'stats': stats})
 
 
@@ -8970,7 +9076,10 @@ def get_onboarding_progress(user_id):
         else:
             start = date.today()
         days_since = (date.today() - start).days
-        active_day = min(7, max(1, days_since + 1))
+        # BUGFIX: vorher min(7, ...) — capped Roadmap nach Tag 7. Aber Tag 14, 28, 42,
+        # 56, 70, 84, 90, 112, 140, 180 haben LREP-Wegmarken (250 EH 1-Monatsziel,
+        # 800 EH LREP-Schwelle, etc.) Werden jetzt sichtbar.
+        active_day = max(1, days_since + 1)
     except Exception:
         active_day = 1
     # Done-Status pro Task
@@ -9212,7 +9321,22 @@ def webhook_delete(tid):
 
 
 def _update_streak(user_id):
-    """Streak-Logik: täglicher Login zählt. +1 wenn gestern auch, reset auf 1 wenn Lücke.
+    """Streak-Logik: AKTION-basiert (TIER 1.6).
+
+    Vorher: Login zählt. Folge: REP loggt sich täglich 30 Sek ein → Streak brennt
+    weiter ohne dass je was Vertriebliches passiert. Belohnte App-Öffnen statt Verkauf.
+
+    Jetzt: Streak zählt nur wenn der User HEUTE mindestens EINE der folgenden
+    Aktionen gemacht hat:
+      - Daily Check-in eingetragen (anrufe > 0 ODER termine > 0)
+      - Mindestens 1 neuen Termin angelegt
+      - Mindestens 1 neuen Lead angelegt
+      - Mindestens 1 Vertrag eingereicht
+
+    Wenn User sich nur einloggt aber nichts macht → Streak bleibt unverändert
+    (nicht +1, aber auch nicht 0 — die Lücke entsteht erst nachdem ein ganzer
+    Tag rum ist ohne Aktion).
+
     Returns: (current_streak, is_new_today)"""
     db = get_db()
     row = db.execute('SELECT streak_days, streak_last_date FROM users WHERE id=?', (user_id,)).fetchone()
@@ -9223,10 +9347,42 @@ def _update_streak(user_id):
     today_iso = today.isoformat()
     last = row['streak_last_date']
     cur = row['streak_days'] or 0
-    is_new_today = False
     if last == today_iso:
         db.close()
         return (cur, False)  # heute schon gezählt
+    # Prüfen ob heute ECHTE Aktion stattgefunden hat
+    chk = db.execute(
+        'SELECT 1 FROM daily_checkins WHERE user_id=? AND datum=? AND (anrufe > 0 OR termine > 0) LIMIT 1',
+        (user_id, today_iso)
+    ).fetchone()
+    has_action = chk is not None
+    if not has_action:
+        # Termine heute angelegt?
+        appts = db.execute(
+            "SELECT 1 FROM appointments WHERE owner_id=? AND date(created_at)=? LIMIT 1",
+            (user_id, today_iso)
+        ).fetchone()
+        has_action = appts is not None
+    if not has_action:
+        # Leads heute angelegt?
+        leads_t = db.execute(
+            "SELECT 1 FROM leads WHERE owner_id=? AND date(created_at)=? LIMIT 1",
+            (user_id, today_iso)
+        ).fetchone()
+        has_action = leads_t is not None
+    if not has_action:
+        # Verträge heute eingereicht?
+        contracts_t = db.execute(
+            "SELECT 1 FROM contracts WHERE owner_id=? AND date(created_at)=? LIMIT 1",
+            (user_id, today_iso)
+        ).fetchone()
+        has_action = contracts_t is not None
+    if not has_action:
+        # Keine Aktion heute → Streak bleibt unverändert (kein +1, aber auch noch
+        # keine Lücke — die entsteht erst wenn der nächste Tag startet ohne dass
+        # heute was passiert ist und _update_streak dann last vs yesterday vergleicht)
+        db.close()
+        return (cur, False)
     yesterday_iso = (today - timedelta(days=1)).isoformat()
     if last == yesterday_iso:
         cur += 1  # weiter
@@ -9395,6 +9551,71 @@ def _build_admin_dashboard_stats(user_id):
     return stats  # cache_set erfolgt durch cache_swr-Wrapper
 
 
+def get_today_pace(user_id):
+    """Berechnet Heute-Soll-vs-Ist für REP-Aktivierung.
+
+    Quelle Soll: weekly_goals der aktuellen Woche, geteilt durch 7.
+    Quelle Ist: daily_checkins[heute].anrufe + heute-erstellte Termine + heute-erstellte Leads.
+
+    Liefert dict mit anrufe_soll/ist, termine_soll/ist, status (rot/gelb/grün).
+    Status: rot wenn Ist < 50% Soll bis 16 Uhr, gelb wenn 50-99%, grün wenn ≥ Soll.
+    Liefert None wenn keine weekly_goals gesetzt → Banner wird nicht gerendered.
+    """
+    db = get_db()
+    try:
+        today = date.today()
+        # Montag dieser Woche
+        monday = (today - timedelta(days=today.weekday())).isoformat()
+        wg = db.execute(
+            'SELECT ziel_anrufe, ziel_termine, ziel_vertraege FROM weekly_goals '
+            'WHERE user_id=? AND week_start=?', (user_id, monday)
+        ).fetchone()
+        if not wg or (not wg['ziel_anrufe'] and not wg['ziel_termine']):
+            db.close()
+            return None
+        anrufe_soll_tag = round((wg['ziel_anrufe'] or 0) / 7)
+        termine_soll_tag = round((wg['ziel_termine'] or 0) / 7)
+        # Ist heute
+        chk = db.execute(
+            'SELECT anrufe, termine FROM daily_checkins WHERE user_id=? AND datum=?',
+            (user_id, today.isoformat())
+        ).fetchone()
+        anrufe_ist = (chk['anrufe'] if chk else 0) or 0
+        termine_ist_chk = (chk['termine'] if chk else 0) or 0
+        # Plus tatsächlich heute angelegte Termine (über appointments-Tabelle)
+        appts_today = db.execute(
+            "SELECT COUNT(*) c FROM appointments WHERE owner_id=? AND date(created_at)=?",
+            (user_id, today.isoformat())
+        ).fetchone()['c']
+        termine_ist = max(termine_ist_chk, appts_today)
+        db.close()
+        # Status berechnen
+        anrufe_pct = (anrufe_ist / anrufe_soll_tag * 100) if anrufe_soll_tag else 100
+        termine_pct = (termine_ist / termine_soll_tag * 100) if termine_soll_tag else 100
+        worst_pct = min(anrufe_pct, termine_pct)
+        hour = datetime.now().hour
+        if worst_pct >= 100:
+            status = 'gruen'
+        elif hour >= 16 and worst_pct < 50:
+            status = 'rot'
+        elif worst_pct >= 50:
+            status = 'gelb'
+        else:
+            status = 'rot' if hour >= 12 else 'gelb'
+        return {
+            'anrufe_soll': anrufe_soll_tag, 'anrufe_ist': anrufe_ist,
+            'termine_soll': termine_soll_tag, 'termine_ist': termine_ist,
+            'status': status,
+            'pct': round(worst_pct),
+        }
+    except Exception:
+        try:
+            db.close()
+        except Exception:
+            pass
+        return None
+
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -9413,8 +9634,12 @@ def dashboard():
     progress_pct = 100
     eh_to_next = 0
     if next_level:
-        progress_pct = min(100, (own_eh / next_level['min_eh']) * 100) if next_level['min_eh'] > 0 else 0
-        eh_to_next = max(0, next_level['min_eh'] - own_eh)
+        # BUGFIX: total_eh = eigen + Team — denn LREP/HREP-Schwellen sind GESAMT-EH.
+        # Vorher zeigte Hero pessimistische own_eh-Distanz, REPs glaubten sie wären
+        # weiter weg als sie wirklich sind.
+        total_eh_for_progress = own_eh + team_eh
+        progress_pct = min(100, (total_eh_for_progress / next_level['min_eh']) * 100) if next_level['min_eh'] > 0 else 0
+        eh_to_next = max(0, next_level['min_eh'] - total_eh_for_progress)
     conversion = get_conversion_rate(current_user.id, include_team=(current_user.role == 'admin'))
     my_commissions = get_commissions_for_user(current_user.id)
 
@@ -9577,6 +9802,8 @@ def dashboard():
         db_s.close()
         streak_days = (s_row['streak_days'] or 0) if s_row else 0
         vision_needed = not _has_vision_today(current_user.id)
+        # TIER 1.5 — Heute-Soll-vs-Ist-Banner (Activation-Hebel)
+        today_pace = get_today_pace(current_user.id)
         return render_template('dashboard_partner.html',
             stats=stats, my_leads=my_leads, my_appointments=my_appointments,
             direct_team=direct_team, quota=quota,
@@ -9592,6 +9819,7 @@ def dashboard():
             deadlines=deadlines, coach_actions=coach_actions, structure_dist=structure_dist,
             forecast_30d=forecast_30d, strang_status=strang_status, struktur_news=struktur_news,
             streak_days=streak_days, vision_needed=vision_needed,
+            today_pace=today_pace,
             admin_personal=None  # nur Admin hat das — Partner nicht
         )
 
