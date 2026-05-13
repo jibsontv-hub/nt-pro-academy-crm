@@ -8515,16 +8515,9 @@ def webhook_lead(token):
 @app.route('/webhook-setup')
 @login_required
 def webhook_setup():
-    # Sicherheit: Webhook-Erstellung nur ab Stufe 2 (LREP+) oder Admin.
-    # Verhindert dass jeder REP unbegrenzt Public-Lead-URLs anlegen kann.
+    """Lead-Link-Setup für jeden User — Najibs Vision: REPs sollen
+    Lead-URLs erstellen können (Insta-Bio, Stories, WhatsApp etc.)."""
     db = get_db()
-    user_row = db.execute('SELECT manual_career_level, COALESCE(advanced_mode,0) as adv FROM users WHERE id=?',
-                          (current_user.id,)).fetchone()
-    lvl = (user_row['manual_career_level'] or 1) if user_row else 1
-    if not (current_user.has_admin_access or lvl >= 2 or (user_row and user_row['adv'])):
-        db.close()
-        flash('Webhooks sind ab Stufe 2 (LREP) verfügbar. Sprich mit deinem Strukturhöher.', 'info')
-        return redirect(url_for('dashboard'))
     tokens = db.execute('SELECT * FROM webhook_tokens WHERE owner_id=? ORDER BY id DESC', (current_user.id,)).fetchall()
     db.close()
     return render_template('webhook_setup.html', tokens=tokens)
