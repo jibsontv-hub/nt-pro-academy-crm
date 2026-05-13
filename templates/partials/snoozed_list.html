@@ -1,0 +1,14 @@
+{# Snoozed/Skipped-Liste — heute zurückholen.
+   Wird nur initial serverseitig gerendert; nach Action wird via JS-Funktion
+   renderSnoozed() neu erzeugt. #}
+<div class="snoozed-section">
+    <div class="ss-title">↶ Heute verschoben oder geskippt ({{ snoozed | length }})</div>
+    {% for s in snoozed %}
+    <div class="snoozed-item">
+        <span style="font-size:14px">{% if s.outcome == 'snooze' %}⏰{% else %}→{% endif %}</span>
+        <span class="si-name">{{ s.target_name or s.task_type }}</span>
+        <span class="si-status">{% if s.outcome == 'snooze' %}verschoben{% else %}übersprungen{% endif %}</span>
+        <button class="btn-undo" onclick="undoAction({{ s.id }})">Zurückholen</button>
+    </div>
+    {% endfor %}
+</div>

@@ -1,0 +1,24 @@
+{# DMO-Strip: 3-4 Counter-Tiles (Anrufe / Follow-ups / Termine / Recruiting).
+   Wird im /heute serverseitig UND nach jedem AJAX-Action JS-clientseitig gerendert. #}
+<div class="dmo-tile {% if dmo.actual.calls >= dmo.target.calls %}done{% endif %}">
+    <div class="dmo-num">{{ dmo.actual.calls }}<small>/{{ dmo.target.calls }}</small></div>
+    <div class="dmo-label">Anrufe</div>
+    <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.calls / dmo.target.calls * 100) if dmo.target.calls else 0 }}%"></div></div>
+</div>
+<div class="dmo-tile {% if dmo.actual.followups >= dmo.target.followups %}done{% endif %}">
+    <div class="dmo-num">{{ dmo.actual.followups }}<small>/{{ dmo.target.followups }}</small></div>
+    <div class="dmo-label">Follow-ups</div>
+    <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.followups / dmo.target.followups * 100) if dmo.target.followups else 0 }}%"></div></div>
+</div>
+<div class="dmo-tile {% if dmo.actual.termine >= dmo.target.termine %}done{% endif %}">
+    <div class="dmo-num">{{ dmo.actual.termine }}<small>/{{ dmo.target.termine }}</small></div>
+    <div class="dmo-label">Termine</div>
+    <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.termine / dmo.target.termine * 100) if dmo.target.termine else 0 }}%"></div></div>
+</div>
+{% if dmo.target.recruiting > 0 %}
+<div class="dmo-tile {% if dmo.actual.recruiting >= dmo.target.recruiting %}done{% endif %}">
+    <div class="dmo-num">{{ dmo.actual.recruiting }}<small>/{{ dmo.target.recruiting }}</small></div>
+    <div class="dmo-label">Recruiting</div>
+    <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.recruiting / dmo.target.recruiting * 100) if dmo.target.recruiting else 0 }}%"></div></div>
+</div>
+{% endif %}

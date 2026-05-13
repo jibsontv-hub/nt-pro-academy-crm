@@ -32,21 +32,26 @@
     background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
     padding: 26px; margin-bottom: 14px; position: relative;
     box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    touch-action: pan-y;
+    user-select: none;
 }
 .task-card.priority-100 { border-left: 4px solid #ef4444; }
 .task-card.priority-90 { border-left: 4px solid #f59e0b; }
 .task-card.priority-85 { border-left: 4px solid #f59e0b; }
 .task-card.priority-80 { border-left: 4px solid #3b82f6; }
 .task-card.priority-70 { border-left: 4px solid #8b5cf6; }
+.task-card.priority-65 { border-left: 4px solid #06b6d4; }
+.task-card.priority-62 { border-left: 4px solid #06b6d4; }
 .task-card.priority-60 { border-left: 4px solid #10b981; }
 .task-card.priority-50 { border-left: 4px solid #06b6d4; }
 
 .task-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
 .task-icon { font-size: 28px; line-height: 1; }
 .task-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 6px; line-height: 1.2; }
-.task-phone { font-size: 14px; color: var(--text-muted); margin-bottom: 14px; }
+.task-phone { font-size: 14px; color: var(--text-muted); margin-bottom: 14px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .task-phone a { color: var(--gold); text-decoration: none; font-weight: 700; }
+.task-phone .voice-link { background: #25D366; color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
 .task-reason {
     background: var(--bg-2); border-left: 3px solid var(--gold);
     padding: 12px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5;
@@ -59,10 +64,15 @@
     cursor: pointer; transition: all 0.15s; font-family: inherit;
 }
 .btn-task:hover { transform: translateY(-1px); }
+.btn-task:disabled { opacity: 0.5; cursor: wait; }
 .btn-done { background: #22c55e; border-color: #22c55e; color: #fff; }
 .btn-done:hover { background: #16a34a; box-shadow: 0 4px 12px rgba(34,197,94,0.35); }
 .btn-snooze { background: var(--bg-2); border-color: var(--border); color: var(--text); }
 .btn-skip { background: var(--bg-2); border-color: var(--border); color: var(--text-muted); }
+
+.swipe-hint { text-align: center; font-size: 10px; color: var(--text-muted); margin-top: 12px; opacity: 0; transition: opacity 0.3s; }
+.task-card:hover .swipe-hint { opacity: 1; }
+@media (hover: none) { .swipe-hint { opacity: 0.6; } }
 
 .up-next { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; margin: 22px 0 10px; }
 .up-next-list { display: flex; flex-direction: column; gap: 8px; }
@@ -74,6 +84,17 @@
 .up-next-item .un-icon { font-size: 16px; }
 .up-next-item .un-name { font-weight: 700; color: var(--text); }
 .up-next-item .un-reason { color: var(--text-muted); font-size: 12px; flex: 1; }
+
+.snoozed-section {
+    margin-top: 22px; padding: 14px 16px;
+    background: var(--bg-2); border-radius: 10px; border: 1px solid var(--border);
+}
+.snoozed-section .ss-title { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; margin-bottom: 8px; }
+.snoozed-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 12px; }
+.snoozed-item .si-name { flex: 1; color: var(--text); font-weight: 600; }
+.snoozed-item .si-status { color: var(--text-muted); font-size: 11px; }
+.btn-undo { background: none; border: 1px solid var(--border); color: var(--gold); padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.btn-undo:hover { background: var(--gold-soft); }
 
 .empty-state {
     text-align: center; padding: 60px 30px;
@@ -101,86 +122,23 @@
                 <a href="/einstellungen#dmo" style="color:var(--gold);text-decoration:none">Anpassen</a>
             </div>
         </div>
-        {% if dmo.streak >= 1 %}
-        <div class="streak-pill">🔥 {{ dmo.streak }}-Tage-Streak</div>
-        {% endif %}
+        <div id="streakPill" {% if dmo.streak < 1 %}style="display:none"{% endif %}>
+            <div class="streak-pill">🔥 <span id="streakDays">{{ dmo.streak }}</span>-Tage-Streak</div>
+        </div>
     </div>
-    <div class="dmo-strip">
-        <div class="dmo-tile {% if dmo.actual.calls >= dmo.target.calls %}done{% endif %}">
-            <div class="dmo-num">{{ dmo.actual.calls }}<small>/{{ dmo.target.calls }}</small></div>
-            <div class="dmo-label">Anrufe</div>
-            <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.calls / dmo.target.calls * 100) if dmo.target.calls else 0 }}%"></div></div>
-        </div>
-        <div class="dmo-tile {% if dmo.actual.followups >= dmo.target.followups %}done{% endif %}">
-            <div class="dmo-num">{{ dmo.actual.followups }}<small>/{{ dmo.target.followups }}</small></div>
-            <div class="dmo-label">Follow-ups</div>
-            <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.followups / dmo.target.followups * 100) if dmo.target.followups else 0 }}%"></div></div>
-        </div>
-        <div class="dmo-tile {% if dmo.actual.termine >= dmo.target.termine %}done{% endif %}">
-            <div class="dmo-num">{{ dmo.actual.termine }}<small>/{{ dmo.target.termine }}</small></div>
-            <div class="dmo-label">Termine</div>
-            <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.termine / dmo.target.termine * 100) if dmo.target.termine else 0 }}%"></div></div>
-        </div>
-        {% if dmo.target.recruiting > 0 %}
-        <div class="dmo-tile {% if dmo.actual.recruiting >= dmo.target.recruiting %}done{% endif %}">
-            <div class="dmo-num">{{ dmo.actual.recruiting }}<small>/{{ dmo.target.recruiting }}</small></div>
-            <div class="dmo-label">Recruiting</div>
-            <div class="dmo-bar"><div class="dmo-bar-fill" style="width:{{ (dmo.actual.recruiting / dmo.target.recruiting * 100) if dmo.target.recruiting else 0 }}%"></div></div>
-        </div>
-        {% endif %}
+    <div class="dmo-strip" id="dmoStrip">
+        {% include 'partials/dmo_strip.html' %}
     </div>
 
-    {# Aktive Task Card oder Empty State #}
+    {# Aktive Task Card oder Empty State — wird via JS aktualisiert #}
     <div id="taskContainer">
-        {% if stack and stack | length > 0 %}
-            {% set t = stack[0] %}
-            <div class="task-card priority-{{ t.priority }}" data-task-key="{{ t.task_key }}" data-task-type="{{ t.task_type }}" data-target-id="{{ t.target_id or '' }}">
-                <div class="task-meta">
-                    <span class="task-icon">{{ t.icon }}</span>
-                    <span>JETZT · Aufgabe 1 von {{ stack | length }}</span>
-                </div>
-                <div class="task-title">{{ t.title }}</div>
-                {% if t.target_phone %}
-                <div class="task-phone">📞 <a href="tel:{{ t.target_phone }}">{{ t.target_phone }}</a></div>
-                {% endif %}
-                <div class="task-reason">{{ t.reason }}</div>
-                <div class="task-actions">
-                    <button class="btn-task btn-done" onclick="actionTask('done')">✓ Erledigt</button>
-                    <button class="btn-task btn-snooze" onclick="actionTask('snooze', 60)">⏰ +1h</button>
-                    <button class="btn-task btn-skip" onclick="actionTask('skip')">→ Skip</button>
-                </div>
-                {% if t.target_id %}
-                <div style="margin-top:12px;text-align:center">
-                    <a href="/partner/{{ t.target_id }}/profil" style="font-size:12px;color:var(--text-muted);text-decoration:none">→ Profil ansehen</a>
-                </div>
-                {% endif %}
-            </div>
+        {% include 'partials/task_card.html' %}
+    </div>
 
-            {% if stack | length > 1 %}
-            <div class="up-next">Danach kommt</div>
-            <div class="up-next-list">
-                {% for t in stack[1:] %}
-                <div class="up-next-item">
-                    <span class="un-icon">{{ t.icon }}</span>
-                    <span class="un-name">{{ t.target_name }}</span>
-                    <span class="un-reason">{{ t.reason[:80] }}{% if t.reason | length > 80 %}…{% endif %}</span>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-        {% else %}
-            <div class="empty-state">
-                <div class="es-icon">{% if dmo.all_done %}🏆{% else %}🌅{% endif %}</div>
-                <h2>{% if dmo.all_done %}Tagesziel erreicht!{% else %}Ruhig heute{% endif %}</h2>
-                <p>
-                    {% if dmo.all_done %}
-                    Du hast deine DMO erfüllt: {{ dmo.actual.calls }} Anrufe, {{ dmo.actual.followups }} Follow-ups, {{ dmo.actual.termine }} Termine. Streak {{ dmo.streak }} Tage. Stark!
-                    {% else %}
-                    Keine kritischen Aufgaben in deinem Team. Nutze die Zeit für proaktive Akquise oder Coaching.
-                    {% endif %}
-                </p>
-                <a href="/dashboard" class="btn btn-primary">→ Zum Dashboard</a>
-            </div>
+    {# Snoozed/Skipped — heute zurückholen #}
+    <div id="snoozedContainer">
+        {% if snoozed %}
+        {% include 'partials/snoozed_list.html' %}
         {% endif %}
     </div>
 
@@ -216,9 +174,110 @@
 
 <script>
 const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
+
+// Render DMO-Strip aus JSON
+function renderDmoStrip(dmo) {
+    const tiles = [
+        {kind: 'calls', label: 'Anrufe'},
+        {kind: 'followups', label: 'Follow-ups'},
+        {kind: 'termine', label: 'Termine'},
+    ];
+    if (dmo.target.recruiting > 0) tiles.push({kind: 'recruiting', label: 'Recruiting'});
+    return tiles.map(t => {
+        const actual = dmo.actual[t.kind];
+        const target = dmo.target[t.kind];
+        const done = actual >= target;
+        const pct = target ? Math.min(100, actual / target * 100) : 0;
+        return `<div class="dmo-tile${done ? ' done' : ''}">
+            <div class="dmo-num">${actual}<small>/${target}</small></div>
+            <div class="dmo-label">${t.label}</div>
+            <div class="dmo-bar"><div class="dmo-bar-fill" style="width:${pct}%"></div></div>
+        </div>`;
+    }).join('');
+}
+
+// Voice-Memo-WhatsApp-Link bauen
+function voiceLink(phone, message) {
+    if (!phone) return null;
+    const cleaned = phone.replace(/[^\d+]/g, '').replace(/^\+/, '');
+    return `https://wa.me/${cleaned}?text=${encodeURIComponent(message)}`;
+}
+
+// Render eine Task-Card aus JSON
+function renderTaskCard(stack) {
+    if (!stack || stack.length === 0) {
+        return `<div class="empty-state">
+            <div class="es-icon">🏆</div>
+            <h2>Stack erledigt</h2>
+            <p>Alle priorisierten Aufgaben für heute sind durch. Stark!</p>
+            <a href="/dashboard" class="btn btn-primary">→ Zum Dashboard</a>
+        </div>`;
+    }
+    const t = stack[0];
+    let phoneBlock = '';
+    if (t.target_phone) {
+        phoneBlock = `<div class="task-phone">📞 <a href="tel:${t.target_phone}">${t.target_phone}</a>`;
+        if (t.task_type === 'stagnation_voice') {
+            const voiceMsg = `Hi ${t.target_name.split(' ')[0]}, ich hab dich kurz nicht gesehen — alles ok? Kein Stress, melde dich wenn du magst.`;
+            const wa = voiceLink(t.target_phone, voiceMsg);
+            if (wa) phoneBlock += ` <a href="${wa}" target="_blank" rel="noopener" class="voice-link">🎙️ Sprachnachricht via WhatsApp</a>`;
+        }
+        phoneBlock += '</div>';
+    }
+    const profileLink = t.target_id ?
+        `<div style="margin-top:12px;text-align:center"><a href="/partner/${t.target_id}/profil" style="font-size:12px;color:var(--text-muted);text-decoration:none">→ Profil ansehen</a></div>` : '';
+    return `<div class="task-card priority-${t.priority}" data-task-key="${t.task_key}" data-task-type="${t.task_type}" data-target-id="${t.target_id || ''}">
+        <div class="task-meta">
+            <span class="task-icon">${t.icon}</span>
+            <span>JETZT · Aufgabe 1 von ${stack.length}</span>
+        </div>
+        <div class="task-title">${t.title}</div>
+        ${phoneBlock}
+        <div class="task-reason">${t.reason}</div>
+        <div class="task-actions">
+            <button class="btn-task btn-done" onclick="actionTask('done')">✓ Erledigt</button>
+            <button class="btn-task btn-snooze" onclick="actionTask('snooze', 60)">⏰ +1h</button>
+            <button class="btn-task btn-skip" onclick="actionTask('skip')">→ Skip</button>
+        </div>
+        <div class="swipe-hint">← Skip · → Erledigt (mobile swipe)</div>
+        ${profileLink}
+    </div>` + renderUpNext(stack);
+}
+
+function renderUpNext(stack) {
+    if (stack.length <= 1) return '';
+    return `<div class="up-next">Danach kommt</div>
+    <div class="up-next-list">${stack.slice(1).map(t => `
+        <div class="up-next-item">
+            <span class="un-icon">${t.icon}</span>
+            <span class="un-name">${t.target_name}</span>
+            <span class="un-reason">${t.reason.length > 80 ? t.reason.slice(0,80) + '…' : t.reason}</span>
+        </div>`).join('')}</div>`;
+}
+
+function renderSnoozed(snoozed) {
+    if (!snoozed || snoozed.length === 0) return '';
+    return `<div class="snoozed-section">
+        <div class="ss-title">↶ Heute verschoben oder geskippt (${snoozed.length})</div>
+        ${snoozed.map(s => `
+            <div class="snoozed-item">
+                <span style="font-size:14px">${s.outcome === 'snooze' ? '⏰' : '→'}</span>
+                <span class="si-name">${s.target_name || s.task_type}</span>
+                <span class="si-status">${s.outcome === 'snooze' ? 'verschoben' : 'übersprungen'}</span>
+                <button class="btn-undo" onclick="undoAction(${s.id})">Zurückholen</button>
+            </div>
+        `).join('')}
+    </div>`;
+}
+
 async function actionTask(outcome, snoozeMinutes = null) {
     const card = document.querySelector('.task-card[data-task-key]');
     if (!card) return;
+    // Buttons disablen + visuell
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+    card.style.opacity = '0.5';
+    card.style.transform = outcome === 'done' ? 'scale(0.92)' : (outcome === 'skip' ? 'translateX(-100%)' : 'translateX(50%)');
+
     const body = {
         task_key: card.dataset.taskKey,
         task_type: card.dataset.taskType,
@@ -226,11 +285,6 @@ async function actionTask(outcome, snoozeMinutes = null) {
         outcome: outcome,
     };
     if (snoozeMinutes) body.snooze_minutes = snoozeMinutes;
-
-    // Visuelles Feedback
-    card.style.opacity = '0.5';
-    card.style.transform = outcome === 'done' ? 'scale(0.95)' : 'translateX(-30px)';
-    card.style.transition = 'all 0.3s';
 
     try {
         const resp = await fetch('/api/today/action', {
@@ -240,18 +294,80 @@ async function actionTask(outcome, snoozeMinutes = null) {
         });
         const data = await resp.json();
         if (data.ok) {
-            // Reload für nächste Karte (einfacher als JS-Re-Render)
-            setTimeout(() => location.reload(), 300);
+            // Power-Dialer-Pattern: kein Reload, direkt nächste Karte
+            setTimeout(() => {
+                document.getElementById('taskContainer').innerHTML = renderTaskCard(data.stack);
+                document.getElementById('dmoStrip').innerHTML = renderDmoStrip(data.dmo);
+                document.getElementById('snoozedContainer').innerHTML = renderSnoozed(data.snoozed);
+                // Streak update
+                const sp = document.getElementById('streakPill');
+                if (data.dmo.streak >= 1) {
+                    sp.style.display = '';
+                    document.getElementById('streakDays').textContent = data.dmo.streak;
+                } else { sp.style.display = 'none'; }
+                // Re-attach swipe-handler
+                attachSwipe();
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            }, 250);
         } else {
+            card.querySelectorAll('button').forEach(b => b.disabled = false);
             card.style.opacity = '1';
             card.style.transform = 'none';
             alert('Fehler: ' + (data.error || 'unbekannt'));
         }
     } catch (e) {
+        card.querySelectorAll('button').forEach(b => b.disabled = false);
         card.style.opacity = '1';
         card.style.transform = 'none';
         console.error(e);
     }
 }
+
+async function undoAction(actionId) {
+    try {
+        const resp = await fetch('/api/today/undo', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+            body: JSON.stringify({action_id: actionId})
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            document.getElementById('taskContainer').innerHTML = renderTaskCard(data.stack);
+            document.getElementById('dmoStrip').innerHTML = renderDmoStrip(data.dmo);
+            document.getElementById('snoozedContainer').innerHTML = renderSnoozed(data.snoozed);
+            attachSwipe();
+        }
+    } catch (e) { console.error(e); }
+}
+
+// Mobile-Swipe-Gestures: links=Skip, rechts=Done
+function attachSwipe() {
+    const card = document.querySelector('.task-card[data-task-key]');
+    if (!card) return;
+    let startX = 0, startY = 0, currentX = 0;
+    let dragging = false;
+    card.addEventListener('touchstart', e => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        dragging = true;
+    }, {passive: true});
+    card.addEventListener('touchmove', e => {
+        if (!dragging) return;
+        currentX = e.touches[0].clientX - startX;
+        const dy = e.touches[0].clientY - startY;
+        if (Math.abs(dy) > Math.abs(currentX)) { dragging = false; return; }
+        card.style.transform = `translateX(${currentX}px) rotate(${currentX * 0.04}deg)`;
+        card.style.opacity = String(Math.max(0.4, 1 - Math.abs(currentX) / 300));
+    }, {passive: true});
+    card.addEventListener('touchend', () => {
+        if (!dragging) return;
+        dragging = false;
+        if (currentX > 100) actionTask('done');
+        else if (currentX < -100) actionTask('skip');
+        else { card.style.transform = ''; card.style.opacity = '1'; }
+        currentX = 0;
+    });
+}
+attachSwipe();
 </script>
 {% endblock %}

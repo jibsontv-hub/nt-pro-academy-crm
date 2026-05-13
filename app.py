@@ -3783,7 +3783,7 @@ def admin_toggle_advanced(uid):
         new_val = 0 if (cur['advanced_mode'] or 0) else 1
         db.execute('UPDATE users SET advanced_mode=? WHERE id=?', (new_val, uid))
         db.commit()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:'); cache_invalidate('career:')
         flash(f'Advanced-Mode {"aktiviert" if new_val else "deaktiviert"}.', 'success')
     db.close()
     return redirect(request.referrer or url_for('team'))
@@ -3859,7 +3859,7 @@ def admin_toggle_co_admin(uid):
     db.execute('UPDATE users SET is_co_admin = ? WHERE id = ?', (new_state, uid))
     db.commit()
     db.close()
-    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
+    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:'); cache_invalidate('career:')
     log_activity(current_user.id, 'co_admin_change',
                  f'{user["name"]} ist jetzt {"Co-Admin" if new_state else "kein Co-Admin mehr"}',
                  icon='⚡', color='gold')
@@ -6293,7 +6293,17 @@ def earned_career_for_user(user_id, db=None):
 
 def effective_career_for_user(user_id, db=None):
     """Effektive Stufe = max(manuelle Stufe, durch Gesamt-EH erreichte Stufe).
-    Diese Funktion ist maßgeblich für ALLE Anzeige- und Provisions-Entscheidungen."""
+    Diese Funktion ist maßgeblich für ALLE Anzeige- und Provisions-Entscheidungen.
+    SWR-Cache TTL 300s — bei 80+ Partner und N×N Calls in get_today_stack
+    sonst zu viele get_all_descendants Queries.
+    Cache wird invalidiert via cache_invalidate('career:') bei Vertrag/Career-Update."""
+    # Bei explizit übergebener db keine Cache-Schicht (Konsistenz innerhalb einer Transaktion)
+    if db is not None:
+        return _effective_career_uncached(user_id, db)
+    return cache_swr(f'career:{user_id}', lambda: _effective_career_uncached(user_id, None), ttl=300)
+
+
+def _effective_career_uncached(user_id, db=None):
     own_db = db or get_db()
     user = own_db.execute('SELECT manual_career_level FROM users WHERE id=?', (user_id,)).fetchone()
     if db is None:
@@ -11380,6 +11390,139 @@ def api_run_streak_warning():
     return jsonify({'ok': True, 'stats': stats})
 
 
+def run_daily_owner_audit():
+    """BACKOFFICE-AGENT — täglich 21 Uhr.
+    Mailt Najib einen Tages-Report:
+      - DMO heute (was hat er erreicht)
+      - Today-Stack: erledigt/verschoben/skipped Quote
+      - Stagnation: wieviele Mails wurden gesendet, wie viele nicht reagiert
+      - Pipeline-Bewegung: wer kam diese Woche näher an seine nächste Stufe
+      - Auffälligkeiten: User die 2T eingebrochen sind, Approval-Stau
+    Idempotent via push_log mit ref_key 'owner-audit-{date}'.
+    """
+    db = get_db()
+    sent = False
+    try:
+        admins = db.execute("SELECT id, name, email FROM users WHERE role='admin' AND active=1").fetchall()
+        today_iso = date.today().isoformat()
+        for admin in admins:
+            ref_key = f'owner-audit-{today_iso}'
+            if _push_already_sent(admin['id'], 'owner_audit', ref_key):
+                continue
+            if not admin['email']:
+                continue
+
+            # 1. DMO heute
+            dmo = get_dmo_status(admin['id'])
+
+            # 2. Today-Stack-Outcomes heute
+            outcomes = db.execute('''
+                SELECT outcome, COUNT(*) c FROM today_actions
+                WHERE user_id=? AND date(created_at)=date(?)
+                GROUP BY outcome
+            ''', (admin['id'], today_iso)).fetchall()
+            outcome_map = {r['outcome']: r['c'] for r in outcomes}
+            done_today = outcome_map.get('done', 0)
+            snoozed_today = outcome_map.get('snooze', 0)
+            skipped_today = outcome_map.get('skip', 0)
+
+            # 3. Stagnation-Stats
+            stag_sent_today = db.execute('''
+                SELECT COUNT(*) c FROM push_log
+                WHERE push_type='stagnation_seq' AND date(created_at)=date(?)
+            ''', (today_iso,)).fetchone()['c']
+
+            # 4. Pipeline-Bewegung diese Woche
+            descendants = get_all_descendants(admin['id'])
+            week_ago = (date.today() - timedelta(days=7)).isoformat()
+            new_eh = 0
+            top_movers = []
+            if descendants:
+                ph = ','.join('?' * len(descendants))
+                row = db.execute(f'''
+                    SELECT COALESCE(SUM(einheiten),0) s FROM contracts
+                    WHERE owner_id IN ({ph}) AND status='abgeschlossen'
+                      AND recherche_status='freigegeben'
+                      AND date(abschluss_date) >= date(?)
+                ''', descendants + [week_ago]).fetchone()
+                new_eh = row['s']
+                top_movers = db.execute(f'''
+                    SELECT u.name, COALESCE(SUM(c.einheiten),0) week_eh
+                    FROM users u LEFT JOIN contracts c ON c.owner_id=u.id
+                      AND c.status='abgeschlossen' AND c.recherche_status='freigegeben'
+                      AND date(c.abschluss_date) >= date(?)
+                    WHERE u.id IN ({ph}) AND u.active=1
+                    GROUP BY u.id HAVING week_eh > 0
+                    ORDER BY week_eh DESC LIMIT 3
+                ''', [week_ago] + descendants).fetchall()
+
+            # 5. Auffälligkeiten
+            pending_approvals = db.execute('''
+                SELECT COUNT(*) c FROM contracts
+                WHERE recherche_status IN ('ausstehend','') AND status='abgeschlossen'
+                  AND date(created_at) <= date('now','-2 days')
+            ''').fetchone()['c']
+
+            # Mail bauen
+            first_name = (admin['name'] or '').split()[0] or 'Admin'
+            text_lines = [
+                f'Hi {first_name},',
+                '',
+                f'dein Tages-Report für {today_iso}:',
+                '',
+                f'== DEIN DMO HEUTE ==',
+                f'  Anrufe:     {dmo["actual"]["calls"]}/{dmo["target"]["calls"]}',
+                f'  Follow-ups: {dmo["actual"]["followups"]}/{dmo["target"]["followups"]}',
+                f'  Termine:    {dmo["actual"]["termine"]}/{dmo["target"]["termine"]}',
+                f'  Streak:     {dmo["streak"]} Tage',
+                '',
+                f'== HEUTE-STACK ==',
+                f'  Erledigt:    {done_today}',
+                f'  Verschoben:  {snoozed_today}',
+                f'  Übersprungen: {skipped_today}',
+                '',
+                f'== AUTONOM HEUTE ==',
+                f'  Stagnations-Mails an Tag-3-Inaktive: {stag_sent_today}',
+                '',
+                f'== PIPELINE DIESE WOCHE ==',
+                f'  Neue Team-EH (7 Tage): {int(new_eh)} EH',
+            ]
+            if top_movers:
+                text_lines.append(f'  Top-Mover:')
+                for m in top_movers:
+                    text_lines.append(f'    · {m["name"]}: {int(m["week_eh"])} EH')
+            if pending_approvals > 0:
+                text_lines.append('')
+                text_lines.append(f'== ⚠ AUFFÄLLIG ==')
+                text_lines.append(f'  {pending_approvals} Verträge warten >2T auf Recherche-Freigabe')
+            text_lines.append('')
+            text_lines.append('Morgen 8 Uhr → /heute öffnen.')
+            text_lines.append('Pro Academy Backoffice')
+            text = '\n'.join(text_lines)
+
+            ok, _ = send_email(admin['email'],
+                f'Pro Academy · Tages-Report {today_iso}',
+                text, sent_by=None, category='reminder')
+            if ok:
+                _push_mark_sent(admin['id'], 'owner_audit', ref_key)
+                sent = True
+        return {'sent': sent}
+    except Exception as e:
+        app.logger.warning(f'run_daily_owner_audit fail: {e}')
+        return {'sent': False, 'error': str(e)}
+    finally:
+        db.close()
+
+
+@app.route('/api/admin/run-owner-audit', methods=['POST'])
+@login_required
+def api_run_owner_audit():
+    if not current_user.has_admin_access:
+        return jsonify({'error': 'admin only'}), 403
+    stats = run_daily_owner_audit()
+    return jsonify({'ok': True, 'stats': stats})
+
+
 # ═══════════════════════════════════════════════════════════════════
 # TIER D — /owner/queue: konsolidierte Owner-Action-Page
 # Statt 6 Morgen-Pages (Dashboard + Genehmigungen + Inbox + /team/inaktiv +
@@ -11549,9 +11692,59 @@ def heute():
     leaderboard = get_activity_leaderboard(current_user.id, days=7, limit=5)
     if leaderboard['total_team'] < 2:
         leaderboard = None
+    # Snoozed/Skipped heute — für „Zurück zu erledigt"
+    snoozed = get_snoozed_today(current_user.id)
     return render_template('heute.html',
         stack=stack, dmo=dmo, today_iso=date.today().isoformat(),
-        leaderboard=leaderboard)
+        leaderboard=leaderboard, snoozed=snoozed)
+
+
+def get_snoozed_today(user_id):
+    """Heute geskippte oder verschobene Tasks — für 'Zurückholen'-Sektion in /heute."""
+    db = get_db()
+    today_iso = date.today().isoformat()
+    rows = db.execute('''
+        SELECT id, task_key, task_type, target_user_id, outcome, snooze_until, created_at
+        FROM today_actions
+        WHERE user_id=? AND date(created_at)=date(?) AND outcome IN ('snooze','skip')
+        ORDER BY created_at DESC
+    ''', (user_id, today_iso)).fetchall()
+    out = []
+    for r in rows:
+        info = {'id': r['id'], 'task_key': r['task_key'], 'task_type': r['task_type'],
+                'outcome': r['outcome'], 'snooze_until': r['snooze_until']}
+        if r['target_user_id']:
+            tu = db.execute('SELECT name, phone FROM users WHERE id=?',
+                            (r['target_user_id'],)).fetchone()
+            if tu:
+                info['target_name'] = tu['name']
+                info['target_phone'] = tu['phone']
+                info['target_id'] = r['target_user_id']
+        out.append(info)
+    db.close()
+    return out
+
+
+@app.route('/api/today/undo', methods=['POST'])
+@login_required
+def api_today_undo():
+    """Macht ein Done/Skip/Snooze rückgängig — Task erscheint wieder im Stack."""
+    data = request.get_json(silent=True) or {}
+    action_id = data.get('action_id')
+    if not action_id:
+        return jsonify({'ok': False, 'error': 'action_id required'}), 400
+    db = get_db()
+    # Sicherheit: nur eigene Actions löschen können
+    db.execute('DELETE FROM today_actions WHERE id=? AND user_id=?',
+               (action_id, current_user.id))
+    db.commit()
+    db.close()
+    new_stack = get_today_stack(current_user.id, max_items=5)
+    new_dmo = get_dmo_status(current_user.id)
+    new_snoozed = get_snoozed_today(current_user.id)
+    return jsonify({
+        'ok': True, 'stack': new_stack, 'dmo': new_dmo, 'snoozed': new_snoozed
+    })
 
 
 @app.route('/api/today/action', methods=['POST'])
@@ -11579,8 +11772,10 @@ def api_today_action():
     # Nächste Stack-Position liefern
     new_stack = get_today_stack(current_user.id, max_items=5)
     new_dmo = get_dmo_status(current_user.id)
+    new_snoozed = get_snoozed_today(current_user.id)
     return jsonify({
         'ok': True, 'stack': new_stack, 'dmo': new_dmo,
+        'snoozed': new_snoozed,
         'all_done': len(new_stack) == 0
     })
 
@@ -12905,8 +13100,11 @@ def vertrag_neu():
         db.close()
         auto_promote_user(current_user.id)
         recalculate_all_commissions()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:'); cache_invalidate('career:')
         if request.form.get('status') == 'abgeschlossen' and request.form.get('recherche_status') == 'freigegeben':
+            # FIX: Auto-DMO — Vertrag direkt abgeschlossen → calls + termine je +1
+            increment_dmo(current_user.id, 'calls', 1)
+            increment_dmo(current_user.id, 'termine', 1)
             log_activity(current_user.id, 'vertrag_abgeschlossen',
                 f'{current_user.name} hat Vertrag „{request.form["client_name"]}" abgeschlossen ({einheiten:.0f} EH)',
                 icon='🎉', color='green')
@@ -12970,7 +13168,7 @@ def vertrag_edit(vid):
         db.close()
         auto_promote_user(owner_id)
         recalculate_all_commissions()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:'); cache_invalidate('career:')
         flash(f'Vertrag aktualisiert! ({einheiten:.0f} EH)', 'success')
         return redirect(url_for('vertraege'))
     leads_for_select = db.execute(
@@ -13517,7 +13715,7 @@ def team_edit(uid):
         db.commit()
         db.close()
         recalculate_all_commissions()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:'); cache_invalidate('career:')
         if pending_level and not is_admin:
             flash(f'Aktualisiert. Stufen-Änderung auf {pending_level} wartet auf Admin-Bestätigung.', 'success')
         else:
@@ -14090,7 +14288,7 @@ def profil_photo_upload():
         db.execute('UPDATE users SET photo_path=? WHERE id=?', (rel, current_user.id))
         db.commit()
         db.close()
-        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
+        cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:'); cache_invalidate('career:')
         flash('Foto hochgeladen!', 'success')
     except ImportError:
         flash('Foto-Modul nicht installiert (PIL fehlt)', 'error')
@@ -14111,7 +14309,7 @@ def profil_photo_delete():
         p = os.path.join(app.root_path, 'static', 'avatars', f'user-{current_user.id}{s}.jpg')
         try: os.remove(p)
         except Exception: pass
-    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
+    cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:'); cache_invalidate('career:')
     flash('Foto gelöscht', 'success')
     return redirect(url_for('profil'))
 
@@ -14406,7 +14604,7 @@ def onboarding_catchup():
                            (current_user.id, name, est_eh, p_cnt, notes or None))
             db.commit()
             recalculate_all_commissions()
-            cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
+            cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:'); cache_invalidate('career:')
             log_activity(current_user.id, 'catchup_done',
                 f'{current_user.name} hat seinen Stand eingetragen ({eh:.0f} EH + Strukturen)',
                 icon='📊', color='gold')

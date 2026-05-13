@@ -33,6 +33,7 @@ LAST_MIDDAY_PUSH_DATE=""   # ISO-Datum des letzten Mittag-Re-Push (1× pro Tag, 
 LAST_BACKUP_DATE=""        # ISO-Datum des letzten DB-Backups (1× pro Tag)
 LAST_STAGNATION_DATE=""    # ISO-Datum letzter Stagnations-Mail-Run (1× pro Tag, 9-10 Uhr)
 LAST_STREAK_WARN_DATE=""   # ISO-Datum letzter Streak-Warning-Push (1× pro Tag, 18-20 Uhr)
+LAST_OWNER_AUDIT_DATE=""   # ISO-Datum letzter Owner-Audit-Mail (1× pro Tag, 21-22 Uhr)
 
 echo "[$(date)] Monitor-Loop gestartet — auto-pull · daily-push 8-10 · midday-push 13-15 · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
 
@@ -134,6 +135,21 @@ stats = run_streak_warning_push()
 print('streak-warn:', stats)
 " 2>&1 | tail -3 >> $HEALTH_LOG
         LAST_STREAK_WARN_DATE=$CURRENT_DATE
+    fi
+
+    # ─── 1b7. Backoffice Daily-Owner-Audit (1× pro Tag, 21-22 Uhr) ───
+    # Mailt Najib einen Tages-Report: DMO heute, Stack-Quote, Stagnations-
+    # Stats, Pipeline-Bewegung diese Woche, Auffälligkeiten (Approval-Stau).
+    # Damit weiß Najib morgens schon was wichtig ist ohne ins System zu gehen.
+    if [ "$CURRENT_HOUR" -ge 21 ] && [ "$CURRENT_HOUR" -lt 22 ] && [ "$LAST_OWNER_AUDIT_DATE" != "$CURRENT_DATE" ]; then
+        echo "[$(date)] Daily-Owner-Audit wird ausgelöst" | tee -a $HEALTH_LOG
+        python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+from app import run_daily_owner_audit
+stats = run_daily_owner_audit()
+print('owner-audit:', stats)
+" 2>&1 | tail -3 >> $HEALTH_LOG
+        LAST_OWNER_AUDIT_DATE=$CURRENT_DATE
     fi
 
     # ─── 1c. DB-Backup (1× pro Tag, zwischen 3-5 Uhr nachts) ─────────
