@@ -1,10 +1,11 @@
-// NT Pro Academy — Service Worker v6
-// v6: SWR (Stale-While-Revalidate) für HTML — App fühlt sich INSTANT an.
-// Vorher: Network-First → 1-3 Sek weißer Screen bei jedem Page-Load.
-// Jetzt: cached HTML wird SOFORT angezeigt, frisches HTML im Hintergrund
-// geladen + Cache aktualisiert. Beim nächsten Visit ist's frisch.
+// NT Pro Academy — Service Worker v7
+// v7: PRE-CACHE für App-Start-Performance. Bei Install werden /heute + /dashboard
+// proaktiv geholt → erster PWA-Open ist instant statt Server-Wait.
+// v6: SWR für HTML.
+// Strategy: cached HTML wird SOFORT angezeigt, frisches HTML im Hintergrund
+// geladen + Cache aktualisiert.
 
-const CACHE_VERSION = 'ntpro-v6';
+const CACHE_VERSION = 'ntpro-v7';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -19,13 +20,29 @@ const STATIC_ASSETS = [
     '/manifest.json',
 ];
 
+// HTML-Pages die beim Install proaktiv geholt werden (für instant App-Start)
+// Wenn Login fehlt: redirect zu /login → /login wird gecacht (auch OK).
+const PRECACHE_PAGES = [
+    '/heute',
+    '/dashboard',
+];
+
 // === INSTALL ===
 self.addEventListener('install', (event) => {
-    event.waitUntil(
+    event.waitUntil(Promise.all([
+        // Static-Assets in eigenem Cache
         caches.open(STATIC_CACHE)
-            .then(cache => cache.addAll(STATIC_ASSETS).catch(() => {}))
-            .then(() => self.skipWaiting())
-    );
+            .then(cache => cache.addAll(STATIC_ASSETS).catch(() => {})),
+        // HTML-Pages proaktiv pre-cachen (parallel — schneller Install)
+        caches.open(RUNTIME_CACHE)
+            .then(cache => Promise.all(
+                PRECACHE_PAGES.map(url =>
+                    fetch(url, { credentials: 'same-origin' })
+                        .then(resp => { if (resp.ok) cache.put(url, resp); })
+                        .catch(() => {})
+                )
+            ))
+    ]).then(() => self.skipWaiting()));
 });
 
 // === ACTIVATE — NUKE-RESET ===

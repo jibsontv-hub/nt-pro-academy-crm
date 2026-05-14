@@ -8077,13 +8077,16 @@ def web_app_manifest():
         'name': 'Pro Academy',
         'short_name': 'Pro Academy',
         'description': 'Lernen. Wachsen. Erfolgreich sein. · Karriere, Provisionen & Coaching',
-        'start_url': '/dashboard',
+        # start_url auf / (smart-routing — leitet je nach Tageszeit auf /heute oder /dashboard).
+        # /heute ist leichter als /dashboard → schnellerer App-Start.
+        'start_url': '/?source=pwa',
         'scope': '/',
         'display': 'standalone',
         'display_override': ['standalone', 'minimal-ui'],
         'orientation': 'portrait',
-        'theme_color': '#000000',
-        'background_color': '#000000',
+        # background_color = matched body-bg → kein weißer Flash beim PWA-Open
+        'theme_color': '#0a0e1a',
+        'background_color': '#0a0e1a',
         'lang': 'de',
         'dir': 'ltr',
         'categories': ['business', 'productivity', 'finance'],
@@ -8093,9 +8096,9 @@ def web_app_manifest():
             {'src': '/static/icons/pa-apple-touch.png?v=2', 'sizes': '180x180', 'type': 'image/png'},
         ],
         'shortcuts': [
+            {'name': 'Heute', 'url': '/heute', 'icons': [{'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192'}]},
             {'name': 'Dashboard', 'url': '/dashboard', 'icons': [{'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192'}]},
-            {'name': 'Assistent', 'url': '/assistent', 'icons': [{'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192'}]},
-            {'name': 'Tagesaufgaben', 'url': '/aufgaben', 'icons': [{'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192'}]},
+            {'name': 'Verträge', 'url': '/vertraege', 'icons': [{'src': '/static/icons/pa-icon-192.png?v=2', 'sizes': '192x192'}]},
         ],
     })
     resp.headers['Cache-Control'] = 'public, max-age=86400'  # 1 Tag — Manifest ändert sich selten

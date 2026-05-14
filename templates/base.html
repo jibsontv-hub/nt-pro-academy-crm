@@ -1189,6 +1189,44 @@
     </style>
 </head>
 <body style="background:#0a0e1a;color:#f1f5f9">
+    {# Instant-Splash — sichtbar in <50ms vor JS/CSS-Load.
+       Wird via inline-CSS sofort animiert + nach DOMContentLoaded ausgeblendet.
+       Verhindert weißen/schwarzen Flash beim PWA-Open. #}
+    <div id="appSplash" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0a0e1a 0%,#131829 50%,#0a0e1a 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.3s,visibility 0.3s">
+        <div style="width:64px;height:64px;border-radius:14px;background:linear-gradient(135deg,#d4a843,#f0c970);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:#0a0e1a;box-shadow:0 8px 24px rgba(212,168,67,0.4);animation:appSplashPulse 1.5s ease-in-out infinite">PA</div>
+        <div style="margin-top:18px;font-size:13px;color:rgba(241,245,249,0.6);font-family:'Inter',system-ui,sans-serif;font-weight:600;letter-spacing:0.5px">Pro Academy</div>
+        <div style="margin-top:10px;width:120px;height:2px;background:rgba(212,168,67,0.15);border-radius:99px;overflow:hidden">
+            <div style="height:100%;background:#d4a843;border-radius:99px;animation:appSplashBar 1.2s ease-in-out infinite"></div>
+        </div>
+    </div>
+    <style>
+        @keyframes appSplashPulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 8px 24px rgba(212,168,67,0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 12px 32px rgba(212,168,67,0.6); }
+        }
+        @keyframes appSplashBar {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        #appSplash.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    </style>
+    <script>
+        // Splash sofort ausblenden wenn DOM fertig ist
+        document.addEventListener('DOMContentLoaded', function() {
+            // Kleine Verzögerung für smooth fade-out
+            setTimeout(function() {
+                var s = document.getElementById('appSplash');
+                if (s) s.classList.add('hidden');
+                setTimeout(function() { if (s) s.remove(); }, 350);
+            }, 100);
+        });
+        // Fallback: max 3s — nach 3s definitiv weg
+        setTimeout(function() {
+            var s = document.getElementById('appSplash');
+            if (s) s.classList.add('hidden');
+        }, 3000);
+    </script>
+
     <div class="sidebar-backdrop" onclick="toggleSidebar()"></div>
     <div class="sidebar">
         <button class="sidebar-close" onclick="toggleSidebar()" aria-label="Schließen"
