@@ -21,6 +21,80 @@
 .err-meta { font-size: 10px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0 }
 </style>
 
+{# DATEN-HEALTH — ganz oben, kritisch für Vertrauen dass nichts verloren geht #}
+{% if data_health %}
+<div class="card" style="background:linear-gradient(135deg,{% if data_health.integrity_ok %}rgba(34,197,94,0.06){% else %}rgba(239,68,68,0.10){% endif %},transparent);border-left:4px solid {% if data_health.integrity_ok %}#22c55e{% else %}#ef4444{% endif %};margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:14px">
+        <div>
+            <div style="font-size:11px;color:{% if data_health.integrity_ok %}#16a34a{% else %}#dc2626{% endif %};text-transform:uppercase;letter-spacing:0.6px;font-weight:800">
+                💾 Daten-Health · DB-Integrity: {{ '✅ OK' if data_health.integrity_ok else '❌ ' + data_health.integrity }}
+            </div>
+            <div style="font-size:14px;font-weight:700;color:var(--text);margin-top:4px">
+                Aktueller Stand pro Tabelle (Live-Counts)
+            </div>
+        </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px">
+        {% for tbl, cnt in data_health.counts.items() %}
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;text-align:center">
+            <div style="font-size:20px;font-weight:800;color:{% if cnt is none %}var(--text-muted){% elif cnt == 0 %}var(--text-muted){% else %}var(--gold){% endif %}">
+                {% if cnt is none %}–{% else %}{{ cnt }}{% endif %}
+            </div>
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;margin-top:2px">{{ tbl }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# Backups-Liste #}
+    {% if data_health.backups %}
+    <details style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;padding:8px 0">
+            🗄 Letzte {{ data_health.backups|length }} Backups (Pre-Deploy + Daily) ▾
+        </summary>
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+            {% for b in data_health.backups %}
+            <div style="display:flex;gap:10px;font-size:11px;padding:6px 10px;background:var(--bg-2);border-radius:6px;{% if b.corrupt %}border-left:2px solid #ef4444{% endif %}">
+                <span style="font-family:'JetBrains Mono',monospace;color:{% if b.corrupt %}#dc2626{% else %}var(--gold){% endif %};font-weight:700;flex:1">
+                    {% if b.corrupt %}⚠ {% endif %}{{ b.name }}
+                </span>
+                <span style="color:var(--text-muted)">{{ b.size_kb }} KB</span>
+                <span style="color:var(--text-muted)">{{ b.mtime }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    {# Migration-Log: zeigt was nach jedem Deploy passiert ist #}
+    {% if data_health.migrations %}
+    <details style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;padding:8px 0">
+            📋 Migration-Log · letzte {{ data_health.migrations|length }} Deploys ▾
+        </summary>
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+            {% for m in data_health.migrations %}
+            <div style="padding:8px 10px;background:var(--bg-2);border-radius:6px;font-size:11px">
+                <div style="display:flex;gap:10px;align-items:center">
+                    <span style="font-family:'JetBrains Mono',monospace;color:var(--gold);font-weight:700">{{ m.commit_sha or '?' }}</span>
+                    <span style="color:var(--text-muted)">{{ m.applied_at[:16] if m.applied_at else '–' }}</span>
+                </div>
+                {% if m.post_counts_json %}
+                <div style="font-size:10px;color:var(--text-muted);margin-top:3px;font-family:'JetBrains Mono',monospace;overflow-x:auto;white-space:nowrap">
+                    {{ m.post_counts_json[:200] }}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% else %}
+    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;padding:8px 12px;background:var(--bg-2);border-radius:6px">
+        ⓘ Noch kein Migration-Log — wird beim nächsten Deploy via monitor_loop.sh angelegt.
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
 {# LIVE-USER-TEST — prominent ganz oben, große Test-Button #}
 {% set live_test_run = (last_runs | selectattr('job_name', 'equalto', 'live_user_test') | list | first) %}
 <div class="card" style="background:linear-gradient(135deg,rgba(34,197,94,0.08),rgba(34,197,94,0.02));border:2px solid #22c55e40;margin-bottom:14px">

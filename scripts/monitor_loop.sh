@@ -43,6 +43,33 @@ while true; do
     # ─── 0. Auto-Pull (Fallback wenn GitHub-Webhook fail) ───
     # Webhook in /api/deploy ist primär — dieser Pull catch-t falls webhook nicht ankam
     cd $PROJECT
+    # ─── 0a. Check ob neue Commits da sind BEVOR wir pullen → wenn ja, erst Backup
+    git fetch origin main --quiet 2>/dev/null
+    LOCAL_REV=$(git rev-parse HEAD 2>/dev/null)
+    REMOTE_REV=$(git rev-parse origin/main 2>/dev/null)
+    if [ -n "$LOCAL_REV" ] && [ -n "$REMOTE_REV" ] && [ "$LOCAL_REV" != "$REMOTE_REV" ]; then
+        # Neue Commits vorhanden → PRE-DEPLOY-BACKUP machen
+        SHORT_REV=$(echo $LOCAL_REV | cut -c1-7)
+        BKP_TS=$(date +%Y-%m-%d-%H%M%S)
+        BKP_FILE="$PROJECT/backups/pre-deploy-${BKP_TS}-${SHORT_REV}.db"
+        mkdir -p "$PROJECT/backups"
+        echo "[$(date)] PRE-DEPLOY-BACKUP: $BKP_FILE" | tee -a $HEALTH_LOG
+        sqlite3 "$PROJECT/vertrieb.db" ".backup '$BKP_FILE'" 2>&1 | head -3 >> $HEALTH_LOG
+        # Vor-Counts für Daten-Integrity-Check loggen
+        python3 -c "
+import sys, os, sqlite3
+db = sqlite3.connect('$PROJECT/vertrieb.db')
+counts = {}
+for tbl in ['users','contracts','leads','grundseminar_teilnehmer','manual_eh_entries','dmo_activity']:
+    try:
+        counts[tbl] = db.execute(f'SELECT COUNT(*) FROM {tbl}').fetchone()[0]
+    except Exception:
+        counts[tbl] = 0
+db.close()
+print(f'PRE-DEPLOY counts: {counts}')
+" 2>&1 | tail -2 >> $HEALTH_LOG
+    fi
+
     PULL_OUTPUT=$(git pull --ff-only 2>&1)
     if echo "$PULL_OUTPUT" | grep -q "Updating"; then
         echo "[$(date)] AUTO-PULL: neue Commits gepullt" | tee -a $HEALTH_LOG
@@ -52,6 +79,32 @@ while true; do
             touch /var/www/proacademy-business_de_wsgi.py
             echo "[$(date)] WSGI touched → Reload triggered" >> $HEALTH_LOG
         fi
+        # POST-DEPLOY: Counts erneut + bei Diskrepanz Push an Admin
+        sleep 5  # Migration-Zeit
+        python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+import os; os.chdir('$PROJECT')
+import sqlite3
+db = sqlite3.connect('vertrieb.db')
+counts = {}
+for tbl in ['users','contracts','leads','grundseminar_teilnehmer','manual_eh_entries','dmo_activity']:
+    try:
+        counts[tbl] = db.execute(f'SELECT COUNT(*) FROM {tbl}').fetchone()[0]
+    except Exception:
+        counts[tbl] = 0
+db.close()
+print(f'POST-DEPLOY counts: {counts}')
+# Tracke in schema_migrations
+try:
+    from app import get_db
+    d = get_db()
+    d.execute('''INSERT INTO schema_migrations (commit_sha, applied_at, post_counts_json)
+                 VALUES (?, CURRENT_TIMESTAMP, ?)''',
+              ('${REMOTE_REV:0:7}', __import__('json').dumps(counts)))
+    d.commit(); d.close()
+except Exception as e:
+    print(f'schema_migrations log fail: {e}')
+" 2>&1 | tail -3 >> $HEALTH_LOG
         # Newsletter-Agent triggern wenn neue commits kamen
         python3 $PROJECT/scripts/newsletter_agent.py 2>&1 | tail -3 >> $HEALTH_LOG
     fi

@@ -5201,6 +5201,19 @@ def init_db():
             seen_by_admin INTEGER DEFAULT 0
         );
 
+        -- Schema-Migrations-Log: jeder Deploy/Code-Update wird hier mit
+        -- post-deploy Record-Counts pro Tabelle festgehalten. Daten-Verlust
+        -- ist sofort sichtbar in /admin/agents (Daten-Health-Verlauf).
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            commit_sha TEXT,
+            applied_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            pre_counts_json TEXT,
+            post_counts_json TEXT,
+            integrity_check TEXT,         -- 'ok' / Fehlertext
+            note TEXT
+        );
+
         -- Cron-Job-Run-Log: tracked welcher Cron wann gelaufen ist und mit welchem
         -- Result. Najib sieht in /admin/agents wann der letzte Stagnations-Run war,
         -- ob er Erfolg hatte, etc. Auto-Push wenn Cron 24h+ nicht gelaufen.
@@ -6436,6 +6449,58 @@ def log_error(source, message, exception=None, severity='error', user_id=None):
                         pass
         except Exception:
             pass
+
+
+def get_data_health():
+    """Liefert aktuelle Record-Counts pro Haupttabelle + Migration-Verlauf
+    für /admin/agents Daten-Health-Card. Najib sieht sofort wenn Daten
+    nach einem Deploy verschwunden sind."""
+    db = get_db()
+    counts = {}
+    for tbl in ['users', 'contracts', 'leads', 'appointments',
+                'grundseminar_teilnehmer', 'manual_eh_entries', 'dmo_activity',
+                'today_actions', 'commissions']:
+        try:
+            counts[tbl] = db.execute(f'SELECT COUNT(*) c FROM {tbl}').fetchone()['c']
+        except Exception:
+            counts[tbl] = None  # Tabelle existiert nicht
+    # PRAGMA integrity_check
+    try:
+        integrity = db.execute('PRAGMA integrity_check').fetchone()[0]
+    except Exception as e:
+        integrity = f'check failed: {e}'
+    # Letzte Migrations
+    try:
+        migrations = [dict(r) for r in db.execute('''
+            SELECT id, commit_sha, applied_at, post_counts_json, integrity_check, note
+            FROM schema_migrations ORDER BY id DESC LIMIT 10
+        ''').fetchall()]
+    except Exception:
+        migrations = []
+    # Backups-Liste (Dateien im backups/ folder)
+    backups = []
+    try:
+        bdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backups')
+        if os.path.isdir(bdir):
+            for fn in sorted(os.listdir(bdir), reverse=True)[:15]:
+                if fn.endswith('.db') or fn.endswith('.CORRUPT'):
+                    p = os.path.join(bdir, fn)
+                    backups.append({
+                        'name': fn,
+                        'size_kb': os.path.getsize(p) // 1024,
+                        'mtime': datetime.fromtimestamp(os.path.getmtime(p)).strftime('%Y-%m-%d %H:%M'),
+                        'corrupt': fn.endswith('.CORRUPT')
+                    })
+    except Exception:
+        pass
+    db.close()
+    return {
+        'counts': counts,
+        'integrity': integrity,
+        'integrity_ok': integrity == 'ok',
+        'migrations': migrations,
+        'backups': backups
+    }
 
 
 def cron_tracked(job_name):
@@ -11982,11 +12047,14 @@ def admin_agents():
     known_jobs = ['stagnation', 'streak_warn', 'owner_audit', 'assistentin_morning', 'live_user_test']
     seen_jobs = {r['job_name'] for r in last_runs}
     db.close()
+    # Daten-Health: Counts + Backups + Migrations
+    data_health = get_data_health()
     return render_template('admin_agents.html',
         last_runs=[dict(r) for r in last_runs],
         errors=[dict(e) for e in errors],
         unseen_errors=unseen_errors,
-        missing_jobs=[j for j in known_jobs if j not in seen_jobs])
+        missing_jobs=[j for j in known_jobs if j not in seen_jobs],
+        data_health=data_health)
 
 
 @app.route('/admin/agents/error/<int:eid>/seen', methods=['POST'])
