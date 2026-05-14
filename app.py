@@ -12134,6 +12134,47 @@ def admin_agents_error_seen(eid):
     return redirect(url_for('admin_agents'))
 
 
+@app.route('/admin/agents/restore', methods=['POST'])
+@login_required
+def admin_agents_restore():
+    """Restore eines Backups via /admin/agents Button.
+    Sichert aktuelle DB als .before-restore-{ts} bevor überschrieben wird."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('admin_agents'))
+    backup_name = (request.form.get('backup_name') or '').strip()
+    confirm = request.form.get('confirm') == 'yes'
+    if not confirm:
+        flash('Restore abgebrochen — Confirm-Checkbox fehlte.', 'error')
+        return redirect(url_for('admin_agents'))
+    # Whitelist: nur Files aus backups/ Folder, nur .db, kein Path-Traversal
+    if not backup_name or not backup_name.endswith('.db') or '/' in backup_name or '..' in backup_name:
+        flash('Ungültiger Backup-Filename.', 'error')
+        return redirect(url_for('admin_agents'))
+    proj = os.path.dirname(os.path.abspath(__file__))
+    bkp_path = os.path.join(proj, 'backups', backup_name)
+    if not os.path.isfile(bkp_path):
+        flash(f'Backup nicht gefunden: {backup_name}', 'error')
+        return redirect(url_for('admin_agents'))
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['bash', os.path.join(proj, 'scripts', 'restore_backup.sh'), backup_name],
+            capture_output=True, text=True, timeout=60, cwd=proj
+        )
+        if result.returncode == 0:
+            log_error('admin:restore', f'Restore von {backup_name} ausgeführt von User {current_user.id}',
+                      severity='warning', user_id=current_user.id)
+            flash(f'✓ Backup „{backup_name}" wiederhergestellt. Aktuelle DB wurde als .before-restore gesichert.', 'success')
+        else:
+            log_error('admin:restore', f'Restore fail: {result.stderr[:500]}', severity='error')
+            flash(f'❌ Restore fehlgeschlagen: {result.stderr[:200]}', 'error')
+    except Exception as e:
+        log_error('admin:restore', str(e), exception=e, severity='error')
+        flash(f'Restore-Crash: {e}', 'error')
+    return redirect(url_for('admin_agents'))
+
+
 @app.route('/admin/agents/trigger/<job_name>', methods=['POST'])
 @login_required
 def admin_agents_trigger(job_name):

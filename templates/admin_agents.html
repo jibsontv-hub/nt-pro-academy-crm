@@ -45,22 +45,32 @@
         {% endfor %}
     </div>
 
-    {# Backups-Liste #}
+    {# Backups-Liste mit Restore-Button #}
     {% if data_health.backups %}
-    <details style="margin-top:8px">
+    <details style="margin-top:8px" open>
         <summary style="cursor:pointer;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;padding:8px 0">
-            🗄 Letzte {{ data_health.backups|length }} Backups (Pre-Deploy + Daily) ▾
+            🗄 Letzte {{ data_health.backups|length }} Backups · Klick auf „Restore" um zurückzuspielen
         </summary>
-        <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:6px">
             {% for b in data_health.backups %}
-            <div style="display:flex;gap:10px;font-size:11px;padding:6px 10px;background:var(--bg-2);border-radius:6px;{% if b.corrupt %}border-left:2px solid #ef4444{% endif %}">
-                <span style="font-family:'JetBrains Mono',monospace;color:{% if b.corrupt %}#dc2626{% else %}var(--gold){% endif %};font-weight:700;flex:1">
+            <div style="display:flex;gap:10px;font-size:12px;padding:10px 12px;background:var(--bg-2);border-radius:8px;align-items:center;{% if b.corrupt %}border-left:3px solid #ef4444{% endif %}">
+                <span style="font-family:'JetBrains Mono',monospace;color:{% if b.corrupt %}#dc2626{% else %}var(--gold){% endif %};font-weight:700;flex:1;font-size:11px">
                     {% if b.corrupt %}⚠ {% endif %}{{ b.name }}
                 </span>
-                <span style="color:var(--text-muted)">{{ b.size_kb }} KB</span>
-                <span style="color:var(--text-muted)">{{ b.mtime }}</span>
+                <span style="color:var(--text-muted);font-size:11px">{{ b.size_kb }} KB</span>
+                <span style="color:var(--text-muted);font-size:11px">{{ b.mtime }}</span>
+                {% if not b.corrupt %}
+                <form method="POST" action="/admin/agents/restore" style="display:inline;margin:0" onsubmit="return confirm('⚠ ACHTUNG: Restore von „{{ b.name }}“?\n\nDie aktuelle DB wird als .before-restore gesichert. Falls du das Backup zurückspielst, gehen die Daten seit {{ b.mtime }} verloren (es sei denn sie sind noch in einem späteren Backup).\n\nWirklich zurückspielen?')">
+                    <input type="hidden" name="backup_name" value="{{ b.name }}">
+                    <input type="hidden" name="confirm" value="yes">
+                    <button type="submit" style="background:#f59e0b;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">↩ Restore</button>
+                </form>
+                {% endif %}
             </div>
             {% endfor %}
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:var(--text-muted);padding:8px 12px;background:rgba(245,158,11,0.06);border-left:3px solid #f59e0b;border-radius:6px">
+            💡 Restore sichert aktuelle DB als <code>vertrieb.db.before-restore-{Timestamp}</code> bevor das Backup zurückgespielt wird. Du kannst also auch danach noch zwischen Versionen wechseln.
         </div>
     </details>
     {% endif %}
