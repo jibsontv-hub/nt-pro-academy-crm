@@ -35,6 +35,7 @@ LAST_STAGNATION_DATE=""    # ISO-Datum letzter Stagnations-Mail-Run (1× pro Tag
 LAST_STREAK_WARN_DATE=""   # ISO-Datum letzter Streak-Warning-Push (1× pro Tag, 18-20 Uhr)
 LAST_OWNER_AUDIT_DATE=""   # ISO-Datum letzter Owner-Audit-Mail (1× pro Tag, 21-22 Uhr)
 LAST_ASSISTENTIN_DATE=""   # ISO-Datum letzter Assistentin-Morgen-Brief (1× pro Tag, 8-9 Uhr)
+LAST_LIVE_TEST_HOUR=""     # YYYY-MM-DD-HH des letzten Live-User-Test (1× pro Stunde)
 
 echo "[$(date)] Monitor-Loop gestartet — auto-pull · daily-push 8-10 · midday-push 13-15 · health 15min · full-audit 6h" | tee -a $HEALTH_LOG
 
@@ -165,6 +166,22 @@ stats = run_daily_owner_audit()
 print('owner-audit:', stats)
 " 2>&1 | tail -3 >> $HEALTH_LOG
         LAST_OWNER_AUDIT_DATE=$CURRENT_DATE
+    fi
+
+    # ─── 1b8. Live-User-Test (1× pro Stunde) ───
+    # Simuliert echten User-Journey: Login → /heute → DMO → Manuelle EH →
+    # Vertrags-Filter → Quiz auf /start → Cron-Trigger.
+    # Bei Fail wird Push an Admin gesendet via log_error severity=critical.
+    CURRENT_HOUR_KEY="$CURRENT_DATE-$CURRENT_HOUR"
+    if [ "$LAST_LIVE_TEST_HOUR" != "$CURRENT_HOUR_KEY" ]; then
+        echo "[$(date)] Live-User-Test wird ausgelöst" | tee -a $HEALTH_LOG
+        EMAIL_E2E_NO_SEND=1 python3 -c "
+import sys; sys.path.insert(0, '$PROJECT')
+from app import run_live_user_test
+stats = run_live_user_test()
+print('live-test:', stats.get('passed', 0), '/', stats.get('total', 0), 'OK ·', stats.get('failed', 0), 'FAIL')
+" 2>&1 | tail -3 >> $HEALTH_LOG
+        LAST_LIVE_TEST_HOUR=$CURRENT_HOUR_KEY
     fi
 
     # ─── 1c. DB-Backup (1× pro Tag, zwischen 3-5 Uhr nachts) ─────────

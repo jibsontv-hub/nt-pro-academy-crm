@@ -11811,7 +11811,7 @@ def admin_agents():
     ''').fetchall()
     unseen_errors = db.execute('SELECT COUNT(*) c FROM error_log WHERE seen_by_admin=0').fetchone()['c']
     # Bekannte Jobs (Liste der erwarteten — falls noch nie gelaufen)
-    known_jobs = ['stagnation', 'streak_warn', 'owner_audit', 'assistentin_morning']
+    known_jobs = ['stagnation', 'streak_warn', 'owner_audit', 'assistentin_morning', 'live_user_test']
     seen_jobs = {r['job_name'] for r in last_runs}
     db.close()
     return render_template('admin_agents.html',
@@ -11846,6 +11846,7 @@ def admin_agents_trigger(job_name):
         'assistentin_morning': run_assistentin_morning_brief,
         'lead_followup': run_lead_followup_sequence,
         'auto_approve': try_auto_approve_pending,
+        'live_user_test': run_live_user_test,
     }
     fn = job_map.get(job_name)
     if not fn:
@@ -11858,6 +11859,40 @@ def admin_agents_trigger(job_name):
         log_error(f'manual-trigger:{job_name}', str(e), exception=e, severity='error')
         flash(f'Job {job_name} crashed: {e}', 'error')
     return redirect(url_for('admin_agents'))
+
+
+@cron_tracked('live_user_test')
+def run_live_user_test():
+    """LIVE-USER-TEST — simuliert einen echten User-Journey durch die App.
+    Wrapper um scripts/live_user_test.py — ruft das via subprocess auf
+    damit der Test in einer sauberen Umgebung läuft (eigener test_client).
+    """
+    import subprocess
+    import re as _re
+    try:
+        proj = os.path.dirname(os.path.abspath(__file__))
+        env = os.environ.copy()
+        env['EMAIL_E2E_NO_SEND'] = '1'
+        result = subprocess.run(
+            ['python3', os.path.join(proj, 'scripts', 'live_user_test.py')],
+            capture_output=True, text=True, timeout=120, env=env, cwd=proj
+        )
+        # Parse Output für Stats
+        out = result.stdout + result.stderr
+        m_total = _re.search(r'(\d+)/(\d+) OK · (\d+) FAIL', out)
+        if m_total:
+            passed, total, failed = int(m_total.group(1)), int(m_total.group(2)), int(m_total.group(3))
+        else:
+            passed, total, failed = 0, 0, 0
+        return {
+            'exit_code': result.returncode,
+            'total': total, 'passed': passed, 'failed': failed,
+            'output_tail': out[-1000:] if out else ''
+        }
+    except subprocess.TimeoutExpired:
+        return {'exit_code': -1, 'error': 'timeout after 120s'}
+    except Exception as e:
+        return {'exit_code': -1, 'error': str(e)}
 
 
 # ═══════════════════════════════════════════════════════════════════

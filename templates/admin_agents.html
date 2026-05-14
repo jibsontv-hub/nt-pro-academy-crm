@@ -21,6 +21,42 @@
 .err-meta { font-size: 10px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0 }
 </style>
 
+{# LIVE-USER-TEST — prominent ganz oben, große Test-Button #}
+{% set live_test_run = (last_runs | selectattr('job_name', 'equalto', 'live_user_test') | list | first) %}
+<div class="card" style="background:linear-gradient(135deg,rgba(34,197,94,0.08),rgba(34,197,94,0.02));border:2px solid #22c55e40;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+        <div style="flex:1;min-width:240px">
+            <div style="font-size:11px;color:#16a34a;text-transform:uppercase;letter-spacing:0.6px;font-weight:800">🧪 Live-User-Test</div>
+            <div style="font-size:16px;font-weight:800;color:var(--text);margin-top:4px">Simuliert echten User-Journey durch alle wichtigen Routes</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
+                Testet: Login → /heute → DMO → Manuelle EH → Vertrags-Filter → Quiz auf /start → Cron-Trigger
+            </div>
+            {% if live_test_run %}
+            <div style="font-size:12px;color:var(--text);margin-top:10px;padding:8px 12px;background:var(--bg-2);border-radius:8px">
+                <strong>Letzter Run:</strong> {{ live_test_run.last_run[:16] }} ·
+                {% if live_test_run.last_outcome == 'ok' %}
+                <span style="color:#16a34a;font-weight:700">✅ alle Tests grün</span>
+                {% else %}
+                <span style="color:#dc2626;font-weight:700">❌ Tests fehlgeschlagen</span>
+                {% endif %}
+                {% if live_test_run.last_stats %}
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;font-family:'JetBrains Mono',monospace">{{ live_test_run.last_stats[:200] }}</div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div style="font-size:12px;color:var(--text-muted);margin-top:10px;padding:8px 12px;background:var(--bg-2);border-radius:8px">
+                ⓘ Noch nie gelaufen — Klick „Test starten" für ersten Run.
+            </div>
+            {% endif %}
+        </div>
+        <form method="POST" action="/admin/agents/trigger/live_user_test">
+            <button type="submit" style="background:#22c55e;color:#fff;border:none;padding:14px 24px;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(34,197,94,0.3)">
+                🧪 Test starten →
+            </button>
+        </form>
+    </div>
+</div>
+
 <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
         <div>
@@ -29,7 +65,7 @@
         </div>
         <div style="font-size:11px;color:var(--text-muted)">
             Cron läuft via <code>scripts/monitor_loop.sh</code> auf PythonAnywhere<br>
-            Auto-Pull alle 15 Min, Audit alle 6h
+            Auto-Pull alle 15 Min, Audit alle 6h, Live-Test alle 1h
         </div>
     </div>
 
