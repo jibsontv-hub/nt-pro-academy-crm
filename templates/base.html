@@ -2624,6 +2624,80 @@
     </script>
 
     <script>
+    // === AUTO-SAVE === Forms mit class="auto-save" speichern bei Tipp-Pause automatisch.
+    // Verwendung: <form class="auto-save" method="POST" action="..."> oder
+    //             <form data-autosave="..."> für reines AJAX-Save.
+    // Visuelles Feedback: Status-Pill rechts oben in der Form.
+    (function(){
+        const SAVE_DEBOUNCE_MS = 1500;  // Speichert 1.5s nach letztem Tipp
+        const FORMS = document.querySelectorAll('form.auto-save, form[data-autosave]');
+        if (!FORMS.length) return;
+
+        FORMS.forEach(form => {
+            // Status-Pill einfügen
+            const statusPill = document.createElement('span');
+            statusPill.className = 'autosave-status';
+            statusPill.style.cssText = 'position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;background:var(--bg-2);color:var(--text-muted);transition:all 0.2s;z-index:10';
+            statusPill.textContent = '○ noch nicht gespeichert';
+            if (getComputedStyle(form).position === 'static') form.style.position = 'relative';
+            form.appendChild(statusPill);
+
+            let saveTimer = null;
+            let saving = false;
+            const action = form.dataset.autosave || form.action;
+
+            function setStatus(text, color) {
+                statusPill.textContent = text;
+                statusPill.style.color = color;
+                statusPill.style.background = color + '20';
+            }
+
+            async function doSave() {
+                if (saving) return;
+                saving = true;
+                setStatus('● speichert...', '#3b82f6');
+                try {
+                    const formData = new FormData(form);
+                    const resp = await fetch(action, {
+                        method: 'POST', body: formData,
+                        headers: {'X-Requested-With': 'XMLHttpRequest'},
+                        credentials: 'same-origin'
+                    });
+                    if (resp.ok || resp.status === 302) {
+                        setStatus('✓ gespeichert', '#22c55e');
+                        setTimeout(() => setStatus('○ aktuell', 'var(--text-muted)'), 1500);
+                    } else {
+                        setStatus('✗ Fehler ' + resp.status, '#ef4444');
+                    }
+                } catch (e) {
+                    setStatus('✗ Verbindung weg', '#ef4444');
+                }
+                saving = false;
+            }
+
+            // Triggert auf input/change in jedem Feld
+            form.addEventListener('input', function(e) {
+                if (e.target.tagName === 'BUTTON') return;
+                setStatus('● ungespeichert', '#f59e0b');
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(doSave, SAVE_DEBOUNCE_MS);
+            });
+            form.addEventListener('change', function(e) {
+                if (e.target.tagName === 'BUTTON') return;
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(doSave, 300);  // Schneller bei select/checkbox
+            });
+
+            // Bei Window-Blur (Tab-Wechsel/anderes Fenster): sofort speichern
+            window.addEventListener('blur', () => {
+                if (saveTimer) {
+                    clearTimeout(saveTimer);
+                    doSave();
+                }
+            });
+        });
+    })();
+
     // === GLOSSAR-AUTO-WRAP === Fachbegriffe automatisch mit Tooltips versehen
     (function(){
         const GLOSSAR = {

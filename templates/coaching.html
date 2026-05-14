@@ -346,16 +346,27 @@ function useStarter(el) {
 
 <script>
 async function assignTask(repId) {
+    const err = document.getElementById('atErr');
+    // FIX: defensive — wenn repId undefined/null, sofort melden statt stilles 404
+    if (!repId || repId === 'undefined' || repId === 'None') {
+        err.textContent = 'Fehler: Partner-ID fehlt — Page neu laden.';
+        err.style.display = 'block';
+        return;
+    }
     const title = document.getElementById('atTitle').value.trim();
     const desc = document.getElementById('atDesc').value.trim();
     const due = document.getElementById('atDue').value;
-    const err = document.getElementById('atErr');
     if (!title) { err.textContent = 'Titel fehlt.'; err.style.display='block'; return; }
     try {
         const res = await fetch(`/api/coaching/${repId}/assign-task`, {
             method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({title, description: desc, due_date: due})
         });
+        if (!res.ok) {
+            err.textContent = `HTTP ${res.status} — Endpoint nicht erreichbar`;
+            err.style.display = 'block';
+            return;
+        }
         const data = await res.json();
         if (data.ok) {
             location.reload();
@@ -363,7 +374,7 @@ async function assignTask(repId) {
             err.textContent = data.error || 'Fehler';
             err.style.display = 'block';
         }
-    } catch (e) { err.textContent = 'Verbindungsfehler'; err.style.display = 'block'; }
+    } catch (e) { err.textContent = 'Verbindungsfehler: ' + e.message; err.style.display = 'block'; }
 }
 async function deleteTask(taskId) {
     if (!confirm('Aufgabe zurückziehen?')) return;

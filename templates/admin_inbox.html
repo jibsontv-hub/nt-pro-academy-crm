@@ -136,23 +136,42 @@
         const date_v = document.getElementById('qtDate').value;
         const time_v = document.getElementById('qtTime').value;
         const err = document.getElementById('qtErr');
+        const btn = document.querySelector('button[onclick="saveQT()"]');
         if (!date_v) { err.textContent = 'Datum fehlt.'; err.style.display = 'block'; return; }
+        // FIX: Validate _qtLeadId — verhindert silent 404
+        if (!_qtLeadId || _qtLeadId === 'undefined') {
+          err.textContent = 'Fehler: Lead-ID fehlt — Modal schließen + neu öffnen.';
+          err.style.display = 'block';
+          return;
+        }
+        // Loading-State
+        if (btn) { btn.disabled = true; btn.textContent = 'Speichert...'; }
+        err.style.display = 'none';
         try {
           const res = await fetch(`/api/inbox/${_qtLeadId}/quick-termin`, {
             method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ termin_date: date_v, termin_time: time_v })
           });
+          // FIX: HTTP-Status checken bevor json() — sonst hängt Modal bei 5xx
+          if (!res.ok) {
+            err.textContent = `HTTP ${res.status} — Endpoint nicht erreichbar oder Server-Fehler`;
+            err.style.display = 'block';
+            if (btn) { btn.disabled = false; btn.textContent = 'Termin anlegen'; }
+            return;
+          }
           const data = await res.json();
           if (data.ok) {
             closeQT();
             location.reload();
           } else {
-            err.textContent = data.error || 'Fehler';
+            err.textContent = data.error || 'Fehler beim Speichern';
             err.style.display = 'block';
+            if (btn) { btn.disabled = false; btn.textContent = 'Termin anlegen'; }
           }
         } catch (e) {
-          err.textContent = 'Verbindungsfehler';
+          err.textContent = 'Verbindungsfehler: ' + (e.message || 'unbekannt');
           err.style.display = 'block';
+          if (btn) { btn.disabled = false; btn.textContent = 'Termin anlegen'; }
         }
       }
       document.addEventListener('keydown', (e) => {

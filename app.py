@@ -5357,6 +5357,11 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_commissions_user ON commissions(user_id);
             CREATE INDEX IF NOT EXISTS idx_push_log_lookup ON push_log(user_id, push_type, ref_key);
             CREATE INDEX IF NOT EXISTS idx_vision_user_date ON vision_entries(user_id, datum);
+            -- Performance-Wins für Dashboard (Audit 2026-05-14):
+            CREATE INDEX IF NOT EXISTS idx_contracts_owner_abschluss ON contracts(owner_id, abschluss_date DESC) WHERE status='abgeschlossen';
+            CREATE INDEX IF NOT EXISTS idx_contracts_status_recherche ON contracts(status, recherche_status, abschluss_date);
+            CREATE INDEX IF NOT EXISTS idx_appointments_owner_status ON appointments(owner_id, status, termin_date);
+            CREATE INDEX IF NOT EXISTS idx_users_active_parent ON users(active, parent_id);
             -- Lead-Token (per-Partner Werbe-URLs) + Self-Service-Reset + Newsletter
             CREATE INDEX IF NOT EXISTS idx_users_lead_token ON users(lead_token) WHERE lead_token IS NOT NULL;
             CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
@@ -5477,6 +5482,13 @@ def init_db():
 
 
 def get_all_descendants(user_id):
+    """Rekursiv alle Sub-User. SWR-Cache TTL 300s — wird 8-15× pro Dashboard-Load
+    aufgerufen. Cache-Invalidate via cache_invalidate('descendants:') bei
+    User-Insert/Update/Activation."""
+    return cache_swr(f'descendants:{user_id}', lambda: _get_all_descendants_uncached(user_id), ttl=300)
+
+
+def _get_all_descendants_uncached(user_id):
     db = get_db()
     all_ids = []
     queue = [user_id]
@@ -14885,6 +14897,8 @@ def team_deactivate(uid):
     db.execute('UPDATE users SET active = 0 WHERE id = ?', (uid,))
     db.commit()
     db.close()
+    cache_invalidate('descendants:')  # Hierarchie geändert → alle Caches neu
+    cache_invalidate('career:'); cache_invalidate('adm_pers:')
     flash('Mitglied deaktiviert', 'info')
     return redirect(url_for('team'))
 
@@ -15662,6 +15676,8 @@ def genehmigung_bestaetigen(uid):
     db.execute('UPDATE users SET active=1 WHERE id=?', (uid,))
     db.commit()
     db.close()
+    cache_invalidate('descendants:')  # neuer aktiver Partner → Hierarchie-Cache neu
+    cache_invalidate('career:'); cache_invalidate('adm_pers:')
     log_activity(uid, 'partner_neu', f'{target["name"]} ist freigeschaltet als neuer Geschäftspartner', icon='●', color='green')
     # Push an den frisch freigeschalteten User
     try:
