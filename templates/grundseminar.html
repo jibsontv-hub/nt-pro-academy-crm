@@ -30,8 +30,105 @@
 </div>
 {% endif %}
 
+{# ═══ NEUE STRUKTURIERTE TEILNEHMER-TABELLE (ab Stufe 2) ═══ #}
+<div class="card" style="border-top:3px solid var(--gold)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+        <div>
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:800">🎓 Grundseminar-Teilnehmer (strukturiert)</div>
+            <div style="font-size:18px;font-weight:800;color:var(--text);margin-top:2px">{{ seminar_teilnehmer|length }} Teilnehmer · {{ scope_label }}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Mit Pauschale, Endgespräch, Punkten · Downline-Prinzip</div>
+        </div>
+        {% if can_add_seminar %}
+        <a href="/grundseminar/teilnehmer/neu" class="btn btn-primary">+ Teilnehmer eintragen</a>
+        {% else %}
+        <span style="font-size:11px;color:var(--text-muted);padding:6px 10px;background:var(--bg-2);border-radius:6px">ab Stufe 2 (LREP) eintragbar</span>
+        {% endif %}
+    </div>
+
+    {% if seminar_teilnehmer %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Profil</th>
+                    <th>💰 Pauschale</th>
+                    <th>🤝 Endgespräch</th>
+                    <th>★ Punkte</th>
+                    <th>Monat</th>
+                    <th>Eingetragen von</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in seminar_teilnehmer %}
+                <tr>
+                    <td>
+                        <strong>{{ t.name }}</strong>
+                        {% if t.notizen %}<div style="font-size:10px;color:var(--text-muted);margin-top:2px">{{ t.notizen[:60] }}{% if t.notizen|length > 60 %}…{% endif %}</div>{% endif %}
+                    </td>
+                    <td style="font-size:12px;color:var(--text-muted)">
+                        {% if t.lebensalter %}{{ t.lebensalter }}J{% endif %}
+                        {% if t.beruf %}{% if t.lebensalter %} · {% endif %}{{ t.beruf }}{% endif %}
+                        {% if t.nationalitaet %}<div style="font-size:10px;color:var(--text-soft);margin-top:2px">{{ t.nationalitaet }}</div>{% endif %}
+                    </td>
+                    <td>
+                        {% if t.pauschale_bezahlt %}
+                        <span style="background:#22c55e15;color:#16a34a;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">✓ bezahlt{% if t.pauschale_betrag %} · {{ "%.0f"|format(t.pauschale_betrag) }}€{% endif %}</span>
+                        {% else %}
+                        <span style="background:#ef444415;color:#dc2626;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">offen</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set es = t.endgespraech_status or 'offen' %}
+                        {% set color = '#f59e0b' if es == 'offen' else ('#3b82f6' if es == 'geplant' else ('#16a34a' if es == 'erledigt' else '#dc2626')) %}
+                        {% set icon = '📋' if es == 'offen' else ('📅' if es == 'geplant' else ('✅' if es == 'erledigt' else '❌')) %}
+                        <span style="background:{{ color }}15;color:{{ color }};padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700">{{ icon }} {{ es }}</span>
+                        {% if t.endgespraech_datum %}<div style="font-size:10px;color:var(--text-muted);margin-top:2px">{{ t.endgespraech_datum }}</div>{% endif %}
+                    </td>
+                    <td>
+                        {% if t.punkte and t.punkte > 0 %}
+                        <strong style="color:var(--gold);font-size:14px">{{ t.punkte }}</strong><span style="font-size:10px;color:var(--text-muted)">/10</span>
+                        {% else %}<span style="color:var(--text-soft)">–</span>{% endif %}
+                    </td>
+                    <td style="font-size:12px;color:var(--text-muted)">{{ t.seminar_monat or '–' }}</td>
+                    <td style="font-size:12px;color:var(--text-muted)">{{ t.owner_name or '–' }}</td>
+                    <td style="white-space:nowrap">
+                        <a href="/grundseminar/teilnehmer/{{ t.id }}/edit" class="btn btn-secondary btn-sm">✎</a>
+                        <form method="POST" action="/grundseminar/teilnehmer/{{ t.id }}/delete" style="display:inline" onsubmit="return confirm('Teilnehmer „{{ t.name }}“ wirklich löschen?')">
+                            <button type="submit" class="btn btn-sm" style="background:var(--red,#ef4444);color:#fff;border-color:var(--red,#ef4444)">×</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {# Footer: Pauschale-Summe + Endgespräch-Quote #}
+            {% set bezahlt_count = seminar_teilnehmer | selectattr('pauschale_bezahlt') | list | length %}
+            {% set bezahlt_summe = seminar_teilnehmer | selectattr('pauschale_bezahlt') | sum(attribute='pauschale_betrag') %}
+            {% set endgespraech_done = seminar_teilnehmer | selectattr('endgespraech_status', 'equalto', 'erledigt') | list | length %}
+            <tfoot>
+                <tr style="background:var(--gold-soft);border-top:2px solid var(--gold)">
+                    <td colspan="2" style="font-weight:700;color:var(--gold)">Σ Summary</td>
+                    <td style="font-weight:700;color:var(--text)">{{ bezahlt_count }}/{{ seminar_teilnehmer|length }} bezahlt · {{ "%.0f"|format(bezahlt_summe) }}€</td>
+                    <td style="font-weight:700;color:var(--text)">{{ endgespraech_done }}/{{ seminar_teilnehmer|length }} Endgespräche</td>
+                    <td colspan="4"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <div style="padding:32px;text-align:center;color:var(--text-muted)">
+        {% if can_add_seminar %}
+        Noch keine strukturierten Teilnehmer. <a href="/grundseminar/teilnehmer/neu" style="color:var(--gold);font-weight:700">+ Ersten eintragen</a>
+        {% else %}
+        Strukturierte Teilnehmer-Eintragung ist ab Stufe 2 (LREP) verfügbar.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
 <div class="card">
-    <div class="card-title">Angemeldet ({{ teilnehmer|length }}) · {{ scope_label }}</div>
+    <div class="card-title">Aus Bewerber-Liste angemeldet ({{ teilnehmer|length }}) · {{ scope_label }}</div>
     {% if teilnehmer %}
     <div class="table-wrap">
         <table>

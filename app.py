@@ -5214,6 +5214,28 @@ def init_db():
             error_msg TEXT
         );
 
+        -- Grundseminar-Teilnehmer: strukturierte Liste pro Owner (ab Stufe 2).
+        -- Najib sieht via Downline-Prinzip alle aus seiner Hierarchie.
+        -- Unterscheidet sich von leads/rk: hier Pauschale + Endgespräch + Punkte.
+        CREATE TABLE IF NOT EXISTS grundseminar_teilnehmer (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_id INTEGER NOT NULL,        -- wer hat angemeldet
+            name TEXT NOT NULL,
+            nationalitaet TEXT,
+            lebensalter INTEGER,              -- Jahre (alter ist SQL-Keyword)
+            beruf TEXT,
+            pauschale_bezahlt INTEGER DEFAULT 0,  -- 0=offen, 1=bezahlt
+            pauschale_betrag REAL DEFAULT 0,
+            endgespraech_status TEXT DEFAULT 'offen',  -- offen / geplant / erledigt / abgesagt
+            endgespraech_datum TEXT,          -- ISO-Datum
+            punkte INTEGER DEFAULT 0,         -- Recruiting-Score (0-10) oder Grundseminar-Score
+            seminar_monat TEXT,               -- YYYY-MM (welcher Seminartermin)
+            notizen TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (owner_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS email_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -9373,10 +9395,144 @@ def grundseminar():
           AND COALESCE(l.status,'') NOT IN ('gewonnen','angemeldet','verloren','storno','tot','')
         ORDER BY l.created_at DESC LIMIT 50
     ''', owner_ids).fetchall()
+    # Grundseminar-Teilnehmer mit zusätzlichen Feldern (Nationalität/Alter/Beruf/
+    # Pauschale/Endgespräch/Punkte). Downline-Prinzip wie oben.
+    seminar_teilnehmer = db.execute(f'''
+        SELECT t.*, u.name as owner_name
+        FROM grundseminar_teilnehmer t
+        LEFT JOIN users u ON t.owner_id = u.id
+        WHERE t.owner_id IN ({ph})
+        ORDER BY t.created_at DESC LIMIT 200
+    ''', owner_ids).fetchall()
+    # Stufe für Form-Berechtigung (ab Stufe 2 darf eintragen)
+    can_add_seminar = (effective_career_for_user(current_user.id)['level'] >= 2) or current_user.has_admin_access
     db.close()
     return render_template('grundseminar.html',
         deadlines=deadlines, teilnehmer=teilnehmer, pending=pending,
-        directs=directs, scope=scope, scope_label=scope_label)
+        directs=directs, scope=scope, scope_label=scope_label,
+        seminar_teilnehmer=[dict(r) for r in seminar_teilnehmer],
+        can_add_seminar=can_add_seminar)
+
+
+@app.route('/grundseminar/teilnehmer/neu', methods=['GET', 'POST'])
+@login_required
+def seminar_teilnehmer_neu():
+    """Grundseminar-Teilnehmer eintragen — ab Stufe 2 (LREP+)."""
+    career = effective_career_for_user(current_user.id)
+    if career['level'] < 2 and not current_user.has_admin_access:
+        flash('Grundseminar-Teilnehmer-Eintrag ab Stufe 2 (LREP) verfügbar.', 'error')
+        return redirect(url_for('grundseminar'))
+    if request.method == 'POST':
+        try:
+            alter_raw = (request.form.get('alter') or '').strip()
+            lebensalter = int(alter_raw) if alter_raw.isdigit() else None
+            betrag_raw = (request.form.get('pauschale_betrag') or '').strip()
+            betrag = float(betrag_raw) if betrag_raw else 0.0
+            punkte_raw = (request.form.get('punkte') or '0').strip()
+            punkte = max(0, min(10, int(punkte_raw))) if punkte_raw.isdigit() else 0
+        except (ValueError, TypeError):
+            flash('Ungültige Eingabe (Alter/Betrag/Punkte müssen Zahlen sein)', 'error')
+            return redirect(url_for('seminar_teilnehmer_neu'))
+        db = get_db()
+        db.execute('''INSERT INTO grundseminar_teilnehmer
+                      (owner_id, name, nationalitaet, lebensalter, beruf,
+                       pauschale_bezahlt, pauschale_betrag,
+                       endgespraech_status, endgespraech_datum, punkte,
+                       seminar_monat, notizen)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                   (current_user.id,
+                    (request.form.get('name') or '').strip(),
+                    (request.form.get('nationalitaet') or '').strip() or None,
+                    lebensalter,
+                    (request.form.get('beruf') or '').strip() or None,
+                    1 if request.form.get('pauschale_bezahlt') else 0,
+                    betrag,
+                    (request.form.get('endgespraech_status') or 'offen').strip(),
+                    (request.form.get('endgespraech_datum') or '').strip() or None,
+                    punkte,
+                    (request.form.get('seminar_monat') or date.today().strftime('%Y-%m')).strip(),
+                    (request.form.get('notizen') or '').strip() or None))
+        db.commit()
+        db.close()
+        log_activity(current_user.id, 'seminar_teilnehmer_neu',
+                     f'{current_user.name} hat Grundseminar-Teilnehmer „{request.form.get("name", "")}" eingetragen',
+                     icon='🎓', color='gold')
+        flash(f'Teilnehmer „{request.form.get("name", "")}" eingetragen.', 'success')
+        return redirect(url_for('grundseminar'))
+    return render_template('seminar_teilnehmer_form.html',
+                           teilnehmer=None, today_iso=date.today().isoformat(),
+                           cur_month=date.today().strftime('%Y-%m'))
+
+
+@app.route('/grundseminar/teilnehmer/<int:tid>/edit', methods=['GET', 'POST'])
+@login_required
+def seminar_teilnehmer_edit(tid):
+    db = get_db()
+    t = db.execute('SELECT * FROM grundseminar_teilnehmer WHERE id=?', (tid,)).fetchone()
+    if not t:
+        db.close()
+        return redirect(url_for('grundseminar'))
+    # Permission: nur eigene oder Admin oder Upline
+    descendants = get_all_descendants(current_user.id)
+    if t['owner_id'] != current_user.id and not current_user.has_admin_access and t['owner_id'] not in descendants:
+        db.close()
+        flash('Keine Berechtigung.', 'error')
+        return redirect(url_for('grundseminar'))
+    if request.method == 'POST':
+        try:
+            alter_raw = (request.form.get('alter') or '').strip()
+            lebensalter = int(alter_raw) if alter_raw.isdigit() else None
+            betrag_raw = (request.form.get('pauschale_betrag') or '').strip()
+            betrag = float(betrag_raw) if betrag_raw else 0.0
+            punkte_raw = (request.form.get('punkte') or '0').strip()
+            punkte = max(0, min(10, int(punkte_raw))) if punkte_raw.isdigit() else 0
+        except (ValueError, TypeError):
+            db.close()
+            flash('Ungültige Eingabe', 'error')
+            return redirect(url_for('seminar_teilnehmer_edit', tid=tid))
+        db.execute('''UPDATE grundseminar_teilnehmer SET
+                      name=?, nationalitaet=?, lebensalter=?, beruf=?,
+                      pauschale_bezahlt=?, pauschale_betrag=?,
+                      endgespraech_status=?, endgespraech_datum=?, punkte=?,
+                      seminar_monat=?, notizen=?, updated_at=CURRENT_TIMESTAMP
+                      WHERE id=?''',
+                   ((request.form.get('name') or '').strip(),
+                    (request.form.get('nationalitaet') or '').strip() or None,
+                    lebensalter,
+                    (request.form.get('beruf') or '').strip() or None,
+                    1 if request.form.get('pauschale_bezahlt') else 0,
+                    betrag,
+                    (request.form.get('endgespraech_status') or 'offen').strip(),
+                    (request.form.get('endgespraech_datum') or '').strip() or None,
+                    punkte,
+                    (request.form.get('seminar_monat') or date.today().strftime('%Y-%m')).strip(),
+                    (request.form.get('notizen') or '').strip() or None,
+                    tid))
+        db.commit()
+        db.close()
+        flash('Teilnehmer aktualisiert.', 'success')
+        return redirect(url_for('grundseminar'))
+    db.close()
+    return render_template('seminar_teilnehmer_form.html',
+                           teilnehmer=dict(t), today_iso=date.today().isoformat(),
+                           cur_month=date.today().strftime('%Y-%m'))
+
+
+@app.route('/grundseminar/teilnehmer/<int:tid>/delete', methods=['POST'])
+@login_required
+def seminar_teilnehmer_delete(tid):
+    db = get_db()
+    t = db.execute('SELECT owner_id, name FROM grundseminar_teilnehmer WHERE id=?', (tid,)).fetchone()
+    descendants = get_all_descendants(current_user.id)
+    if not t or (t['owner_id'] != current_user.id and not current_user.has_admin_access and t['owner_id'] not in descendants):
+        db.close()
+        flash('Keine Berechtigung.', 'error')
+        return redirect(url_for('grundseminar'))
+    db.execute('DELETE FROM grundseminar_teilnehmer WHERE id=?', (tid,))
+    db.commit()
+    db.close()
+    flash(f'Teilnehmer „{t["name"] if t else "?"}" gelöscht.', 'success')
+    return redirect(url_for('grundseminar'))
 
 
 @app.route('/meine-leads')

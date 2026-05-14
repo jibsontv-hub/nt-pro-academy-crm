@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}{% if teilnehmer %}Teilnehmer bearbeiten{% else %}Neuer Grundseminar-Teilnehmer{% endif %} – Pro Academy{% endblock %}
+{% block page_title %}🎓 Grundseminar-Teilnehmer{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:720px;margin:0 auto">
+    <form method="POST">
+        <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.6px;font-weight:800;margin-bottom:14px">
+            {% if teilnehmer %}✎ Bearbeiten{% else %}+ Neu eintragen{% endif %}
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px">
+            <label>Name *</label>
+            <input type="text" name="name" value="{{ teilnehmer.name if teilnehmer else '' }}" required maxlength="120" autofocus placeholder="Vor- und Nachname">
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px">
+            <div class="form-group">
+                <label>Nationalität</label>
+                <input type="text" name="nationalitaet" value="{{ teilnehmer.nationalitaet if teilnehmer and teilnehmer.nationalitaet else '' }}" maxlength="60" placeholder="z.B. deutsch">
+            </div>
+            <div class="form-group">
+                <label>Alter</label>
+                <input type="number" name="alter" value="{{ teilnehmer.lebensalter if teilnehmer and teilnehmer.lebensalter else '' }}" min="14" max="99" placeholder="z.B. 28">
+            </div>
+            <div class="form-group">
+                <label>Beruf</label>
+                <input type="text" name="beruf" value="{{ teilnehmer.beruf if teilnehmer and teilnehmer.beruf else '' }}" maxlength="100" placeholder="z.B. Bürokauffrau">
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:10px">💰 Pauschale</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:var(--bg-2);padding:10px 14px;border-radius:8px;border:1px solid var(--border)">
+                    <input type="checkbox" name="pauschale_bezahlt" value="1" {% if teilnehmer and teilnehmer.pauschale_bezahlt %}checked{% endif %}>
+                    <span style="font-weight:700">bezahlt</span>
+                </label>
+                <div class="form-group" style="margin:0">
+                    <label style="font-size:11px;color:var(--text-muted)">Betrag (€)</label>
+                    <input type="number" name="pauschale_betrag" value="{{ '%.2f'|format(teilnehmer.pauschale_betrag) if teilnehmer and teilnehmer.pauschale_betrag else '' }}" step="0.01" min="0" placeholder="0.00">
+                </div>
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700;margin-bottom:10px">🤝 Endgespräch</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="form-group">
+                    <label>Status</label>
+                    <select name="endgespraech_status">
+                        {% set cur_status = teilnehmer.endgespraech_status if teilnehmer else 'offen' %}
+                        {% for s, label in [('offen','📋 offen'),('geplant','📅 geplant'),('erledigt','✅ erledigt'),('abgesagt','❌ abgesagt')] %}
+                        <option value="{{ s }}" {% if cur_status == s %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Datum</label>
+                    <input type="date" name="endgespraech_datum" value="{{ teilnehmer.endgespraech_datum if teilnehmer and teilnehmer.endgespraech_datum else '' }}">
+                </div>
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="form-group">
+                    <label>Punkte (0-10)</label>
+                    <input type="number" name="punkte" value="{{ teilnehmer.punkte if teilnehmer else 0 }}" min="0" max="10" step="1" placeholder="0">
+                    <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Recruiting-/Eindrucks-Score</div>
+                </div>
+                <div class="form-group">
+                    <label>Seminar-Monat</label>
+                    <input type="month" name="seminar_monat" value="{{ teilnehmer.seminar_monat if teilnehmer and teilnehmer.seminar_monat else cur_month }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px">
+            <label>Notizen (optional)</label>
+            <textarea name="notizen" rows="3" maxlength="600" placeholder="z.B. besonders motiviert, kommt mit Partner, etc.">{{ teilnehmer.notizen if teilnehmer and teilnehmer.notizen else '' }}</textarea>
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap">
+            <a href="/grundseminar" class="btn btn-secondary">Abbrechen</a>
+            {% if teilnehmer %}
+            <form method="POST" action="/grundseminar/teilnehmer/{{ teilnehmer.id }}/delete" style="display:inline" onsubmit="return confirm('Teilnehmer „{{ teilnehmer.name }}“ wirklich löschen?')">
+                <button type="submit" class="btn btn-danger">🗑 Löschen</button>
+            </form>
+            {% endif %}
+            <button type="submit" class="btn btn-primary">💾 Speichern</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
