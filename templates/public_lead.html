@@ -651,6 +651,52 @@ textarea.in { resize: vertical; min-height: 70px; }
 </div>
 
 <script>
+// 3-Step Karriere-Quiz Logik (TIER F.3) — MUSS vor IIFE stehen weil
+// activate('karriere') gleich beim Page-Load quizGoTo(1) aufruft. Vorher
+// war _quizState als `let` nach dem IIFE → temporal-dead-zone-Crash → Quiz
+// reagierte gar nicht mehr ('hängt bei Beruf').
+var _quizState = { step: 1, status: '', motiv: '' };
+function quizGoTo(step) {
+    _quizState.step = step;
+    var s1 = document.getElementById('quizStep1');
+    var s2 = document.getElementById('quizStep2');
+    var s3 = document.getElementById('quizStep3');
+    if (s1) s1.style.display = (step === 1) ? '' : 'none';
+    if (s2) s2.style.display = (step === 2) ? '' : 'none';
+    if (s3) s3.style.display = (step === 3) ? '' : 'none';
+    var bar = document.getElementById('quizProgressBar');
+    if (bar) bar.style.width = (step * 33.34) + '%';
+    var formTitleWrap = document.getElementById('formTitleWrap');
+    if (formTitleWrap) formTitleWrap.style.display = (step === 3) ? 'block' : 'none';
+    if (step === 3) {
+        var sum = document.getElementById('quizSummary');
+        if (sum) sum.innerHTML = '<strong>Status:</strong> ' + _quizState.status + '<br><strong>Motiv:</strong> ' + _quizState.motiv;
+        var statusInput = document.getElementById('quizStatusInput');
+        var motivInput = document.getElementById('quizMotivInput');
+        if (statusInput) statusInput.value = _quizState.status;
+        if (motivInput) motivInput.value = _quizState.motiv;
+    }
+}
+// Robuster Click-Handler — direkt nach DOMContentLoaded, ohne setTimeout
+// (setTimeout war manchmal race-condition mit Tab-Switch).
+function _quizClickHandler(e) {
+    var opt = e.target.closest && e.target.closest('.quiz-opt');
+    if (!opt) return;
+    var step = parseInt(opt.dataset.step, 10);
+    var val = opt.dataset.val;
+    if (!step || !val) return;
+    document.querySelectorAll('.quiz-opt[data-step="' + step + '"]').forEach(function(o){ o.classList.remove('selected'); });
+    opt.classList.add('selected');
+    if (step === 1) {
+        _quizState.status = val;
+        quizGoTo(2);
+    } else if (step === 2) {
+        _quizState.motiv = val;
+        quizGoTo(3);
+    }
+}
+document.addEventListener('click', _quizClickHandler);
+
 // Pfad-Tabs (oben + Form-Mini) — togglen Inhalt + sync mit hidden Form-Field
 // + Headline + Lead + CTA-Button pfad-adaptiv. Karriere zeigt 3-Step-Quiz
 // (TIER F.3 Mindvalley-Pattern), Beratung zeigt klassische Form.
@@ -723,41 +769,7 @@ textarea.in { resize: vertical; min-height: 70px; }
     }
 })();
 
-// 3-Step Karriere-Quiz Logik (TIER F.3)
-let _quizState = { step: 1, status: '', motiv: '' };
-function quizGoTo(step) {
-    _quizState.step = step;
-    document.getElementById('quizStep1').style.display = (step === 1) ? '' : 'none';
-    document.getElementById('quizStep2').style.display = (step === 2) ? '' : 'none';
-    document.getElementById('quizStep3').style.display = (step === 3) ? '' : 'none';
-    const bar = document.getElementById('quizProgressBar');
-    if (bar) bar.style.width = (step * 33.34) + '%';
-    // Bei Step 3: Form-Title-Wrap einblenden + Submit zeigen, Summary zeigen
-    const formTitleWrap = document.getElementById('formTitleWrap');
-    if (formTitleWrap) formTitleWrap.style.display = (step === 3) ? 'block' : 'none';
-    if (step === 3) {
-        const sum = document.getElementById('quizSummary');
-        if (sum) sum.innerHTML = `<strong>Status:</strong> ${_quizState.status}<br><strong>Motiv:</strong> ${_quizState.motiv}`;
-        document.getElementById('quizStatusInput').value = _quizState.status;
-        document.getElementById('quizMotivInput').value = _quizState.motiv;
-    }
-}
-document.addEventListener('click', function(e) {
-    const opt = e.target.closest('.quiz-opt');
-    if (!opt) return;
-    const step = parseInt(opt.dataset.step);
-    const val = opt.dataset.val;
-    // Visuelle Selektion innerhalb des Steps
-    document.querySelectorAll(`.quiz-opt[data-step="${step}"]`).forEach(o => o.classList.remove('selected'));
-    opt.classList.add('selected');
-    if (step === 1) {
-        _quizState.status = val;
-        setTimeout(() => quizGoTo(2), 250);
-    } else if (step === 2) {
-        _quizState.motiv = val;
-        setTimeout(() => quizGoTo(3), 250);
-    }
-});
+// (Quiz-Logik wurde nach OBEN verschoben — vor das IIFE — wegen TDZ-Crash)
 </script>
 </body>
 </html>
