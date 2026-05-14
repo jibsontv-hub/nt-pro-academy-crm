@@ -5410,6 +5410,7 @@ def init_db():
             ('instagram_handle', "TEXT"),
             ('tiktok_handle', "TEXT"),
             ('lead_token', "TEXT"),  # eindeutiger Lead-Link-Token (?ref=<token>)
+            ('monthly_target_eh', "INTEGER DEFAULT 1000"),  # individuelles Monatsziel (User-spezifisch)
         ]:
             if new_col not in col_names:
                 db.execute(f"ALTER TABLE users ADD COLUMN {new_col} {sql_type}")
@@ -6449,6 +6450,67 @@ def log_error(source, message, exception=None, severity='error', user_id=None):
                         pass
         except Exception:
             pass
+
+
+def get_user_monthly_progress(user_id, db=None):
+    """Aktueller Monats-EH-Stand vs. persönliches Monatsziel.
+    Returns: {
+        'month_eh_total': int,        # contracts dieses Monats + manual_eh dieses Monats
+        'monthly_target': int,        # users.monthly_target_eh oder 1000
+        'pct': int,                   # 0-100+
+        'eh_remaining': int,
+        'days_passed': int,
+        'days_in_month': int,
+        'on_track_pct': int,          # erwartetes %-Pace (Tage vorbei / Monat-Tage)
+        'is_ahead': bool,             # pct >= on_track_pct
+        'cur_month': str,             # YYYY-MM
+        'cur_month_label': str        # 'Mai 2026'
+    }
+    Wird in dashboard_partner.html Hero + partner_profil.html angezeigt.
+    """
+    own_db = db is None
+    if own_db:
+        db = get_db()
+    today = date.today()
+    cur_month = today.strftime('%Y-%m')
+    # User-spezifisches Monatsziel oder Default
+    user = db.execute('SELECT COALESCE(monthly_target_eh, 1000) as target FROM users WHERE id=?',
+                      (user_id,)).fetchone()
+    monthly_target = (user['target'] if user else 1000) or 1000
+    # Monats-EH aus Verträgen (eigenes, nicht Team)
+    eh_contracts = db.execute('''
+        SELECT COALESCE(SUM(einheiten), 0) s FROM contracts
+        WHERE owner_id=? AND status='abgeschlossen' AND recherche_status='freigegeben'
+          AND strftime('%Y-%m', abschluss_date) = ?
+    ''', (user_id, cur_month)).fetchone()['s']
+    # Manuelle EH-Einträge dieses Monats
+    eh_manual = db.execute('''
+        SELECT COALESCE(SUM(eh), 0) s FROM manual_eh_entries
+        WHERE user_id=? AND strftime('%Y-%m', datum) = ?
+    ''', (user_id, cur_month)).fetchone()['s']
+    month_eh_total = int(eh_contracts + eh_manual)
+    # Tag-Pace
+    days_passed = today.day
+    days_in_month = ((today.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)).day
+    pct = int(month_eh_total / monthly_target * 100) if monthly_target else 0
+    on_track_pct = int(days_passed / days_in_month * 100)
+    if own_db:
+        db.close()
+    month_names = ['','Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+    return {
+        'month_eh_total': month_eh_total,
+        'eh_contracts': int(eh_contracts),
+        'eh_manual': int(eh_manual),
+        'monthly_target': monthly_target,
+        'pct': pct,
+        'eh_remaining': max(0, monthly_target - month_eh_total),
+        'days_passed': days_passed,
+        'days_in_month': days_in_month,
+        'on_track_pct': on_track_pct,
+        'is_ahead': pct >= on_track_pct,
+        'cur_month': cur_month,
+        'cur_month_label': f'{month_names[today.month]} {today.year}'
+    }
 
 
 def get_data_health():
@@ -10419,7 +10481,10 @@ def einstellungen():
     user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
     db.close()
     dmo_target = get_dmo_target(current_user.id)
-    return render_template('einstellungen.html', user=user, dmo_target=dmo_target)
+    monthly_progress = get_user_monthly_progress(current_user.id)
+    return render_template('einstellungen.html', user=user,
+                           dmo_target=dmo_target,
+                           monthly_progress=monthly_progress)
 
 
 @app.route('/api/vision-seen', methods=['POST'])
@@ -12401,6 +12466,27 @@ def api_dmo_increment():
     return jsonify({'ok': True, 'dmo': get_dmo_status(current_user.id)})
 
 
+@app.route('/einstellungen/monatsziel', methods=['POST'])
+@login_required
+def settings_monatsziel():
+    """User setzt sein eigenes Monatsziel-EH (für Hero-Card auf Dashboard)."""
+    try:
+        target = int(request.form.get('monthly_target_eh', 1000))
+        if target < 50 or target > 200000:
+            raise ValueError('Wertebereich 50-200.000')
+    except (ValueError, TypeError) as e:
+        flash(f'Ungültiger Wert: {e}', 'error')
+        return redirect(url_for('einstellungen'))
+    db = get_db()
+    db.execute('UPDATE users SET monthly_target_eh=? WHERE id=?',
+               (target, current_user.id))
+    db.commit()
+    db.close()
+    cache_invalidate(f'ctx:{current_user.id}')
+    flash(f'Monatsziel auf {target} EH gesetzt.', 'success')
+    return redirect(url_for('einstellungen'))
+
+
 @app.route('/einstellungen/dmo', methods=['POST'])
 @login_required
 def settings_dmo():
@@ -13496,7 +13582,8 @@ def dashboard():
             zielgespraeche_heute=zielgespraeche_heute,
             hrep_pipeline=hrep_pipeline,
             bewerber_funnel=bewerber_funnel,
-            today_iso=date.today().isoformat()
+            today_iso=date.today().isoformat(),
+            monthly_progress=get_user_monthly_progress(current_user.id)
         )
     else:
         stats = get_team_stats(current_user.id)
@@ -13618,7 +13705,8 @@ def dashboard():
             streak_days=streak_days, vision_needed=vision_needed,
             today_pace=today_pace, coach_plan=coach_plan,
             upcoming_coaching=upcoming_coaching, hrep_path=hrep_path,
-            admin_personal=None  # nur Admin hat das — Partner nicht
+            admin_personal=None,  # nur Admin hat das — Partner nicht
+            monthly_progress=get_user_monthly_progress(current_user.id)
         )
 
 

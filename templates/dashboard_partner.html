@@ -155,8 +155,64 @@
 {% endif %}
 
 <!-- ============================================
-     🎯 HERO — die "Balance" Karte
+     🎯 HERO — AKTUELLER MONAT (Monats-EH + Monatsziel + %)
+     User-Wunsch: 'der zweite Zahl auf dem Dashboard sollte der aktuelle
+     Monat sein mit Prozent vom Zielmonat'.
      ============================================ -->
+{% if monthly_progress %}
+<div class="revo-hero">
+    <div class="revo-hero-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span>🎯 {{ monthly_progress.cur_month_label }}</span>
+        <a href="/einstellungen#monatsziel" style="font-size:11px;color:rgba(255,255,255,0.5);text-decoration:none;font-weight:600">[Ziel ändern]</a>
+    </div>
+    <div class="revo-hero-value">
+        {{ "{:,.0f}".format(monthly_progress.month_eh_total).replace(",", ".") }}<span class="unit"> / {{ "{:,.0f}".format(monthly_progress.monthly_target).replace(",", ".") }} EH</span>
+    </div>
+    <div class="revo-hero-sub" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:24px;font-weight:900;color:#d4a843">{{ monthly_progress.pct }}%</span>
+        {% if monthly_progress.eh_remaining > 0 %}
+        <span class="pos">noch {{ "{:,.0f}".format(monthly_progress.eh_remaining).replace(",", ".") }} EH bis Ziel</span>
+        {% else %}
+        <span class="pos">🏆 Monatsziel erreicht!</span>
+        {% endif %}
+        <span style="opacity:0.6;font-size:12px">· Tag {{ monthly_progress.days_passed }}/{{ monthly_progress.days_in_month }}</span>
+        {% if monthly_progress.is_ahead %}
+        <span style="background:#22c55e30;color:#22c55e;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">⚡ vor Plan</span>
+        {% else %}
+        <span style="background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700">Pace: {{ monthly_progress.on_track_pct }}%</span>
+        {% endif %}
+    </div>
+    {# Progress-Bar mit Ziel-Pace-Marker #}
+    <div style="background:var(--bg-2);height:10px;border-radius:99px;overflow:hidden;margin-top:18px;position:relative">
+        <div style="height:100%;width:{{ monthly_progress.pct if monthly_progress.pct < 100 else 100 }}%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:99px;transition:width 0.6s"></div>
+        {# Pace-Marker: wo sollte man heute stehen #}
+        {% if monthly_progress.on_track_pct < 100 %}
+        <div style="position:absolute;top:-2px;bottom:-2px;left:{{ monthly_progress.on_track_pct }}%;width:2px;background:rgba(255,255,255,0.7)" title="Pace-Marker: Tag {{ monthly_progress.days_passed }}/{{ monthly_progress.days_in_month }}"></div>
+        {% endif %}
+    </div>
+    {# Aufschlüsselung: Verträge vs. Manuelle EH #}
+    {% if monthly_progress.eh_manual > 0 %}
+    <div style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:8px">
+        📄 {{ "{:,.0f}".format(monthly_progress.eh_contracts).replace(",", ".") }} EH aus Verträgen ·
+        ✎ {{ "{:,.0f}".format(monthly_progress.eh_manual).replace(",", ".") }} EH manuell
+    </div>
+    {% endif %}
+</div>
+
+{# Career-Pfad-Info als kleiner Sub-Banner unten — life-time own_eh #}
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:8px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;margin-top:6px;margin-bottom:14px">
+    <div style="font-size:12px;color:var(--text-muted)">
+        {{ career.short }} · {{ "%.2f"|format(career.commission) }} €/EH ·
+        Karriere-Total: <strong style="color:var(--text)">{{ "{:,.0f}".format(own_eh).replace(",", ".") }} EH</strong>
+    </div>
+    {% if next_level %}
+    <div style="font-size:12px;color:var(--text-muted)">
+        Noch <strong style="color:{{ next_level.color }}">{{ "{:,.0f}".format(eh_to_next).replace(",", ".") }} EH</strong> bis {{ next_level.short }}
+    </div>
+    {% endif %}
+</div>
+{% else %}
+{# Fallback: alte Hero-Karte wenn monthly_progress fehlt #}
 <div class="revo-hero">
     <div class="revo-hero-label">
         {% if greeting and greeting.greeting %}{{ greeting.greeting }}{% else %}Willkommen zurück{% endif %}
@@ -178,6 +234,7 @@
     </div>
     {% endif %}
 </div>
+{% endif %}
 
 <!-- 📅 MONATS- & HALBJAHRES-PROGRESS (collapsed by default — Reporting, kein Daily Driver) -->
 {% if period_stats %}
