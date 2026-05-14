@@ -6,9 +6,84 @@
 
 {% set is_starter = own_eh < 100 %}
 
-{# TIER 1.5 — HEUTE-SOLL-vs-IST Banner: ganz oben, vor allem anderen.
-   Zeigt Tagessoll aus weekly_goals/7 vs heute-Ist. Status: rot/gelb/grün. #}
-{# Today-Pace-Banner ersetzt durch /heute-Verweis: jetzt im DMO-Counter dort. #}
+{# ═══ NEULING-COACH ═══
+   Sponsor-Card + Pfad-Übersicht + 3 nächste Schritte. Für ALLE bis HREP. #}
+{% if neuling_progress and neuling_progress.career_level < 3 %}
+<div class="card" style="background:linear-gradient(135deg,rgba(212,168,67,0.10),rgba(212,168,67,0.02));border:2px solid #e8d59a;margin-bottom:14px;padding:18px 20px">
+    <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px">
+        {% if neuling_progress.mentor %}
+        <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:240px">
+            <div style="width:54px;height:54px;border-radius:50%;overflow:hidden;border:2px solid var(--gold);flex-shrink:0;background:var(--gold-soft)">
+                {% if neuling_progress.mentor.photo_path %}
+                <img src="{{ neuling_progress.mentor.photo_path }}" alt="" style="width:100%;height:100%;object-fit:cover">
+                {% else %}
+                <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:800;font-size:18px">{{ neuling_progress.mentor.name[:2]|upper }}</div>
+                {% endif %}
+            </div>
+            <div style="flex:1;min-width:0">
+                <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700">🤝 Dein Mentor</div>
+                <div style="font-size:15px;font-weight:800;color:var(--text);margin-top:2px">{{ neuling_progress.mentor.name }}</div>
+                {% if neuling_progress.mentor.phone %}
+                <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+                    <a href="tel:{{ neuling_progress.mentor.phone }}" style="background:var(--gold);color:var(--navy);padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;text-decoration:none">📞 anrufen</a>
+                    <a href="https://wa.me/{{ neuling_progress.mentor.phone | replace(' ','') | replace('+','') | replace('-','') }}" target="_blank" style="background:#25D366;color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;text-decoration:none">💬 WhatsApp</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        <div style="flex:1;min-width:200px">
+            <div style="font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:0.5px;font-weight:800">📍 Wo du stehst</div>
+            <div style="display:flex;gap:18px;margin-top:6px;flex-wrap:wrap">
+                <div>
+                    <div style="font-size:11px;color:var(--text-muted)">{{ neuling_progress.career_short }} → LREP</div>
+                    <div style="font-size:18px;font-weight:800;color:{% if neuling_progress.lrep_pct >= 100 %}#16a34a{% else %}var(--gold){% endif %}">{{ neuling_progress.lrep_pct }}%</div>
+                    <div style="font-size:10px;color:var(--text-muted)">{{ neuling_progress.total_eh }} / {{ neuling_progress.lrep_target }} EH</div>
+                </div>
+                <div>
+                    <div style="font-size:11px;color:var(--text-muted)">→ HREP</div>
+                    <div style="font-size:18px;font-weight:800;color:{% if neuling_progress.hrep_pct >= 100 %}#16a34a{% else %}#8b5cf6{% endif %}">{{ neuling_progress.hrep_pct }}%</div>
+                    <div style="font-size:10px;color:var(--text-muted)">{{ neuling_progress.total_eh }} / {{ neuling_progress.hrep_target }} EH</div>
+                </div>
+                <div>
+                    <div style="font-size:11px;color:var(--text-muted)">Team</div>
+                    <div style="font-size:18px;font-weight:800;color:{% if neuling_progress.team_size >= 2 %}#16a34a{% else %}var(--text-muted){% endif %}">{{ neuling_progress.team_size }}</div>
+                    <div style="font-size:10px;color:var(--text-muted)">Sub-Partner</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Diversifikations-Warnung #}
+    {% if neuling_progress.diversification_warning %}
+    <div style="background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--text)">
+        <strong style="color:#dc2626">⚠ Wichtig für HREP:</strong>
+        {% if neuling_progress.team_size == 0 %}
+        Du hast noch <strong>keinen Sub-Partner</strong>. HREP braucht Diversifikation —
+        100% deiner EH dürfen NICHT aus dir allein kommen. Maximum 70% aus 1 Strang.
+        Starte Recruiting jetzt!
+        {% elif neuling_progress.biggest_strang_pct > 70 %}
+        Dein größter Strang macht <strong>{{ neuling_progress.biggest_strang_pct }}%</strong>
+        deiner EH (HREP-Cap: 70%). Bau mehr Diversifikation auf — neue direkte
+        Partner gewinnen oder bestehende kleinere Stränge stärken.
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# 3 nächste konkrete Schritte #}
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:800;margin-bottom:6px">▸ Deine nächsten Schritte</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+        {% for step in neuling_progress.next_steps %}
+        <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--text)">
+            <span style="color:var(--gold);font-weight:800;flex-shrink:0">{{ loop.index }}.</span>
+            <span>{{ step }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{# Today-Pace-Banner ersetzt durch /heute-Verweis #}
 <a href="/heute" style="display:block;text-decoration:none;background:linear-gradient(135deg,rgba(34,197,94,0.18),rgba(34,197,94,0.06));border:1px solid #22c55e40;border-left:3px solid #22c55e;border-radius:10px;padding:12px 16px;margin-bottom:14px;color:var(--text)">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
         <div>
@@ -44,7 +119,8 @@
 {% endif %}
 
 {# TIER 2.11 — Aufstiegs-Banner sticky für LREP+ — direkter Blick auf nächste Stufe #}
-{% if feature_tier >= 2 and career_criteria and career_criteria.next_level %}
+{# Aufstiegs-Banner für ALLE Stufen — auch REPs müssen ihre LREP-Schwelle sehen #}
+{% if career_criteria and career_criteria.next_level %}
 {% set nl = career_criteria.next_level %}
 {% set total_eh_now = career_criteria.total_eh or 0 %}
 {% set min_needed = nl.min_eh or 1 %}

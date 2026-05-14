@@ -6452,6 +6452,122 @@ def log_error(source, message, exception=None, severity='error', user_id=None):
             pass
 
 
+def check_milestone_push(user_id):
+    """Prüft ob User aktuell bei 80%/90%/95% einer Stufen-Schwelle ist und
+    schickt Push wenn ja. Idempotent via push_log mit ref_key
+    'milestone-{level}-{percent}'. Wird bei vertrag_neu + manual-eh-Add gerufen."""
+    try:
+        total = eh_total(user_id)
+        career = effective_career_for_user(user_id)
+        next_lvl = next((c for c in CAREER_LEVELS if c['level'] == career['level'] + 1), None)
+        if not next_lvl or next_lvl['min_eh'] == 0:
+            return
+        pct = total / next_lvl['min_eh']
+        # Trigger-Schwellen: 80%, 90%, 95%
+        for threshold, emoji in [(0.95, '🚀'), (0.90, '🔥'), (0.80, '⚡')]:
+            if pct >= threshold:
+                ref_key = f'milestone-{next_lvl["short"]}-{int(threshold*100)}'
+                if not _push_already_sent(user_id, 'milestone', ref_key):
+                    eh_remaining = max(0, next_lvl['min_eh'] - total)
+                    send_push_to_user(user_id,
+                        title=f'{emoji} Nur noch {int(eh_remaining)} EH bis {next_lvl["short"]}!',
+                        body=f'Du bist bei {int(pct*100)}% — die nächste Stufe ist greifbar nah.',
+                        url='/dashboard', tag=f'milestone-{next_lvl["short"]}',
+                        push_type='milestone')
+                    _push_mark_sent(user_id, 'milestone', ref_key)
+                break  # nur den höchsten Trigger feuern
+    except Exception as e:
+        log_error('check_milestone_push', str(e), exception=e, user_id=user_id, severity='warning')
+
+
+def get_neuling_progress(user_id, db=None):
+    """Vollständiger Onboarding-Pfad-Status für Neulinge.
+    Zeigt LREP + HREP + Diversifikation + Team-Notwendigkeit auf einen Blick.
+    Returns: {
+        'mentor': {id, name, phone, photo_path} oder None,
+        'lrep_eh_pct': 0-100, 'lrep_eh_remaining',
+        'hrep_eh_pct': 0-100, 'hrep_eh_remaining',
+        'has_team': bool, 'team_size': int,
+        'biggest_strang_pct': 0-100,  # 70% ist HREP-Cap
+        'diversification_warning': bool,
+        'next_milestone': {'short', 'eh_remaining', 'pct'},
+        'next_steps': [str, str, str]  # 3 konkrete Aktionen
+    }
+    """
+    own_db = db is None
+    if own_db:
+        db = get_db()
+    user = db.execute('SELECT id, name, parent_id, manual_career_level FROM users WHERE id=?', (user_id,)).fetchone()
+    if not user:
+        if own_db: db.close()
+        return None
+    # Mentor (Sponsor) aus parent_id
+    mentor = None
+    if user['parent_id']:
+        m = db.execute('SELECT id, name, phone, photo_path FROM users WHERE id=? AND active=1',
+                       (user['parent_id'],)).fetchone()
+        if m: mentor = dict(m)
+    # Total-EH des Users
+    total = eh_total(user_id, db)
+    own = eh_own(user_id, db)
+    # LREP-Schwelle (1000)
+    lrep_target = 1000
+    lrep_pct = min(100, int(total / lrep_target * 100)) if lrep_target else 0
+    lrep_remaining = max(0, lrep_target - total)
+    # HREP-Schwelle (3500) + Diversifikation
+    hrep_target = 3500
+    hrep_pct = min(100, int(total / hrep_target * 100)) if hrep_target else 0
+    hrep_remaining = max(0, hrep_target - total)
+    # Stränge-Analyse für Diversifikation
+    straenge = get_straenge_for_user(user_id, db=db)
+    team_size = len(straenge)
+    has_team = team_size > 0
+    biggest = max((s['eh'] for s in straenge), default=0)
+    biggest_pct = int(biggest / total * 100) if total > 0 else 0
+    # Diversifikations-Warnung wenn nahe HREP UND zu viel aus 1 Strang
+    diversification_warning = (total >= 800) and (biggest_pct > 70 or team_size == 0)
+    # Career-Stufe + nächste Schwelle
+    career = effective_career_for_user(user_id, db)
+    next_lvl = next((c for c in CAREER_LEVELS if c['level'] == career['level'] + 1), None)
+    next_milestone = None
+    if next_lvl:
+        nm_remaining = max(0, next_lvl['min_eh'] - total)
+        next_milestone = {
+            'short': next_lvl['short'],
+            'name': next_lvl['name'],
+            'eh_remaining': nm_remaining,
+            'pct': min(100, int(total / next_lvl['min_eh'] * 100)) if next_lvl['min_eh'] else 100
+        }
+    # 3 konkrete nächste Schritte
+    next_steps = []
+    if total < 1000:
+        next_steps.append(f'Erste Verträge abschließen — du brauchst {int(1000 - total)} EH bis LREP. 1 Vertrag mit 1.000€ Volumen = 800 EH.')
+    if total >= 800 and team_size == 0:
+        next_steps.append('Recruiting starten — für HREP brauchst du mindestens 1-2 Sub-Partner. Lade über deinen persönlichen Lead-Link ein.')
+    if total >= 1500 and biggest_pct > 70:
+        next_steps.append(f'Diversifizieren — dein größter Strang ist {biggest_pct}%. Für HREP musst du unter 70% kommen.')
+    if total < 800 and not next_steps:
+        next_steps.append('Namensliste füllen — sammle erste 20 Kontakte (Familie, Freunde, Kollegen).')
+    if not next_steps:
+        next_steps.append(f'Weiter so! Nächste Stufe {next_lvl["short"] if next_lvl else "—"}: noch {int(nm_remaining)} EH.')
+    if own_db:
+        db.close()
+    return {
+        'mentor': mentor,
+        'total_eh': int(total),
+        'own_eh': int(own),
+        'lrep_target': lrep_target, 'lrep_pct': lrep_pct, 'lrep_remaining': int(lrep_remaining),
+        'hrep_target': hrep_target, 'hrep_pct': hrep_pct, 'hrep_remaining': int(hrep_remaining),
+        'has_team': has_team, 'team_size': team_size,
+        'biggest_strang_pct': biggest_pct,
+        'diversification_warning': diversification_warning,
+        'next_milestone': next_milestone,
+        'next_steps': next_steps[:3],
+        'career_short': career['short'],
+        'career_level': career['level']
+    }
+
+
 def get_user_monthly_progress(user_id, db=None):
     """Aktueller Monats-EH-Stand vs. persönliches Monatsziel.
     Returns: {
@@ -12680,6 +12796,8 @@ def api_manual_eh_add():
     db.commit()
     db.close()
     cache_invalidate('adm_pers:'); cache_invalidate('najib_briefing:')
+    # Meilenstein-Push checken
+    check_milestone_push(current_user.id)
     if request.headers.get('Accept', '').startswith('application/json') or request.is_json:
         return jsonify({'ok': True, 'eh': eh, 'datum': datum})
     flash(f'Manuelle EH eingetragen: {eh:.0f} EH am {datum}', 'success')
@@ -13747,7 +13865,8 @@ def dashboard():
             today_pace=today_pace, coach_plan=coach_plan,
             upcoming_coaching=upcoming_coaching, hrep_path=hrep_path,
             admin_personal=None,  # nur Admin hat das — Partner nicht
-            monthly_progress=get_user_monthly_progress(current_user.id)
+            monthly_progress=get_user_monthly_progress(current_user.id),
+            neuling_progress=get_neuling_progress(current_user.id)
         )
 
 
@@ -13999,6 +14118,8 @@ def vertrag_neu():
         auto_promote_user(current_user.id)
         recalculate_all_commissions()
         cache_invalidate('ctx:'); cache_invalidate('news:'); cache_invalidate('coach_acts:'); cache_invalidate('forecast:'); cache_invalidate('strang:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:'); cache_invalidate('career:')
+        # Meilenstein-Push wenn 80/90/95% einer Stufe erreicht
+        check_milestone_push(current_user.id)
         if request.form.get('status') == 'abgeschlossen' and request.form.get('recherche_status') == 'freigegeben':
             # FIX: Auto-DMO — Vertrag direkt abgeschlossen → calls + termine je +1
             increment_dmo(current_user.id, 'calls', 1)
@@ -14020,7 +14141,19 @@ def vertrag_neu():
             log_activity(current_user.id, 'vertrag_neu',
                 f'{current_user.name} hat neuen Vertrag „{request.form["client_name"]}" angelegt ({einheiten:.0f} EH)',
                 icon='📄', color='gold')
-        flash(f'Vertrag angelegt! ({einheiten:.0f} EH)', 'success')
+        # Erklär-Toast: zeigt EH-Berechnung + Stand zur nächsten Stufe
+        try:
+            new_total = eh_total(current_user.id)
+            new_career = effective_career_for_user(current_user.id)
+            new_next = next((c for c in CAREER_LEVELS if c['level'] == new_career['level'] + 1), None)
+            if new_next:
+                eh_left = max(0, new_next['min_eh'] - new_total)
+                pct = int(new_total / new_next['min_eh'] * 100) if new_next['min_eh'] else 100
+                flash(f'✓ Vertrag angelegt: {volumen:.0f}€ Volumen × 0,8 = {einheiten:.0f} EH. Du bist jetzt bei {int(new_total)} EH = {pct}% bis {new_next["short"]} (noch {int(eh_left)} EH).', 'success')
+            else:
+                flash(f'✓ Vertrag angelegt: {volumen:.0f}€ × 0,8 = {einheiten:.0f} EH. Höchste Stufe erreicht!', 'success')
+        except Exception:
+            flash(f'Vertrag angelegt! ({einheiten:.0f} EH)', 'success')
         return redirect(url_for('vertraege'))
     # GET: Lead-Liste für Selector mit birthday/phone
     db = get_db()

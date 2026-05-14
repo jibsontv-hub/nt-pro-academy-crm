@@ -758,6 +758,30 @@
             -webkit-text-fill-color: var(--text-muted);
         }
 
+        /* === GLOSSAR-TOOLTIPS für Fachbegriffe === */
+        /* Verwendung: <abbr data-glossar="EH">EH</abbr> oder <span class="glossar" data-glossar="LREP">LREP</span> */
+        abbr[data-glossar], .glossar[data-glossar] {
+            position: relative; cursor: help; text-decoration: underline dotted var(--gold);
+            text-underline-offset: 2px; color: inherit;
+        }
+        abbr[data-glossar]:hover::after, .glossar[data-glossar]:hover::after {
+            content: attr(data-glossar);
+            position: absolute; bottom: calc(100% + 6px); left: 50%;
+            transform: translateX(-50%);
+            background: var(--navy); color: #fff;
+            padding: 8px 12px; border-radius: 8px;
+            font-size: 12px; font-weight: 500; line-height: 1.4;
+            white-space: normal; min-width: 240px; max-width: 320px;
+            z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            text-decoration: none; pointer-events: none;
+        }
+        abbr[data-glossar]:hover::before, .glossar[data-glossar]:hover::before {
+            content: ''; position: absolute; bottom: calc(100% + 1px); left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent; border-top-color: var(--navy);
+            z-index: 100; pointer-events: none;
+        }
+
         /* Theme-Toggle Button */
         .theme-toggle {
             display: inline-flex; align-items: center; justify-content: center;
@@ -2596,6 +2620,80 @@
             }
             startY = 0; currentY = 0;
         }, { passive: true });
+    })();
+    </script>
+
+    <script>
+    // === GLOSSAR-AUTO-WRAP === Fachbegriffe automatisch mit Tooltips versehen
+    (function(){
+        const GLOSSAR = {
+            'EH': '⚡ Einheiten — die Provisionsbasis. 1€ Kundenvolumen = 0,8 EH. Beispiel: 1.000€ Vertrag = 800 EH.',
+            'LREP': '🎯 Leitender Repräsentant (Stufe 2). Erreicht bei 1.000 EH gesamt (eigen + Team). Provision: 9,50€/EH.',
+            'HREP': '👑 Hauptrepräsentant (Stufe 3). Erreicht bei 3.500 EH + max. 70% aus 1 Strang (Diversifikation Pflicht!). Provision: 14,00€/EH.',
+            'CREP': '⭐ Chefrepräsentant (Stufe 4). Erreicht bei 9.000 EH + 2 qualifizierte Stränge à 1.200-4.500 EH. Provision: 18,00€/EH.',
+            'DREP': '🏆 Direktionsrepräsentant (Stufe 5). 25.000 EH + komplexe Diversifikation. Provision: 20,70€/EH.',
+            'GREP': '🌟 Generalrepräsentant (Stufe 6). 60.000 EH. Provision: 23,00€/EH.',
+            'REP': '🚀 Repräsentant (Stufe 1). Startstufe. Provision: 5,00€/EH.',
+            'DMO': '📋 Daily Method of Operation — dein tägliches Aktivitäts-Soll (Anrufe, Termine, Follow-ups, Recruiting). Eric Worre Standard.',
+            'Strang': '⬢ Bereich/Sub-Struktur unter dir. Jeder direkte Sub-Partner + dessen ganze Downline = 1 Strang.',
+            'Stränge': '⬢ Bereiche/Sub-Strukturen unter dir. Für HREP: max. 70% deiner EH dürfen aus einem Strang kommen.',
+            'Pauschale': '💰 Grundseminar-Teilnahme-Gebühr (typisch 149€). Wird vor dem Seminar bezahlt.',
+            'Endgespräch': '🤝 Nach dem Grundseminar — entscheidet ob Teilnehmer als Partner einsteigt.'
+        };
+        // Wrappt nur Standalone-Wörter im sichtbaren Text — überspringt Inputs, Forms, schon-getaggte
+        const SKIP_TAGS = new Set(['SCRIPT','STYLE','INPUT','TEXTAREA','SELECT','CODE','PRE','ABBR','BUTTON','OPTION']);
+        const SKIP_CLASSES = ['glossar','no-glossar','status-badge','stufe-pill','filter-pill','badge'];
+        function shouldSkip(node) {
+            let p = node.parentElement;
+            while (p) {
+                if (SKIP_TAGS.has(p.tagName)) return true;
+                for (const cls of SKIP_CLASSES) if (p.classList && p.classList.contains(cls)) return true;
+                p = p.parentElement;
+            }
+            return false;
+        }
+        function wrapText(node) {
+            if (shouldSkip(node)) return;
+            let text = node.nodeValue;
+            if (!text || text.length < 2) return;
+            // Build pattern: \b(EH|LREP|HREP|...)\b — case-sensitive damit "rep" in "Repräsentant" nicht matcht
+            const keys = Object.keys(GLOSSAR).sort((a,b) => b.length - a.length);
+            const pattern = new RegExp('\\b(' + keys.join('|') + ')\\b', 'g');
+            if (!pattern.test(text)) return;
+            pattern.lastIndex = 0;
+            const frag = document.createDocumentFragment();
+            let lastIdx = 0, m;
+            let foundOne = false;
+            while ((m = pattern.exec(text)) !== null) {
+                if (m.index > lastIdx) frag.appendChild(document.createTextNode(text.slice(lastIdx, m.index)));
+                const term = m[1];
+                const abbr = document.createElement('abbr');
+                abbr.setAttribute('data-glossar', GLOSSAR[term]);
+                abbr.textContent = term;
+                frag.appendChild(abbr);
+                lastIdx = m.index + term.length;
+                foundOne = true;
+            }
+            if (foundOne) {
+                if (lastIdx < text.length) frag.appendChild(document.createTextNode(text.slice(lastIdx)));
+                node.parentNode.replaceChild(frag, node);
+            }
+        }
+        function processNode(root) {
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            const toProcess = [];
+            let n;
+            while ((n = walker.nextNode())) toProcess.push(n);
+            // toProcess.length > 5000 → skip (Performance-Schutz)
+            if (toProcess.length > 5000) return;
+            toProcess.forEach(wrapText);
+        }
+        // Nur einmal nach DOMContentLoaded — kein Mutation-Observer (Performance)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => processNode(document.body));
+        } else {
+            processNode(document.body);
+        }
     })();
     </script>
 </body>
