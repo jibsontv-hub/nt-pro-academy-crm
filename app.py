@@ -13637,18 +13637,20 @@ def dashboard():
         return redirect(url_for('onboarding_catchup'))
     db = get_db()
     own_eh = get_user_total_eh(current_user.id, include_team=False)
-    team_eh = get_user_total_eh(current_user.id, include_team=True)
+    # WICHTIG: get_user_total_eh(include_team=True) returnt schon TOTAL (eigen+team).
+    # Variablenname 'team_eh' ist Misnomer — Wert ist eigentlich total_eh.
+    total_eh = get_user_total_eh(current_user.id, include_team=True)
+    team_eh = max(0, total_eh - own_eh)  # nur Team-Anteil (für Anzeige)
     career = get_career_level_for_user(current_user.id)
     next_level = get_next_level(career['level'])
     progress_pct = 100
     eh_to_next = 0
     if next_level:
-        # BUGFIX: total_eh = eigen + Team — denn LREP/HREP-Schwellen sind GESAMT-EH.
-        # Vorher zeigte Hero pessimistische own_eh-Distanz, REPs glaubten sie wären
-        # weiter weg als sie wirklich sind.
-        total_eh_for_progress = own_eh + team_eh
-        progress_pct = min(100, (total_eh_for_progress / next_level['min_eh']) * 100) if next_level['min_eh'] > 0 else 0
-        eh_to_next = max(0, next_level['min_eh'] - total_eh_for_progress)
+        # FIX: total_eh ist bereits eigen+team — KEIN doppeltes Aufaddieren mehr!
+        # Vorher: total_eh_for_progress = own_eh + team_eh (was eigentlich total war) → DOUBLE-COUNT
+        # Symptom: HREP-User (3500 EH) zeigte "noch 6510 EH bis CREP" obwohl CREP-Schwelle 9000 ist
+        progress_pct = min(100, (total_eh / next_level['min_eh']) * 100) if next_level['min_eh'] > 0 else 0
+        eh_to_next = max(0, next_level['min_eh'] - total_eh)
     conversion = get_conversion_rate(current_user.id, include_team=(current_user.role == 'admin'))
     my_commissions = get_commissions_for_user(current_user.id)
 

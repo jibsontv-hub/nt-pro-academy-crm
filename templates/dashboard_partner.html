@@ -275,11 +275,16 @@
     {% endif %}
 </div>
 
-{# Career-Pfad-Info als kleiner Sub-Banner unten — life-time own_eh #}
+{# Career-Pfad-Info als kleiner Sub-Banner unten — eigen + Team (life-time) #}
 <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:8px 14px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;margin-top:6px;margin-bottom:14px">
     <div style="font-size:12px;color:var(--text-muted)">
         {{ career.short }} · {{ "%.2f"|format(career.commission) }} €/EH ·
-        Karriere-Total: <strong style="color:var(--text)">{{ "{:,.0f}".format(own_eh).replace(",", ".") }} EH</strong>
+        {# total_eh = eigen + Team gesamt — das ist die Schwelle-relevante Zahl #}
+        {% set _total = (own_eh + (team_eh or 0)) %}
+        Gesamt: <strong style="color:var(--text)">{{ "{:,.0f}".format(_total).replace(",", ".") }} EH</strong>
+        {% if team_eh and team_eh > 0 %}
+        <span style="opacity:0.7">(eigen {{ "{:,.0f}".format(own_eh).replace(",", ".") }} + Team {{ "{:,.0f}".format(team_eh).replace(",", ".") }})</span>
+        {% endif %}
     </div>
     {% if next_level %}
     <div style="font-size:12px;color:var(--text-muted)">
