@@ -12250,6 +12250,85 @@ def admin_agents_error_seen(eid):
     return redirect(url_for('admin_agents'))
 
 
+@app.route('/admin/sync-contracts', methods=['GET', 'POST'])
+@login_required
+def admin_sync_contracts():
+    """Wenn nach Restore die leads (Kundenliste) noch da sind aber contracts
+    weg → erzeugt Vertrags-Stubs aus Kunden-Leads damit Najib sie sieht und
+    nur Volumen/EH ergänzen muss."""
+    if not current_user.has_admin_access:
+        flash('Nur Admin', 'error')
+        return redirect(url_for('dashboard'))
+    db = get_db()
+    # Kandidaten finden: Kunden-Leads ohne passenden contract
+    candidates = db.execute('''
+        SELECT l.id, l.owner_id, l.name, l.email, l.phone, l.produkt, l.status,
+               l.created_at, u.name as owner_name
+        FROM leads l
+        LEFT JOIN users u ON l.owner_id = u.id
+        WHERE COALESCE(l.liste_typ, 'vk') = 'vk'
+          AND l.status IN ('abgeschlossen', 'gewonnen', 'kontakt', 'angebot')
+          AND NOT EXISTS (
+            SELECT 1 FROM contracts c
+            WHERE c.owner_id = l.owner_id
+              AND LOWER(c.client_name) = LOWER(l.name)
+          )
+        ORDER BY l.created_at DESC
+    ''').fetchall()
+    candidates = [dict(c) for c in candidates]
+
+    if request.method == 'POST':
+        # Sync ausführen — nur ausgewählte IDs (Form-Checkboxen)
+        selected_ids = request.form.getlist('lead_ids')
+        if not selected_ids:
+            flash('Keine Leads ausgewählt.', 'warning')
+            db.close()
+            return redirect(url_for('admin_sync_contracts'))
+        # Pre-Sync-Backup
+        try:
+            import shutil
+            ts = datetime.now().strftime('%Y%m%d-%H%M%S')
+            proj = os.path.dirname(os.path.abspath(__file__))
+            shutil.copy(os.path.join(proj, 'vertrieb.db'),
+                        os.path.join(proj, f'vertrieb.db.before-sync-{ts}'))
+        except Exception:
+            pass
+        created = 0
+        for lid in selected_ids:
+            try:
+                lid_int = int(lid)
+            except (ValueError, TypeError):
+                continue
+            lead = db.execute(
+                'SELECT * FROM leads WHERE id=?', (lid_int,)
+            ).fetchone()
+            if not lead:
+                continue
+            # Schon contract da?
+            existing = db.execute(
+                'SELECT id FROM contracts WHERE owner_id=? AND LOWER(client_name)=LOWER(?)',
+                (lead['owner_id'], lead['name'])
+            ).fetchone()
+            if existing:
+                continue
+            db.execute('''INSERT INTO contracts
+                          (owner_id, client_name, produkt, volumen, einheiten,
+                           provision, status, recherche_status, notizen, lead_id, created_at)
+                          VALUES (?, ?, ?, 0, 0, 0, 'offen', 'ausstehend', ?, ?, ?)''',
+                       (lead['owner_id'], lead['name'], lead['produkt'] or '',
+                        (lead['notizen'] or '') + ' [Auto-Sync — Volumen/EH bitte ergänzen]',
+                        lead['id'], lead['created_at']))
+            created += 1
+        db.commit()
+        db.close()
+        cache_invalidate('ctx:'); cache_invalidate('adm_pers:'); cache_invalidate('admin_dash:')
+        flash(f'✓ {created} Vertrags-Stubs angelegt. Geh zu /vertraege und ergänze Volumen + EH.', 'success')
+        return redirect(url_for('vertraege'))
+
+    db.close()
+    return render_template('admin_sync_contracts.html', candidates=candidates)
+
+
 @app.route('/admin/agents/restore', methods=['POST'])
 @login_required
 def admin_agents_restore():

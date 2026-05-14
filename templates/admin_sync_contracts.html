@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Kunden → Verträge Sync · Pro Academy{% endblock %}
+{% block page_title %}🔄 Kunden → Verträge Sync{% endblock %}
+
+{% block content %}
+<div class="card" style="background:linear-gradient(135deg,rgba(245,158,11,0.08),transparent);border-left:4px solid #f59e0b;margin-bottom:14px">
+    <div style="font-size:11px;color:#d97706;text-transform:uppercase;letter-spacing:0.6px;font-weight:800">⚠ Restore-Helper</div>
+    <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:6px">
+        Wenn du nach Restore Kunden in der Liste siehst aber keine Verträge — hier kannst du
+        aus jedem Kunden-Lead automatisch einen Vertrags-Stub anlegen.
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5">
+        <strong>Was passiert:</strong> Pro ausgewähltem Kunden wird ein Vertrag mit Status „offen"
+        und Volumen=0/EH=0 angelegt. Der zählt NICHT in deine EH-Summe bis du Volumen + EH ergänzt
+        und Status auf „abgeschlossen" + Recherche „freigegeben" setzt.
+    </div>
+</div>
+
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;font-weight:700">Sync-Kandidaten</div>
+            <div style="font-size:18px;font-weight:800;color:var(--text);margin-top:2px">
+                {{ candidates|length }} Kunden-Leads ohne passenden Vertrag
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+                Filter: liste_typ='vk' AND status in (abgeschlossen/gewonnen/kontakt/angebot)
+            </div>
+        </div>
+    </div>
+
+    {% if candidates %}
+    <form method="POST">
+        <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" onclick="document.querySelectorAll('input[name=lead_ids]').forEach(c=>c.checked=true)" class="btn btn-secondary btn-sm">Alle auswählen</button>
+            <button type="button" onclick="document.querySelectorAll('input[name=lead_ids]').forEach(c=>c.checked=false)" class="btn btn-secondary btn-sm">Keine</button>
+            <button type="submit" class="btn btn-primary" style="margin-left:auto" onclick="return confirm('Wirklich für ausgewählte Leads je einen Vertrags-Stub anlegen? Vorher wird automatisch ein DB-Backup gemacht.')">▸ Verträge anlegen</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" onclick="document.querySelectorAll('input[name=lead_ids]').forEach(c=>c.checked=this.checked)"></th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Produkt</th>
+                        <th>Owner</th>
+                        <th>Erstellt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in candidates %}
+                    <tr>
+                        <td><input type="checkbox" name="lead_ids" value="{{ c.id }}" checked></td>
+                        <td><strong>{{ c.name }}</strong></td>
+                        <td><span class="status-badge status-{{ c.status }}">{{ c.status }}</span></td>
+                        <td>{{ c.produkt or '–' }}</td>
+                        <td style="font-size:12px;color:var(--text-muted)">{{ c.owner_name or '–' }}</td>
+                        <td style="font-size:11px;color:var(--text-muted)">{{ c.created_at[:10] if c.created_at else '–' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top:14px;padding:12px 14px;background:var(--bg-2);border-radius:8px;font-size:12px;color:var(--text-muted)">
+            💡 Nach dem Anlegen: geh in <a href="/vertraege" style="color:var(--gold);font-weight:700">/vertraege</a> und ergänze pro Vertrag das Volumen + EH (Edit-Button).
+            Erst wenn Status=abgeschlossen + recherche=freigegeben zählt der Vertrag in deine EH-Summe.
+        </div>
+    </form>
+    {% else %}
+    <div style="padding:32px;text-align:center;color:var(--text-muted)">
+        🎉 Keine Kandidaten — alle Kunden-Leads haben schon passende Verträge.
+        Falls du dachtest hier sollten welche stehen: prüfe ob deine Leads liste_typ='vk' haben
+        und ein Status drin ist (abgeschlossen/gewonnen/kontakt/angebot).
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
