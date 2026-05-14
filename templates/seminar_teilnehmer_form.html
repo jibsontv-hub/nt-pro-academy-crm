@@ -9,9 +9,15 @@
             {% if teilnehmer %}✎ Bearbeiten{% else %}+ Neu eintragen{% endif %}
         </div>
 
-        <div class="form-group" style="margin-bottom:14px">
-            <label>Name *</label>
-            <input type="text" name="name" value="{{ teilnehmer.name if teilnehmer else '' }}" required maxlength="120" autofocus placeholder="Vor- und Nachname">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+            <div class="form-group">
+                <label>Name *</label>
+                <input type="text" name="name" value="{{ teilnehmer.name if teilnehmer else '' }}" required maxlength="120" autofocus placeholder="Vor- und Nachname">
+            </div>
+            <div class="form-group">
+                <label>📞 Telefon</label>
+                <input type="tel" name="telefon" value="{{ teilnehmer.telefon if teilnehmer and teilnehmer.telefon else '' }}" maxlength="40" placeholder="z.B. +49 175 ...">
+            </div>
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px">

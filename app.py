@@ -5221,6 +5221,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             owner_id INTEGER NOT NULL,        -- wer hat angemeldet
             name TEXT NOT NULL,
+            telefon TEXT,
             nationalitaet TEXT,
             lebensalter INTEGER,              -- Jahre (alter ist SQL-Keyword)
             beruf TEXT,
@@ -5433,6 +5434,15 @@ def init_db():
             db.execute("ALTER TABLE leads ADD COLUMN public_message TEXT")
         if 'referred_by' not in lead_col_names:
             db.execute("ALTER TABLE leads ADD COLUMN referred_by TEXT")
+
+        # grundseminar_teilnehmer: telefon-Spalte nachrüsten falls nicht da
+        try:
+            sem_cols = db.execute("PRAGMA table_info(grundseminar_teilnehmer)").fetchall()
+            sem_col_names = [c['name'] for c in sem_cols]
+            if sem_cols and 'telefon' not in sem_col_names:
+                db.execute("ALTER TABLE grundseminar_teilnehmer ADD COLUMN telefon TEXT")
+        except Exception:
+            pass  # Tabelle existiert noch nicht — wird via CREATE IF NOT EXISTS erstellt
         db.commit()
     except Exception as e:
         print(f"Migration warning: {e}")
@@ -9435,13 +9445,14 @@ def seminar_teilnehmer_neu():
             return redirect(url_for('seminar_teilnehmer_neu'))
         db = get_db()
         db.execute('''INSERT INTO grundseminar_teilnehmer
-                      (owner_id, name, nationalitaet, lebensalter, beruf,
+                      (owner_id, name, telefon, nationalitaet, lebensalter, beruf,
                        pauschale_bezahlt, pauschale_betrag,
                        endgespraech_status, endgespraech_datum, punkte,
                        seminar_monat, notizen)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                    (current_user.id,
                     (request.form.get('name') or '').strip(),
+                    (request.form.get('telefon') or '').strip() or None,
                     (request.form.get('nationalitaet') or '').strip() or None,
                     lebensalter,
                     (request.form.get('beruf') or '').strip() or None,
@@ -9491,12 +9502,13 @@ def seminar_teilnehmer_edit(tid):
             flash('Ungültige Eingabe', 'error')
             return redirect(url_for('seminar_teilnehmer_edit', tid=tid))
         db.execute('''UPDATE grundseminar_teilnehmer SET
-                      name=?, nationalitaet=?, lebensalter=?, beruf=?,
+                      name=?, telefon=?, nationalitaet=?, lebensalter=?, beruf=?,
                       pauschale_bezahlt=?, pauschale_betrag=?,
                       endgespraech_status=?, endgespraech_datum=?, punkte=?,
                       seminar_monat=?, notizen=?, updated_at=CURRENT_TIMESTAMP
                       WHERE id=?''',
                    ((request.form.get('name') or '').strip(),
+                    (request.form.get('telefon') or '').strip() or None,
                     (request.form.get('nationalitaet') or '').strip() or None,
                     lebensalter,
                     (request.form.get('beruf') or '').strip() or None,
