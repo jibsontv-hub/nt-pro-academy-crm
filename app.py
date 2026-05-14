@@ -12626,7 +12626,8 @@ def api_dmo_increment():
 @app.route('/einstellungen/monatsziel', methods=['POST'])
 @login_required
 def settings_monatsziel():
-    """User setzt sein eigenes Monatsziel-EH (für Hero-Card auf Dashboard)."""
+    """User setzt sein eigenes Monatsziel-EH (für Hero-Card auf Dashboard).
+    Robuster: nrüstet Spalte ad-hoc nach falls DB aus altem Backup ohne Migration."""
     try:
         target = int(request.form.get('monthly_target_eh', 1000))
         if target < 50 or target > 200000:
@@ -12635,12 +12636,39 @@ def settings_monatsziel():
         flash(f'Ungültiger Wert: {e}', 'error')
         return redirect(url_for('einstellungen'))
     db = get_db()
-    db.execute('UPDATE users SET monthly_target_eh=? WHERE id=?',
-               (target, current_user.id))
-    db.commit()
+    try:
+        db.execute('UPDATE users SET monthly_target_eh=? WHERE id=?',
+                   (target, current_user.id))
+        db.commit()
+    except Exception as e:
+        # Spalte fehlt? Ad-hoc nachrüsten + retry
+        if 'no such column' in str(e).lower() or 'has no column' in str(e).lower():
+            try:
+                db.execute('ALTER TABLE users ADD COLUMN monthly_target_eh INTEGER DEFAULT 1000')
+                db.commit()
+                db.execute('UPDATE users SET monthly_target_eh=? WHERE id=?',
+                           (target, current_user.id))
+                db.commit()
+                log_error('monatsziel:auto-migrate', 'Spalte monthly_target_eh nachträglich angelegt',
+                          severity='warning', user_id=current_user.id)
+            except Exception as e2:
+                db.close()
+                log_error('monatsziel:save', f'Auto-Migrate fail: {e2}', exception=e2,
+                          user_id=current_user.id, severity='error')
+                flash(f'Speicher-Fehler: {e2}', 'error')
+                return redirect(url_for('einstellungen'))
+        else:
+            db.close()
+            log_error('monatsziel:save', str(e), exception=e,
+                      user_id=current_user.id, severity='error')
+            flash(f'Speicher-Fehler: {e}', 'error')
+            return redirect(url_for('einstellungen'))
     db.close()
+    # Alle relevanten Caches invalidieren
     cache_invalidate(f'ctx:{current_user.id}')
-    flash(f'Monatsziel auf {target} EH gesetzt.', 'success')
+    cache_invalidate('adm_pers:')
+    cache_invalidate('najib_briefing:')
+    flash(f'✓ Monatsziel auf {target} EH gesetzt.', 'success')
     return redirect(url_for('einstellungen'))
 
 
