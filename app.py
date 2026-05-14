@@ -14157,10 +14157,14 @@ def vertraege():
     # Footer-Stats: Total EH der gefilterten Verträge + Monatsziel + Fehlend
     total_eh = sum(r['einheiten'] or 0 for r in rows if r['status'] == 'abgeschlossen' and r['recherche_status'] == 'freigegeben')
     pending_eh = sum(r['einheiten'] or 0 for r in rows if r['status'] == 'abgeschlossen' and (r['recherche_status'] or 'ausstehend') != 'freigegeben')
+    # FIX: User-eigenes Monatsziel (users.monthly_target_eh) statt globaler Setting.
+    # Vorher: alle sahen Najibs 5000-EH-Ziel. Jetzt: jeder sein eigenes.
     try:
-        monthly_target = int(get_setting('monthly_target_eh', '5000') or '5000')
-    except (ValueError, TypeError):
-        monthly_target = 5000
+        user_target_row = db.execute('SELECT COALESCE(monthly_target_eh, 1000) as t FROM users WHERE id=?',
+                                      (current_user.id,)).fetchone()
+        monthly_target = int(user_target_row['t'] or 1000) if user_target_row else 1000
+    except Exception:
+        monthly_target = 1000
     eh_remaining = max(0, monthly_target - int(total_eh))
 
     # Monats-Navigation: vorher/nachher berechnen
@@ -16466,29 +16470,60 @@ def lead_change_typ(lead_id):
 @app.route('/namensliste')
 @login_required
 def namensliste():
-    """Namensliste mit 2 Tabs: VK (Vertrieb) und RK (Rekrutierung)"""
+    """Namensliste mit 2 Tabs: VK (Vertrieb) und RK (Rekrutierung).
+    NEU: Owner-Filter via ?owner=me|all|<user_id> — Najib kann pro direktem Partner
+    seine Kunden-Liste sehen (Downline-Prinzip wie /grundseminar)."""
     typ = (request.args.get('typ') or 'vk').lower()
     if typ not in ('vk', 'rk', 'all'): typ = 'vk'
     status_filter = request.args.get('status', '')
+    owner_param = (request.args.get('owner') or 'me').strip()
     db = get_db()
-    # Counts pro Liste für Tabs
-    vk_count = db.execute("SELECT COUNT(*) as c FROM leads WHERE owner_id=? AND COALESCE(liste_typ,'vk')='vk'", (current_user.id,)).fetchone()['c']
-    rk_count = db.execute("SELECT COUNT(*) as c FROM leads WHERE owner_id=? AND liste_typ='rk'", (current_user.id,)).fetchone()['c']
+    # Direkte Partner für Tabs (für Admin/Sponsoren mit Downline)
+    descendants = get_all_descendants(current_user.id)
+    direct_partners = []
+    if current_user.has_admin_access or descendants:
+        direct_partners = [dict(r) for r in db.execute(
+            'SELECT id, name FROM users WHERE parent_id=? AND active=1 ORDER BY name',
+            (current_user.id,)
+        ).fetchall()]
+    # Owner-IDs basierend auf owner_param
+    scope_label = '👤 Nur ich'
+    if owner_param == 'all' and (current_user.has_admin_access or descendants):
+        owner_ids = [current_user.id] + descendants
+        scope_label = '🌐 Gesamte Struktur'
+    elif owner_param.isdigit():
+        sid = int(owner_param)
+        if current_user.has_admin_access or sid == current_user.id or sid in descendants:
+            sub_descendants = get_all_descendants(sid)
+            owner_ids = [sid] + sub_descendants
+            sname = db.execute('SELECT name FROM users WHERE id=?', (sid,)).fetchone()
+            scope_label = f'⬢ {sname["name"] if sname else "?"}-Bereich'
+        else:
+            owner_ids = [current_user.id]
+            owner_param = 'me'
+    else:
+        owner_ids = [current_user.id]
+        owner_param = 'me'
+
+    ph = ','.join('?' * len(owner_ids))
+    # Counts pro Liste für Tabs (im aktuellen Owner-Scope)
+    vk_count = db.execute(f"SELECT COUNT(*) as c FROM leads WHERE owner_id IN ({ph}) AND COALESCE(liste_typ,'vk')='vk'", owner_ids).fetchone()['c']
+    rk_count = db.execute(f"SELECT COUNT(*) as c FROM leads WHERE owner_id IN ({ph}) AND liste_typ='rk'", owner_ids).fetchone()['c']
 
     # Liste filtern
     if typ == 'all':
-        base_q = 'SELECT * FROM leads WHERE owner_id = ?'
-        params = [current_user.id]
+        base_q = f'SELECT l.*, u.name as owner_name FROM leads l LEFT JOIN users u ON l.owner_id=u.id WHERE l.owner_id IN ({ph})'
+        params = list(owner_ids)
     elif typ == 'rk':
-        base_q = "SELECT * FROM leads WHERE owner_id = ? AND liste_typ = 'rk'"
-        params = [current_user.id]
+        base_q = f"SELECT l.*, u.name as owner_name FROM leads l LEFT JOIN users u ON l.owner_id=u.id WHERE l.owner_id IN ({ph}) AND l.liste_typ = 'rk'"
+        params = list(owner_ids)
     else:  # vk
-        base_q = "SELECT * FROM leads WHERE owner_id = ? AND COALESCE(liste_typ, 'vk') = 'vk'"
-        params = [current_user.id]
+        base_q = f"SELECT l.*, u.name as owner_name FROM leads l LEFT JOIN users u ON l.owner_id=u.id WHERE l.owner_id IN ({ph}) AND COALESCE(l.liste_typ, 'vk') = 'vk'"
+        params = list(owner_ids)
     if status_filter:
-        base_q += ' AND status = ?'
+        base_q += ' AND l.status = ?'
         params.append(status_filter)
-    base_q += ' ORDER BY created_at DESC'
+    base_q += ' ORDER BY l.created_at DESC'
     rows = db.execute(base_q, params).fetchall()
 
     # Status-Counts (für die aktive Liste)
@@ -16509,7 +16544,9 @@ def namensliste():
         leads=rows, total=total, by_status=by_status,
         typ=typ, status_filter=status_filter,
         vk_count=vk_count, rk_count=rk_count,
-        quote=quote, contact_quote=contact_quote, won=won, contacted=contacted)
+        quote=quote, contact_quote=contact_quote, won=won, contacted=contacted,
+        direct_partners=direct_partners, owner_scope=owner_param,
+        scope_label=scope_label, has_team=bool(descendants))
 
 
 # === QUOTEN ===

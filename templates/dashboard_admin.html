@@ -204,82 +204,9 @@
 {# Coach-Plan-Card entfernt: redundant zu /heute (P5 Coaching-Lücke + P0 Drift covern dasselbe).
    Ein einziger Workflow im /heute-Modus statt 3 Cards mit überlappenden Listen. #}
 
-<!-- ============================================
-     🤖 COACH HERO — Najibs Foto + persönliche Begrüßung + Tagesaufgaben
-     User-Wunsch: 'mein Kopf wieder mit Coach und Hi Najib mit allen Tagesaufgaben'
-     ============================================ -->
-<div class="card" style="background:linear-gradient(135deg,#0f1c3f 0%,#1a2c5b 50%,#0a132d 100%);color:#fff;border:none;position:relative;overflow:hidden;padding:24px 22px;margin-bottom:14px">
-    <div style="position:absolute;right:-60px;top:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(212,168,67,0.25) 0%,transparent 70%);pointer-events:none"></div>
-    <div style="position:relative;z-index:1;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap">
-        <div class="ntcoach-avatar" style="width:84px;height:84px;flex-shrink:0;position:relative;animation:ntcoachSway 6s ease-in-out infinite">
-            <div style="position:absolute;inset:0;border-radius:50%;overflow:hidden;box-shadow:0 8px 24px rgba(212,168,67,0.5),0 0 0 3px #d4a843;animation:ntcoachBreathe 4s ease-in-out infinite;background:#0f1c3f">
-                {% if current_user.photo_path %}
-                <img src="{{ current_user.photo_path }}" alt="{{ current_user.name }}" style="width:100%;height:100%;object-fit:cover;display:block">
-                {% else %}
-                <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;color:#d4a843;background:linear-gradient(135deg,#1a2c5b,#0a132d)">{{ current_user.name[:2]|upper }}</div>
-                {% endif %}
-            </div>
-            <div style="position:absolute;inset:-8px;border-radius:50%;border:2px solid rgba(212,168,67,0.4);animation:ntcoachPulse 2.4s ease-out infinite;pointer-events:none"></div>
-            <div style="position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(212,168,67,0.2);animation:ntcoachPulse 2.4s ease-out infinite 1.2s;pointer-events:none"></div>
-            <div style="position:absolute;bottom:-2px;right:-2px;width:22px;height:22px;border-radius:50%;background:#34d399;border:3px solid #0f1c3f;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;z-index:2;animation:ntcoachStatusPulse 2s ease-in-out infinite">●</div>
-        </div>
-        <div style="flex:1;min-width:200px">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
-                <div style="font-size:11px;color:rgba(255,255,255,0.6);text-transform:uppercase;letter-spacing:1.2px;font-weight:800">🤖 Dein Coach</div>
-                {% if streak_days and streak_days > 0 %}
-                <span style="background:linear-gradient(135deg,#f59e0b,#dc2626);color:#fff;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:800;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 8px rgba(245,158,11,0.4)">🔥 {{ streak_days }} Tag{% if streak_days != 1 %}e{% endif %} Streak</span>
-                {% endif %}
-            </div>
-            <div style="font-size:22px;font-weight:900;margin-top:4px;line-height:1.2">
-                Hi <span style="color:#d4a843">{{ current_user.name.split()[0] }}</span>, {{ greeting.greeting if greeting and greeting.greeting else 'lass uns rocken!' }}
-            </div>
-            <div style="font-size:14px;color:rgba(255,255,255,0.75);margin-top:8px;line-height:1.4">
-                {% if coach_actions %}Was du <strong style="color:#d4a843">heute reißt</strong>:{% else %}Heute alles ruhig — Zeit für proaktive Akquise oder ein Coaching-Gespräch.{% endif %}
-            </div>
-        </div>
-    </div>
-    {% if coach_actions %}
-    <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;margin-top:18px">
-        {% for a in coach_actions %}
-        <a href="{{ a.action_url or '#' }}" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:14px;text-decoration:none;color:#fff;transition:all 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">
-            <div style="font-size:20px;flex-shrink:0">{{ a.icon }}</div>
-            <div style="flex:1;min-width:0">
-                <div style="font-size:14px;font-weight:700;color:#fff">{{ a.title }}</div>
-                <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-top:2px">{{ a.detail }}</div>
-            </div>
-            <span style="background:{% if a.priority == 'critical' %}#ef4444{% elif a.priority == 'high' %}#d4a843{% else %}rgba(255,255,255,0.15){% endif %};color:{% if a.priority in ['critical','high'] %}#0f1c3f{% else %}#fff{% endif %};padding:5px 12px;border-radius:8px;font-size:11px;font-weight:800;white-space:nowrap">{{ a.action_label or 'Los →' }}</span>
-        </a>
-        {% endfor %}
-    </div>
-    <div style="text-align:center;margin-top:12px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
-        <a href="/heute" style="color:#22c55e;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.3px">⚡ Single-Task-Modus →</a>
-        <a href="/assistent" style="color:#d4a843;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.3px">💬 Mit Coach chatten →</a>
-    </div>
-    {% endif %}
-</div>
-<style>
-@keyframes ntcoachSway {
-    0%, 100% { transform: rotate(-1.5deg) translateY(0); }
-    25% { transform: rotate(1deg) translateY(-2px); }
-    50% { transform: rotate(-0.5deg) translateY(0); }
-    75% { transform: rotate(1.5deg) translateY(-1px); }
-}
-@keyframes ntcoachBreathe {
-    0%, 100% { transform: scale(1); box-shadow: 0 8px 24px rgba(212,168,67,0.4), 0 0 0 3px #d4a843; }
-    50% { transform: scale(1.025); box-shadow: 0 12px 30px rgba(212,168,67,0.55), 0 0 0 3px #f0c970; }
-}
-@keyframes ntcoachPulse {
-    0% { opacity: 0.7; transform: scale(1); }
-    100% { opacity: 0; transform: scale(1.35); }
-}
-@keyframes ntcoachStatusPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0.6), 0 0 0 3px #0f1c3f; }
-    50% { box-shadow: 0 0 0 8px rgba(52,211,153,0), 0 0 0 3px #0f1c3f; }
-}
-@media (prefers-reduced-motion: reduce) {
-    .ntcoach-avatar, .ntcoach-avatar > div { animation: none !important; }
-}
-</style>
+{# Coach-Hero — Wiederverwendbares Partial. KI-Coach-Foto + Hi-Begrüßung + Tagesaufgaben.
+   User-Wunsch: 'das KI-Foto soll bei allen zu sehen sein'. #}
+{% include 'partials/coach_hero.html' %}
 
 <!-- ============================================
      ⚡ MONATSZIEL — aktueller Monat: Soll vs. Ist + %

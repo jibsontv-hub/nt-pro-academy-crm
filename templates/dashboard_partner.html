@@ -94,6 +94,10 @@
     </div>
 </a>
 
+{# Coach-Hero — KI-Coach-Foto + Hi-Begrüßung + Tagesaufgaben.
+   User-Wunsch: 'das KI-Foto soll bei allen zu sehen sein'. #}
+{% include 'partials/coach_hero.html' %}
+
 {# TIER 4.17 — HREP-Beschleuniger: NUR für LREPs (ftier=2) zeigen, REPs sollen
    sich nicht mit HREP-Pfad ablenken #}
 {% if feature_tier == 2 and hrep_path and hrep_path.focus_strang_id %}

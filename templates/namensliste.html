@@ -45,19 +45,32 @@
 
 <!-- Tab-Switcher VK / RK -->
 <div class="tab-bar">
-    <a href="?typ=vk" class="{% if typ == 'vk' %}active{% endif %}">
+    <a href="?typ=vk{% if owner_scope and owner_scope != 'me' %}&owner={{ owner_scope }}{% endif %}" class="{% if typ == 'vk' %}active{% endif %}">
         <span>Vertrieb</span>
         <span class="count">{{ vk_count }}</span>
     </a>
-    <a href="?typ=rk" class="{% if typ == 'rk' %}active{% endif %}">
+    <a href="?typ=rk{% if owner_scope and owner_scope != 'me' %}&owner={{ owner_scope }}{% endif %}" class="{% if typ == 'rk' %}active{% endif %}">
         <span>Recruiting</span>
         <span class="count">{{ rk_count }}</span>
     </a>
-    <a href="?typ=all" class="{% if typ == 'all' %}active{% endif %}">
+    <a href="?typ=all{% if owner_scope and owner_scope != 'me' %}&owner={{ owner_scope }}{% endif %}" class="{% if typ == 'all' %}active{% endif %}">
         <span>Alle</span>
         <span class="count">{{ vk_count + rk_count }}</span>
     </a>
 </div>
+
+{# Owner-Filter (für User mit direkten Partnern) — Downline-Prinzip #}
+{% if direct_partners %}
+<div style="display:flex;gap:6px;margin:14px 0;flex-wrap:wrap;align-items:center">
+    <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin-right:4px">Bereich:</div>
+    <a href="?typ={{ typ }}&owner=me" style="padding:5px 12px;border-radius:99px;font-size:11px;font-weight:700;text-decoration:none;background:{% if owner_scope == 'me' %}var(--gold);color:var(--navy){% else %}var(--surface);color:var(--text-muted){% endif %};border:1px solid {% if owner_scope == 'me' %}var(--gold){% else %}var(--border){% endif %}">👤 Nur ich</a>
+    <a href="?typ={{ typ }}&owner=all" style="padding:5px 12px;border-radius:99px;font-size:11px;font-weight:700;text-decoration:none;background:{% if owner_scope == 'all' %}var(--gold);color:var(--navy){% else %}var(--surface);color:var(--text-muted){% endif %};border:1px solid {% if owner_scope == 'all' %}var(--gold){% else %}var(--border){% endif %}">🌐 Gesamt</a>
+    {% for p in direct_partners %}
+    <a href="?typ={{ typ }}&owner={{ p.id }}" style="padding:5px 12px;border-radius:99px;font-size:11px;font-weight:700;text-decoration:none;background:{% if owner_scope == p.id|string %}#3b82f6;color:#fff{% else %}var(--surface);color:var(--text-muted){% endif %};border:1px solid {% if owner_scope == p.id|string %}#3b82f6{% else %}var(--border){% endif %}">⬢ {{ p.name }}</a>
+    {% endfor %}
+</div>
+<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Aktuell: <strong style="color:var(--text)">{{ scope_label }}</strong></div>
+{% endif %}
 
 <!-- Quoten — neutral Outline-Style statt farbige Cards -->
 <div class="kpi-grid">
@@ -86,12 +99,13 @@
 <!-- Status-Filter — nur Text + Counter, keine Symbole -->
 <div class="card">
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
-        <a href="?typ={{ typ }}" class="filter-btn {% if not status_filter %}active{% endif %}">Alle <span class="fc">{{ total }}</span></a>
-        <a href="?typ={{ typ }}&status=neu" class="filter-btn {% if status_filter == 'neu' %}active{% endif %}">Neu <span class="fc">{{ by_status.get('neu', 0) }}</span></a>
-        <a href="?typ={{ typ }}&status=kontakt" class="filter-btn {% if status_filter == 'kontakt' %}active{% endif %}">Kontakt <span class="fc">{{ by_status.get('kontakt', 0) }}</span></a>
-        <a href="?typ={{ typ }}&status=angebot" class="filter-btn {% if status_filter == 'angebot' %}active{% endif %}">Angebot <span class="fc">{{ by_status.get('angebot', 0) }}</span></a>
-        <a href="?typ={{ typ }}&status=gewonnen" class="filter-btn {% if status_filter == 'gewonnen' %}active{% endif %}">Gewonnen <span class="fc">{{ by_status.get('gewonnen', 0) }}</span></a>
-        <a href="?typ={{ typ }}&status=verloren" class="filter-btn {% if status_filter == 'verloren' %}active{% endif %}">Verloren <span class="fc">{{ by_status.get('verloren', 0) }}</span></a>
+        {% set _owner_qs = '&owner=' ~ owner_scope if owner_scope and owner_scope != 'me' else '' %}
+        <a href="?typ={{ typ }}{{ _owner_qs }}" class="filter-btn {% if not status_filter %}active{% endif %}">Alle <span class="fc">{{ total }}</span></a>
+        <a href="?typ={{ typ }}&status=neu{{ _owner_qs }}" class="filter-btn {% if status_filter == 'neu' %}active{% endif %}">Neu <span class="fc">{{ by_status.get('neu', 0) }}</span></a>
+        <a href="?typ={{ typ }}&status=kontakt{{ _owner_qs }}" class="filter-btn {% if status_filter == 'kontakt' %}active{% endif %}">Kontakt <span class="fc">{{ by_status.get('kontakt', 0) }}</span></a>
+        <a href="?typ={{ typ }}&status=angebot{{ _owner_qs }}" class="filter-btn {% if status_filter == 'angebot' %}active{% endif %}">Angebot <span class="fc">{{ by_status.get('angebot', 0) }}</span></a>
+        <a href="?typ={{ typ }}&status=gewonnen{{ _owner_qs }}" class="filter-btn {% if status_filter == 'gewonnen' %}active{% endif %}">Gewonnen <span class="fc">{{ by_status.get('gewonnen', 0) }}</span></a>
+        <a href="?typ={{ typ }}&status=verloren{{ _owner_qs }}" class="filter-btn {% if status_filter == 'verloren' %}active{% endif %}">Verloren <span class="fc">{{ by_status.get('verloren', 0) }}</span></a>
         <input type="text" id="searchInput" placeholder="Suchen…" onkeyup="filterTable()"
                style="margin-left:auto;padding:8px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;min-width:200px;background:var(--bg-2)">
     </div>
@@ -105,6 +119,7 @@
                     {% if typ != 'rk' %}<th>Produkt</th>{% endif %}
                     <th>Status</th>
                     <th>Kontaktiert</th>
+                    {% if owner_scope and owner_scope != 'me' %}<th>Von</th>{% endif %}
                     <th></th>
                 </tr>
             </thead>
@@ -129,6 +144,9 @@
                         {% elif l.status == 'neu' %}<span style="color:var(--blue)">noch nicht</span>
                         {% else %}–{% endif %}
                     </td>
+                    {% if owner_scope and owner_scope != 'me' %}
+                    <td style="font-size:12px;color:var(--text-muted)">{{ l.owner_name or '–' }}</td>
+                    {% endif %}
                     <td style="white-space:nowrap;text-align:right">
                         {% if l.phone %}
                         <a href="https://wa.me/{{ l.phone | replace(' ','') | replace('+','') | replace('-','') }}" target="_blank" class="btn btn-secondary btn-sm" title="WhatsApp">WA</a>
@@ -140,7 +158,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="6" style="text-align:center;color:var(--text-soft);padding:48px">
+                <tr><td colspan="{% if owner_scope and owner_scope != 'me' %}7{% else %}6{% endif %}" style="text-align:center;color:var(--text-soft);padding:48px">
                     {% if typ == 'rk' %}Recruiting-Liste leer. Wen sprichst du als nächstes an?{% else %}Liste leer. Wer fehlt hier?{% endif %}<br>
                     <a href="/leads/neu?typ={{ typ if typ != 'all' else 'vk' }}" style="color:var(--gold);font-weight:700;margin-top:10px;display:inline-block">+ Ersten Kontakt anlegen</a>
                 </td></tr>
